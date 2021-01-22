@@ -39,6 +39,9 @@
     M(ZooKeeperSession, "Number of sessions (connections) to ZooKeeper. Should be no more than one, because using more than one connection to ZooKeeper may lead to bugs due to lack of linearizability (stale reads) that ZooKeeper consistency model allows.") \
     M(ZooKeeperWatch, "Number of watches (event subscriptions) in ZooKeeper.") \
     M(ZooKeeperRequest, "Number of requests to ZooKeeper in fly.") \
+    M(ServiceKeeperSession, "Number of sessions (connections) to ServiceKeeper. Should be no more than one, because using more than one connection to ServiceKeeper may lead to bugs due to lack of linearizability (stale reads) that ServiceKeeper consistency model allows.") \
+    M(ServiceKeeperWatch, "Number of watches (event subscriptions) in ServiceKeeper.") \
+    M(ServiceKeeperRequest, "Number of requests to ServiceKeeper in fly.") \
     M(DelayedInserts, "Number of INSERT queries that are throttled due to high number of active data parts for partition in a MergeTree table.") \
     M(ContextLockWait, "Number of threads waiting for lock in Context. This is global lock.") \
     M(StorageBufferRows, "Number of rows in buffers of Buffer tables") \

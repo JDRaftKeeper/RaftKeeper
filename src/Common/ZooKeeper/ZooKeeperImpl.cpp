@@ -1161,6 +1161,19 @@ void ZooKeeper::multi(
     ProfileEvents::increment(ProfileEvents::ZooKeeperMulti);
 }
 
+void ZooKeeper::setSeqNum(const String & path, int32_t seq_num, SetSeqNumCallback callback)
+{
+    ZooKeeperSetSeqNumRequest request;
+    request.path = path;
+    request.seq_num = seq_num;
+
+    RequestInfo request_info;
+    request_info.request = std::make_shared<ZooKeeperSetSeqNumRequest>(std::move(request));
+    request_info.callback = [callback](const Response & response) { callback(dynamic_cast<const SetSeqNumResponse &>(response)); };
+
+    pushRequest(std::move(request_info));
+}
+
 
 void ZooKeeper::close()
 {

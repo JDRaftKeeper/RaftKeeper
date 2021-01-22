@@ -62,6 +62,7 @@ add_subdirectory (Compression)
 add_subdirectory (Server)
 add_subdirectory (Coordination)
 
+add_subdirectory (Service)
 
 set(dbms_headers)
 set(dbms_sources)
@@ -181,6 +182,7 @@ add_object_library(clickhouse_storages_mergetree Storages/MergeTree)
 add_object_library(clickhouse_storages_liveview Storages/LiveView)
 add_object_library(clickhouse_client Client)
 add_object_library(clickhouse_server Server)
+add_object_library(clickhouse_service Service)
 add_object_library(clickhouse_server_http Server/HTTP)
 add_object_library(clickhouse_formats Formats)
 add_object_library(clickhouse_processors Processors)
@@ -458,6 +460,11 @@ endif()
 
 dbms_target_link_libraries(PRIVATE _boost_context)
 
+if(USE_NURAFT)
+    dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
+    dbms_target_include_directories(SYSTEM BEFORE PUBLIC ${NURAFT_INCLUDE_DIR})
+endif()
+
 if (ENABLE_TESTS AND USE_GTEST)
     macro (grep_gtest_sources BASE_DIR DST_VAR)
         # Cold match files that are not in tests/ directories
@@ -478,6 +485,13 @@ if (ENABLE_TESTS AND USE_GTEST)
         -Wno-gnu-zero-variadic-macro-arguments
     )
 
-    target_link_libraries(unit_tests_dbms PRIVATE ${GTEST_BOTH_LIBRARIES} clickhouse_functions clickhouse_aggregate_functions clickhouse_parsers dbms clickhouse_common_zookeeper string_utils)
+    target_link_libraries(unit_tests_dbms PRIVATE ${GTEST_BOTH_LIBRARIES}
+        clickhouse_functions
+        clickhouse_aggregate_functions
+        clickhouse_parsers dbms
+        clickhouse_common_zookeeper
+        string_utils
+        clickhouse_service_protos
+        loggers)
     add_check(unit_tests_dbms)
 endif ()
