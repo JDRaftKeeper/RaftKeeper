@@ -6,11 +6,12 @@
 #include <Poco/Util/LayeredConfiguration.h>
 
 #include "HTTPHandler.h"
-#include "NotFoundHandler.h"
-#include "StaticRequestHandler.h"
-#include "ReplicasStatusHandler.h"
 #include "InterserverIOHTTPHandler.h"
+#include "NotFoundHandler.h"
 #include "PrometheusRequestHandler.h"
+#include "ReplicasStatusHandler.h"
+#include "Service/SvsKeeperPrometheusRequestHandler.h"
+#include "StaticRequestHandler.h"
 #include "WebUIRequestHandler.h"
 
 
