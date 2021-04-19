@@ -10,6 +10,7 @@
 #include <Common/randomSeed.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/Exception.h>
+#include <Common/ZooKeeper/ServiceZooKeeperImpl.h>
 
 #include <Poco/Net/NetException.h>
 
@@ -44,14 +45,13 @@ static void check(Coordination::Error code, const std::string & path)
 
 void ZooKeeper::init(
     const std::string & implementation_,
-    const std::string & hosts_,
-    const std::string & service_hosts_,
+    const Strings & hosts_,
+    const Strings & service_hosts_,
     bool use_ch_service_,
     const std::string & identity_,
     int32_t session_timeout_ms_,
     int32_t operation_timeout_ms_,
     const std::string & chroot_)
-    //Coordination::ConnectionTimeouts timeouts)
 {
     log = &Poco::Logger::get("ZooKeeper");
     LOG_INFO(log , "logging into hosts  {} ", hosts_);
@@ -127,6 +127,93 @@ void ZooKeeper::init(
         else
             LOG_TRACE(log, "Initialized, hosts: {}, chroot: {}", fmt::join(hosts, ","), chroot);
     }
+    else if (implementation == "servicezookeeper")
+    {
+        Coordination::ServiceZooKeeper::Nodes nodes;
+        nodes.reserve(hosts.size());
+
+        Strings shuffled_hosts = hosts;
+        /// Shuffle the hosts to distribute the load among ZooKeeper nodes.
+        pcg64 generator(randomSeed());
+        std::shuffle(shuffled_hosts.begin(), shuffled_hosts.end(), generator);
+
+        bool dns_error = false;
+        for (auto & host_string : shuffled_hosts)
+        {
+            try
+            {
+                bool secure = bool(startsWith(host_string, "secure://"));
+
+                if (secure)
+                    host_string.erase(0, strlen("secure://"));
+
+                nodes.emplace_back(Coordination::ServiceZooKeeper::Node{Poco::Net::SocketAddress{host_string}, secure});
+            }
+            catch (const Poco::Net::HostNotFoundException & e)
+            {
+                /// Most likely it's misconfiguration and wrong hostname was specified
+                LOG_ERROR(log, "Cannot use ZooKeeper host {}, reason: {}", host_string, e.displayText());
+            }
+            catch (const Poco::Net::DNSException & e)
+            {
+                /// Most likely DNS is not available now
+                dns_error = true;
+                LOG_ERROR(log, "Cannot use ZooKeeper host {} due to DNS error: {}", host_string, e.displayText());
+            }
+        }
+
+        Coordination::ServiceZooKeeper::Nodes service_nodes;
+        service_nodes.reserve(service_hosts.size());
+
+        Strings service_shuffled_hosts = service_hosts;
+        /// Shuffle the hosts to distribute the load among ZooKeeper nodes.
+        pcg64 service_generator(randomSeed());
+        std::shuffle(service_shuffled_hosts.begin(), service_shuffled_hosts.end(), service_generator);
+
+        dns_error = false;
+        for (auto & host_string : service_shuffled_hosts)
+        {
+            try
+            {
+                bool secure = bool(startsWith(host_string, "secure://"));
+
+                if (secure)
+                    host_string.erase(0, strlen("secure://"));
+
+                service_nodes.emplace_back(Coordination::ServiceZooKeeper::Node{Poco::Net::SocketAddress{host_string}, secure});
+            }
+            catch (const Poco::Net::HostNotFoundException & e)
+            {
+                /// Most likely it's misconfiguration and wrong hostname was specified
+                LOG_ERROR(log, "Cannot use ZooKeeper host {}, reason: {}", host_string, e.displayText());
+            }
+            catch (const Poco::Net::DNSException & e)
+            {
+                /// Most likely DNS is not available now
+                dns_error = true;
+                LOG_ERROR(log, "Cannot use ZooKeeper host {} due to DNS error: {}", host_string, e.displayText());
+            }
+        }
+
+        if (service_nodes.empty())
+            throw KeeperException("Cannot use any of provided Service nodes", Coordination::Error::ZBADARGUMENTS);
+
+        impl = std::make_unique<Coordination::ServiceZooKeeper>(
+            nodes,
+            service_nodes,
+            use_ch_service,
+            chroot,
+            identity_.empty() ? "" : "digest",
+            identity_,
+            Poco::Timespan(0, session_timeout_ms_ * 1000),
+            Poco::Timespan(0, ZOOKEEPER_CONNECTION_TIMEOUT_MS * 1000),
+            Poco::Timespan(0, operation_timeout_ms_ * 1000));
+
+        if (chroot.empty())
+            LOG_TRACE(log, "Initialized, hosts: {}", fmt::join(hosts, ","));
+        else
+            LOG_TRACE(log, "Initialized, hosts: {}, chroot: {}", fmt::join(hosts, ","), chroot);
+    }
     else if (implementation == "testkeeper")
     {
         impl = std::make_unique<Coordination::TestKeeper>(
@@ -148,14 +235,33 @@ ZooKeeper::ZooKeeper(const std::string & hosts_string, const std::string & ident
     Strings hosts_strings;
     splitInto<','>(hosts_strings, hosts_string);
 
-    init(implementation_, hosts_strings, "", identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
+    init(implementation_, hosts_strings, Strings(), false, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
 }
 
 ZooKeeper::ZooKeeper(const std::string & hosts_, const std::string & service_hosts_, const std::string & identity_, int32_t session_timeout_ms_,
                      int32_t operation_timeout_ms_, const std::string & chroot_, const std::string & implementation_)
 {
+    Strings hosts_strings;
+    splitInto<','>(hosts_strings, hosts_);
+
+    Strings service_hosts_strings;
+    splitInto<','>(service_hosts_strings, service_hosts_);
+
+    init(implementation_, hosts_strings, service_hosts_strings, false, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
+}
+
+ZooKeeper::ZooKeeper(const Strings & hosts_string, const std::string & identity_, int32_t session_timeout_ms_,
+                     int32_t operation_timeout_ms_, const std::string & chroot_, const std::string & implementation_)
+{
+    init(implementation_, hosts_string, Strings(), false, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
+}
+
+ZooKeeper::ZooKeeper(const Strings & hosts_, const Strings & service_hosts_, const std::string & identity_, int32_t session_timeout_ms_,
+                     int32_t operation_timeout_ms_, const std::string & chroot_, const std::string & implementation_)
+{
     init(implementation_, hosts_, service_hosts_, false, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
 }
+
 
 struct ZooKeeperArgs
 {
@@ -163,8 +269,6 @@ struct ZooKeeperArgs
     {
         Poco::Util::AbstractConfiguration::Keys keys;
         config.keys(config_name, keys);
-
-        std::vector<std::string> service_hosts_strings;
 
         session_timeout_ms = Coordination::DEFAULT_SESSION_TIMEOUT_MS;
         operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
@@ -202,7 +306,7 @@ struct ZooKeeperArgs
             }
             else if (startsWith(key, "service_node"))
             {
-                service_hosts_strings.push_back(
+                service_hosts.push_back(
                     (config.getBool(config_name + "." + key + ".secure", false) ? "secure://" : "") +
                     config.getString(config_name + "." + key + ".host") + ":"
                     + config.getString(config_name + "." + key + ".port", "5102")
@@ -214,13 +318,6 @@ struct ZooKeeperArgs
             }
             else
                 throw KeeperException(std::string("Unknown key ") + key + " in config file", Coordination::Error::ZBADARGUMENTS);
-        }
-
-        for (auto & host : service_hosts_strings)
-        {
-            if (!service_hosts.empty())
-                service_hosts += ',';
-            service_hosts += host;
         }
 
         if (!chroot.empty())
@@ -241,7 +338,7 @@ struct ZooKeeperArgs
     std::string chroot;
     std::string implementation;
     bool use_ch_service;
-    std::string service_hosts;
+    Strings service_hosts;
 };
 
 ZooKeeper::ZooKeeper(const Poco::Util::AbstractConfiguration & config, const std::string & config_name)

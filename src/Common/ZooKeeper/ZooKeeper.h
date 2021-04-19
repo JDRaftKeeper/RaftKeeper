@@ -63,6 +63,12 @@ public:
               const std::string & chroot_ = "",
               const std::string & implementation_ = "zookeeper");
 
+    ZooKeeper(const Strings & hosts_, const Strings & service_hosts_, const std::string & identity_ = "",
+              int32_t session_timeout_ms_ = Coordination::DEFAULT_SESSION_TIMEOUT_MS,
+              int32_t operation_timeout_ms_ = Coordination::DEFAULT_OPERATION_TIMEOUT_MS,
+              const std::string & chroot_ = "",
+              const std::string & implementation_ = "zookeeper");
+
     ZooKeeper(const std::string & hosts_, const std::string & service_hosts_, const std::string & identity_ = "",
               int32_t session_timeout_ms_ = Coordination::DEFAULT_SESSION_TIMEOUT_MS,
               int32_t operation_timeout_ms_ = Coordination::DEFAULT_OPERATION_TIMEOUT_MS,
@@ -260,17 +266,14 @@ public:
 private:
     friend class EphemeralNodeHolder;
 
-    void init(const std::string & implementation_, const Strings & hosts_, const std::string & identity_,
-              int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);
-
     /*void init(const std::string & implementation_, const std::string & hosts_, const std::string & identity_,
               int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);*/
-    void init(const std::string & implementation_, const std::string & hosts_, const std::string & service_hosts_,
+    void init(const std::string & implementation_, const Strings & hosts_, const Strings & service_hosts_,
               bool use_ch_service_, const std::string & identity_,
         int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);
 
-    void removeChildrenRecursive(const std::string & path);
-    void tryRemoveChildrenRecursive(const std::string & path);
+    void removeChildrenRecursive(const std::string & path, const String & keep_child_node = {});
+    void tryRemoveChildrenRecursive(const std::string & path, const String & keep_child_node = {});
 
     /// The following methods don't throw exceptions but return error codes.
     Coordination::Error createImpl(const std::string & path, const std::string & data, int32_t mode, std::string & path_created);
@@ -291,7 +294,7 @@ private:
     int32_t operation_timeout_ms;
     std::string chroot;
     std::string implementation;
-    std::string service_hosts;
+    Strings service_hosts;
     bool use_ch_service;
     std::mutex mutex;
 
