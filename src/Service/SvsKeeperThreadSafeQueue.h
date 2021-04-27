@@ -8,7 +8,7 @@ namespace DB
 
 /// Queue with mutex and condvar. As simple as possible.
 template <typename T>
-class ThreadSafeQueue
+class SvsKeeperThreadSafeQueue
 {
 private:
     mutable std::mutex queue_mutex;

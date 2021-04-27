@@ -108,7 +108,7 @@ TEST(RaftStateMachine, createSnapshotTime)
 TEST(RaftStateMachine, serializeAndParse)
 {
     std::string snap_dir(SNAP_DIR + "/0");
-    ResponsesQueue queue;
+    SvsKeeperResponsesQueue queue;
     CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
 
@@ -143,7 +143,7 @@ TEST(RaftStateMachine, serializeAndParse)
 TEST(RaftStateMachine, appendEntry)
 {
     std::string snap_dir(SNAP_DIR + "/1");
-    ResponsesQueue queue;
+    SvsKeeperResponsesQueue queue;
     CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
@@ -158,7 +158,7 @@ TEST(RaftStateMachine, appendEntry)
 TEST(RaftStateMachine, modifyEntry)
 {
     std::string snap_dir(SNAP_DIR + "/2");
-    ResponsesQueue queue;
+    SvsKeeperResponsesQueue queue;
     CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
@@ -187,7 +187,7 @@ TEST(RaftStateMachine, modifyEntry)
 TEST(RaftStateMachine, createSnapshot)
 {
     std::string snap_dir(SNAP_DIR + "/3");
-    ResponsesQueue queue;
+    SvsKeeperResponsesQueue queue;
     CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
@@ -210,7 +210,7 @@ TEST(RaftStateMachine, syncSnapshot)
 {
     std::string snap_dir_1(SNAP_DIR + "/4");
     std::string snap_dir_2(SNAP_DIR + "/5");
-    ResponsesQueue queue;
+    SvsKeeperResponsesQueue queue;
     CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3);
     NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3);
