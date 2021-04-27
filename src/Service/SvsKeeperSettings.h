@@ -41,6 +41,6 @@ struct SvsKeeperSettings : public BaseSettings<SvsKeeperSettingsTraits>
     void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
 };
 
-using CoordinationSettingsPtr = std::shared_ptr<SvsKeeperSettings>;
+using SvsKeeperSettingsPtr = std::shared_ptr<SvsKeeperSettings>;
 
 }

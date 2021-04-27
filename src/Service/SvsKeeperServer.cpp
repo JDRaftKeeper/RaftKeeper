@@ -24,7 +24,7 @@ namespace ErrorCodes
 
 SvsKeeperServer::SvsKeeperServer(
     int server_id_,
-    const CoordinationSettingsPtr & coordination_settings_,
+    const SvsKeeperSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config,
     SvsKeeperResponsesQueue & responses_queue_)
     : server_id(server_id_)
