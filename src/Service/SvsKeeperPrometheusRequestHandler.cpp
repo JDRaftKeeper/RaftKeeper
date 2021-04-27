@@ -1,5 +1,5 @@
-#include "SvsKeeperPrometheusRequestHandler.h"
-#include "SvsKeeperMetricsWriter.h"
+#include <Service/SvsKeeperPrometheusRequestHandler.h>
+#include <Service/SvsKeeperMetricsWriter.h>
 
 #include <IO/HTTPCommon.h>
 
@@ -11,14 +11,17 @@
 #include <Common/CurrentMetrics.h>
 #include <Common/ProfileEvents.h>
 
-#include <IO/WriteBufferFromHTTPServerResponse.h>
 #include <Server/HTTPHandlerRequestFilter.h>
 #include <Service/SvsKeeperMetrics.h>
+
+#include <Server/HTTP/WriteBufferFromHTTPServerResponse.h>
+#include <Server/HTTPHandlerFactory.h>
+#include <Server/IServer.h>
 
 
 namespace DB
 {
-void SvsKeeperPrometheusRequestHandler::handleRequest(Poco::Net::HTTPServerRequest & request, Poco::Net::HTTPServerResponse & response)
+void SvsKeeperPrometheusRequestHandler::handleRequest(HTTPServerRequest & request, HTTPServerResponse & response)
 {
     try
     {
@@ -29,9 +32,16 @@ void SvsKeeperPrometheusRequestHandler::handleRequest(Poco::Net::HTTPServerReque
 
         response.setContentType("text/plain; version=0.0.4; charset=UTF-8");
 
-        auto wb = WriteBufferFromHTTPServerResponse(request, response, keep_alive_timeout);
-        metrics_writer.write(wb);
-        wb.finalize();
+        WriteBufferFromHTTPServerResponse wb(response, request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD, keep_alive_timeout);
+        try
+        {
+            metrics_writer.write(wb);
+            wb.finalize();
+        }
+        catch (...)
+        {
+            wb.finalize();
+        }
     }
     catch (...)
     {
@@ -39,16 +49,13 @@ void SvsKeeperPrometheusRequestHandler::handleRequest(Poco::Net::HTTPServerReque
     }
 }
 
-Poco::Net::HTTPRequestHandlerFactory *
-createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & name, const std::string & config_prefix)
+HTTPRequestHandlerFactoryPtr
+createSvsKeeperPrometheusHandlerFactory(IServer & server, AsynchronousMetrics &, const std::string & config_prefix)
 {
-    auto factory = std::make_unique<HTTPRequestHandlerFactoryMain>(name);
-    auto handler = std::make_unique<HandlingRuleHTTPHandlerFactory<SvsKeeperPrometheusRequestHandler>>(
-        server, SvsKeeperMetricsWriter(server.config(), config_prefix));
-    std:: string endpoint = server.config().getString(config_prefix + ".endpoint", "/metrics");
-    handler->attachStrictPath(endpoint)->allowGetAndHeadRequest();
-    factory->addHandler(handler.release());
-    return factory.release();
+    auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<SvsKeeperPrometheusRequestHandler>>(
+        server, SvsKeeperMetricsWriter(server.config(), config_prefix + ".endpoint"));
+    factory->addFiltersFromConfig(server.config(), config_prefix);
+    return factory;
 }
 
 }

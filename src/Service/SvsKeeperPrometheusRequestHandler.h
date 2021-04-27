@@ -1,10 +1,6 @@
-#ifndef CLICKHOUSE_SVSKEEPERPROMETHEUSREQUESTHANDLER_H
-#define CLICKHOUSE_SVSKEEPERPROMETHEUSREQUESTHANDLER_H
+#pragma once
 
-#include <Poco/Net/HTTPServerRequest.h>
-#include <Poco/Net/HTTPServerResponse.h>
-#include <Poco/Net/HTTPRequestHandler.h>
-#include <Poco/Net/HTTPRequestHandlerFactory.h>
+#include <Server/HTTP/HTTPRequestHandler.h>
 
 #include "Server/IServer.h"
 #include "SvsKeeperMetricsWriter.h"
@@ -12,7 +8,7 @@
 namespace DB
 {
 
-class SvsKeeperPrometheusRequestHandler : public Poco::Net::HTTPRequestHandler
+class SvsKeeperPrometheusRequestHandler : public HTTPRequestHandler
 {
 private:
     IServer & server;
@@ -25,12 +21,7 @@ public:
     {
     }
 
-    void handleRequest(
-        Poco::Net::HTTPServerRequest & request,
-        Poco::Net::HTTPServerResponse & response) override;
+    void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response) override;
 };
 
 }
-
-
-#endif //CLICKHOUSE_SVSKEEPERPROMETHEUSREQUESTHANDLER_H
