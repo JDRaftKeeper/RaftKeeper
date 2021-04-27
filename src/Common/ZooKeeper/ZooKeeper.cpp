@@ -54,7 +54,7 @@ void ZooKeeper::init(
     const std::string & chroot_)
 {
     log = &Poco::Logger::get("ZooKeeper");
-    LOG_INFO(log , "logging into hosts  {} ", hosts_);
+    LOG_INFO(log , "logging into hosts  {} ", fmt::join(hosts_, ","));
     hosts = hosts_;
     identity = identity_;
     session_timeout_ms = session_timeout_ms_;
