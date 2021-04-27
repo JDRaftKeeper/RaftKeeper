@@ -151,7 +151,7 @@ TEST(RaftPerformance, machineCreateThread)
     std::string snap_dir(LOG_DIR + "/51");
     cleanDirectory(snap_dir);
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     int key_bytes = 256;
     int value_bytes = 1024;

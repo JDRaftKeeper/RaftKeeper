@@ -28,7 +28,7 @@ class NuRaftStateMachine : public nuraft::state_machine
 public:
     NuRaftStateMachine(
         SvsKeeperResponsesQueue & responses_queue_,
-        const CoordinationSettingsPtr & coordination_settings_,
+        const SvsKeeperSettingsPtr & coordination_settings_,
         std::string & snap_dir,
         UInt32 begin_second,
         UInt32 internal,
@@ -119,7 +119,7 @@ private:
 
 private:
     Poco::Logger * log;
-    CoordinationSettingsPtr coordination_settings;
+    SvsKeeperSettingsPtr coordination_settings;
 
     //NodeMap node_map;
     SvsKeeperStorage storage;

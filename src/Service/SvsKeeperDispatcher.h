@@ -29,7 +29,7 @@ class SvsKeeperDispatcher
 private:
     std::mutex push_request_mutex;
 
-    CoordinationSettingsPtr coordination_settings;
+    SvsKeeperSettingsPtr coordination_settings;
     using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
     RequestsQueue requests_queue{1};
     SvsKeeperResponsesQueue responses_queue;
