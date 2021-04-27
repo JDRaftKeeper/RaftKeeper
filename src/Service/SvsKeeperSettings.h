@@ -15,7 +15,7 @@ struct Settings;
   * and should not be changed by the user without a reason.
   */
 
-#define LIST_OF_COORDINATION_SETTINGS(M) \
+#define SVS_LIST_OF_COORDINATION_SETTINGS(M) \
     M(Milliseconds, session_timeout_ms, Coordination::DEFAULT_SESSION_TIMEOUT_MS, "Default client session timeout", 0) \
     M(Milliseconds, operation_timeout_ms, Coordination::DEFAULT_OPERATION_TIMEOUT_MS, "Default client operation timeout", 0) \
     M(Milliseconds, dead_session_check_period_ms, 500, "How often leader will check sessions to consider them dead and remove", 0) \
@@ -33,10 +33,10 @@ struct Settings;
     M(Bool, force_sync, true, " Call fsync on each change in RAFT changelog", 0) \
     M(UInt64, nuraft_thread_size, 32, "NuRaft thread pool size", 0)
 
-DECLARE_SETTINGS_TRAITS(CoordinationSettingsTraits, LIST_OF_COORDINATION_SETTINGS)
+DECLARE_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
 
-struct SvsKeeperSettings : public BaseSettings<CoordinationSettingsTraits>
+struct SvsKeeperSettings : public BaseSettings<SvsKeeperSettingsTraits>
 {
     void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
 };

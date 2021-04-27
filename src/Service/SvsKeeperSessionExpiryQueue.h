@@ -6,7 +6,7 @@
 namespace DB
 {
 
-class SessionExpiryQueue
+class SvsKeeperSessionExpiryQueue
 {
 private:
     std::unordered_map<int64_t, int64_t> session_to_timeout;
@@ -27,7 +27,7 @@ private:
     }
 
 public:
-    explicit SessionExpiryQueue(int64_t expiration_interval_)
+    explicit SvsKeeperSessionExpiryQueue(int64_t expiration_interval_)
         : expiration_interval(expiration_interval_)
         , next_expiration_time(roundToNextInterval(getNowMilliseconds()))
     {
