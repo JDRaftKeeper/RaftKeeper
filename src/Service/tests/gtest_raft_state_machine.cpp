@@ -109,7 +109,7 @@ TEST(RaftStateMachine, serializeAndParse)
 {
     std::string snap_dir(SNAP_DIR + "/0");
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
 
     ACLs default_acls;
@@ -144,7 +144,7 @@ TEST(RaftStateMachine, appendEntry)
 {
     std::string snap_dir(SNAP_DIR + "/1");
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
     std::string key("/table1");
@@ -159,7 +159,7 @@ TEST(RaftStateMachine, modifyEntry)
 {
     std::string snap_dir(SNAP_DIR + "/2");
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
     std::string key("/table1");
@@ -188,7 +188,7 @@ TEST(RaftStateMachine, createSnapshot)
 {
     std::string snap_dir(SNAP_DIR + "/3");
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     cleanDirectory(snap_dir);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -211,7 +211,7 @@ TEST(RaftStateMachine, syncSnapshot)
     std::string snap_dir_1(SNAP_DIR + "/4");
     std::string snap_dir_2(SNAP_DIR + "/5");
     SvsKeeperResponsesQueue queue;
-    CoordinationSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3);
     NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3);
     cleanDirectory(snap_dir_1);

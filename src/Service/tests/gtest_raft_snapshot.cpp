@@ -57,7 +57,7 @@ TEST(RaftSnapshot, createSnapshot_1)
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     snapshot snap_meta(1, 1, config);
 
-    CoordinationSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
+    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
     SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     setNode(storage, "1", "table_1");
@@ -74,7 +74,7 @@ TEST(RaftSnapshot, createSnapshot_2)
     KeeperSnapshotManager snap_mgr(snap_dir, 100, 3);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    CoordinationSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
+    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
     SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     UInt32 last_index = 1024;
@@ -105,7 +105,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    CoordinationSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
+    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
     SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     for (int i = 0; i < last_index; i++)
@@ -149,7 +149,7 @@ TEST(RaftSnapshot, parseSnapshot)
     KeeperSnapshotManager snap_mgr(snap_dir, 100, 3);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    CoordinationSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
+    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
     SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     UInt32 last_index = 1024;

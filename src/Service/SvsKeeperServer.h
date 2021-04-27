@@ -22,7 +22,7 @@ class SvsKeeperServer
 private:
     int server_id;
 
-    CoordinationSettingsPtr coordination_settings;
+    SvsKeeperSettingsPtr coordination_settings;
 
     nuraft::ptr<NuRaftStateMachine> state_machine;
 
@@ -47,7 +47,7 @@ private:
 public:
     SvsKeeperServer(
         int server_id_,
-        const CoordinationSettingsPtr & coordination_settings_,
+        const SvsKeeperSettingsPtr & coordination_settings_,
         const Poco::Util::AbstractConfiguration & config,
         SvsKeeperResponsesQueue & responses_queue_);
 

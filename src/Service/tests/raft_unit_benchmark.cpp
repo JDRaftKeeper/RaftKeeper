@@ -318,7 +318,7 @@ void snapshotVolume(int last_index)
     KeeperSnapshotManager snap_mgr(snap_dir, 1000000, 20);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    CoordinationSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
+    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
     SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     auto mem1 = GetProcessMemory();
