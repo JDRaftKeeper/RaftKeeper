@@ -3,7 +3,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <Service/SessionExpiryQueue.h>
+#include <Service/SvsKeeperSessionExpiryQueue.h>
 #include <Poco/Logger.h>
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/ThreadPool.h>
@@ -162,7 +162,7 @@ public:
     mutable std::shared_mutex ephemerals_mutex;
 
     SessionAndWatcher sessions_and_watchers;
-    SessionExpiryQueue session_expiry_queue;
+    SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
     std::shared_mutex session_mutex;
 

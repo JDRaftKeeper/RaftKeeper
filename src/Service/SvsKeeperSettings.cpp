@@ -9,7 +9,7 @@ namespace ErrorCodes
 extern const int UNKNOWN_SETTING;
 }
 
-IMPLEMENT_SETTINGS_TRAITS(CoordinationSettingsTraits, LIST_OF_COORDINATION_SETTINGS)
+IMPLEMENT_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
 void SvsKeeperSettings::loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config)
 {

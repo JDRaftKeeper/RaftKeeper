@@ -34,7 +34,7 @@ private:
 
     std::mutex append_entries_mutex;
 
-    ResponsesQueue & responses_queue;
+    SvsKeeperResponsesQueue & responses_queue;
 
     Poco::Logger * log;
 
@@ -49,7 +49,7 @@ public:
         int server_id_,
         const CoordinationSettingsPtr & coordination_settings_,
         const Poco::Util::AbstractConfiguration & config,
-        ResponsesQueue & responses_queue_);
+        SvsKeeperResponsesQueue & responses_queue_);
 
     void startup(const Poco::Util::AbstractConfiguration & config);
 

@@ -1,9 +1,9 @@
-#include <Service/SessionExpiryQueue.h>
+#include <Service/SvsKeeperSessionExpiryQueue.h>
 #include <common/logger_useful.h>
 namespace DB
 {
 
-bool SessionExpiryQueue::remove(int64_t session_id)
+bool SvsKeeperSessionExpiryQueue::remove(int64_t session_id)
 {
     auto session_it = session_to_timeout.find(session_id);
     if (session_it != session_to_timeout.end())
@@ -18,7 +18,7 @@ bool SessionExpiryQueue::remove(int64_t session_id)
     return false;
 }
 
-bool SessionExpiryQueue::update(int64_t session_id, int64_t timeout_ms)
+bool SvsKeeperSessionExpiryQueue::update(int64_t session_id, int64_t timeout_ms)
 {
     auto session_it = session_to_timeout.find(session_id);
     int64_t now = getNowMilliseconds();
@@ -56,7 +56,7 @@ bool SessionExpiryQueue::update(int64_t session_id, int64_t timeout_ms)
     }
 }
 
-std::unordered_set<int64_t> SessionExpiryQueue::getExpiredSessions()
+std::unordered_set<int64_t> SvsKeeperSessionExpiryQueue::getExpiredSessions()
 {
     int64_t now = getNowMilliseconds();
     if (now < next_expiration_time)
@@ -74,7 +74,7 @@ std::unordered_set<int64_t> SessionExpiryQueue::getExpiredSessions()
     return {};
 }
 
-void SessionExpiryQueue::clear()
+void SvsKeeperSessionExpiryQueue::clear()
 {
     session_to_timeout.clear();
     expiry_to_sessions.clear();

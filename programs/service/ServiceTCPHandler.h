@@ -12,7 +12,7 @@
 #include <Interpreters/Context.h>
 #include <Server/IServer.h>
 #include <Service/SvsKeeperDispatcher.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Service/SvsKeeperThreadSafeQueue.h>
 #include <Poco/Net/TCPServerConnection.h>
 #include <Common/Stopwatch.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
@@ -24,7 +24,7 @@ namespace DB
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-using ThreadSafeResponseQueue = ThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
+using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
 
 using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
 

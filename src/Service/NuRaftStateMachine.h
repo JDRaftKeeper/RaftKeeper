@@ -9,7 +9,7 @@
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Service/SvsKeeperThreadSafeQueue.h>
 #include <libnuraft/nuraft.hxx>
 #include <common/types.h>
 
@@ -21,13 +21,13 @@ using nuraft::buffer;
 using nuraft::cs_new;
 using nuraft::ptr;
 
-using ResponsesQueue = ThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
+using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
 
 class NuRaftStateMachine : public nuraft::state_machine
 {
 public:
     NuRaftStateMachine(
-        ResponsesQueue & responses_queue_,
+        SvsKeeperResponsesQueue & responses_queue_,
         const CoordinationSettingsPtr & coordination_settings_,
         std::string & snap_dir,
         UInt32 begin_second,
@@ -123,7 +123,7 @@ private:
 
     //NodeMap node_map;
     SvsKeeperStorage storage;
-    ResponsesQueue & responses_queue;
+    SvsKeeperResponsesQueue & responses_queue;
 
     // Last committed Raft log number.
     std::atomic<uint64_t> last_committed_idx;
