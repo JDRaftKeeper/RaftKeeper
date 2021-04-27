@@ -66,6 +66,7 @@
 #include <Interpreters/DatabaseCatalog.h>
 #include <Storages/MergeTree/BackgroundJobsExecutor.h>
 #include <Storages/MergeTree/MergeTreeDataPartUUID.h>
+#include <Service/SvsKeeperDispatcher.h>
 
 
 namespace ProfileEvents
@@ -310,9 +311,6 @@ struct ContextShared
     mutable std::mutex nu_keeper_storage_dispatcher_mutex;
     mutable std::shared_ptr<NuKeeperStorageDispatcher> nu_keeper_storage_dispatcher;
 #endif
-    mutable std::mutex service_keeper_storage_mutex;
-    mutable std::shared_ptr<zkutil::SvsKeeperStorage> service_keeper_storage;
-
     mutable std::mutex service_keeper_storage_dispatcher_mutex;
     mutable std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 

@@ -52,8 +52,6 @@ std::string toString(OpNum op_num)
             return "Check";
         case OpNum::Multi:
             return "Multi";
-        case OpNum::Sync:
-            return "Sync";
         case OpNum::Heartbeat:
             return "Heartbeat";
         case OpNum::Auth:

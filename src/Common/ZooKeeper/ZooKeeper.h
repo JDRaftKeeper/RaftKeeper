@@ -205,6 +205,12 @@ public:
     /// result would be the same as for the single call.
     void tryRemoveRecursive(const std::string & path);
 
+    /// Similar to removeRecursive(...) and tryRemoveRecursive(...), but does not remove path itself.
+    /// If keep_child_node is not empty, this method will not remove path/keep_child_node (but will remove its subtree).
+    /// It can be useful to keep some child node as a flag which indicates that path is currently removing.
+    void removeChildrenRecursive(const std::string & path, const String & keep_child_node = {});
+    void tryRemoveChildrenRecursive(const std::string & path, const String & keep_child_node = {});
+
     /// Remove all children nodes (non recursive).
     void removeChildren(const std::string & path);
 
@@ -272,9 +278,6 @@ private:
               bool use_ch_service_, const std::string & identity_,
         int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);
 
-    void removeChildrenRecursive(const std::string & path, const String & keep_child_node = {});
-    void tryRemoveChildrenRecursive(const std::string & path, const String & keep_child_node = {});
-
     /// The following methods don't throw exceptions but return error codes.
     Coordination::Error createImpl(const std::string & path, const std::string & data, int32_t mode, std::string & path_created);
     Coordination::Error removeImpl(const std::string & path, int32_t version);
@@ -312,7 +315,7 @@ public:
     using Ptr = std::shared_ptr<EphemeralNodeHolder>;
 
     EphemeralNodeHolder(const std::string & path_, ZooKeeper & zookeeper_, bool create, bool sequential, const std::string & data)
-            : path(path_), zookeeper(zookeeper_)
+        : path(path_), zookeeper(zookeeper_)
     {
         if (create)
             path = zookeeper.create(path, data, sequential ? CreateMode::EphemeralSequential : CreateMode::Ephemeral);
@@ -338,8 +341,15 @@ public:
         return std::make_shared<EphemeralNodeHolder>(path, zookeeper, false, false, "");
     }
 
+    void setAlreadyRemoved()
+    {
+        need_remove = false;
+    }
+
     ~EphemeralNodeHolder()
     {
+        if (!need_remove)
+            return;
         try
         {
             zookeeper.tryRemove(path);
@@ -347,7 +357,7 @@ public:
         catch (...)
         {
             ProfileEvents::increment(ProfileEvents::CannotRemoveEphemeralNode);
-            DB::tryLogCurrentException(__PRETTY_FUNCTION__);
+            DB::tryLogCurrentException(__PRETTY_FUNCTION__, "Cannot remove " + path + ": ");
         }
     }
 
@@ -355,6 +365,7 @@ private:
     std::string path;
     ZooKeeper & zookeeper;
     CurrentMetrics::Increment metric_increment{CurrentMetrics::EphemeralNode};
+    bool need_remove = true;
 };
 
 using EphemeralNodeHolderPtr = EphemeralNodeHolder::Ptr;
