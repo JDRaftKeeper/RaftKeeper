@@ -1,0 +1,102 @@
+syntax="proto3";
+
+package DB;
+
+enum LogEntryTypePB 
+{
+    ENTRY_TYPE_DATA = 0;
+    ENTRY_TYPE_CONFIG = 1;
+    ENTRY_TYPE_SERVER = 2;
+}
+
+enum LogOpTypePB 
+{
+    OP_TYPE_CREATE = 0;
+    OP_TYPE_SET = 1;
+    OP_TYPE_REMOVE = 2;
+}
+
+// The term of an operation or the leader's sequence id.
+message LogIndex 
+{
+  uint64 term = 1;
+  uint64 index = 2;
+}
+
+message RaftPeerPB 
+{
+  string host = 1;
+  uint32 port = 2;
+}
+
+message ConfigPB 
+{
+    RaftPeerPB peers = 3;
+    RaftPeerPB old_peers = 4;
+}
+
+message LogDataPB 
+{
+    string key = 1;
+    LogOpTypePB op_type = 2;
+    bytes data = 3;
+}
+
+// for log store
+message LogEntryPB 
+{
+    LogIndex log_index = 1;
+    LogEntryTypePB entry_type = 2;
+    repeated LogDataPB data = 3;
+    repeated ConfigPB config = 4;
+}
+
+// A header for a log segment.
+message LogSegmentHeaderPB 
+{
+    LogIndex first_id = 1;
+}
+
+// A footer for a log segment.
+message LogSegmentFooterPB 
+{
+    int64 num_entries = 1;
+    LogIndex first_index = 2;
+    LogIndex last_index = 3;
+    int64 close_timestamp_micros = 4;
+}
+
+// for snapshot store
+message SnapshotDataPB 
+{
+    string key = 1;
+    bytes data = 2;
+}
+
+message SnapshotEntryPB 
+{
+    LogEntryTypePB entry_type = 1;
+    repeated SnapshotDataPB data = 2;
+    repeated ConfigPB config = 3;
+}
+
+
+//For keeper snapshot
+enum SnapshotTypePB 
+{
+    SNAPSHOT_TYPE_DATA = 0;
+    SNAPSHOT_TYPE_DATA_EPHEMERAL = 1;
+    SNAPSHOT_TYPE_CONFIG = 2;
+    SNAPSHOT_TYPE_SERVER = 3;
+}
+
+message SnapshotItemPB 
+{
+    bytes data = 1;
+}
+
+message SnapshotBatchPB 
+{
+    SnapshotTypePB batch_type = 1;
+    repeated SnapshotItemPB data = 2;
+}

@@ -1,0 +1,49 @@
+<yandex>
+<remote_servers incl="clickhouse_remote_servers" >
+    <test_ch_service_cluster>
+        <shard>
+            <replica>
+                <host>node4</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node5</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node6</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+        <shard>
+            <replica>
+                <host>node7</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node8</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node9</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+        <shard>
+            <replica>
+                <host>node10</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node11</host>
+                <port>9000</port>
+            </replica>
+            <replica>
+                <host>node12</host>
+                <port>9000</port>
+            </replica>
+        </shard>
+    </test_ch_service_cluster>
+    <!-- Test only shard config for testing distributed storage -->
+</remote_servers>
+</yandex>

@@ -63,6 +63,12 @@ public:
               const std::string & chroot_ = "",
               const std::string & implementation_ = "zookeeper");
 
+    ZooKeeper(const std::string & hosts_, const std::string & service_hosts_, const std::string & identity_ = "",
+              int32_t session_timeout_ms_ = Coordination::DEFAULT_SESSION_TIMEOUT_MS,
+              int32_t operation_timeout_ms_ = Coordination::DEFAULT_OPERATION_TIMEOUT_MS,
+              const std::string & chroot_ = "",
+              const std::string & implementation_ = "zookeeper");
+
     /** Config of the form:
         <zookeeper>
             <node>
@@ -112,6 +118,8 @@ public:
     /// Create a Persistent node.
     /// Does nothing if the node already exists.
     void createIfNotExists(const std::string & path, const std::string & data);
+
+    void setSeqNum(const std::string & path, int32_t seq_num);
 
     /// Creates all non-existent ancestors of the given path with empty contents.
     /// Does not create the node itself.
@@ -191,17 +199,10 @@ public:
     /// result would be the same as for the single call.
     void tryRemoveRecursive(const std::string & path);
 
-    /// Similar to removeRecursive(...) and tryRemoveRecursive(...), but does not remove path itself.
-    /// If keep_child_node is not empty, this method will not remove path/keep_child_node (but will remove its subtree).
-    /// It can be useful to keep some child node as a flag which indicates that path is currently removing.
-    void removeChildrenRecursive(const std::string & path, const String & keep_child_node = {});
-    void tryRemoveChildrenRecursive(const std::string & path, const String & keep_child_node = {});
-
     /// Remove all children nodes (non recursive).
     void removeChildren(const std::string & path);
 
     using WaitCondition = std::function<bool()>;
-
     /// Wait for the node to disappear or return immediately if it doesn't exist.
     /// If condition is specified, it is used to return early (when condition returns false)
     /// The function returns true if waited and false if waiting was interrupted by condition.
@@ -262,6 +263,15 @@ private:
     void init(const std::string & implementation_, const Strings & hosts_, const std::string & identity_,
               int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);
 
+    /*void init(const std::string & implementation_, const std::string & hosts_, const std::string & identity_,
+              int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);*/
+    void init(const std::string & implementation_, const std::string & hosts_, const std::string & service_hosts_,
+              bool use_ch_service_, const std::string & identity_,
+        int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_);
+
+    void removeChildrenRecursive(const std::string & path);
+    void tryRemoveChildrenRecursive(const std::string & path);
+
     /// The following methods don't throw exceptions but return error codes.
     Coordination::Error createImpl(const std::string & path, const std::string & data, int32_t mode, std::string & path_created);
     Coordination::Error removeImpl(const std::string & path, int32_t version);
@@ -281,7 +291,8 @@ private:
     int32_t operation_timeout_ms;
     std::string chroot;
     std::string implementation;
-
+    std::string service_hosts;
+    bool use_ch_service;
     std::mutex mutex;
 
     Poco::Logger * log = nullptr;
@@ -324,15 +335,8 @@ public:
         return std::make_shared<EphemeralNodeHolder>(path, zookeeper, false, false, "");
     }
 
-    void setAlreadyRemoved()
-    {
-        need_remove = false;
-    }
-
     ~EphemeralNodeHolder()
     {
-        if (!need_remove)
-            return;
         try
         {
             zookeeper.tryRemove(path);
@@ -340,7 +344,7 @@ public:
         catch (...)
         {
             ProfileEvents::increment(ProfileEvents::CannotRemoveEphemeralNode);
-            DB::tryLogCurrentException(__PRETTY_FUNCTION__, "Cannot remove " + path + ": ");
+            DB::tryLogCurrentException(__PRETTY_FUNCTION__);
         }
     }
 
@@ -348,7 +352,6 @@ private:
     std::string path;
     ZooKeeper & zookeeper;
     CurrentMetrics::Increment metric_increment{CurrentMetrics::EphemeralNode};
-    bool need_remove = true;
 };
 
 using EphemeralNodeHolderPtr = EphemeralNodeHolder::Ptr;

@@ -1,8 +1,23 @@
 <yandex>
     <zookeeper>
-        <node index="1">
-            <host>localhost</host>
-            <port>9181</port>
+        <implementation>servicezookeeper</implementation>
+        <node>
+            <host>127.0.0.1</host>
+            <port>2181</port>
         </node>
+        <service_node>
+            <host>localhost</host>
+            <port>5102</port>
+        </service_node>
+        <!--<service_node>
+            <host>11.11.36.244</host>
+            <port>5102</port>
+        </service_node>
+        <service_node>
+            <host>11.11.37.8</host>
+            <port>5102</port>
+        </service_node>-->
+        <use_ch_service>false</use_ch_service>
+        <session_timeout_ms>100000</session_timeout_ms>
     </zookeeper>
 </yandex>

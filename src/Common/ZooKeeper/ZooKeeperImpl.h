@@ -167,6 +167,8 @@ public:
         const Requests & requests,
         MultiCallback callback) override;
 
+    void setSeqNum(const String & path, int32_t seq_num, SetSeqNumCallback callback) override;
+
     /// Without forcefully invalidating (finalizing) ZooKeeper session before
     /// establishing a new one, there was a possibility that server is using
     /// two ZooKeeper sessions simultaneously in different parts of code.

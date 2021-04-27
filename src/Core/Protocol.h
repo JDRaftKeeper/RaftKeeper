@@ -158,6 +158,56 @@ namespace Protocol
         }
     }
 
+    namespace ServiceServer
+    {
+        enum Enum
+        {
+            Hello = 0,                  /// Name, version, revision.
+            Pong = 1,                   /// Ping response
+            Data = 2,                   /// A block of data (compressed or not).
+            Callback = 3,               ///Watch znode and call back client.                        
+            Exception = 4,              /// The exception during query execution.            
+            ProfileInfo = 5,            /// Packet with profiling info.
+            MAX = ProfileInfo,
+        };
+
+        inline const char * toString(UInt64 packet)
+        {
+            static const char * data[] = {
+                "Hello",
+                "Pong",
+                "Data",
+                "Callback",
+                "Exception",
+                "ProfileInfo",
+            };
+            return packet <= MAX ? data[packet] : "Unknown packet";
+        }
+    }
+    
+    namespace ServiceClient
+    {
+        enum Enum
+        {
+            Hello = 0,              /// Name, version, revision, default DB
+            Ping = 1,   
+            Data = 2,
+            KeepAlive = 3,          /// Keep the connection alive
+            MAX = KeepAlive,
+        };
+
+        inline const char * toString(UInt64 packet)
+        {
+            static const char * data[] = {
+                "Hello",
+                "Ping",
+                "Data",
+                "KeepAlive",                
+            };
+            return packet <= MAX ? data[packet] : "Unknown packet";
+        }
+    }
+
     /// Whether the compression must be used.
     enum class Compression
     {

@@ -32,6 +32,25 @@ struct ZooKeeperResponse : virtual Response
     virtual void writeImpl(WriteBuffer &) const = 0;
     virtual void write(WriteBuffer & out) const;
     virtual OpNum getOpNum() const = 0;
+
+    virtual bool operator== (const ZooKeeperResponse & response) const
+    {
+        if (const ZooKeeperResponse * zk_response = dynamic_cast<const ZooKeeperResponse *>(&response))
+        {
+            return error == zk_response->error && xid == zk_response->xid;
+        }
+        return false;
+    }
+
+    bool operator!= (const ZooKeeperResponse & response) const
+    {
+        return !(*this == response);
+    }
+
+    String toString() const override
+    {
+        return Response::toString() + ", xid " + std::to_string(xid) + ", zxid " + std::to_string(zxid);
+    }
 };
 
 using ZooKeeperResponsePtr = std::shared_ptr<ZooKeeperResponse>;
@@ -73,6 +92,17 @@ struct ZooKeeperHeartbeatRequest final : ZooKeeperRequest
     void readImpl(ReadBuffer &) override {}
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid);
+    }
+};
+
+struct ZooKeeperHeartbeatResponse final : ZooKeeperResponse
+{
+    void readImpl(ReadBuffer &) override {}
+    void writeImpl(WriteBuffer &) const override {}
+    OpNum getOpNum() const override { return OpNum::Heartbeat; }
 };
 
 struct ZooKeeperSyncRequest final : ZooKeeperRequest
@@ -84,6 +114,10 @@ struct ZooKeeperSyncRequest final : ZooKeeperRequest
     void readImpl(ReadBuffer & in) override;
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path;
+    }
 };
 
 struct ZooKeeperSyncResponse final : ZooKeeperResponse
@@ -92,13 +126,6 @@ struct ZooKeeperSyncResponse final : ZooKeeperResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::Sync; }
-};
-
-struct ZooKeeperHeartbeatResponse final : ZooKeeperResponse
-{
-    void readImpl(ReadBuffer &) override {}
-    void writeImpl(WriteBuffer &) const override {}
-    OpNum getOpNum() const override { return OpNum::Heartbeat; }
 };
 
 struct ZooKeeperWatchResponse final : WatchResponse, ZooKeeperResponse
@@ -128,6 +155,10 @@ struct ZooKeeperAuthRequest final : ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", type " + std::to_string(type) + ", scheme " + scheme + ", data" + data;
+    }
 };
 
 struct ZooKeeperAuthResponse final : ZooKeeperResponse
@@ -147,6 +178,10 @@ struct ZooKeeperCloseRequest final : ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid);
+    }
 };
 
 struct ZooKeeperCloseResponse final : ZooKeeperResponse
@@ -172,6 +207,15 @@ struct ZooKeeperCreateRequest final : public CreateRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        //    String path;
+        //    String data;
+        //    bool is_ephemeral = false;
+        //    bool is_sequential = false;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path + ", data " + data + ", is_ephemeral "
+            + std::to_string(is_ephemeral) + ", is_sequential " + std::to_string(is_sequential);
+    }
 };
 
 struct ZooKeeperCreateResponse final : CreateResponse, ZooKeeperResponse
@@ -181,6 +225,20 @@ struct ZooKeeperCreateResponse final : CreateResponse, ZooKeeperResponse
     void writeImpl(WriteBuffer & out) const override;
 
     OpNum getOpNum() const override { return OpNum::Create; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperCreateResponse * create_response = dynamic_cast<const ZooKeeperCreateResponse *>(&response))
+        {
+            return ZooKeeperResponse::operator==(response) && create_response->path_created == path_created;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        return "CreateResponse " + ZooKeeperResponse::toString() + ", path_created " + path_created;
+    }
 };
 
 struct ZooKeeperRemoveRequest final : RemoveRequest, ZooKeeperRequest
@@ -194,6 +252,13 @@ struct ZooKeeperRemoveRequest final : RemoveRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        //    String path;
+        //    int32_t version = -1;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path + ", version "
+            + std::to_string(version);
+    }
 };
 
 struct ZooKeeperRemoveResponse final : RemoveResponse, ZooKeeperResponse
@@ -211,6 +276,12 @@ struct ZooKeeperExistsRequest final : ExistsRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return !has_watch; }
+    String toString() const override
+    {
+        //    String path;
+        //    int32_t version = -1;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path;
+    }
 };
 
 struct ZooKeeperExistsResponse final : ExistsResponse, ZooKeeperResponse
@@ -218,6 +289,20 @@ struct ZooKeeperExistsResponse final : ExistsResponse, ZooKeeperResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::Exists; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperExistsResponse * exists_response = dynamic_cast<const ZooKeeperExistsResponse *>(&response))
+        {
+            return ZooKeeperResponse::operator==(response) && exists_response->stat == stat;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        return "ExistsResponse ," + ZooKeeperResponse::toString() + ", stat " + stat.toString();
+    }
 };
 
 struct ZooKeeperGetRequest final : GetRequest, ZooKeeperRequest
@@ -228,6 +313,12 @@ struct ZooKeeperGetRequest final : GetRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return !has_watch; }
+    String toString() const override
+    {
+        //    String path;
+        //    int32_t version = -1;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path;
+    }
 };
 
 struct ZooKeeperGetResponse final : GetResponse, ZooKeeperResponse
@@ -235,6 +326,21 @@ struct ZooKeeperGetResponse final : GetResponse, ZooKeeperResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::Get; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperGetResponse * get_response = dynamic_cast<const ZooKeeperGetResponse *>(&response))
+        {
+            return ZooKeeperResponse::operator==(response) && get_response->stat == stat && get_response->data == data;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+
+        return "GetResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString() + ", data " + data;
+    }
 };
 
 struct ZooKeeperSetRequest final : SetRequest, ZooKeeperRequest
@@ -247,6 +353,14 @@ struct ZooKeeperSetRequest final : SetRequest, ZooKeeperRequest
     void readImpl(ReadBuffer & in) override;
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        //    String path;
+        //    String data;
+        //    int32_t version = -1;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path + "，data " + data + ", version "
+            + std::to_string(version);
+    }
 };
 
 struct ZooKeeperSetResponse final : SetResponse, ZooKeeperResponse
@@ -254,6 +368,20 @@ struct ZooKeeperSetResponse final : SetResponse, ZooKeeperResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::Set; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperSetResponse * set_response = dynamic_cast<const ZooKeeperSetResponse *>(&response))
+        {
+            return ZooKeeperResponse::operator==(response) && set_response->stat == stat;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        return "SetResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString();
+    }
 };
 
 struct ZooKeeperListRequest : ListRequest, ZooKeeperRequest
@@ -263,11 +391,20 @@ struct ZooKeeperListRequest : ListRequest, ZooKeeperRequest
     void readImpl(ReadBuffer & in) override;
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return !has_watch; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path;
+    }
 };
 
 struct ZooKeeperSimpleListRequest final : ZooKeeperListRequest
 {
     OpNum getOpNum() const override { return OpNum::SimpleList; }
+    bool isReadRequest() const override { return !has_watch; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path;
+    }
 };
 
 struct ZooKeeperListResponse : ListResponse, ZooKeeperResponse
@@ -275,6 +412,27 @@ struct ZooKeeperListResponse : ListResponse, ZooKeeperResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::List; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperListResponse * list_response = dynamic_cast<const ZooKeeperListResponse *>(&response))
+        {
+            std::vector<String> copy_other_nodes(list_response->names);
+            std::vector<String> copy_nodes(names);
+            std::sort(copy_other_nodes.begin(), copy_other_nodes.end());
+            std::sort(copy_nodes.begin(), copy_nodes.end());
+            return ZooKeeperResponse::operator==(response) && list_response->stat == stat && copy_other_nodes == copy_nodes;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        String base = "ListResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString() + ", names ";
+        auto func = [&](const String & value){ base += ", " + value; };
+        std::for_each(names.begin(), names.end(), func);
+        return base;
+    }
 };
 
 struct ZooKeeperSimpleListResponse final : ZooKeeperListResponse
@@ -293,6 +451,14 @@ struct ZooKeeperCheckRequest final : CheckRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return !has_watch; }
+    String toString() const override
+    {
+        //    String path;
+        //    String data;
+        //    int32_t version = -1;
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path + ", version "
+            + std::to_string(version);
+    }
 };
 
 struct ZooKeeperCheckResponse final : CheckResponse, ZooKeeperResponse
@@ -323,6 +489,13 @@ struct ZooKeeperMultiRequest final : MultiRequest, ZooKeeperRequest
 
     ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override;
+    String toString() const override
+    {
+        String base = Coordination::toString(getOpNum());
+        auto func = [&](const RequestPtr & value){ base += ", " + value->toString(); };
+        std::for_each(requests.begin(), requests.end(), func);
+        return base;
+    }
 };
 
 struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
@@ -346,7 +519,70 @@ struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
 
     void writeImpl(WriteBuffer & out) const override;
 
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperMultiResponse * multi_response = dynamic_cast<const ZooKeeperMultiResponse *>(&response))
+        {
+            if (ZooKeeperResponse::operator==(response))
+            {
+                for (size_t i = 0; i < responses.size(); ++i)
+                {
+                    /// responses list must be ZooKeeperResponse ?
+                    if (const ZooKeeperResponse * rhs_response = dynamic_cast<const ZooKeeperResponse *>(multi_response->responses[i].get()))
+                    {
+                        if (const ZooKeeperResponse * lhs_response = dynamic_cast<const ZooKeeperResponse *>(responses[i].get()))
+                            if (*rhs_response != *lhs_response)
+                                return false;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        String base = "MultiResponse " + ZooKeeperResponse::toString();
+        auto func = [&](const ResponsePtr & value){ base += ", " + value->toString(); };
+        std::for_each(responses.begin(), responses.end(), func);
+        return base;
+    }
 };
+
+struct ZooKeeperSetSeqNumRequest final : SetSeqNumRequest, ZooKeeperRequest
+{
+    OpNum getOpNum() const override { return OpNum::SetSeqNum; }
+    ZooKeeperSetSeqNumRequest() = default;
+
+    void writeImpl(WriteBuffer & out) const override;
+    void readImpl(ReadBuffer & in) override;
+
+    ZooKeeperResponsePtr makeResponse() const override;
+    bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return "";
+    }
+};
+
+struct ZooKeeperSetSeqNumResponse final : SetSeqNumResponse, ZooKeeperResponse
+{
+    void readImpl(ReadBuffer &) override {}
+    void writeImpl(WriteBuffer &) const override {}
+    OpNum getOpNum() const override { return OpNum::Set; }
+
+    bool operator== (const ZooKeeperResponse &) const override
+    {
+        throw Exception("Unsupport operator.", Error::ZBADARGUMENTS);
+    }
+
+    String toString() const override
+    {
+        return "SetSeqNumResponse ";
+    }
+};
+
 
 class ZooKeeperRequestFactory final : private boost::noncopyable
 {

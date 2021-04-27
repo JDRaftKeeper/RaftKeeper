@@ -51,6 +51,19 @@ struct Stat
     int32_t dataLength;
     int32_t numChildren;
     int64_t pzxid;
+
+    bool operator== (const Stat & other) const
+    {
+        return dataLength == other.dataLength && numChildren == other.numChildren;
+    }
+
+    String toString() const
+    {
+        return std::to_string(czxid) + ", " + std::to_string(mzxid) + ", " + std::to_string(ctime) + ", " + std::to_string(mtime) + ", "
+            + std::to_string(version) + ", " + std::to_string(cversion) + ", " + std::to_string(aversion) + ", "
+            + std::to_string(ephemeralOwner) + ", " + std::to_string(dataLength) + ", " + std::to_string(numChildren) + ", "
+            + std::to_string(pzxid);
+    }
 };
 
 enum class Error : int32_t
@@ -116,6 +129,7 @@ struct Request
     virtual ~Request() = default;
     virtual String getPath() const = 0;
     virtual void addRootPath(const String & /* root_path */) {}
+    virtual String toString() const { return {}; }
 };
 
 struct Response;
@@ -131,6 +145,11 @@ struct Response
     Response & operator=(const Response &) = default;
     virtual ~Response() = default;
     virtual void removeRootPath(const String & /* root_path */) {}
+
+    virtual String toString() const
+    {
+        return "error " + String(errorMessage(error));
+    }
 };
 
 struct WatchResponse : virtual Response
@@ -260,6 +279,20 @@ struct MultiResponse : virtual Response
     void removeRootPath(const String & root_path) override;
 };
 
+struct SetSeqNumRequest : virtual Request
+{
+    String path;
+    int32_t seq_num;
+
+    String getPath() const override { return path; }
+};
+
+
+struct SetSeqNumResponse : virtual Response
+{
+
+};
+
 /// This response may be received only as an element of responses in MultiResponse.
 struct ErrorResponse : virtual Response
 {
@@ -274,6 +307,7 @@ using SetCallback = std::function<void(const SetResponse &)>;
 using ListCallback = std::function<void(const ListResponse &)>;
 using CheckCallback = std::function<void(const CheckResponse &)>;
 using MultiCallback = std::function<void(const MultiResponse &)>;
+using SetSeqNumCallback = std::function<void(const SetSeqNumResponse &)>;
 
 
 /// For watches.
@@ -394,6 +428,13 @@ public:
 
     /// Expire session and finish all pending requests
     virtual void finalize() = 0;
+
+    virtual void setSeqNum(const String &, int32_t, SetSeqNumCallback) {}
+
+    virtual void watchCallBack(const WatchResponse &)
+    {
+        throw Exception("Unspport watchCallBack methed.", Error::ZSYSTEMERROR);
+    }
 };
 
 }

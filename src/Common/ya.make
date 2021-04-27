@@ -82,7 +82,11 @@ SRCS(
     UTF8Helpers.cpp
     UnicodeBar.cpp
     WeakHash.cpp
+    ZooKeeper/GRPCServiceKeeper.cpp
+    ZooKeeper/GRPCWatchCallBackService.cpp
     ZooKeeper/IKeeper.cpp
+    ZooKeeper/ServiceKeeper.cpp
+    ZooKeeper/ServiceKeeperCommon.cpp
     ZooKeeper/TestKeeper.cpp
     ZooKeeper/ZooKeeper.cpp
     ZooKeeper/ZooKeeperCommon.cpp

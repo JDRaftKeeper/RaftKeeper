@@ -1,0 +1,104 @@
+2021-04-13 16:49:33,677{GMT}	INFO	[jepsen test runner] jepsen.core: Test version bae7394bfbd6a55f2d30a98e32537ca10b6514f7 (plus uncommitted changes)
+2021-04-13 16:49:33,678{GMT}	INFO	[jepsen test runner] jepsen.core: Command line:
+lein run test
+2021-04-13 16:49:33,707{GMT}	INFO	[jepsen test runner] jepsen.core: Running test:
+{:remote #jepsen.control.SSHRemote{:session nil}
+ :concurrency 5
+ :db #object[jepsen.db$reify__3456 "0x73aae7a" "jepsen.db$reify__3456@73aae7a"]
+ :leave-db-running? false
+ :name "noop"
+ :logging-json? false
+ :start-time
+ #object[org.joda.time.DateTime "0x18887028" "2021-04-13T16:49:30.000+08:00"]
+ :net
+ #object[jepsen.net$reify__9100 "0x28f8ce2e" "jepsen.net$reify__9100@28f8ce2e"]
+ :client
+ #object[jepsen.client$reify__8939
+         "0x2c0a3826"
+         "jepsen.client$reify__8939@2c0a3826"]
+ :barrier
+ #object[java.util.concurrent.CyclicBarrier
+         "0x4af0c50"
+         "java.util.concurrent.CyclicBarrier@4af0c50"]
+ :pure-generators true
+ :ssh
+ {:dummy? false,
+  :username "root",
+  :password "root",
+  :strict-host-key-checking false,
+  :private-key-path nil}
+ :checker
+ #object[jepsen.checker$unbridled_optimism$reify__8624
+         "0x5ffd35dd"
+         "jepsen.checker$unbridled_optimism$reify__8624@5ffd35dd"]
+ :argv ("test")
+ :nemesis #unprintable "jepsen.nemesis$reify__9203@311a09b2"
+ :active-histories
+ #object[clojure.lang.Atom "0x674ed201" {:status :ready, :val #{}}]
+ :nodes ["n1" "n2" "n3" "n4" "n5"]
+ :test-count 1
+ :generator nil
+ :os
+ #object[jepsen.os$reify__2490 "0x465d1345" "jepsen.os$reify__2490@465d1345"]
+ :time-limit 60}
+
+2021-04-13 16:49:34,286{GMT}	WARN	[main] jepsen.core: Test crashed!
+clojure.lang.ExceptionInfo: throw+: {:dir "/", :private-key-path nil, :password "root", :username "root", :type :jepsen.control/session-error, :port 22, :strict-host-key-checking false, :host nil, :sudo nil, :dummy false, :message "Error opening SSH session. Verify username, password, and node hostnames are correct.", :session nil}
+	at slingshot.support$stack_trace.invoke(support.clj:201)
+	at jepsen.control.SSHRemote$fn__3136.invoke(control.clj:344)
+	at jepsen.control.SSHRemote.connect(control.clj:341)
+	at jepsen.control$session$fn__3151.invoke(control.clj:372)
+	at jepsen.reconnect$open_BANG_$fn__2922.invoke(reconnect.clj:59)
+	at jepsen.reconnect$open_BANG_.invokeStatic(reconnect.clj:57)
+	at jepsen.reconnect$open_BANG_.invoke(reconnect.clj:54)
+	at jepsen.control$session.invokeStatic(control.clj:371)
+	at jepsen.control$session.invoke(control.clj:367)
+	at clojure.lang.AFn.applyToHelper(AFn.java:154)
+	at clojure.lang.AFn.applyTo(AFn.java:144)
+	at clojure.core$apply.invokeStatic(core.clj:665)
+	at clojure.core$with_bindings_STAR_.invokeStatic(core.clj:1973)
+	at clojure.core$with_bindings_STAR_.doInvoke(core.clj:1973)
+	at clojure.lang.RestFn.applyTo(RestFn.java:142)
+	at clojure.core$apply.invokeStatic(core.clj:669)
+	at clojure.core$bound_fn_STAR_$fn__5749.doInvoke(core.clj:2003)
+	at clojure.lang.RestFn.applyTo(RestFn.java:137)
+	at clojure.core$apply.invokeStatic(core.clj:665)
+	at clojure.core$apply.invoke(core.clj:660)
+	at jepsen.util$fcatch$wrapper__2167.doInvoke(util.clj:39)
+	at clojure.lang.RestFn.invoke(RestFn.java:408)
+	at dom_top.core$real_pmap_helper$build_thread__213$fn__214.invoke(core.clj:146)
+	at clojure.lang.AFn.applyToHelper(AFn.java:152)
+	at clojure.lang.AFn.applyTo(AFn.java:144)
+	at clojure.core$apply.invokeStatic(core.clj:665)
+	at clojure.core$with_bindings_STAR_.invokeStatic(core.clj:1973)
+	at clojure.core$with_bindings_STAR_.doInvoke(core.clj:1973)
+	at clojure.lang.RestFn.invoke(RestFn.java:425)
+	at clojure.lang.AFn.applyToHelper(AFn.java:156)
+	at clojure.lang.RestFn.applyTo(RestFn.java:132)
+	at clojure.core$apply.invokeStatic(core.clj:669)
+	at clojure.core$bound_fn_STAR_$fn__5749.doInvoke(core.clj:2003)
+	at clojure.lang.RestFn.invoke(RestFn.java:397)
+	at clojure.lang.AFn.run(AFn.java:22)
+	at java.base/java.lang.Thread.run(Thread.java:834)
+Caused by: com.jcraft.jsch.JSchException: java.net.UnknownHostException: n1
+	at com.jcraft.jsch.Util.createSocket(Util.java:349)
+	at com.jcraft.jsch.Session.connect(Session.java:215)
+	at com.jcraft.jsch.Session.connect(Session.java:183)
+	at clj_ssh.ssh$fn__2618.invokeStatic(ssh.clj:118)
+	at clj_ssh.ssh$fn__2618.invoke(ssh.clj:115)
+	at clj_ssh.ssh.protocols$fn__2576$G__2543__2585.invoke(protocols.clj:4)
+	at clj_ssh.ssh$connect.invokeStatic(ssh.clj:401)
+	at clj_ssh.ssh$connect.invoke(ssh.clj:397)
+	at jepsen.control$clj_ssh_session.invokeStatic(control.clj:333)
+	at jepsen.control$clj_ssh_session.invoke(control.clj:320)
+	at jepsen.control.SSHRemote$fn__3136.invoke(control.clj:342)
+	... 34 common frames omitted
+Caused by: java.net.UnknownHostException: n1
+	at java.base/java.net.AbstractPlainSocketImpl.connect(AbstractPlainSocketImpl.java:220)
+	at java.base/java.net.SocksSocketImpl.connect(SocksSocketImpl.java:403)
+	at java.base/java.net.Socket.connect(Socket.java:608)
+	at java.base/java.net.Socket.connect(Socket.java:557)
+	at java.base/java.net.Socket.<init>(Socket.java:453)
+	at java.base/java.net.Socket.<init>(Socket.java:230)
+	at com.jcraft.jsch.Util.createSocket(Util.java:343)
+	... 44 common frames omitted
