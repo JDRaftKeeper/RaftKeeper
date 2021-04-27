@@ -40,6 +40,7 @@ namespace Poco
 namespace zkutil
 {
     class ZooKeeper;
+    class ServiceKeeperStorage;
 }
 
 
@@ -116,6 +117,7 @@ class IVolume;
 using VolumePtr = std::shared_ptr<IVolume>;
 struct NamedSession;
 struct BackgroundTaskSchedulingSettings;
+class SvsKeeperDispatcher;
 
 class ZooKeeperMetadataTransaction;
 using ZooKeeperMetadataTransactionPtr = std::shared_ptr<ZooKeeperMetadataTransaction>;
@@ -595,6 +597,9 @@ public:
 #endif
     void initializeNuKeeperStorageDispatcher() const;
     void shutdownNuKeeperStorageDispatcher() const;
+    std::shared_ptr<SvsKeeperDispatcher> & getSvsKeeperStorageDispatcher() const;
+    void initializeServiceKeeperStorageDispatcher() const;
+    void shutdownServiceKeeperStorageDispatcher() const;
 
     /// Set auxiliary zookeepers configuration at server starting or configuration reloading.
     void reloadAuxiliaryZooKeepersConfigIfChanged(const ConfigurationPtr & config);

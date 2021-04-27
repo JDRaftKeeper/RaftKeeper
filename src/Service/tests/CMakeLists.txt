@@ -1,0 +1,9 @@
+add_executable (raft_tcp_client raft_tcp_client.cpp)
+add_executable (raft_service_client raft_service_client.cpp)
+add_executable (raft_unit_benchmark raft_unit_benchmark.cpp)
+add_executable (test_poll test_poll.cpp)
+
+target_link_libraries (raft_tcp_client PRIVATE clickhouse_common_zookeeper)
+target_link_libraries (raft_service_client PRIVATE clickhouse_common_zookeeper loggers)
+target_link_libraries (raft_unit_benchmark PRIVATE nuraft clickhouse_common_io clickhouse_common_zookeeper loggers)
+target_link_libraries (test_poll PRIVATE clickhouse_common_io)

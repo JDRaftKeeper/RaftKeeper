@@ -2,7 +2,6 @@
 #include "ZooKeeperImpl.h"
 #include "KeeperException.h"
 #include "TestKeeper.h"
-
 #include <functional>
 #include <pcg-random/pcg_random.hpp>
 
@@ -43,11 +42,19 @@ static void check(Coordination::Error code, const std::string & path)
         throw KeeperException(code, path);
 }
 
-
-void ZooKeeper::init(const std::string & implementation_, const Strings & hosts_, const std::string & identity_,
-                     int32_t session_timeout_ms_, int32_t operation_timeout_ms_, const std::string & chroot_)
+void ZooKeeper::init(
+    const std::string & implementation_,
+    const std::string & hosts_,
+    const std::string & service_hosts_,
+    bool use_ch_service_,
+    const std::string & identity_,
+    int32_t session_timeout_ms_,
+    int32_t operation_timeout_ms_,
+    const std::string & chroot_)
+    //Coordination::ConnectionTimeouts timeouts)
 {
     log = &Poco::Logger::get("ZooKeeper");
+    LOG_INFO(log , "logging into hosts  {} ", hosts_);
     hosts = hosts_;
     identity = identity_;
     session_timeout_ms = session_timeout_ms_;
@@ -55,8 +62,12 @@ void ZooKeeper::init(const std::string & implementation_, const Strings & hosts_
     chroot = chroot_;
     implementation = implementation_;
 
+    service_hosts = service_hosts_;
+    use_ch_service = use_ch_service_;
+
     if (implementation == "zookeeper")
     {
+        LOG_INFO(log , "logging into {} ", implementation_);
         if (hosts.empty())
             throw KeeperException("No hosts passed to ZooKeeper constructor.", Coordination::Error::ZBADARGUMENTS);
 
@@ -137,13 +148,13 @@ ZooKeeper::ZooKeeper(const std::string & hosts_string, const std::string & ident
     Strings hosts_strings;
     splitInto<','>(hosts_strings, hosts_string);
 
-    init(implementation_, hosts_strings, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
+    init(implementation_, hosts_strings, "", identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
 }
 
-ZooKeeper::ZooKeeper(const Strings & hosts_, const std::string & identity_, int32_t session_timeout_ms_,
+ZooKeeper::ZooKeeper(const std::string & hosts_, const std::string & service_hosts_, const std::string & identity_, int32_t session_timeout_ms_,
                      int32_t operation_timeout_ms_, const std::string & chroot_, const std::string & implementation_)
 {
-    init(implementation_, hosts_, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
+    init(implementation_, hosts_, service_hosts_, false, identity_, session_timeout_ms_, operation_timeout_ms_, chroot_);
 }
 
 struct ZooKeeperArgs
@@ -153,9 +164,12 @@ struct ZooKeeperArgs
         Poco::Util::AbstractConfiguration::Keys keys;
         config.keys(config_name, keys);
 
+        std::vector<std::string> service_hosts_strings;
+
         session_timeout_ms = Coordination::DEFAULT_SESSION_TIMEOUT_MS;
         operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
-        implementation = "zookeeper";
+        implementation = config_name;
+
         for (const auto & key : keys)
         {
             if (startsWith(key, "node"))
@@ -186,8 +200,27 @@ struct ZooKeeperArgs
             {
                 implementation = config.getString(config_name + "." + key);
             }
+            else if (startsWith(key, "service_node"))
+            {
+                service_hosts_strings.push_back(
+                    (config.getBool(config_name + "." + key + ".secure", false) ? "secure://" : "") +
+                    config.getString(config_name + "." + key + ".host") + ":"
+                    + config.getString(config_name + "." + key + ".port", "5102")
+                );
+            }
+            else if (key == "use_ch_service")
+            {
+                use_ch_service = config.getBool(config_name + "." + key);
+            }
             else
                 throw KeeperException(std::string("Unknown key ") + key + " in config file", Coordination::Error::ZBADARGUMENTS);
+        }
+
+        for (auto & host : service_hosts_strings)
+        {
+            if (!service_hosts.empty())
+                service_hosts += ',';
+            service_hosts += host;
         }
 
         if (!chroot.empty())
@@ -203,14 +236,18 @@ struct ZooKeeperArgs
     std::string identity;
     int session_timeout_ms;
     int operation_timeout_ms;
+    std::string user;
+    std::string password;
     std::string chroot;
     std::string implementation;
+    bool use_ch_service;
+    std::string service_hosts;
 };
 
 ZooKeeper::ZooKeeper(const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
 {
     ZooKeeperArgs args(config, config_name);
-    init(args.implementation, args.hosts, args.identity, args.session_timeout_ms, args.operation_timeout_ms, args.chroot);
+    init(args.implementation, args.hosts, args.service_hosts, args.use_ch_service, args.identity, args.session_timeout_ms, args.operation_timeout_ms, args.chroot);
 }
 
 bool ZooKeeper::configChanged(const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const
@@ -319,6 +356,18 @@ std::string ZooKeeper::create(const std::string & path, const std::string & data
     std::string path_created;
     check(tryCreate(path, data, mode, path_created), path);
     return path_created;
+}
+
+void ZooKeeper::setSeqNum(const std::string & path, int32_t seq_num)
+{
+    Poco::Event event;
+
+    auto callback = [&](const Coordination::SetSeqNumResponse &)
+    {
+        event.set();
+    };
+    impl->setSeqNum(path, seq_num, callback);
+    event.wait();
 }
 
 Coordination::Error ZooKeeper::tryCreate(const std::string & path, const std::string & data, int32_t mode, std::string & path_created)
@@ -719,7 +768,7 @@ bool ZooKeeper::waitForDisappear(const std::string & path, const WaitCondition &
 
 ZooKeeperPtr ZooKeeper::startNewSession() const
 {
-    return std::make_shared<ZooKeeper>(hosts, identity, session_timeout_ms, operation_timeout_ms, chroot, implementation);
+    return std::make_shared<ZooKeeper>(hosts, service_hosts, identity, session_timeout_ms, operation_timeout_ms, chroot, implementation);
 }
 
 

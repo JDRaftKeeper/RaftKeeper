@@ -62,6 +62,9 @@ int mainEntryClickHouseStop(int argc, char ** argv);
 int mainEntryClickHouseStatus(int argc, char ** argv);
 int mainEntryClickHouseRestart(int argc, char ** argv);
 #endif
+#if ENABLE_CLICKHOUSE_SERVICE
+int mainEntryClickHouseService(int argc, char ** argv);
+#endif
 
 int mainEntryClickHouseHashBinary(int, char **)
 {
@@ -120,6 +123,9 @@ std::pair<const char *, MainFunc> clickhouse_applications[] =
     {"restart", mainEntryClickHouseRestart},
 #endif
     {"hash-binary", mainEntryClickHouseHashBinary},
+#if ENABLE_CLICKHOUSE_SERVICE
+    {"service", mainEntryClickHouseService},
+#endif
 };
 
 
