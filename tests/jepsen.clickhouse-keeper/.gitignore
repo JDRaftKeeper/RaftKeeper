@@ -1,0 +1,7 @@
+/target
+/classes
+/checkouts
+/.lein-*
+/.nrepl-port
+.hgignore
+.hg/

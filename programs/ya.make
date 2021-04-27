@@ -6,6 +6,7 @@ CFLAGS(
     -DENABLE_CLICKHOUSE_CLIENT
     -DENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
     -DENABLE_CLICKHOUSE_SERVER
+    -DENABLE_CLICKHOUSE_SERVICE
 )
 
 PEERDIR(
@@ -26,6 +27,7 @@ SRCS(
     extract-from-config/ExtractFromConfig.cpp
     server/Server.cpp
     server/MetricsTransmitter.cpp
+    master/FrontendTCPServer.cpp
 )
 
 END()

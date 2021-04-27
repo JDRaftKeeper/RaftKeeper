@@ -310,6 +310,12 @@ struct ContextShared
     mutable std::mutex nu_keeper_storage_dispatcher_mutex;
     mutable std::shared_ptr<NuKeeperStorageDispatcher> nu_keeper_storage_dispatcher;
 #endif
+    mutable std::mutex service_keeper_storage_mutex;
+    mutable std::shared_ptr<zkutil::SvsKeeperStorage> service_keeper_storage;
+
+    mutable std::mutex service_keeper_storage_dispatcher_mutex;
+    mutable std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
+
     mutable std::mutex auxiliary_zookeepers_mutex;
     mutable std::map<String, zkutil::ZooKeeperPtr> auxiliary_zookeepers;    /// Map for auxiliary ZooKeeper clients.
     ConfigurationPtr auxiliary_zookeepers_config;           /// Stores auxiliary zookeepers configs
@@ -1629,6 +1635,52 @@ void Context::shutdownNuKeeperStorageDispatcher() const
 #endif
 }
 
+
+
+//std::shared_ptr<zkutil::ServiceKeeperStorage> & Context::getServiceKeeperStorage() const
+//{
+//    std::lock_guard lock(shared->service_keeper_storage_mutex);
+//    if (!shared->service_keeper_storage)
+//        shared->service_keeper_storage = std::make_shared<zkutil::ServiceKeeperStorage>();
+//
+//    return shared->service_keeper_storage;
+//}
+
+
+void Context::initializeServiceKeeperStorageDispatcher() const
+{
+    std::lock_guard lock(shared->service_keeper_storage_dispatcher_mutex);
+
+    if (shared->service_keeper_storage_dispatcher)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to initialize NuKeeper multiple times");
+
+    const auto & config = getConfigRef();
+    if (config.has("service"))
+    {
+        shared->service_keeper_storage_dispatcher = std::make_shared<SvsKeeperDispatcher>();
+        shared->service_keeper_storage_dispatcher->initialize(config);
+    }
+}
+
+std::shared_ptr<SvsKeeperDispatcher> & Context::getSvsKeeperStorageDispatcher() const
+{
+    std::lock_guard lock(shared->service_keeper_storage_dispatcher_mutex);
+    if (!shared->service_keeper_storage_dispatcher)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "ServiceKeeper must be initialized before requests");
+
+    return shared->service_keeper_storage_dispatcher;
+}
+
+
+void Context::shutdownServiceKeeperStorageDispatcher() const
+{
+    std::lock_guard lock(shared->service_keeper_storage_dispatcher_mutex);
+    if (shared->service_keeper_storage_dispatcher)
+    {
+        shared->service_keeper_storage_dispatcher->shutdown();
+        shared->service_keeper_storage_dispatcher.reset();
+    }
+}
 
 zkutil::ZooKeeperPtr Context::getAuxiliaryZooKeeper(const String & name) const
 {

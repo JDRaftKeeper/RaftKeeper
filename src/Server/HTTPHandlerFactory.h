@@ -135,4 +135,7 @@ HTTPRequestHandlerFactoryPtr
 createPrometheusHandlerFactory(IServer & server, AsynchronousMetrics & async_metrics, const std::string & config_prefix);
 
 HTTPRequestHandlerFactoryPtr createHandlerFactory(IServer & server, AsynchronousMetrics & async_metrics, const std::string & name);
+Poco::Net::HTTPRequestHandlerFactory *
+createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & name, const std::string & config_prefix);
+
 }

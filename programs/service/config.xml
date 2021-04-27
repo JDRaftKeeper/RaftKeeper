@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<!--
+  NOTE: User and query level settings are set up in "users.xml" file.
+  If you have accidentally specified user-level settings here, server won't start.
+  You can either move the settings to the right place inside "users.xml" file
+   or add <skip_check_for_incorrect_settings>1</skip_check_for_incorrect_settings> here.
+-->
+<yandex>
+    <logger>
+        <!-- Possible levels: https://github.com/pocoproject/poco/blob/poco-1.9.4-release/Foundation/include/Poco/Logger.h#L105 -->
+        <level>trace</level>
+        <log>./log/clickhouse-service.log</log>
+        <errorlog>./log/clickhouse-service.err.log</errorlog>
+        <size>1000M</size>
+        <count>10</count>
+        <console>true</console>
+        <!-- <console>1</console> --> <!-- Default behavior is autodetection (log to console if not daemon mode and is tty) -->
+
+        <!-- Per level overrides (legacy):
+
+        For example to suppress logging of the ConfigReloader you can use:
+        NOTE: levels.logger is reserved, see below.
+        -->
+        <!--
+        <levels>
+          <ConfigReloader>none</ConfigReloader>
+        </levels>
+        -->
+
+    </logger>
+
+    <max_connections>4096</max_connections>
+    <keep_alive_timeout>10</keep_alive_timeout>
+
+    <service>
+        <my_id>1</my_id>
+        <host>localhost</host>
+        <log_dir>./raft_log</log_dir>
+        <snapshot_dir>./snapshot_log</snapshot_dir>
+        <snapshot_start_time>7200</snapshot_start_time>
+        <snapshot_create_interval>86400</snapshot_create_interval>
+        <raft_grpc_port>5101</raft_grpc_port>
+        <service_port>5102</service_port>
+        <internal_port>5103</internal_port>
+        <thread_count>16</thread_count>
+        <coordination_settings>
+            <raft_logs_level>debug</raft_logs_level>
+            <nuraft_thread_size>32</nuraft_thread_size>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <operation_timeout_ms>20000</operation_timeout_ms>
+        </coordination_settings>
+
+        <remote_servers>
+            <server>
+                <server_id>1</server_id>
+                <host>localhost</host>
+                <!-- internal_port -->
+                <port>5103</port>
+            </server>
+            <!--<server>
+                <server_id>2</server_id>
+                <host>localhost</host>
+                &lt;!&ndash; internal_port &ndash;&gt;
+                <port>5203</port>
+            </server>
+            <server>
+                <server_id>3</server_id>
+                <host>localhost</host>
+                &lt;!&ndash; internal_port &ndash;&gt;
+                <port>5303</port>
+            </server>-->
+            <async_replication>false</async_replication>
+        </remote_servers>
+    </service>
+
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9364</port>
+
+        <metrics>true</metrics>
+        <events>true</events>
+        <status_info>true</status_info>
+    </prometheus>
+
+</yandex>
