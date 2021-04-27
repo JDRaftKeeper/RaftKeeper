@@ -1595,7 +1595,7 @@ zkutil::ZooKeeperPtr Context::getZooKeeper() const
 
 void Context::initializeNuKeeperStorageDispatcher() const
 {
-#if USE_NURAFT
+#if USE_NURAFT && !defined(__APPLE__)
     std::lock_guard lock(shared->nu_keeper_storage_dispatcher_mutex);
 
     if (shared->nu_keeper_storage_dispatcher)
@@ -1610,7 +1610,7 @@ void Context::initializeNuKeeperStorageDispatcher() const
 #endif
 }
 
-#if USE_NURAFT
+#if USE_NURAFT && !defined(__APPLE__)
 std::shared_ptr<NuKeeperStorageDispatcher> & Context::getNuKeeperStorageDispatcher() const
 {
     std::lock_guard lock(shared->nu_keeper_storage_dispatcher_mutex);
@@ -1623,7 +1623,7 @@ std::shared_ptr<NuKeeperStorageDispatcher> & Context::getNuKeeperStorageDispatch
 
 void Context::shutdownNuKeeperStorageDispatcher() const
 {
-#if USE_NURAFT
+#if USE_NURAFT && !defined(__APPLE__)
     std::lock_guard lock(shared->nu_keeper_storage_dispatcher_mutex);
     if (shared->nu_keeper_storage_dispatcher)
     {

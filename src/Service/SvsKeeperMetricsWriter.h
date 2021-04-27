@@ -1,13 +1,11 @@
-#ifndef CLICKHOUSE_SVSKEEPERMETRICSWRITER_H
-#define CLICKHOUSE_SVSKEEPERMETRICSWRITER_H
-
+#pragma once
 
 #include <string>
 
 #include <Interpreters/Context.h>
 
 #include <IO/WriteBuffer.h>
-
+#include <Interpreters/AsynchronousMetrics.h>
 #include <Service/SvsKeeperMetrics.h>
 #include <Poco/Util/AbstractConfiguration.h>
 
@@ -31,9 +29,8 @@ private:
     static inline constexpr auto service_events_prefix = "SvsKeeperProfileEvents_";
     static inline constexpr auto service_metrics_prefix = "SvsKeeperMetrics_";
 //    static inline constexpr auto service_status_prefix = "SvsKeeperStatusInfo_";
+//    static inline constexpr auto asynchronous_metrics_prefix = "ClickHouseAsyncMetrics_";
+//    static inline constexpr auto current_status_prefix = "ClickHouseStatusInfo_";
 };
 
 }
-
-
-#endif //CLICKHOUSE_SVSKEEPERMETRICSWRITER_H
