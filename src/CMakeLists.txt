@@ -60,8 +60,9 @@ add_subdirectory (Processors)
 add_subdirectory (Formats)
 add_subdirectory (Compression)
 add_subdirectory (Server)
+if (USE_NURAFT AND (NOT COMPILER_CLANG))
 add_subdirectory (Coordination)
-
+endif()
 add_subdirectory (Service)
 
 set(dbms_headers)
@@ -196,7 +197,7 @@ add_object_library(clickhouse_processors_merges_algorithms Processors/Merges/Alg
 add_object_library(clickhouse_processors_queryplan Processors/QueryPlan)
 add_object_library(clickhouse_processors_queryplan_optimizations Processors/QueryPlan/Optimizations)
 
-if (USE_NURAFT)
+if (USE_NURAFT AND (NOT COMPILER_CLANG))
     add_object_library(clickhouse_coordination Coordination)
 endif()
 
