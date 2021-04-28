@@ -1376,7 +1376,8 @@ void ServiceZooKeeper::zkFinalize(bool error_send, bool error_receive)
         if (!zk_expired)
         {
             zk_expired = true;
-            active_session_metric_increment.destroy();
+            if (ser_expired)
+                active_session_metric_increment.destroy();
         }
     };
 
@@ -1536,7 +1537,8 @@ void ServiceZooKeeper::serFinalize(bool error_send, bool error_receive)
         if (!ser_expired)
         {
             ser_expired = true;
-            active_session_metric_increment.destroy();
+            if (zk_expired)
+                active_session_metric_increment.destroy();
         }
     };
 
