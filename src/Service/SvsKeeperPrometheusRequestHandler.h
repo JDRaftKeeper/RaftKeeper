@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Server/HTTP/HTTPRequestHandler.h>
+#include <Server/HTTPHandlerFactory.h>
 
 #include "Server/IServer.h"
 #include "SvsKeeperMetricsWriter.h"
@@ -23,5 +24,8 @@ public:
 
     void handleRequest(HTTPServerRequest & request, HTTPServerResponse & response) override;
 };
+
+HTTPRequestHandlerFactoryPtr
+createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & config_prefix);
 
 }

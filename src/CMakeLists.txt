@@ -60,7 +60,7 @@ add_subdirectory (Processors)
 add_subdirectory (Formats)
 add_subdirectory (Compression)
 add_subdirectory (Server)
-if (USE_NURAFT AND (NOT COMPILER_CLANG))
+if (USE_NURAFT)
 add_subdirectory (Coordination)
 endif()
 add_subdirectory (Service)
@@ -197,7 +197,7 @@ add_object_library(clickhouse_processors_merges_algorithms Processors/Merges/Alg
 add_object_library(clickhouse_processors_queryplan Processors/QueryPlan)
 add_object_library(clickhouse_processors_queryplan_optimizations Processors/QueryPlan/Optimizations)
 
-if (USE_NURAFT AND (NOT COMPILER_CLANG))
+if (USE_NURAFT)
     add_object_library(clickhouse_coordination Coordination)
 endif()
 
@@ -322,7 +322,7 @@ if (USE_KRB5)
     dbms_target_link_libraries(PRIVATE ${KRB5_LIBRARY})
 endif()
 
-if (USE_NURAFT)
+if (USE_NURAFT OR USE_JD_NURAFT)
     dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
 endif()
 
