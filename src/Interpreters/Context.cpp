@@ -1623,7 +1623,7 @@ std::shared_ptr<NuKeeperStorageDispatcher> & Context::getNuKeeperStorageDispatch
 
 void Context::shutdownNuKeeperStorageDispatcher() const
 {
-#if USE_NURAFT &&
+#if USE_NURAFT
     std::lock_guard lock(shared->nu_keeper_storage_dispatcher_mutex);
     if (shared->nu_keeper_storage_dispatcher)
     {

@@ -324,6 +324,7 @@ endif()
 
 if (USE_NURAFT OR USE_JD_NURAFT)
     dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
+    message("dbms.target = ")
 endif()
 
 if(RE2_INCLUDE_DIR)
