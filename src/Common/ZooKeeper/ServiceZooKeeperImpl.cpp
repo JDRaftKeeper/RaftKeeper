@@ -22,27 +22,31 @@
 
 namespace ProfileEvents
 {
-    extern const Event ZooKeeperInit;
-    extern const Event ZooKeeperTransactions;
-    extern const Event ZooKeeperCreate;
-    extern const Event ZooKeeperRemove;
-    extern const Event ZooKeeperExists;
-    extern const Event ZooKeeperMulti;
-    extern const Event ZooKeeperGet;
-    extern const Event ZooKeeperSet;
-    extern const Event ZooKeeperList;
-    extern const Event ZooKeeperCheck;
-    extern const Event ZooKeeperClose;
-    extern const Event ZooKeeperWaitMicroseconds;
-    extern const Event ZooKeeperBytesSent;
-    extern const Event ZooKeeperBytesReceived;
-    extern const Event ZooKeeperWatchResponse;
+extern const Event ZooKeeperInit;
+extern const Event ZooKeeperTransactions;
+extern const Event ZooKeeperCreate;
+extern const Event ZooKeeperRemove;
+extern const Event ZooKeeperExists;
+extern const Event ZooKeeperMulti;
+extern const Event ZooKeeperGet;
+extern const Event ZooKeeperSet;
+extern const Event ZooKeeperList;
+extern const Event ZooKeeperCheck;
+extern const Event ZooKeeperClose;
+extern const Event ZooKeeperWaitMicroseconds;
+extern const Event ZooKeeperBytesSent;
+extern const Event ZooKeeperBytesReceived;
+extern const Event ZooKeeperWatchResponse;
+
+extern const Event ServiceKeeperWaitMicroseconds;
+extern const Event ServiceKeeperBytesSent;
+extern const Event ServiceKeeperBytesReceived;
 }
 
 namespace CurrentMetrics
 {
-    extern const Metric ZooKeeperRequest;
-    extern const Metric ZooKeeperWatch;
+extern const Metric ZooKeeperRequest;
+extern const Metric ZooKeeperWatch;
 }
 
 
@@ -301,7 +305,7 @@ ServiceZooKeeper::~ServiceZooKeeper()
 {
     try
     {
-        finalize(false, false);
+        finalize();
 
         if (zk_send_thread.joinable())
             zk_send_thread.join();
@@ -333,9 +337,9 @@ ServiceZooKeeper::ServiceZooKeeper(
     Poco::Timespan connection_timeout,
     Poco::Timespan operation_timeout_)
     : log(&(Poco::Logger::get("ServiceZooKeeper"))),
-    root_path(root_path_),
-    session_timeout(session_timeout_),
-    operation_timeout(std::min(operation_timeout_, session_timeout_))
+      root_path(root_path_),
+      session_timeout(session_timeout_),
+      operation_timeout(std::min(operation_timeout_, session_timeout_))
 {
     if (!root_path.empty())
     {
@@ -683,16 +687,16 @@ void ServiceZooKeeper::sendAuth(const String & scheme, const String & data)
 
     if (read_xid != AUTH_XID)
         throw Exception("Unexpected event received in reply to auth request: " + DB::toString(read_xid),
-            Error::ZMARSHALLINGERROR);
+                        Error::ZMARSHALLINGERROR);
 
     int32_t actual_length = zk_in->count() - count_before_event;
     if (length != actual_length)
         throw Exception("Response length doesn't match. Expected: " + DB::toString(length) + ", actual: " + DB::toString(actual_length),
-            Error::ZMARSHALLINGERROR);
+                        Error::ZMARSHALLINGERROR);
 
     if (err != Error::ZOK)
         throw Exception("Error received in reply to auth request. Code: " + DB::toString(int32_t(err)) + ". Message: " + String(errorMessage(err)),
-            Error::ZMARSHALLINGERROR);
+                        Error::ZMARSHALLINGERROR);
 }
 
 
@@ -839,7 +843,7 @@ void ServiceZooKeeper::serSendThread()
                 request.write(*ser_out);
             }
 
-            ProfileEvents::increment(ProfileEvents::ZooKeeperBytesSent, ser_out->count() - prev_bytes_sent);
+            ProfileEvents::increment(ProfileEvents::ServiceKeeperBytesSent, ser_out->count() - prev_bytes_sent);
         }
     }
     catch (...)
@@ -957,7 +961,7 @@ void ServiceZooKeeper::serReceiveThread()
 
             }
 
-            ProfileEvents::increment(ProfileEvents::ZooKeeperBytesReceived, ser_in->count() - prev_bytes_received);
+            ProfileEvents::increment(ProfileEvents::ServiceKeeperBytesReceived, ser_in->count() - prev_bytes_received);
         }
     }
     catch (...)
@@ -984,6 +988,10 @@ void ServiceZooKeeper::zkReceiveEvent()
     RequestInfo request_info;
     ZooKeeperResponsePtr response;
 
+    if (xid == CLOSE_XID)
+    {
+        throw; // finalize
+    }
     if (xid == PING_XID)
     {
         if (err != Error::ZOK)
@@ -1234,7 +1242,7 @@ void ServiceZooKeeper::serReceiveEvent()
         }
 
         auto elapsed_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - request_info.time).count();
-        ProfileEvents::increment(ProfileEvents::ZooKeeperWaitMicroseconds, elapsed_microseconds);
+        ProfileEvents::increment(ProfileEvents::ServiceKeeperWaitMicroseconds, elapsed_microseconds);
     }
 
     auto request_info_callback = [&, this]()
@@ -1352,17 +1360,14 @@ void ServiceZooKeeper::serReceiveEvent()
 }
 
 
-void ServiceZooKeeper::finalize(bool error_send, bool error_receive)
+void ServiceZooKeeper::finalize()
 {
-    zkFinalize(error_send, error_receive);
-    serFinalize(error_send, error_receive);
+    zkFinalize(false, false);
+    serFinalize(false, false);
     ser_zk_responses.clear();
 }
 
-void ServiceZooKeeper::finalize()
-{
-    finalize(false, false);
-}
+
 
 void ServiceZooKeeper::zkFinalize(bool error_send, bool error_receive)
 {
@@ -1453,25 +1458,27 @@ void ServiceZooKeeper::zkFinalize(bool error_send, bool error_receive)
 
         {
             std::lock_guard lock(zk_watches_mutex);
-
-            for (auto & path_watches : zk_watches)
+            if (!use_ch_service)
             {
-                WatchResponse response;
-                response.type = SESSION;
-                response.state = EXPIRED_SESSION;
-                response.error = Error::ZSESSIONEXPIRED;
-
-                for (auto & callback : path_watches.second)
+                for (auto & path_watches : zk_watches)
                 {
-                    if (callback)
+                    WatchResponse response;
+                    response.type = SESSION;
+                    response.state = EXPIRED_SESSION;
+                    response.error = Error::ZSESSIONEXPIRED;
+
+                    for (auto & callback : path_watches.second)
                     {
-                        try
+                        if (callback)
                         {
-                            callback(response);
-                        }
-                        catch (...)
-                        {
-                            tryLogCurrentException(__PRETTY_FUNCTION__);
+                            try
+                            {
+                                callback(response);
+                            }
+                            catch (...)
+                            {
+                                tryLogCurrentException(__PRETTY_FUNCTION__);
+                            }
                         }
                     }
                 }
@@ -1485,6 +1492,9 @@ void ServiceZooKeeper::zkFinalize(bool error_send, bool error_receive)
         RequestInfo info;
         while (zk_requests_queue.tryPop(info))
         {
+            if (use_ch_service)
+                continue;
+
             if (info.callback)
             {
                 ResponsePtr response = info.request->makeResponse();
@@ -1549,7 +1559,7 @@ void ServiceZooKeeper::serFinalize(bool error_send, bool error_receive)
             /// Send close event. This also signals sending thread to stop.
             try
             {
-                zkClose();
+                serClose();
             }
             catch (...)
             {
@@ -1614,30 +1624,31 @@ void ServiceZooKeeper::serFinalize(bool error_send, bool error_receive)
 
         {
             std::lock_guard lock(ser_watches_mutex);
-
-            for (auto & path_watches : ser_watches)
+            if (use_ch_service)
             {
-                WatchResponse response;
-                response.type = SESSION;
-                response.state = EXPIRED_SESSION;
-                response.error = Error::ZSESSIONEXPIRED;
-
-                for (auto & callback : path_watches.second)
+                for (auto & path_watches : ser_watches)
                 {
-                    if (callback)
+                    WatchResponse response;
+                    response.type = SESSION;
+                    response.state = EXPIRED_SESSION;
+                    response.error = Error::ZSESSIONEXPIRED;
+
+                    for (auto & callback : path_watches.second)
                     {
-                        try
+                        if (callback)
                         {
-                            callback(response);
-                        }
-                        catch (...)
-                        {
-                            tryLogCurrentException(__PRETTY_FUNCTION__);
+                            try
+                            {
+                                callback(response);
+                            }
+                            catch (...)
+                            {
+                                tryLogCurrentException(__PRETTY_FUNCTION__);
+                            }
                         }
                     }
                 }
             }
-
             CurrentMetrics::sub(CurrentMetrics::ZooKeeperWatch, ser_watches.size());
             ser_watches.clear();
         }
@@ -1646,6 +1657,9 @@ void ServiceZooKeeper::serFinalize(bool error_send, bool error_receive)
         RequestInfo info;
         while (ser_requests_queue.tryPop(info))
         {
+            if (!use_ch_service)
+                continue;
+
             if (info.callback)
             {
                 ResponsePtr response = info.request->makeResponse();
@@ -1713,7 +1727,9 @@ void ServiceZooKeeper::pushRequest(RequestInfo && info)
             ser_zk_responses.emplace(info.request->xid, nullptr);
         }
 
-        if (!zkPushRequest(std::forward<RequestInfo>(info)) || !serPushRequest(std::forward<RequestInfo>(info)))
+        bool zk_push_result = zkPushRequest(std::forward<RequestInfo>(info));
+        bool ser_push_result = serPushRequest(std::forward<RequestInfo>(info));
+        if (!zk_push_result || !ser_push_result)
         {
             undo(info.request->xid);
         }
@@ -1721,7 +1737,7 @@ void ServiceZooKeeper::pushRequest(RequestInfo && info)
     catch (...)
     {
         undo(info.request->xid);
-        finalize(false, false);
+        finalize();
     }
 }
 

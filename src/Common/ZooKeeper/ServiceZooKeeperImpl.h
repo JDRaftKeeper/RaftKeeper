@@ -77,7 +77,7 @@
 
 namespace CurrentMetrics
 {
-    extern const Metric ZooKeeperSession;
+extern const Metric ZooKeeperSession;
 }
 
 
@@ -289,7 +289,6 @@ private:
 
     /// Call all remaining callbacks and watches, passing errors to them.
     void finalize() override;
-    void finalize(bool error_send, bool error_receive);
     void zkFinalize(bool error_send, bool error_receive);
     void serFinalize(bool error_send, bool error_receive);
 
