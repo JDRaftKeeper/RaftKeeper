@@ -1,6 +1,6 @@
 #include <Server/NuKeeperTCPHandler.h>
 
-#if USE_NURAFT && !defined(__APPLE__)
+#if USE_NURAFT
 
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Core/Types.h>
