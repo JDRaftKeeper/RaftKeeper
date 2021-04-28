@@ -47,7 +47,6 @@ SvsKeeperMetricsWriter::SvsKeeperMetricsWriter(
     const std::string & config_name)
     : send_events(config.getBool(config_name + ".events", true))
     , send_metrics(config.getBool(config_name + ".metrics", true))
-//    , send_asynchronous_metrics(config.getBool(config_name + ".asynchronous_metrics", true))
     , send_status_info(config.getBool(config_name + ".status_info", true))
 {
 }
