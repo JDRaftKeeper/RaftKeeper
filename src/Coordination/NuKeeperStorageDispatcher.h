@@ -5,7 +5,7 @@
 #    include "config_core.h"
 #endif
 
-#if USE_NURAFT && !defined(__APPLE__)
+#if USE_NURAFT
 
 #include <Common/ThreadPool.h>
 #include <Common/ConcurrentBoundedQueue.h>

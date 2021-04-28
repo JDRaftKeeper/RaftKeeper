@@ -195,8 +195,13 @@ void ZooKeeper::init(
             }
         }
 
-        if (service_nodes.empty())
-            throw KeeperException("Cannot use any of provided Service nodes", Coordination::Error::ZBADARGUMENTS);
+        if (service_nodes.empty() || nodes.empty())
+        {
+            if (dns_error)
+                throw KeeperException("Cannot resolve any of provided ZooKeeper hosts due to DNS error", Coordination::Error::ZCONNECTIONLOSS);
+            else
+                throw KeeperException("Cannot use any of provided ZooKeeper nodes", Coordination::Error::ZBADARGUMENTS);
+        }
 
         impl = std::make_unique<Coordination::ServiceZooKeeper>(
             nodes,

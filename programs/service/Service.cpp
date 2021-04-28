@@ -53,6 +53,8 @@
 #include <common/logger_useful.h>
 #include <common/phdr_cache.h>
 #include <ext/scope_guard.h>
+#include <Server/HTTP/HTTPServer.h>
+#include <Service/SvsKeeperPrometheusRequestHandler.h>
 #include "ServiceTCPHandlerFactory.h"
 
 namespace DB
@@ -225,8 +227,8 @@ int Service::main(const std::vector<std::string> & /*args*/)
         socket.setReceiveTimeout(settings.http_receive_timeout);
         socket.setSendTimeout(settings.http_send_timeout);
 
-        servers->emplace_back(port_name, std::make_unique<Poco::Net::HTTPServer>(
-            createSvsKeeperPrometheusHandlerFactory(*this, "Service-PrometheusHandler-factory", "prometheus"),
+        servers->emplace_back(port_name, std::make_unique<HTTPServer>(context(),
+            createSvsKeeperPrometheusHandlerFactory(*this, "prometheus"),
                                              server_pool,
                                              socket,
                                              http_params));

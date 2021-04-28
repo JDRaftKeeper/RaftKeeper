@@ -50,7 +50,7 @@ void SvsKeeperPrometheusRequestHandler::handleRequest(HTTPServerRequest & reques
 }
 
 HTTPRequestHandlerFactoryPtr
-createSvsKeeperPrometheusHandlerFactory(IServer & server, AsynchronousMetrics &, const std::string & config_prefix)
+createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & config_prefix)
 {
     auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<SvsKeeperPrometheusRequestHandler>>(
         server, SvsKeeperMetricsWriter(server.config(), config_prefix + ".endpoint"));
