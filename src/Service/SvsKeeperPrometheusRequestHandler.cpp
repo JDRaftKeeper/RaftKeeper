@@ -54,7 +54,6 @@ createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & co
 {
     auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<SvsKeeperPrometheusRequestHandler>>(
         server, SvsKeeperMetricsWriter(server.config(), config_prefix + ".endpoint"));
-    factory->addFiltersFromConfig(server.config(), config_prefix);
     return factory;
 }
 
