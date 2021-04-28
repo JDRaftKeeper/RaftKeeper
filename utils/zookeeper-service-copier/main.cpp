@@ -84,9 +84,7 @@ int main(int argc, char ** argv)
                 std::string pattern{ "\\d{10}"};
                 std::regex re(pattern);
 
-                std::string pattern1{ "\\d{1}"};
-                std::regex re1(pattern1);
-                return std::regex_match(baseName.substr(baseName.size() - 10, 10), re) && !std::regex_match(baseName.substr(baseName.size() - 11, 1), re1);
+                return std::regex_match(baseName.substr(baseName.size() - 10, 10), re) && (baseName.substr(baseName.size() - 11, 1) == "-");
             }
 
             return false;
