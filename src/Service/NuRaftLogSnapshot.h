@@ -142,10 +142,10 @@ public:
 private:
     std::string snap_dir;
     UInt32 object_node_size;
-    [[maybe_unused]] UInt32 keep_max_snapshot_count;
+    UInt32 keep_max_snapshot_count;
     Poco::Logger * log;
     //std::mutex snap_mutex;
-    [[maybe_unused]] std::atomic<uint64_t> last_committed_idx;
+    std::atomic<uint64_t> last_committed_idx;
     KeeperSnapshotStoreMap snapshots;
 };
 
