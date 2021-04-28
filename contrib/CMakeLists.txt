@@ -314,7 +314,7 @@ if (USE_LIBPQXX)
     add_subdirectory (libpqxx-cmake)
 endif()
 
-if (USE_NURAFT)
+if (USE_NURAFT OR USE_JD_NURAFT)
   add_subdirectory(nuraft-cmake)
 endif()
 
