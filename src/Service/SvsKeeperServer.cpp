@@ -9,6 +9,7 @@
 #include <Service/SvsKeeperServer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <libnuraft/async.hxx>
 
 #ifndef TEST_TCPHANDLER
 //#define TEST_TCPHANDLER
@@ -205,15 +206,17 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
     }
     else
     {
-        std::vector<nuraft::ptr<nuraft::buffer>> entries;
+        std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, request));
-
-        //std::lock_guard lock(append_entries_mutex);
 
         LOG_DEBUG(
             log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
 
-        auto result = raft_instance->append_entries(entries);
+        ptr<nuraft::cmd_result<ptr<buffer>>> result;
+        {
+            std::lock_guard lock(append_entries_mutex);
+            result = raft_instance->append_entries(entries);
+        }
 
         if(result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
         {
@@ -243,7 +246,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 
 int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 {
-    auto entry = nuraft::buffer::alloc(sizeof(int64_t));
+    auto entry = buffer::alloc(sizeof(int64_t));
     /// Just special session request
     nuraft::buffer_serializer bs(entry);
     bs.put_i64(session_timeout_ms);
