@@ -223,7 +223,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperCreateResponse & response = dynamic_cast<Coordination::ZooKeeperCreateResponse &>(*response_ptr);
         Coordination::ZooKeeperCreateRequest & request = dynamic_cast<Coordination::ZooKeeperCreateRequest &>(*zk_request);
 
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
         if (container.count(request.path) == 1)
         {
             response.error = Coordination::Error::ZNODEEXISTS;
@@ -493,7 +493,7 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperExistsRequest & request = dynamic_cast<Coordination::ZooKeeperExistsRequest &>(*zk_request);
 
         //std::shared_lock r_lock(container_mutex);
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
         auto node = container.get(request.path);
         if (node != nullptr)
         {
@@ -537,7 +537,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperSetRequest & request = dynamic_cast<Coordination::ZooKeeperSetRequest &>(*zk_request);
         Undo undo;
 
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
         auto node = container.get(request.path);
         if (node == nullptr)
         {
@@ -629,7 +629,7 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
         Coordination::ZooKeeperListRequest & request = dynamic_cast<Coordination::ZooKeeperListRequest &>(*zk_request);
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
         auto node = container.get(request.path);
         if (node == nullptr)
         {
@@ -687,7 +687,7 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperCheckResponse & response = dynamic_cast<Coordination::ZooKeeperCheckResponse &>(*response_ptr);
         Coordination::ZooKeeperCheckRequest & request = dynamic_cast<Coordination::ZooKeeperCheckRequest &>(*zk_request);
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
         auto node = container.get(request.path);
         if (node == nullptr)
         {
