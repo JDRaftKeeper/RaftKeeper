@@ -49,6 +49,20 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
 
 }
 
+TEST(RaftSnapshot, whenToSnapshot)
+{
+    BackendTimer timer;
+    /// after 2:00
+    timer.begin_second = 7200;
+    /// every 1 day
+    timer.interval = 24 * 3600;
+
+    // first snapshot
+    bool is_time = timer.isActionTime("", 0);
+    ASSERT_EQ(is_time, true);
+}
+
+
 TEST(RaftSnapshot, createSnapshot_1)
 {
     std::string snap_dir(SNAP_DIR + "/1");
