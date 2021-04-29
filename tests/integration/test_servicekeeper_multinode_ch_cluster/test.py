@@ -69,21 +69,24 @@ def get_fake_zk(cluster1, nodename, timeout=30.0):
 
 def test_cluster_replicated_table(started_cluster):
     cluster3 = ClickHouseCluster(__file__)
-    node4 = cluster3.add_instance('node4', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros4.xml'], stay_alive=True)
-    node5 = cluster3.add_instance('node5', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros5.xml'], stay_alive=True)
-    node6 = cluster3.add_instance('node6', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros6.xml'], stay_alive=True)
+    node4 = cluster3.add_instance('node4', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros4.xml'], with_zookeeper=False, stay_alive=True)
+    node5 = cluster3.add_instance('node5', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros5.xml'], with_zookeeper=False, stay_alive=True)
+    node6 = cluster3.add_instance('node6', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros6.xml'], with_zookeeper=False, stay_alive=True)
 
-    node7 = cluster3.add_instance('node7', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros7.xml'], stay_alive=True)
-    node8 = cluster3.add_instance('node8', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros8.xml'], stay_alive=True)
-    node9 = cluster3.add_instance('node9', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros9.xml'], stay_alive=True)
+    node7 = cluster3.add_instance('node7', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros7.xml'], with_zookeeper=False, stay_alive=True)
+    node8 = cluster3.add_instance('node8', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros8.xml'], with_zookeeper=False, stay_alive=True)
+    node9 = cluster3.add_instance('node9', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros9.xml'], with_zookeeper=False, stay_alive=True)
 
-    node10 = cluster3.add_instance('node10', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros10.xml'], stay_alive=True)
-    node11 = cluster3.add_instance('node11', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros11.xml'], stay_alive=True)
-    node12 = cluster3.add_instance('node12', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros12.xml'], stay_alive=True)
+    node10 = cluster3.add_instance('node10', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros10.xml'], with_zookeeper=False, stay_alive=True)
+    node11 = cluster3.add_instance('node11', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros11.xml'], with_zookeeper=False, stay_alive=True)
+    node12 = cluster3.add_instance('node12', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros12.xml'], with_zookeeper=False, stay_alive=True)
 
     try:
         wait_nodes(cluster1, node1, node2, node3)
         cluster3.start(destroy_dirs=False)
+
+        node1_zk = get_fake_zk(cluster1, "node1")
+        node1_zk.get("/")
 
         node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster")
         node4.query("CREATE DATABASE IF NOT EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster")
@@ -135,9 +138,10 @@ def test_cluster_replicated_table(started_cluster):
         assert num11 == num10
         assert num12 == num10
 
-        node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster")
+        node1_zk.get("/clickhouse/tables/tmp_smoke_test/alerts_local01/shard-01/replicas/01")
 
-        # node1_zk = get_fake_zk(cluster1, "node1")
-        # node1_zk.get("/clickhouse/tables/tmp_smoke_test/alerts_local01/shard-01/replicas/01")
+        node1_zk.get("/")
+
+        node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster")
     finally:
         cluster3.shutdown()
