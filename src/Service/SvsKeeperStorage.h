@@ -18,8 +18,8 @@ using SvsKeeperStorageRequestPtr = std::shared_ptr<SvsKeeperStorageRequest>;
 using ResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr &)>;
 using ChildrenSet = std::unordered_set<std::string>;
 
-#ifndef __USE_CONCURRENTMAP__
-#    define __USE_CONCURRENTMAP__
+#ifndef USE_CONCURRENTMAP
+#    define USE_CONCURRENTMAP
 #endif
 
 struct KeeperNode
@@ -46,7 +46,7 @@ struct KeeperNode
     }
 };
 
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
 template <typename Element, unsigned NumBlocks>
 class ConcurrentMap
 {
@@ -143,7 +143,7 @@ public:
 
     using RequestsForSessions = std::vector<RequestForSession>;
 
-#ifdef __USE_CONCURRENTMAP__
+#ifdef USE_CONCURRENTMAP
     using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
 #else
     using Container = std::unordered_map<std::string, KeeperNode>;
