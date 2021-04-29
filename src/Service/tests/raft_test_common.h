@@ -7,6 +7,8 @@
 
 namespace DB
 {
+//#define _RAFT_UNIT_TEST_
+
 class TestServer : public Poco::Util::Application, public Loggers
 {
 public:
@@ -15,8 +17,8 @@ public:
     void init(int argc, char ** argv);
 };
 
-static const std::string LOG_DIR;
-static const std::string SNAP_DIR;
+static const std::string LOG_DIR = "./test_raft_log";
+static const std::string SNAP_DIR = "./test_raft_snapshot";
 
 void cleanDirectory(const std::string & log_dir, bool remove_dir = true);
 

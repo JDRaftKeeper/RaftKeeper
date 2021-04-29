@@ -57,6 +57,12 @@ struct BackendTimer
             return false;
         }
 
+        /// first snapshot
+        if(prev_date.empty())
+        {
+            return true;
+        }
+
         struct tm prev_tm;
         memset(&prev_tm, 0, sizeof(tm));
         strptime(prev_date.data(), TIME_FMT, &prev_tm);
@@ -67,11 +73,7 @@ struct BackendTimer
         //Poco::Logger * log = &(Poco::Logger::get("BackendTimer"));
         //LOG_INFO(log, "prev_time {}, curr_time {}, delta {}", prev_time, curr_time, delta);
 
-        if (delta > (interval + window) || delta < (interval - window))
-        {
-            return false;
-        }
-        return true;
+        return !(delta > (interval + window) || delta < (interval - window));
     }
 };
 
