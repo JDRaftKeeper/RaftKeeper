@@ -1428,26 +1428,28 @@ void ServiceZooKeeper::zkFinalize(bool error_send, bool error_receive)
 
         {
             std::lock_guard lock(zk_operations_mutex);
-
-            for (auto & op : zk_operations)
+            if (!use_ch_service)
             {
-                RequestInfo & request_info = op.second;
-                ResponsePtr response = request_info.request->makeResponse();
-
-                response->error = request_info.request->probably_sent
-                                  ? Error::ZCONNECTIONLOSS
-                                  : Error::ZSESSIONEXPIRED;
-
-                if (request_info.callback)
+                for (auto & op : zk_operations)
                 {
-                    try
+                    RequestInfo & request_info = op.second;
+                    ResponsePtr response = request_info.request->makeResponse();
+
+                    response->error = request_info.request->probably_sent
+                                      ? Error::ZCONNECTIONLOSS
+                                      : Error::ZSESSIONEXPIRED;
+
+                    if (request_info.callback)
                     {
-                        request_info.callback(*response);
-                    }
-                    catch (...)
-                    {
-                        /// We must continue to all other callbacks, because the user is waiting for them.
-                        tryLogCurrentException(__PRETTY_FUNCTION__);
+                        try
+                        {
+                            request_info.callback(*response);
+                        }
+                        catch (...)
+                        {
+                            /// We must continue to all other callbacks, because the user is waiting for them.
+                            tryLogCurrentException(__PRETTY_FUNCTION__);
+                        }
                     }
                 }
             }
@@ -1594,26 +1596,28 @@ void ServiceZooKeeper::serFinalize(bool error_send, bool error_receive)
 
         {
             std::lock_guard lock(ser_operations_mutex);
-
-            for (auto & op : ser_operations)
+            if (use_ch_service)
             {
-                RequestInfo & request_info = op.second;
-                ResponsePtr response = request_info.request->makeResponse();
-
-                response->error = request_info.request->probably_sent
-                                  ? Error::ZCONNECTIONLOSS
-                                  : Error::ZSESSIONEXPIRED;
-
-                if (request_info.callback)
+                for (auto & op : ser_operations)
                 {
-                    try
+                    RequestInfo & request_info = op.second;
+                    ResponsePtr response = request_info.request->makeResponse();
+
+                    response->error = request_info.request->probably_sent
+                                      ? Error::ZCONNECTIONLOSS
+                                      : Error::ZSESSIONEXPIRED;
+
+                    if (request_info.callback)
                     {
-                        request_info.callback(*response);
-                    }
-                    catch (...)
-                    {
-                        /// We must continue to all other callbacks, because the user is waiting for them.
-                        tryLogCurrentException(__PRETTY_FUNCTION__);
+                        try
+                        {
+                            request_info.callback(*response);
+                        }
+                        catch (...)
+                        {
+                            /// We must continue to all other callbacks, because the user is waiting for them.
+                            tryLogCurrentException(__PRETTY_FUNCTION__);
+                        }
                     }
                 }
             }

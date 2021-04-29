@@ -237,6 +237,37 @@ def test_follower_restart(started_cluster):
         except:
             pass
 
+def test_simple_sleep_test(started_cluster):
+    try:
+
+        wait_nodes(cluster1, node1, node2, node3)
+
+        node1_zk = get_fake_zk(cluster1, "node1")
+        node2_zk = get_fake_zk(cluster1, "node2")
+        node3_zk = get_fake_zk(cluster1, "node3", timeout=3.0)
+        print("Node3 session id", node3_zk._session_id)
+
+        node2_zk.get("/")
+        node2_zk.create("/persistent_node", b"", ephemeral=False)
+        node2_zk.get("/persistent_node")
+        node2_zk.get("/")
+        node2_zk.create("/persistent_node1", b"123", ephemeral=False)
+
+        time.sleep(280)
+
+        node1_zk.exists("/persistent_node1")
+        node2_zk.exists("/persistent_node1")
+
+    finally:
+        try:
+            for zk_conn in [node1_zk, node2_zk, node3_zk]:
+                try:
+                    zk_conn.stop()
+                    zk_conn.close()
+                except:
+                    pass
+        except:
+            pass
 
 def test_simple_replicated_table(started_cluster):
     cluster2 = ClickHouseCluster(__file__)
