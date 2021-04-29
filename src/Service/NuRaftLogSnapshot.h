@@ -16,9 +16,6 @@ using nuraft::snapshot;
 using nuraft::ulong;
 using StringVec = std::vector<std::string>;
 
-#ifndef __USE_C_IO__
-#    define __USE_C_IO__
-#endif
 
 struct SnapshotBatchHeader
 {
