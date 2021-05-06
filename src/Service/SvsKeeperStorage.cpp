@@ -562,7 +562,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             }
             response.stat = node->stat;
             response.error = Coordination::Error::ZOK;
-            undo = [prev_node, &parent, &container, path = request.path] {
+            undo = [prev_node, parent, &container, path = request.path] {
                 container.emplace(path, prev_node);
                 {
                     std::lock_guard parent_lock(parent->mutex);
