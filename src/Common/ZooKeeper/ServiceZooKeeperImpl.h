@@ -120,11 +120,11 @@ public:
     /// If expired, you can only destroy the object. All other methods will throw exception.
     bool isExpired() const override
     {
-//        if (use_ch_service)
-//            return ser_expired;
-//        else
-//            return zk_expired;
-        return ser_expired || zk_expired;
+        if (use_ch_service)
+            return ser_expired;
+        else
+            return zk_expired;
+//        return ser_expired || zk_expired;
     }
 
     /// Useful to check owner of ephemeral node.
