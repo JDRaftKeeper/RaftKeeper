@@ -255,7 +255,8 @@ void getDateFromFile(const std::string file_name, std::string & date)
 
 bool NuRaftStateMachine::chk_create_snapshot()
 {
-    return chk_create_snapshot(0L);
+//    return chk_create_snapshot(0L);
+    return false;
 }
 
 bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
