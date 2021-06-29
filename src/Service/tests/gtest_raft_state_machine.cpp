@@ -88,21 +88,26 @@ TEST(RaftStateMachine, createSnapshotTime)
 {
     BackendTimer timer;
     timer.begin_second = 7200;
-    timer.interval = 24 * 3600;
-    timer.window = 600;
-    //currtime 2021-02-25 2:10:00
-    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614190200));
-    //currtime 2021-02-25 2:00:00
-    ASSERT_TRUE(timer.isActionTime("20210224021000", 1614189600));
+    timer.end_second = 79200;
+    timer.interval = 1 * 3600;
 
-    //currtime 2021-02-25 1:59:59
-    ASSERT_FALSE(timer.isActionTime("20210224021000", 1614189599));
+    //empty
+    ASSERT_TRUE(timer.isActionTime("", 1614190200));
 
-    //currtime 2021-02-25 2:09:59
-    ASSERT_FALSE(timer.isActionTime("20210224022000", 1614190199));
+    //currtime 2021-02-24 3:00:00
+    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614106800));
 
-    //currtime 2021-02-25 2:10:01
-    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614190201));
+    //currtime 2021-02-24 22:00:00
+    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614175200));
+    
+    //currtime 2021-02-24 2:59:59
+    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614106799));
+
+    //currtime 2021-02-24 1:59:59
+    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614103199));
+
+    //currtime 2021-02-24 22:00:01
+    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614175201));
 }
 
 TEST(RaftStateMachine, serializeAndParse)

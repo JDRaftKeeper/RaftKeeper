@@ -255,8 +255,7 @@ void getDateFromFile(const std::string file_name, std::string & date)
 
 bool NuRaftStateMachine::chk_create_snapshot()
 {
-//    return chk_create_snapshot(0L);
-    return false;
+    return chk_create_snapshot(0L);
 }
 
 bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
@@ -282,6 +281,7 @@ bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
             last_snap_name = *(time_vec.begin());
         }
     }
+    LOG_DEBUG(log, "check create snapshot, last_snap_name {}, curr_time {}", last_snap_name, curr_time);
     return timer.isActionTime(last_snap_name, curr_time);
 }
 
