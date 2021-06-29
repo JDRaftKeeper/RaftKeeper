@@ -8,8 +8,8 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/SvsKeeperServer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <libnuraft/async.hxx>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
 
 #ifndef TEST_TCPHANDLER
 //#define TEST_TCPHANDLER
@@ -37,9 +37,11 @@ SvsKeeperServer::SvsKeeperServer(
     std::string snapshot_dir = config.getString("service.snapshot_dir", "./raft_snapshot");
     //UInt32 begin_second = 3600;
     //UInt32 create_interval = 3600 * 8;
-    UInt32 start_time = config.getInt("service.snapshot_start_time", 3600);
-    UInt32 create_interval = config.getInt("service.snapshot_create_interval", 3600 * 24);
-    state_machine = nuraft::cs_new<NuRaftStateMachine>(responses_queue_, coordination_settings, snapshot_dir, start_time, create_interval);
+    UInt32 start_time = config.getInt("service.snapshot_start_time", 7200);
+    UInt32 end_time = config.getInt("service.snapshot_end_time", 79200);
+    UInt32 create_interval = config.getInt("service.snapshot_create_interval", 3600 * 1);
+    state_machine
+        = nuraft::cs_new<NuRaftStateMachine>(responses_queue_, coordination_settings, snapshot_dir, start_time, end_time, create_interval);
     std::string host = config.getString("service.host", "localhost");
     std::string port = config.getString("service.internal_port", "2281");
     state_manager = cs_new<NuRaftStateManager>(server_id, host + ":" + port, log_dir, config, "service");
@@ -47,6 +49,13 @@ SvsKeeperServer::SvsKeeperServer(
 
 void SvsKeeperServer::startup(const Poco::Util::AbstractConfiguration & config)
 {
+    /*
+    nuraft::nuraft_global_config g_config;
+    g_config.num_commit_threads_ = 2;
+    g_config.num_append_threads_ = 2;
+    nuraft::nuraft_global_mgr::init(g_config);
+    */
+
     nuraft::raft_params params;
     params.heart_beat_interval_ = coordination_settings->heart_beat_interval_ms.totalMilliseconds();
     params.election_timeout_lower_bound_ = coordination_settings->election_timeout_lower_bound_ms.totalMilliseconds();
@@ -166,7 +175,7 @@ void SvsKeeperServer::removeServer(const std::string & endpoint)
 void SvsKeeperServer::shutdown()
 {
     state_machine->shutdownStorage();
-//    state_manager->flushLogStore();
+    //    state_manager->flushLogStore();
     if (!launcher.shutdown(coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(&Poco::Logger::get("NuKeeperServer"), "Failed to shutdown RAFT server in {} seconds", 5);
 }
@@ -218,7 +227,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
             result = raft_instance->append_entries(entries);
         }
 
-        if(result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
+        if (result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
         {
             /// response pushed into queue by state machine
             return;
@@ -230,16 +239,17 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
         response->xid = request->xid;
         response->zxid = 0;
 
-        response->error = result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ?
-                          Coordination::Error::ZOPERATIONTIMEOUT : Coordination::Error::ZSYSTEMERROR;
+        response->error = result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                        : Coordination::Error::ZSYSTEMERROR;
 
         responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{session_id, response});
-        throw Exception(ErrorCodes::RAFT_ERROR,
-                        "Request session {} xid {} error, nuraft code {} and message: '{}'",
-                        session_id,
-                        request->xid,
-                        result->get_result_code(),
-                        result->get_result_str());
+        throw Exception(
+            ErrorCodes::RAFT_ERROR,
+            "Request session {} xid {} error, nuraft code {} and message: '{}'",
+            session_id,
+            request->xid,
+            result->get_result_code(),
+            result->get_result_str());
     }
 #endif
 }

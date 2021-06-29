@@ -22,12 +22,11 @@ struct BackendTimer
 {
     static constexpr char TIME_FMT[] = "%Y%m%d%H%M%S";
 
-    //2:00
+    //Only [2:00 - 22:00] can create snapshot 
     UInt32 begin_second = 7200;
-    //1 day
-    UInt32 interval = 24 * 3600;
-    //Window
-    UInt32 window = 600;
+    UInt32 end_second = 79200;
+    //default min interval is 1 hour
+    UInt32 interval = 1 * 3600;
 
     inline UInt32 getTodaySeconds(struct tm * curr_tm) { return curr_tm->tm_hour * 3600 + curr_tm->tm_min * 60 + curr_tm->tm_sec; }
 
@@ -44,23 +43,22 @@ struct BackendTimer
 
     bool isActionTime(const std::string & prev_date, time_t curr_time)
     {
-        if (curr_time == 0L)
-        {
-            time(&curr_time);
-        }
-
-        struct tm * curr_tm;
-        curr_tm = localtime(&curr_time);
-
-        if (getTodaySeconds(curr_tm) < begin_second)
-        {
-            return false;
-        }
-
         /// first snapshot
         if(prev_date.empty())
         {
             return true;
+        }
+
+        if (curr_time == 0L)
+        {
+            time(&curr_time);
+        }
+        struct tm * curr_tm;
+        curr_tm = localtime(&curr_time);
+        UInt32 today_second = getTodaySeconds(curr_tm);
+        if (today_second < begin_second || today_second > end_second)
+        {
+            return false;
         }
 
         struct tm prev_tm;
@@ -68,12 +66,7 @@ struct BackendTimer
         strptime(prev_date.data(), TIME_FMT, &prev_tm);
         time_t prev_time = mktime(&prev_tm);
 
-        UInt32 delta = difftime(curr_time, prev_time);
-
-        //Poco::Logger * log = &(Poco::Logger::get("BackendTimer"));
-        //LOG_INFO(log, "prev_time {}, curr_time {}, delta {}", prev_time, curr_time, delta);
-
-        return !(delta > (interval + window) || delta < (interval - window));
+        return difftime(curr_time, prev_time) >= interval;
     }
 };
 

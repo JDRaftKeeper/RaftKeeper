@@ -935,10 +935,13 @@ int LogSegmentStore::removeSegment()
         std::sort(segments.begin(), segments.end(), compareSegment);
         for (UInt32 i = 0; i < remove_count; i++)
         {
-            remove_vec.push_back(*segments.begin());
+            ptr<NuRaftLogSegment> & segment = *(segments.begin());
+            remove_vec.push_back(segment);
+            first_log_index.store(segment->lastIndex() + 1, std::memory_order_release);
             segments.erase(segments.begin());
         }
     }
+
     for (size_t i = 0; i < remove_vec.size(); ++i)
     {
         remove_vec[i]->remove();

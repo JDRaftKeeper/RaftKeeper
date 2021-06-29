@@ -312,7 +312,7 @@ TEST(RaftLog, splitSegment)
     std::string log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(200, 10), 0);
+    ASSERT_EQ(log_store->init(200, 10), 0); //75 byte / log
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
@@ -341,13 +341,19 @@ TEST(RaftLog, removeSegment)
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
-    ASSERT_EQ(log_store->getSegments().size(), 4);
-    ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]
+
+    //[1,2],[3,4],[5,6],[7，8],[9,open]
+    ASSERT_EQ(log_store->getSegments().size(), 4);    
+    ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]    
     ASSERT_EQ(log_store->getSegments().size(), 3);
-    ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment
+    ASSERT_EQ(log_store->firstLogIndex(), 3);
+    ASSERT_EQ(log_store->lastLogIndex(), 10);
+    ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment    
     ASSERT_EQ(log_store->getSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
+    ASSERT_EQ(log_store->firstLogIndex(), 5);
+    ASSERT_EQ(log_store->lastLogIndex(), 10);
     ASSERT_EQ(log_store->close(), 0);
-    cleanDirectory(log_dir);
+    //cleanDirectory(log_dir);
 }
 
 TEST(RaftLog, truncateLog)
@@ -366,12 +372,15 @@ TEST(RaftLog, truncateLog)
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
     ASSERT_EQ(log_store->getSegments().size(), 7);
+    ASSERT_EQ(log_store->lastLogIndex(),16);
     ASSERT_EQ(log_store->truncateLog(15), 0); //tuncate open segment
+    ASSERT_EQ(log_store->lastLogIndex(),15);
     ASSERT_EQ(log_store->getSegments().size(), 7);
     ASSERT_EQ(log_store->truncateLog(13), 0); //tuncate close and open segment
     ASSERT_EQ(log_store->getSegments().size(), 6);
+    ASSERT_EQ(log_store->lastLogIndex(), 13); //tuncate close and open segment
     ASSERT_EQ(log_store->close(), 0);
-    cleanDirectory(log_dir);
+    //cleanDirectory(log_dir);
 }
 
 TEST(RaftLog, getEntry)

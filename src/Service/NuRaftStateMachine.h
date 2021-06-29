@@ -30,7 +30,8 @@ public:
         SvsKeeperResponsesQueue & responses_queue_,
         const SvsKeeperSettingsPtr & coordination_settings_,
         std::string & snap_dir,
-        UInt32 begin_second,
+        UInt32 snap_begin_second,
+        UInt32 snap_end_second,
         UInt32 internal,
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
         UInt32 keep_max_snapshot_count = KeeperSnapshotManager::KEEP_MAX_SNAPSHOTS_COUNT)
@@ -40,7 +41,8 @@ public:
     {
         log = &(Poco::Logger::get("KeeperStateMachine"));
         snapshot_dir = snap_dir;
-        timer.begin_second = begin_second;
+        timer.begin_second = snap_begin_second;
+        timer.end_second = snap_end_second;
         timer.interval = internal;
         last_committed_idx = 0;
         snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, object_node_size, keep_max_snapshot_count);
