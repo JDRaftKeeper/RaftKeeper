@@ -256,10 +256,11 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
     LOG_DEBUG(log, "apply pack {}", index);
 }
 
+//last_log_index : last removed log index
 bool NuRaftFileLogStore::compact(ulong last_log_index)
 {
     //std::lock_guard<std::recursive_mutex> lock(log_lock);
-    segment_store->truncateLog(last_log_index + 1);
+    segment_store->removeSegment(last_log_index + 1);
     //start_idx = last_log_index + 1;
     LOG_DEBUG(log, "compact last_log_index {}", last_log_index);
     return true;

@@ -190,7 +190,8 @@ public:
     int truncateLog(UInt64 last_index_kept);
 
     int reset(UInt64 next_log_index);
-
+    
+    //closed segments, unclude open segment
     SegmentVector & getSegments() { return segments; }
 
     //void sync();
