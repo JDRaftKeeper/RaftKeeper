@@ -1,18 +1,31 @@
 <yandex>
     <zookeeper>
-        <node index="1">
+        <implementation>servicezookeeper</implementation>
+        <node>
+            <host>zoo1</host>
+            <port>2181</port>
+        </node>
+        <node>
+            <host>zoo2</host>
+            <port>2181</port>
+        </node>
+        <node>
+            <host>zoo3</host>
+            <port>2181</port>
+        </node>
+        <service_node>
             <host>node1</host>
             <port>5102</port>
-        </node>
-        <node index="2">
+        </service_node>
+        <service_node>
             <host>node2</host>
             <port>5102</port>
-        </node>
-        <node index="3">
+        </service_node>
+        <service_node>
             <host>node3</host>
             <port>5102</port>
-        </node>
-        <session_timeout_ms>80000</session_timeout_ms>
-        <operation_timeout_ms>50000</operation_timeout_ms>
+        </service_node>
+        <use_ch_service>true</use_ch_service>
+        <session_timeout_ms>30000</session_timeout_ms>
     </zookeeper>
 </yandex>

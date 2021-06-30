@@ -5,6 +5,7 @@
 #include <Common/ZooKeeper/ZooKeeper.h>
 #include <Common/ZooKeeper/KeeperException.h>
 #include <regex>
+#include <Common/ThreadPool.h>
 
 
 void filterAndSortQueueNodes(std::vector<std::string> & all_nodes)
@@ -90,6 +91,8 @@ int main(int argc, char ** argv)
             return false;
         };
 
+        auto thread_pool = std::make_shared<ThreadPool>(96);
+
         for (auto it = list_futures.begin(); it != list_futures.end(); ++it)
         {
             Coordination::ListResponse response;
@@ -116,42 +119,64 @@ int main(int argc, char ** argv)
                     throw;
             }
 
-            try
+            auto create = [&]()
             {
-                const auto & data = zookeeper->get(it->first);
-                if (is_sequential(it->first))
+                try
                 {
-                    const String & path_created = dest_zookeeper->create(it->first.substr(0, it->first.size() - 10), data, zkutil::CreateMode::PersistentSequential);
-                    if (path_created != it->first)
-                        throw;// TODO Error
-//                        std::cout << it->first << '\t' << "create: " << it->first.substr(0, it->first.size() - 10) << ", path_created: " << path_created << '\n';
-                }
-                else
-                    dest_zookeeper->create(it->first, data, zkutil::CreateMode::Persistent);
-
-                if (!response.names.empty())
-                {
-                    filterAndSortQueueNodes(response.names);
-
-                    if (is_sequential(response.names[0]))
+                    Coordination::Stat stat;
+                    const auto & data = zookeeper->get(it->first);
+                    if (!stat.ephemeralOwner)
                     {
-                        std::cout << "setSeqNum, " << it->first << '\t' << response.names[0].substr(response.names[0].size() - 10, 10) << '\n';
-                        dest_zookeeper->setSeqNum(it->first, std::stoi(response.names[0].substr(response.names[0].size() - 10, 10)));// TODO set seq_num for it->first znode
+                        std::future<Coordination::CreateResponse> future;
+                        if (is_sequential(it->first))
+                        {
+                            future = dest_zookeeper->asyncCreate(it->first.substr(0, it->first.size() - 10), data, zkutil::CreateMode::PersistentSequential);
+                            //const String & path_created = dest_zookeeper->create(
+                            //    it->first.substr(0, it->first.size() - 10), data, zkutil::CreateMode::PersistentSequential);
+                            //if (path_created != it->first)
+                            //    throw; // TODO Error
+                            //                        std::cout << it->first << '\t' << "create: " << it->first.substr(0, it->first.size() - 10) << ", path_created: " << path_created << '\n';
+                        }
+                        else
+                        {
+                            future = dest_zookeeper->asyncCreate(it->first, data, zkutil::CreateMode::Persistent);
+                        }
+
+                        if (!response.names.empty())
+                        {
+                            filterAndSortQueueNodes(response.names);
+
+                            if (is_sequential(response.names[0]))
+                            {
+                                future.get();
+                                std::cout << "setSeqNum, " << it->first << '\t' << response.names[0].substr(response.names[0].size() - 10, 10)
+                                          << '\n';
+                                dest_zookeeper->setSeqNum(
+                                    it->first,
+                                    std::stoi(
+                                        response.names[0].substr(response.names[0].size() - 10, 10))); // TODO set seq_num for it->first znode
+                            }
+                        }
                     }
                 }
-            }
-            catch (const Coordination::Exception & e)
-            {
-                if (e.code == Coordination::Error::ZNONODE)
+                catch (const Coordination::Exception & e)
                 {
-                    continue;
+                    if (e.code == Coordination::Error::ZNONODE)
+                    {
+//                        continue;
+                    }
                 }
-            }
-            catch (...)
-            {
-                std::cout << it->first << '\t' << response.stat.numChildren << '\t' << response.stat.dataLength << '\n';
-                throw;
-            }
+                catch (...)
+                {
+                    std::cout << it->first << '\t' << response.stat.numChildren << '\t' << response.stat.dataLength << '\n';
+                    throw;
+                }
+            };
+
+            if (response.names.empty())
+                thread_pool->trySchedule(create);
+            else
+                create();
 
             for (const auto & name : response.names)
             {
