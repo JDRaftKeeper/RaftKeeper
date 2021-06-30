@@ -38,7 +38,7 @@
         <log_dir>./raft_log</log_dir>
         <snapshot_dir>./snapshot_log</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
-        <snapshot_end_time>79200</snapshot_start_time>
+        <snapshot_end_time>79200</snapshot_end_time>
         <snapshot_create_interval>3600</snapshot_create_interval>
         <raft_grpc_port>5101</raft_grpc_port>
         <service_port>5102</service_port>

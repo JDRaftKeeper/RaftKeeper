@@ -69,17 +69,17 @@ def get_fake_zk(cluster1, nodename, timeout=30.0):
 
 def test_cluster_replicated_table(started_cluster):
     cluster3 = ClickHouseCluster(__file__)
-    node4 = cluster3.add_instance('node4', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros4.xml'], with_zookeeper=False, stay_alive=True)
-    node5 = cluster3.add_instance('node5', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros5.xml'], with_zookeeper=False, stay_alive=True)
-    node6 = cluster3.add_instance('node6', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros6.xml'], with_zookeeper=False, stay_alive=True)
+    node4 = cluster3.add_instance('node4', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros4.xml'], with_zookeeper=True, stay_alive=True)
+    node5 = cluster3.add_instance('node5', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros5.xml'], with_zookeeper=True, stay_alive=True)
+    node6 = cluster3.add_instance('node6', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros6.xml'], with_zookeeper=True, stay_alive=True)
 
-    node7 = cluster3.add_instance('node7', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros7.xml'], with_zookeeper=False, stay_alive=True)
-    node8 = cluster3.add_instance('node8', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros8.xml'], with_zookeeper=False, stay_alive=True)
-    node9 = cluster3.add_instance('node9', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros9.xml'], with_zookeeper=False, stay_alive=True)
+    node7 = cluster3.add_instance('node7', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros7.xml'], with_zookeeper=True, stay_alive=True)
+    node8 = cluster3.add_instance('node8', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros8.xml'], with_zookeeper=True, stay_alive=True)
+    node9 = cluster3.add_instance('node9', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros9.xml'], with_zookeeper=True, stay_alive=True)
 
-    node10 = cluster3.add_instance('node10', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros10.xml'], with_zookeeper=False, stay_alive=True)
-    node11 = cluster3.add_instance('node11', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros11.xml'], with_zookeeper=False, stay_alive=True)
-    node12 = cluster3.add_instance('node12', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros12.xml'], with_zookeeper=False, stay_alive=True)
+    node10 = cluster3.add_instance('node10', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros10.xml'], with_zookeeper=True, stay_alive=True)
+    node11 = cluster3.add_instance('node11', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros11.xml'], with_zookeeper=True, stay_alive=True)
+    node12 = cluster3.add_instance('node12', main_configs=['configs/log_conf.xml', 'configs/use_test_keeper.xml', 'configs/cluster.xml', 'configs/macros12.xml'], with_zookeeper=True, stay_alive=True)
 
     try:
         wait_nodes(cluster1, node1, node2, node3)
@@ -93,7 +93,10 @@ def test_cluster_replicated_table(started_cluster):
         node4.query("CREATE TABLE IF NOT EXISTS tmp_smoke_test.alerts_local01 on CLUSTER test_ch_service_cluster ( tenant_id UInt32, alert_id String, timestamp1 DateTime Codec(Delta, LZ4), alert_data String, acked UInt8, ack_time DateTime,  ack_user LowCardinality(String)   )  ENGINE = ReplicatedMergeTree('/clickhouse/tables/tmp_smoke_test/alerts_local01/shard-{shard}', '{replica}')  PARTITION BY toYYYYMM(timestamp1)  ORDER BY (tenant_id, timestamp1, alert_id)   SETTINGS index_granularity = 8192")
         node4.query("CREATE TABLE IF NOT EXISTS tmp_smoke_test.alerts ON CLUSTER test_ch_service_cluster AS tmp_smoke_test.alerts_local01 ENGINE = Distributed('test_ch_service_cluster', 'tmp_smoke_test', 'alerts_local01', rand())")
 
-        node4.query("INSERT INTO tmp_smoke_test.alerts (tenant_id, alert_id, timestamp1, alert_data)  SELECT   toUInt32(rand(1)%1000+1) AS tenant_id,   randomPrintableASCII(64) as alert_id,  toDateTime('2020-01-01 00:00:00') + rand(2)%(3600*24*30)*12 as timestamp1,   randomPrintableASCII(1024) as alert_data FROM numbers(100)")
+        node4.query("INSERT INTO tmp_smoke_test.alerts (tenant_id, alert_id, timestamp1, alert_data)  SELECT   toUInt32(rand(1)%1000+1) AS tenant_id,   randomPrintableASCII(64) as alert_id,  toDateTime('2020-01-01 00:00:00') + rand(2)%(3600*24*30)*12 as timestamp1,   randomPrintableASCII(1024) as alert_data FROM numbers(10000)")
+        node4.query("INSERT INTO tmp_smoke_test.alerts (tenant_id, alert_id, timestamp1, alert_data)  SELECT   toUInt32(rand(1)%1000+1) AS tenant_id,   randomPrintableASCII(64) as alert_id,  toDateTime('2020-01-01 00:00:00') + rand(2)%(3600*24*30)*12 as timestamp1,   randomPrintableASCII(1024) as alert_data FROM numbers(10000)")
+        node4.query("INSERT INTO tmp_smoke_test.alerts (tenant_id, alert_id, timestamp1, alert_data)  SELECT   toUInt32(rand(1)%1000+1) AS tenant_id,   randomPrintableASCII(64) as alert_id,  toDateTime('2020-01-01 00:00:00') + rand(2)%(3600*24*30)*12 as timestamp1,   randomPrintableASCII(1024) as alert_data FROM numbers(10000)")
+        node4.query("INSERT INTO tmp_smoke_test.alerts (tenant_id, alert_id, timestamp1, alert_data)  SELECT   toUInt32(rand(1)%1000+1) AS tenant_id,   randomPrintableASCII(64) as alert_id,  toDateTime('2020-01-01 00:00:00') + rand(2)%(3600*24*30)*12 as timestamp1,   randomPrintableASCII(1024) as alert_data FROM numbers(10000)")
 
         node4.query("SYSTEM FLUSH DISTRIBUTED tmp_smoke_test.alerts")
         time.sleep(2)
@@ -130,7 +133,8 @@ def test_cluster_replicated_table(started_cluster):
 
         num_sum = num4 + num7 + num10
 
-        assert str(num_sum) + '\n' == "100\n"
+        assert str(num_sum) + '\n' == node12.query("SELECT count() from tmp_smoke_test.alerts")
+        assert str(num_sum) + '\n' == "40000\n"
         assert num5 == num4
         assert num6 == num4
         assert num8 == num7
