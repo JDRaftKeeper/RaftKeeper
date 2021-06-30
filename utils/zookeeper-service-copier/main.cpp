@@ -119,18 +119,19 @@ int main(int argc, char ** argv)
                     throw;
             }
 
-            auto create = [&]()
+            auto path = it->first;
+            auto create = [&, response, path]() mutable
             {
                 try
                 {
                     Coordination::Stat stat;
-                    const auto & data = zookeeper->get(it->first, &stat);
+                    const auto & data = zookeeper->get(path, &stat);
                     if (!stat.ephemeralOwner)
                     {
                         std::future<Coordination::CreateResponse> future;
-                        if (is_sequential(it->first))
+                        if (is_sequential(path))
                         {
-                            future = dest_zookeeper->asyncCreate(it->first.substr(0, it->first.size() - 10), data, zkutil::CreateMode::PersistentSequential);
+                            future = dest_zookeeper->asyncCreate(path.substr(0, path.size() - 10), data, zkutil::CreateMode::PersistentSequential);
                             //const String & path_created = dest_zookeeper->create(
                             //    it->first.substr(0, it->first.size() - 10), data, zkutil::CreateMode::PersistentSequential);
                             //if (path_created != it->first)
@@ -139,7 +140,7 @@ int main(int argc, char ** argv)
                         }
                         else
                         {
-                            future = dest_zookeeper->asyncCreate(it->first, data, zkutil::CreateMode::Persistent);
+                            future = dest_zookeeper->asyncCreate(path, data, zkutil::CreateMode::Persistent);
                         }
 
                         if (!response.names.empty())
@@ -149,10 +150,10 @@ int main(int argc, char ** argv)
                             if (is_sequential(response.names[0]))
                             {
                                 future.get();
-                                std::cout << "setSeqNum, " << it->first << '\t' << response.names[0].substr(response.names[0].size() - 10, 10)
+                                std::cout << "setSeqNum, " << path << '\t' << response.names[0].substr(response.names[0].size() - 10, 10)
                                           << '\n';
                                 dest_zookeeper->setSeqNum(
-                                    it->first,
+                                    path,
                                     std::stoi(
                                         response.names[0].substr(response.names[0].size() - 10, 10))); // TODO set seq_num for it->first znode
                             }
@@ -168,12 +169,12 @@ int main(int argc, char ** argv)
                 }
                 catch (...)
                 {
-                    std::cout << it->first << '\t' << response.stat.numChildren << '\t' << response.stat.dataLength << '\n';
+                    std::cout << path << '\t' << response.stat.numChildren << '\t' << response.stat.dataLength << '\n';
                     throw;
                 }
             };
 
-            if (response.names.empty())
+            if (response.names.empty() && !is_sequential(path))
                 thread_pool->trySchedule(create);
             else
                 create();
