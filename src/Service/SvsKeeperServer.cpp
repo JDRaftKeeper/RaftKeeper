@@ -223,7 +223,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 
         ptr<nuraft::cmd_result<ptr<buffer>>> result;
         {
-            std::lock_guard lock(append_entries_mutex);
+//            std::lock_guard lock(append_entries_mutex);
             result = raft_instance->append_entries(entries);
         }
 
@@ -243,13 +243,18 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
                                                                                         : Coordination::Error::ZSYSTEMERROR;
 
         responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{session_id, response});
-        throw Exception(
-            ErrorCodes::RAFT_ERROR,
-            "Request session {} xid {} error, nuraft code {} and message: '{}'",
-            session_id,
-            request->xid,
-            result->get_result_code(),
-            result->get_result_str());
+        if (!result->get_accepted())
+            throw Exception(ErrorCodes::RAFT_ERROR,
+                            "Request session {} xid {} error, result is not accepted.",
+                            session_id,
+                            request->xid);
+        else
+            throw Exception(ErrorCodes::RAFT_ERROR,
+                            "Request session {} xid {} error, nuraft code {} and message: '{}'",
+                            session_id,
+                            request->xid,
+                            result->get_result_code(),
+                            result->get_result_str());
     }
 #endif
 }
