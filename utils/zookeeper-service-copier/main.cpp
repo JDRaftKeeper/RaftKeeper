@@ -124,7 +124,7 @@ int main(int argc, char ** argv)
                 try
                 {
                     Coordination::Stat stat;
-                    const auto & data = zookeeper->get(it->first);
+                    const auto & data = zookeeper->get(it->first, &stat);
                     if (!stat.ephemeralOwner)
                     {
                         std::future<Coordination::CreateResponse> future;
