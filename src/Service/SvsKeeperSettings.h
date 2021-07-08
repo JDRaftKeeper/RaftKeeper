@@ -23,8 +23,8 @@ struct Settings;
     M(Milliseconds, election_timeout_lower_bound_ms, 1000, "Lower bound of election timer (avoid too often leader elections)", 0) \
     M(Milliseconds, election_timeout_upper_bound_ms, 2000, "Lower bound of election timer (avoid too often leader elections)", 0) \
     M(UInt64, reserved_log_items, 10000000, "How many log items to store (don't remove during compaction)", 0) \
-    M(UInt64, snapshot_distance, 30000000, "How many log items we have to collect to write new snapshot", 0) \
-    M(UInt64, max_stored_snapshots, 3, "How many snapshots we want to store", 0) \
+    M(UInt64, snapshot_distance, 3000000, "How many log items we have to collect to write new snapshot", 0) \
+    M(UInt64, max_stored_snapshots, 5, "How many snapshots we want to store", 0) \
     M(Bool, auto_forwarding, true, "Allow to forward write requests from followers to leader", 0) \
     M(Milliseconds, shutdown_timeout, 5000, "How many time we will until RAFT shutdown", 0) \
     M(Milliseconds, startup_timeout, 300000, "How many time we will until RAFT to start", 0) \
