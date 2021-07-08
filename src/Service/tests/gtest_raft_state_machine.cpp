@@ -115,6 +115,7 @@ TEST(RaftStateMachine, serializeAndParse)
     std::string snap_dir(SNAP_DIR + "/0");
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
 
     ACLs default_acls;
@@ -251,6 +252,30 @@ TEST(RaftStateMachine, syncSnapshot)
     {
         ASSERT_TRUE(machine_target.exist_snapshot_object(meta, i));
     }
-    //cleanDirectory(snap_dir_1);
-    //cleanDirectory(snap_dir_2);
+    cleanDirectory(snap_dir_1);
+    cleanDirectory(snap_dir_2);
 }
+
+/*
+TEST(RaftStateMachine, loadSnapshot)
+{
+    std::string snap_dir(SNAP_DIR + "/6");
+    SvsKeeperResponsesQueue queue;
+    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
+    cleanDirectory(snap_dir);
+    ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
+    UInt32 last_index = 35;
+    for (auto i = 0; i < last_index; i++)
+    {
+        std::string key = "/" + std::to_string(i + 1);
+        std::string data = "table_" + key;
+        createZNode(machine, key, data);
+    }
+    UInt64 term = 1;
+    snapshot meta(last_index, term, config);
+    machine.create_snapshot(meta);
+    ASSERT_EQ(machine.getStorage().container.size(), 36);
+    cleanDirectory(snap_dir);
+}
+*/

@@ -67,7 +67,7 @@ TEST(RaftSnapshot, createSnapshot_1)
 {
     std::string snap_dir(SNAP_DIR + "/1");
     cleanDirectory(snap_dir);
-    KeeperSnapshotManager snap_mgr(snap_dir, 10, 3);
+    KeeperSnapshotManager snap_mgr(snap_dir, 3, 10);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     snapshot snap_meta(1, 1, config);
 
@@ -85,7 +85,7 @@ TEST(RaftSnapshot, createSnapshot_2)
 {
     std::string snap_dir(SNAP_DIR + "/2");
     cleanDirectory(snap_dir);
-    KeeperSnapshotManager snap_mgr(snap_dir, 100, 3);
+    KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
     SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
@@ -114,8 +114,8 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
     UInt32 last_index = 1024;
     UInt32 term = 1;
-    KeeperSnapshotManager snap_mgr_read(snap_read_dir, 100, 3);
-    KeeperSnapshotManager snap_mgr_save(snap_save_dir, 100, 3);
+    KeeperSnapshotManager snap_mgr_read(snap_read_dir, 3, 100);
+    KeeperSnapshotManager snap_mgr_save(snap_save_dir, 3, 100);
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
@@ -160,7 +160,7 @@ TEST(RaftSnapshot, parseSnapshot)
 {
     std::string snap_dir(SNAP_DIR + "/5");
     cleanDirectory(snap_dir);
-    KeeperSnapshotManager snap_mgr(snap_dir, 100, 3);
+    KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
     SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
@@ -174,6 +174,9 @@ TEST(RaftSnapshot, parseSnapshot)
         std::string value = "table_" + key;
         setNode(storage, key, value);
     }
+    
+    ASSERT_EQ(storage.container.size(),1025);
+
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
     ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM);
@@ -191,5 +194,23 @@ TEST(RaftSnapshot, parseSnapshot)
             ASSERT_EQ(new_node->data, it->second->data);
         }
     }
+
+    for (int i = last_index; i < 2 * last_index; i++)
+    {
+        std::string key = std::to_string(i + 1);
+        std::string value = "table_" + key;
+        setNode(storage, key, value);
+    }
+    ASSERT_EQ(storage.container.size(),2049);
+    sleep(1);
+    snapshot meta2(2 * last_index, term, config);
+    object_size = snap_mgr.createSnapshot(meta2, storage);    
+
+    KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
+    ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
+    ASSERT_EQ(new_snap_mgr.lastSnapshot()->get_last_log_idx(), 2048);
+
+    ASSERT_EQ(new_snap_mgr.removeSnapshots(), 1);
+
     cleanDirectory(snap_dir);
 }
