@@ -181,7 +181,11 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
         if (src == nullptr)
         {
             src = segment_store->getEntry(index);
-            LOG_DEBUG(log, "get entry {} from disk", index);
+            //2^16, 65536
+            if (index << 48 == 0)
+            {
+                LOG_DEBUG(log, "get entry {} from disk", index);
+            }
         }
         else
         {
