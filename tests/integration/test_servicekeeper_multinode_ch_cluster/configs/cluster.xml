@@ -2,6 +2,7 @@
 <remote_servers incl="clickhouse_remote_servers" >
     <test_ch_service_cluster>
         <shard>
+            <internal_replication>true</internal_replication>
             <replica>
                 <host>node4</host>
                 <port>9000</port>
@@ -16,6 +17,7 @@
             </replica>
         </shard>
         <shard>
+            <internal_replication>true</internal_replication>
             <replica>
                 <host>node7</host>
                 <port>9000</port>
@@ -30,6 +32,7 @@
             </replica>
         </shard>
         <shard>
+            <internal_replication>true</internal_replication>
             <replica>
                 <host>node10</host>
                 <port>9000</port>
