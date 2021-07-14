@@ -142,10 +142,11 @@ def test_cluster_replicated_table(started_cluster):
         assert num11 == num10
         assert num12 == num10
 
-        node1_zk.get("/clickhouse/tables/tmp_smoke_test/alerts_local01/shard-01/replicas/01")
+        node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster SYNC")
+        zk_cli = cluster3.get_kazoo_client('zoo1')
 
-        node1_zk.get("/")
+        assert node1_zk.get_children("/clickhouse/tables/tmp_smoke_test/alerts_local01") == zk_cli.get_children("/clickhouse/tables/tmp_smoke_test/alerts_local01")
+        assert zk_cli.get_children("/clickhouse/tables/tmp_smoke_test/alerts_local01") == []
 
-        node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster")
     finally:
         cluster3.shutdown()
