@@ -25,7 +25,7 @@
             <host>node3</host>
             <port>5102</port>
         </service_node>
-        <use_ch_service>true</use_ch_service>
+        <use_ch_service>false</use_ch_service>
         <session_timeout_ms>30000</session_timeout_ms>
     </zookeeper>
 </yandex>
