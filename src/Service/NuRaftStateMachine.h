@@ -33,20 +33,9 @@ public:
         UInt32 snap_begin_second,
         UInt32 snap_end_second,
         UInt32 internal,
-        UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
-        UInt32 keep_max_snapshot_count = KeeperSnapshotManager::KEEP_MAX_SNAPSHOTS_COUNT)
-        : coordination_settings(coordination_settings_)
-        , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds())
-        , responses_queue(responses_queue_)
-    {
-        log = &(Poco::Logger::get("KeeperStateMachine"));
-        snapshot_dir = snap_dir;
-        timer.begin_second = snap_begin_second;
-        timer.end_second = snap_end_second;
-        timer.interval = internal;
-        last_committed_idx = 0;
-        snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, object_node_size, keep_max_snapshot_count);
-    }
+        UInt32 keep_max_snapshot_count,
+        ptr<nuraft::log_store> logstore = nullptr,
+        UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
 
     ~NuRaftStateMachine() override { }
 
@@ -82,8 +71,6 @@ public:
 
     KeeperNode & getNode(const std::string & path);
 
-    //void registerCallback(const std::string & path, RaftWatchCallback * watch);
-
     //NodeMap & getNodeMap() { return node_map; }
     SvsKeeperStorage & getStorage() { return storage; }
 
@@ -91,21 +78,12 @@ public:
 
     std::unordered_set<int64_t> getDeadSessions();
 
-    UInt64 getNodeNum()
-    {
-        return storage.getNodeNum();
-    }
+    UInt64 getNodeNum() { return storage.getNodeNum(); }
 
-    UInt64 getNodeSizeMB()
-    {
-        return storage.getNodeSizeMB();
-    }
+    UInt64 getNodeSizeMB() { return storage.getNodeSizeMB(); }
 
     /// no need to lock
-    UInt64 getSessionNum()
-    {
-        return storage.getSessionNum();
-    }
+    UInt64 getSessionNum() { return storage.getSessionNum(); }
 
     void shutdownStorage();
 
@@ -113,13 +91,8 @@ public:
     static ptr<buffer> serializeRequest(SvsKeeperStorage::RequestForSession & request);
 
 private:
-    //    bool updateParentPath(std::string curr_path);
-    //    bool removePathRecursion(const std::string & curr_path);
+    bool replay(const ulong & log_idx, ptr<log_entry> & entry);
 
-    //bool serializeNodes(const NodeMap & nodes, ptr<buffer> & buff);
-    //bool deserializeNodes(const ptr<buffer> & buff, NodeMap & nodes);
-
-private:
     Poco::Logger * log;
     SvsKeeperSettingsPtr coordination_settings;
 

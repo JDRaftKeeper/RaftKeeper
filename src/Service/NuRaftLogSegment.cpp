@@ -191,13 +191,16 @@ int NuRaftLogSegment::load()
         offset_term.push_back(std::make_pair(entry_off, header.term));
         ++actual_last_index;
         entry_off += skip_len;
-        LOG_DEBUG(
-            log,
-            "Load log segment, entry_off {}, skip_len {}, file_size {}, actual_last_index {}",
-            entry_off,
-            skip_len,
-            file_size,
-            actual_last_index);
+        if (actual_last_index << 44 == 0)
+        {
+            LOG_DEBUG(
+                log,
+                "Load log segment, entry_off {}, skip_len {}, file_size {}, actual_last_index {}",
+                entry_off,
+                skip_len,
+                file_size,
+                actual_last_index);
+        }
     }
 
     const UInt64 curr_last_index = last_index.load(std::memory_order_relaxed);
@@ -356,12 +359,13 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
     }
     LOG_DEBUG(
         log,
-        "Append term {}, index {}, length {}, crc {}, file {}.",
+        "Append term {}, index {}, length {}, crc {}, file {}, entry type {}.",
         header.term,
         header.index,
         header.data_length,
         header.data_crc,
-        file_size);
+        file_size,
+        entry->get_val_type());
     return header.index;
 }
 
@@ -951,52 +955,6 @@ int LogSegmentStore::removeSegment()
     return 0;
 }
 
-/*
-void LogSegmentStore::popSegmentsFromBack(UInt64 last_index_kept, std::vector<ptr<LogSegment>> & popped, ptr<LogSegment> & last_segment)
-{
-    popped.clear();
-    popped.reserve(32);
-    last_segment = nullptr;
-    std::lock_guard lock(seg_mutex);
-    last_log_index.store(last_index_kept, std::memory_order_release);
-    if (open_segment)
-    {
-        if (open_segment->firstIndex() <= last_index_kept)
-        {
-            last_segment = open_segment;
-            return;
-        }
-        popped.push_back(open_segment);
-        open_segment = nullptr;
-    }
-    for (auto it = segments.rbegin(); it != segments.rend(); ++it)
-    {
-        if ((*it)->firstIndex() <= last_index_kept)
-        {
-            // Not return as we need to maintain segments at the end of this
-            // routine
-            break;
-        }
-        popped.push_back(*it);
-        //XXX: C++03 not support erase reverse_iterator
-    }
-    for (size_t i = 0; i < popped.size(); i++)
-    {
-        //segments.erase(popped[i]->firstIndex());
-    }
-    if (segments.rbegin() != segments.rend())
-    {
-        last_segment = *(segments.rbegin());
-    }
-    else
-    {
-        // all the logs have been cleared, the we move first_log_index to the
-        // next index
-        first_log_index.store(last_index_kept + 1, std::memory_order_release);
-    }
-}
-*/
-
 int LogSegmentStore::truncateLog(UInt64 last_index_kept)
 {
     if (last_log_index.load(std::memory_order_acquire) <= last_index_kept)
@@ -1155,7 +1113,24 @@ int LogSegmentStore::listSegments()
                 return -1;
             }
         }
-        //std::string full_file_name = log_dir + "/" + file_name;
+    }
+
+    std::sort(segments.begin(), segments.end(), compareSegment);
+
+    // 0 close/open segment
+    // 1 open segment
+    // N close segment + 1 open segment
+    if (open_segment)
+    {
+        if (segments.size() > 0)
+        {
+            first_log_index.store((*segments.begin())->firstIndex(), std::memory_order_release);
+        }
+        else
+        {
+            first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
+        }
+        last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
     }
 
     // check segment
@@ -1163,6 +1138,15 @@ int LogSegmentStore::listSegments()
     for (auto it = segments.begin(); it != segments.end();)
     {
         ptr<NuRaftLogSegment> segment = *it;
+
+        LOG_INFO(
+            log,
+            "first log index {}, last log index {}, segment first index {}, last index {}",
+            first_log_index.load(std::memory_order_relaxed),
+            last_log_index.load(std::memory_order_relaxed),
+            segment->firstIndex(),
+            segment->lastIndex());
+
         if (segment->firstIndex() > segment->lastIndex())
         {
             LOG_WARNING(
@@ -1183,7 +1167,8 @@ int LogSegmentStore::listSegments()
                 last_log_index);
             return -1;
         }
-        else if (last_log_index == 0 && first_log_index.load(std::memory_order_acquire) < segment->firstIndex())
+        /*
+        else if (last_log_index == 0 && first_log_index.load(std::memory_order_relaxed) < segment->firstIndex())
         {
             LOG_WARNING(
                 log,
@@ -1194,6 +1179,7 @@ int LogSegmentStore::listSegments()
                 segment->lastIndex());
             return -1;
         }
+        */
         else if (last_log_index == 0 && first_log_index > segment->lastIndex())
         {
             LOG_WARNING(
@@ -1207,13 +1193,14 @@ int LogSegmentStore::listSegments()
             segments.erase(it++);
             continue;
         }
-        /*
-        if (first_log_index.load(std::memory_order_acquire) > segment->firstIndex())
-        {
-            first_log_index.store(segment->firstIndex());
-        }
-        */
-        last_log_index = segment->lastIndex();
+
+        LOG_INFO(
+            log,
+            "first log index {}, last log index {}, segment first index {}, last index {}",
+            first_log_index.load(std::memory_order_relaxed),
+            last_log_index.load(std::memory_order_relaxed),
+            segment->firstIndex(),
+            segment->lastIndex());
         ++it;
     }
 
@@ -1262,7 +1249,7 @@ int LogSegmentStore::loadSegments()
 
         if (segment->lastIndex() > last_log_index)
         {
-            LOG_INFO(log, "Close segment last index {}", open_segment->lastIndex());
+            LOG_INFO(log, "Close segment last index {}", segment->lastIndex());
             last_log_index.store(segment->lastIndex(), std::memory_order_release);
         }
     }

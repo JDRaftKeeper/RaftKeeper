@@ -62,13 +62,18 @@ public:
     //create snapshot object, return the size of objects
     size_t createObjects(SvsKeeperStorage & storage);
     // init snapshot store for receive snapshot object
-    void initStore();
+    void init(std::string create_time);
     void parseObject(SvsKeeperStorage & storage);
 
     void loadObject(ulong obj_id, ptr<buffer> & buffer);
     bool existObject(ulong obj_id);
     void saveObject(ulong obj_id, buffer & buffer);
+
+    void addObjectPath(ulong obj_id, std::string & path);
+
     ptr<snapshot> getSnapshot() { return snap_meta; }
+
+    time_t & getCreateTimeT() { return curr_time_t; }
 
     static void getFileTime(const std::string file_name, std::string & time);
 
@@ -103,6 +108,7 @@ private:
     UInt64 log_last_index;
     std::map<ulong, std::string> objects_path;
     std::string curr_time;
+    time_t curr_time_t;
     std::shared_ptr<ThreadPool> snapshot_thread;
 };
 
@@ -112,13 +118,10 @@ using KeeperSnapshotStoreMap = std::map<uint64_t, ptr<KeeperSnapshotStore>>;
 class KeeperSnapshotManager
 {
 public:
-    KeeperSnapshotManager(
-        const std::string & snap_dir_,
-        UInt32 object_node_size_ = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
-        UInt32 keep_max_snapshot_count_ = KEEP_MAX_SNAPSHOTS_COUNT)
+    KeeperSnapshotManager(const std::string & snap_dir_, UInt32 keep_max_snapshot_count_, UInt32 object_node_size_)
         : snap_dir(snap_dir_)
-        , object_node_size(object_node_size_)
         , keep_max_snapshot_count(keep_max_snapshot_count_)
+        , object_node_size(object_node_size_)
         , log(&(Poco::Logger::get("KeeperSnapshotManager")))
     {
     }
@@ -129,16 +132,14 @@ public:
     bool existSnapshotObject(const snapshot & meta, ulong obj_id);
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
     bool saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer);
-    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);
+    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);    
     ptr<snapshot> lastSnapshot();
-
-public:
-    //Maintain last 10 snapshots only
-    static const int KEEP_MAX_SNAPSHOTS_COUNT = 10;
-
+    time_t getLastCreateTime();
+    size_t loadSnapshotMetas();
+    size_t removeSnapshots();
+    
 private:
     std::string snap_dir;
-    UInt32 object_node_size;
 #ifdef __clang__
     [[maybe_unused]] UInt32 keep_max_snapshot_count;
     [[maybe_unused]] std::atomic<uint64_t> last_committed_idx;
@@ -146,9 +147,12 @@ private:
     UInt32 keep_max_snapshot_count;
     std::atomic<uint64_t> last_committed_idx;
 #endif
+    UInt32 object_node_size;
+
     Poco::Logger * log;
     //std::mutex snap_mutex;
     KeeperSnapshotStoreMap snapshots;
+    std::string last_create_time_str;
 };
 
 }

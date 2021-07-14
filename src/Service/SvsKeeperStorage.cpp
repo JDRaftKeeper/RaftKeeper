@@ -53,8 +53,7 @@ static std::string getBaseName(const String & path)
 }
 
 static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
-    const String & path, SvsKeeperStorage::Watches & watches, SvsKeeperStorage::Watches & list_watches,
-    Coordination::Event event_type)
+    const String & path, SvsKeeperStorage::Watches & watches, SvsKeeperStorage::Watches & list_watches, Coordination::Event event_type)
 {
     SvsKeeperStorage::ResponsesForSessions result;
     auto it = watches.find(path);
@@ -249,7 +248,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         created_node->stat.dataLength = request.data.length();
         created_node->data = request.data;
         created_node->is_ephemeral = request.is_ephemeral;
-        if(request.is_ephemeral)
+        if (request.is_ephemeral)
             created_node->stat.ephemeralOwner = session_id;
         created_node->is_sequental = request.is_sequential;
         std::string path_created = request.path;
@@ -724,8 +723,7 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
 struct SvsKeeperStorageMultiRequest final : public SvsKeeperStorageRequest
 {
     std::vector<SvsKeeperStorageRequestPtr> concrete_requests;
-    explicit SvsKeeperStorageMultiRequest(const Coordination::ZooKeeperRequestPtr & zk_request_)
-        : SvsKeeperStorageRequest(zk_request_)
+    explicit SvsKeeperStorageMultiRequest(const Coordination::ZooKeeperRequestPtr & zk_request_) : SvsKeeperStorageRequest(zk_request_)
     {
         Coordination::ZooKeeperMultiRequest & request = dynamic_cast<Coordination::ZooKeeperMultiRequest &>(*zk_request);
         concrete_requests.reserve(request.requests.size());
@@ -871,7 +869,6 @@ void SvsKeeperStorage::finalize()
         sessions_and_watchers.clear();
         session_expiry_queue.clear();
     }
-
 }
 
 class NuKeeperWrapperFactory final : private boost::noncopyable
@@ -992,8 +989,14 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     else
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
-        //LOG_INFO(log, "Container size {}, opnum {}", container.size(), zk_request->getOpNum());
+        auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id); 
+               
+        //2^19 = 524,288
+        if (container.size() << 45 == 0)
+        {
+            LOG_INFO(log, "Container size {}, opnum {}", container.size(), zk_request->getOpNum());
+        }
+
         if (response->error != Coordination::Error::ZOK)
         {
             LOG_INFO(log, "Zxid {}, opnum {}, session id {},  error {}", zxid, zk_request->getOpNum(), session_id, response->error);
