@@ -204,7 +204,7 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSes
 ptr<buffer> NuRaftStateMachine::pre_commit(const ulong log_idx, buffer & data)
 {
     // Nothing to do with pre-commit in this example.
-    //LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
     return nullptr;
 }
 
@@ -212,7 +212,7 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 {
     // Nothing to do with rollback,
     // as this example doesn't do anything on pre-commit.
-    //LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
 }
 
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data)
