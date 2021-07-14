@@ -8,6 +8,7 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <sys/uio.h>
+#include <Poco/File.h>
 #include <Common/Exception.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 
@@ -19,6 +20,8 @@
 namespace DB
 {
 using nuraft::cs_new;
+
+//const int KeeperSnapshotStore::SNAPSHOT_THREAD_NUM = 4;
 
 int openFileForWrite(std::string & obj_path)
 {
@@ -268,7 +271,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
         LOG_ERROR(log, "Fail to create snapshot directory {}", snap_dir);
         return 0;
     }
-    BackendTimer::getCurrentTime(curr_time);
+    //BackendTimer::getCurrentTime(curr_time);
 
     size_t block_max_size = 0;
 
@@ -356,9 +359,17 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     return obj_size;
 }
 
-void KeeperSnapshotStore::initStore()
+void KeeperSnapshotStore::init(std::string create_time = "")
 {
-    BackendTimer::getCurrentTime(curr_time);
+    if (create_time.empty())
+    {
+        BackendTimer::getCurrentTime(curr_time);
+    }
+    else
+    {
+        curr_time = create_time;
+    }
+    curr_time_t = BackendTimer::parseTime(curr_time);
 }
 
 bool KeeperSnapshotStore::loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
@@ -508,7 +519,7 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
                 {
                     LOG_INFO(
                         thread_log,
-                        "Parse object, thread_idx {}, obj_index {}, path {}, thread obj size {}",
+                        "Parse object, thread_idx {}, obj_index {}, path {}, obj size {}",
                         thread_idx,
                         it->first,
                         it->second,
@@ -642,13 +653,25 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
     LOG_INFO(log, "Save object path {}, file size {}, obj_id {}.", obj_path, buffer.size(), obj_id);
 }
 
+void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
+{
+    objects_path[obj_id] = path;
+}
+
 size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage)
 {
     size_t store_size = storage.container.size() + storage.ephemerals.size();
     meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
+    snap_store->init();
     LOG_INFO(
-        log, "Create snapshot last_log_term {}, last_log_idx {}, size {}", meta.get_last_log_term(), meta.get_last_log_idx(), meta.size());
+        log,
+        "Create snapshot last_log_term {}, last_log_idx {}, size {}, SM container size {}, SM ephemeral size {}",
+        meta.get_last_log_term(),
+        meta.get_last_log_idx(),
+        meta.size(),
+        storage.container.size(),
+        storage.ephemerals.size());
     size_t obj_size = snap_store->createObjects(storage);
     snapshots[meta.get_last_log_idx()] = snap_store;
     return obj_size;
@@ -657,7 +680,7 @@ size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage &
 bool KeeperSnapshotManager::receiveSnapshot(snapshot & meta)
 {
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
-    snap_store->initStore();
+    snap_store->init();
     snapshots[meta.get_last_log_idx()] = snap_store;
     return true;
 }
@@ -702,6 +725,7 @@ bool KeeperSnapshotManager::saveSnapshotObject(snapshot & meta, ulong obj_id, bu
     {
         meta.set_size(0);
         store = cs_new<KeeperSnapshotStore>(snap_dir, meta);
+        store->init();
         snapshots[meta.get_last_log_idx()] = store;
     }
     else
@@ -717,23 +741,107 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, SvsKeeperStorag
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())
     {
+        LOG_WARNING(log, "Cant find snapshot, last log index {}", meta.get_last_log_idx());
         return false;
     }
     ptr<KeeperSnapshotStore> store = it->second;
     store->parseObject(storage);
+    LOG_INFO(
+        log,
+        "Finish parse snapshot, StateMachine container size {}, ephemeral size {}",
+        storage.container.size(),
+        storage.ephemerals.size());
     return true;
+}
+
+size_t KeeperSnapshotManager::loadSnapshotMetas()
+{
+    Poco::File file_dir(snap_dir);
+    if (!file_dir.exists())
+        return 0;
+
+    std::vector<std::string> file_vec;
+    file_dir.list(file_vec);
+    char time_str[128];
+    ulong log_last_index;
+    ulong object_id;
+
+    for (auto it = file_vec.begin(); it != file_vec.end(); it++)
+    {
+        sscanf((*it).c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+        if (snapshots.find(log_last_index) == snapshots.end())
+        {
+            ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(log_last_index, log_last_index - 1);
+            nuraft::snapshot meta(log_last_index, 1, config);
+            ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
+            snap_store->init(time_str);
+            snapshots[meta.get_last_log_idx()] = snap_store;
+            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", (*it), time_str, log_last_index, object_id);
+        }
+        std::string full_path = snap_dir + "/" + *it;
+        snapshots[log_last_index]->addObjectPath(object_id, full_path);
+    }
+    LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
+    return snapshots.size();
 }
 
 ptr<snapshot> KeeperSnapshotManager::lastSnapshot()
 {
-    /// TODO zx
-    // Just return the latest snapshot.
+    LOG_INFO(log, "Get last snapshot, snapshot size {}", snapshots.size());
     auto entry = snapshots.rbegin();
     if (entry == snapshots.rend())
         return nullptr;
-
     return entry->second->getSnapshot();
 }
+
+time_t KeeperSnapshotManager::getLastCreateTime()
+{
+    auto entry = snapshots.rbegin();
+    if (entry == snapshots.rend())
+        return 0L;
+    return entry->second->getCreateTimeT();
+}
+
+size_t KeeperSnapshotManager::removeSnapshots()
+{
+    size_t remove_count = snapshots.size() - keep_max_snapshot_count;
+    char time_str[128];
+    ulong log_last_index;
+    ulong object_id;
+    while (remove_count > 0)
+    {
+        auto it = snapshots.begin();
+        ulong remove_log_index = it->first;
+        Poco::File dir_obj(snap_dir);
+        if (dir_obj.exists())
+        {
+            std::vector<std::string> files;
+            dir_obj.list(files);
+            for (auto file : files)
+            {
+                sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+                if (remove_log_index == log_last_index)
+                {
+                    LOG_INFO(
+                        log,
+                        "remove_count {}, snapshot size {}, remove log index {}, file {}",
+                        remove_count,
+                        snapshots.size(),
+                        remove_log_index,
+                        file);
+                    Poco::File(snap_dir + "/" + file).remove();
+                    if (snapshots.find(remove_log_index) != snapshots.end())
+                    {
+                        snapshots.erase(it);
+                    }
+                }
+            }
+        }
+        remove_count--;
+    }
+    return snapshots.size();
+}
+
 }
 
 #ifdef __clang__

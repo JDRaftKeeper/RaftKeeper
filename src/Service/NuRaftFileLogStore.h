@@ -37,7 +37,7 @@ class NuRaftFileLogStore : public nuraft::log_store
 {
     __nocopy__(NuRaftFileLogStore)
 
-        public : NuRaftFileLogStore(const std::string & log_dir, bool force_new = false);
+    public : NuRaftFileLogStore(const std::string & log_dir, bool force_new = false);
     ~NuRaftFileLogStore() override;
 
     ulong next_slot() const override;

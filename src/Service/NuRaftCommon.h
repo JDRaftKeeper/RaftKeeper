@@ -22,7 +22,7 @@ struct BackendTimer
 {
     static constexpr char TIME_FMT[] = "%Y%m%d%H%M%S";
 
-    //Only [2:00 - 22:00] can create snapshot 
+    //Only [2:00 - 22:00] can create snapshot
     UInt32 begin_second = 7200;
     UInt32 end_second = 79200;
     //default min interval is 1 hour
@@ -41,10 +41,19 @@ struct BackendTimer
         date_str = tmp_buf;
     }
 
+    static time_t parseTime(const std::string & date_str)
+    {
+        struct tm prev_tm;
+        memset(&prev_tm, 0, sizeof(tm));
+        strptime(date_str.data(), TIME_FMT, &prev_tm);
+        time_t prev_time = mktime(&prev_tm);
+        return prev_time;
+    }
+
     bool isActionTime(const std::string & prev_date, time_t curr_time)
     {
         /// first snapshot
-        if(prev_date.empty())
+        if (prev_date.empty())
         {
             return true;
         }
@@ -66,6 +75,15 @@ struct BackendTimer
         strptime(prev_date.data(), TIME_FMT, &prev_tm);
         time_t prev_time = mktime(&prev_tm);
 
+        return difftime(curr_time, prev_time) >= interval;
+    }
+
+    bool isActionTime(time_t & prev_time, time_t & curr_time)
+    {
+        if (curr_time == 0L)
+        {
+            time(&curr_time);
+        }
         return difftime(curr_time, prev_time) >= interval;
     }
 };

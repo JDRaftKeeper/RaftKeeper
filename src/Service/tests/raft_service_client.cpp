@@ -165,18 +165,18 @@ int main(int argc, char ** argv)
             {
                 snprintf(key_buf, 257, "%s%010d", key.data(), begin);
                 Coordination::Error ret = Coordination::Error::ZOK;
-                //try
-                //{
-                ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);
-                LOG_DEBUG(thread_log, "Response code {}, errmsg {}, key {}", ret, errorMessage(ret), key_buf);
-                /*
+                try
+                {
+                    ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);                
+                    //LOG_DEBUG(thread_log, "Response code {}, errmsg {}, key {}", ret, errorMessage(ret), key_buf);
                 }
                 catch (DB::Exception & ex)
                 {
-                    LOG_INFO(
-                        thread_log, "Response code {}, errmsg {}, key {}, exception {}", ret, errorMessage(ret), key_buf, ex.message());
+                    LOG_INFO(thread_log, "Response code {}, errmsg {}, key {}, exception {}", ret, errorMessage(ret), key_buf, ex.message());
+                    sleep(1);
+                    //make new
+                    zookeeper = std::make_shared<zkutil::ZooKeeper>(ip_port, "", 60000, 30000);
                 }
-                */
                 begin++;
             }
         });
