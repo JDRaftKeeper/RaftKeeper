@@ -456,15 +456,29 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     ReadBufferFromNuraftBuffer in(buf);
                     ptr<KeeperNode> node = cs_new<KeeperNode>();
                     std::string key;
-                    Coordination::read(key, in);
-                    //LOG_INFO(log, "Read key {}", key);
-                    Coordination::read(node->data, in);
-                    Coordination::read(node->acls, in);
-                    Coordination::read(node->is_ephemeral, in);
-                    Coordination::read(node->is_sequental, in);
-                    Coordination::read(node->stat, in);
-                    Coordination::read(node->seq_num, in);
-                    storage.container.emplace(key, std::move(node));
+                    try
+                    {
+                        Coordination::read(key, in);
+                        //LOG_INFO(log, "Read key {}", key);
+                        Coordination::read(node->data, in);
+                        Coordination::read(node->acls, in);
+                        Coordination::read(node->is_ephemeral, in);
+                        Coordination::read(node->is_sequental, in);
+                        Coordination::read(node->stat, in);
+                        Coordination::read(node->seq_num, in);
+                        storage.container.emplace(key, std::move(node));
+                    }
+                    catch (Coordination::Exception & e)
+                    {
+                        LOG_WARNING(
+                            log,
+                            "Cant read snapshot data {}, data index {}, key {}, excepiton {}",
+                            obj_path,
+                            data_idx,
+                            key,
+                            e.displayText());
+                        break;
+                    }
                 }
             }
             break;
@@ -479,14 +493,41 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     ReadBufferFromNuraftBuffer in(buf);
                     Int64 session_id;
                     size_t path_size;
-                    Coordination::read(session_id, in);
-                    Coordination::read(path_size, in);
+                    try
+                    {
+                        Coordination::read(session_id, in);
+                        Coordination::read(path_size, in);
+                    }
+                    catch (Coordination::Exception & e)
+                    {
+                        LOG_WARNING(
+                            log,
+                            "Cant read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
+                            obj_path,
+                            data_idx,
+                            e.displayText());
+                        break;
+                    }
 
                     std::unordered_set<std::string> set;
                     for (size_t i = 0; i < path_size; i++)
                     {
                         std::string path;
-                        Coordination::read(path, in);
+                        try
+                        {
+                            Coordination::read(path, in);
+                        }
+                        catch (Coordination::Exception & e)
+                        {
+                            LOG_WARNING(
+                                log,
+                                "Cant read ephemeral path from snapshot {}, session id {}, path index {}, excepiton {}",
+                                obj_path,
+                                session_id,
+                                data_idx,
+                                e.displayText());
+                            break;
+                        }
                         set.emplace(path);
                     }
                     storage.ephemerals[session_id] = set;
@@ -841,7 +882,6 @@ size_t KeeperSnapshotManager::removeSnapshots()
     }
     return snapshots.size();
 }
-
 }
 
 #ifdef __clang__

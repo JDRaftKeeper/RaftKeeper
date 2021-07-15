@@ -1134,14 +1134,15 @@ int LogSegmentStore::listSegments()
     }
 
     // check segment
-    last_log_index = 0;
+    // last_log_index = 0;
+    ptr<NuRaftLogSegment> prev_seg = nullptr;
+    ptr<NuRaftLogSegment> segment;
     for (auto it = segments.begin(); it != segments.end();)
     {
-        ptr<NuRaftLogSegment> segment = *it;
-
+        segment = *it;
         LOG_INFO(
             log,
-            "first log index {}, last log index {}, segment first index {}, last index {}",
+            "first log index {}, last log index {}, current segment first index {}, last index {}",
             first_log_index.load(std::memory_order_relaxed),
             last_log_index.load(std::memory_order_relaxed),
             segment->firstIndex(),
@@ -1151,82 +1152,36 @@ int LogSegmentStore::listSegments()
         {
             LOG_WARNING(
                 log,
-                "Closed segment is bad, directory {}, first index {}, last index {}",
+                "Closed segment is bad, directory {}, current segment first index {}, last index {}",
                 log_dir,
                 segment->firstIndex(),
                 segment->lastIndex());
             return -1;
-        }
-        else if (last_log_index != 0 && segment->firstIndex() != last_log_index + 1)
-        {
-            LOG_WARNING(
-                log,
-                "Closed segment not in order, directory {}, first index {}, last log index {}",
-                log_dir,
-                segment->firstIndex(),
-                last_log_index);
-            return -1;
-        }
-        /*
-        else if (last_log_index == 0 && first_log_index.load(std::memory_order_relaxed) < segment->firstIndex())
-        {
-            LOG_WARNING(
-                log,
-                "Closed segment has hole, directory {}, first log index {}, first index {}, last index {}",
-                log_dir,
-                first_log_index.load(std::memory_order_relaxed),
-                segment->firstIndex(),
-                segment->lastIndex());
-            return -1;
-        }
-        */
-        else if (last_log_index == 0 && first_log_index > segment->lastIndex())
-        {
-            LOG_WARNING(
-                log,
-                "Closed segment need discard, directory {}, first log index {}, first index {}, last index {} ",
-                log_dir,
-                first_log_index.load(std::memory_order_relaxed),
-                segment->firstIndex(),
-                segment->lastIndex());
-            //segment->unlink();
-            segments.erase(it++);
-            continue;
         }
 
-        LOG_INFO(
-            log,
-            "first log index {}, last log index {}, segment first index {}, last index {}",
-            first_log_index.load(std::memory_order_relaxed),
-            last_log_index.load(std::memory_order_relaxed),
-            segment->firstIndex(),
-            segment->lastIndex());
+        if (prev_seg && segment->firstIndex() != prev_seg->lastIndex() + 1)
+        {
+            LOG_WARNING(
+                log,
+                "Closed segment not in order, directory {}, prev segment last index {}, current segment first index {}",
+                log_dir,
+                prev_seg->lastIndex(),
+                segment->firstIndex());
+            return -1;
+        }
         ++it;
     }
 
     if (open_segment)
     {
-        if (last_log_index == 0 && first_log_index.load(std::memory_order_relaxed) < open_segment->firstIndex())
+        if (prev_seg && open_segment->firstIndex() != prev_seg->lastIndex() + 1)
         {
             LOG_WARNING(
                 log,
-                "Open segment has hole, directory {}, first log index {}, first index {}",
+                "Open segment has hole, directory {}, prev segment last index {}, open segment first index {}",
                 log_dir,
-                first_log_index.load(std::memory_order_relaxed),
+                prev_seg->lastIndex(),
                 open_segment->firstIndex());
-        }
-        else if (last_log_index != 0 && open_segment->firstIndex() != last_log_index + 1)
-        {
-            LOG_WARNING(
-                log,
-                "Open segment has hole, directory {}, first log index {}, first index {} ",
-                log_dir,
-                first_log_index.load(std::memory_order_relaxed),
-                open_segment->firstIndex());
-        }
-        if (last_log_index > open_segment->lastIndex())
-        {
-            return -1;
         }
     }
 
