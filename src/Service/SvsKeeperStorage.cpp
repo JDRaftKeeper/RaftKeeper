@@ -989,17 +989,24 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     else
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id); 
-               
+        auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
+
         //2^19 = 524,288
         if (container.size() << 45 == 0)
         {
-            LOG_INFO(log, "Container size {}, opnum {}", container.size(), zk_request->getOpNum());
+            LOG_INFO(log, "Container size {}, opnum {}", container.size(), Coordination::toString(zk_request->getOpNum()));
         }
 
         if (response->error != Coordination::Error::ZOK)
-        {
-            LOG_INFO(log, "Zxid {}, opnum {}, session id {},  error {}", zxid, zk_request->getOpNum(), session_id, response->error);
+        {            
+            LOG_INFO(
+                log,
+                "Zxid {}, opnum {}, session id {},  error no {}, msg {}",
+                zxid,
+                Coordination::toString(zk_request->getOpNum()),
+                session_id,
+                response->error,
+                Coordination::errorMessage(response->error));
         }
 
         if (zk_request->has_watch)

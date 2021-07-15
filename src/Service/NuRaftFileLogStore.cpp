@@ -37,8 +37,12 @@ void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
 
 NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new)
 {
+    log = &(Poco::Logger::get("FileLogStore"));
+
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
+
     segment_store->init();
+
     if (segment_store->lastLogIndex() < 1)
     {
         /// no log entry exists, return a dummy constant entry with value set to null and term set to zero
@@ -48,10 +52,6 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
     {
         last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
     }
-    log = &(Poco::Logger::get("FileLogStore"));
-#ifdef _TEST_MEMORY_
-    last_log_index_ = 0;
-#endif
 }
 
 NuRaftFileLogStore::~NuRaftFileLogStore()
