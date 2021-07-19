@@ -572,6 +572,21 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
         });
     }
     object_thread_pool.wait();
+
+    storage.buildPathChildren();
+
+    auto node = storage.container.get("/");
+    if (node != nullptr)
+    {
+        for (auto it : node->children)
+        {
+            LOG_INFO(log, "Root path child {}", it);
+        }
+    }
+    else
+    {
+        LOG_INFO(log, "Cant find root path");
+    }
 }
 
 bool KeeperSnapshotStore::existObject(ulong obj_id)

@@ -216,6 +216,8 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         int64_t zxid,
         int64_t session_id) const override
     {
+        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageCreateRequest"));
+
         ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperCreate, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Undo undo;
@@ -231,6 +233,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         auto parent = container.get(parentPath(request.path));
         if (parent == nullptr)
         {
+            LOG_INFO(log, "Create no parent {}, path {}", parentPath(request.path), request.path);
             response.error = Coordination::Error::ZNONODE;
             return {response_ptr, undo};
         }
@@ -360,20 +363,6 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetResponse & response = dynamic_cast<Coordination::ZooKeeperGetResponse &>(*response_ptr);
         Coordination::ZooKeeperGetRequest & request = dynamic_cast<Coordination::ZooKeeperGetRequest &>(*zk_request);
-
-        /*
-        auto it = container.find(request.path);
-        if (it == container.end())
-        {
-            response.error = Coordination::Error::ZNONODE;
-        }
-        else
-        {
-            response.stat = it->second.stat;
-            response.data = it->second.data;
-            response.error = Coordination::Error::ZOK;
-        }
-        */
 
         auto node = container.get(request.path);
         if (node == nullptr)
@@ -998,15 +987,19 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         }
 
         if (response->error != Coordination::Error::ZOK)
-        {            
-            LOG_INFO(
-                log,
-                "Zxid {}, opnum {}, session id {},  error no {}, msg {}",
-                zxid,
-                Coordination::toString(zk_request->getOpNum()),
-                session_id,
-                response->error,
-                Coordination::errorMessage(response->error));
+        {
+            if (!(zk_request->getOpNum() == Coordination::OpNum::Remove && response->error == Coordination::Error::ZNONODE)
+                && !(zk_request->getOpNum() == Coordination::OpNum::Create && response->error == Coordination::Error::ZNODEEXISTS))
+            {
+                LOG_INFO(
+                    log,
+                    "Zxid {}, session id {}, opnum {}, error no {}, msg {}",
+                    zxid,
+                    session_id,
+                    Coordination::toString(zk_request->getOpNum()),
+                    response->error,
+                    Coordination::errorMessage(response->error));
+            }
         }
 
         if (zk_request->has_watch)
@@ -1044,6 +1037,58 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     }
 
     return results;
+}
+
+void SvsKeeperStorage::buildPathChildren()
+{
+    LOG_INFO(log, "build path children in keeper storage {}", container.size());
+    /// build children
+    for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
+    {
+        for (auto it : container.getMap(block_idx).getMap())
+        {
+            auto parent_path = parentPath(it.first);
+            auto parent = container.get(parent_path);
+            if (parent == nullptr)
+            {
+                LOG_WARNING(log, "Build : can not find parent node {}", it.first);
+                std::shared_ptr<KeeperNode> node = std::make_shared<KeeperNode>();
+                node->children.insert(it.first);
+                container.emplace(parentPath(it.first), std::move(node));
+            }
+            else
+            {
+                parent->children.insert(it.first);
+            }
+        }
+    }
+
+    /// numChildren and children.size() is matched
+    for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
+    {
+        for (auto it : container.getMap(block_idx).getMap())
+        {
+            auto parent_path = parentPath(it.first);
+            auto parent = container.get(parent_path);
+            if (parent == nullptr)
+            {
+                LOG_WARNING(log, "Check : can not find parent node {}", it.first);
+            }
+            else
+            {
+                if (static_cast<size_t>(parent->stat.numChildren) != parent->children.size())
+                {
+                    LOG_WARNING(
+                        log,
+                        "Check : can not match {} children size {}, {}",
+                        parent_path,
+                        parent->children.size(),
+                        parent->stat.numChildren);
+                    parent->stat.numChildren = parent->children.size();
+                }
+            }
+        }
+    }
 }
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
