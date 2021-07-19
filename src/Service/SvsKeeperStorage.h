@@ -192,6 +192,9 @@ public:
 
     ResponsesForSessions processRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
+    /// build path children after load data from snapshot
+    void buildPathChildren();
+
     void finalize();
 
     std::unordered_set<int64_t> getDeadSessions()
