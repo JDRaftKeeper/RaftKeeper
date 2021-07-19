@@ -1048,17 +1048,18 @@ void SvsKeeperStorage::buildPathChildren()
         for (auto it : container.getMap(block_idx).getMap())
         {
             auto parent_path = parentPath(it.first);
+            auto child_path = getBaseName(it.first);
             auto parent = container.get(parent_path);
             if (parent == nullptr)
             {
                 LOG_WARNING(log, "Build : can not find parent node {}", it.first);
                 std::shared_ptr<KeeperNode> node = std::make_shared<KeeperNode>();
-                node->children.insert(it.first);
+                node->children.insert(child_path);
                 container.emplace(parentPath(it.first), std::move(node));
             }
             else
             {
-                parent->children.insert(it.first);
+                parent->children.insert(child_path);
             }
         }
     }
