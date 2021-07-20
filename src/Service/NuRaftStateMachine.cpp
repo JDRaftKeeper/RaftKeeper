@@ -22,6 +22,14 @@ using namespace nuraft;
 
 namespace DB
 {
+struct ReplayLogBatch
+{
+    ulong batch_start_index = 0;
+    ulong batch_end_index = 0;
+    ptr<std::vector<ptr<log_entry>>> log_vec;
+    ptr<std::vector<ptr<SvsKeeperStorage::RequestForSession>>> request_vec;
+};
+
 nuraft::ptr<nuraft::buffer> writeResponses(SvsKeeperStorage::ResponsesForSessions & responses)
 {
     WriteBufferFromNuraftBuffer buffer;
@@ -32,6 +40,7 @@ nuraft::ptr<nuraft::buffer> writeResponses(SvsKeeperStorage::ResponsesForSession
     }
     return buffer.getBuffer();
 }
+
 
 NuRaftStateMachine::NuRaftStateMachine(
     SvsKeeperResponsesQueue & responses_queue_,
@@ -78,55 +87,137 @@ NuRaftStateMachine::NuRaftStateMachine(
     ulong batch_end_index = 0;
     if (logstore != nullptr)
     {
+        std::mutex load_mutex;
+        std::condition_variable load_cond;
         ulong last_log_index = logstore->next_slot() - 1;
         batch_start_index = last_committed_idx + 1;
-        LOG_INFO(log, "Begin replay log, first log index {} and last log index {} in log file", batch_start_index, last_log_index);
-        while (batch_start_index < last_log_index)
-        {
-            //0.3 * 10000 = 3M
-            batch_end_index = batch_start_index + 10000;
-            if (batch_end_index > last_log_index + 1)
-            {
-                batch_end_index = last_log_index + 1;
-            }
-            ptr<std::vector<ptr<log_entry>>> log_vec = logstore->log_entries_ext(batch_start_index, batch_end_index, 0);
-            for (ulong log_index = batch_start_index; log_index < batch_end_index; log_index++)
-            {
-                ptr<log_entry> entry = log_vec->at(log_index - batch_start_index);
-                replay(log_index, entry);
-            }
-            LOG_INFO(log, "Replay batch log to state machine [ {} , {} )", batch_start_index, batch_end_index);
-            batch_start_index = batch_end_index;
-            last_committed_idx = batch_end_index - 1;
-        }
-    }
+        std::queue<ReplayLogBatch> log_queue;
 
+        LOG_INFO(log, "Begin replay log, first log index {} and last log index {} in log file", batch_start_index, last_log_index);
+
+        UInt32 REPLAY_THREAD_NUM = 1;
+        ThreadPool object_thread_pool(REPLAY_THREAD_NUM);
+        for (UInt32 thread_idx = 0; thread_idx < REPLAY_THREAD_NUM; thread_idx++)
+        {
+            object_thread_pool.trySchedule(
+                [this, thread_idx, last_log_index, &load_mutex, &log_queue, &batch_start_index, &batch_end_index, &logstore] {
+                    Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+                    while (batch_start_index < last_log_index)
+                    {
+                        while (log_queue.size() >= 10)
+                        {
+                            LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
+                            sleep(1);
+                            //load_cond.wait();
+                        }
+
+                        //0.3 * 10000 = 3M
+                        batch_end_index = batch_start_index + 10000;
+                        if (batch_end_index > last_log_index + 1)
+                            batch_end_index = last_log_index + 1;
+
+                        LOG_INFO(
+                            thread_log,
+                            "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+
+                        ReplayLogBatch batch;
+                        batch.log_vec = logstore->log_entries_ext(batch_start_index, batch_end_index, 0);
+                        batch.batch_start_index = batch_start_index;
+                        batch.batch_end_index = batch_end_index;
+                        batch.request_vec = cs_new<std::vector<ptr<SvsKeeperStorage::RequestForSession>>>();
+                        for (auto entry : *(batch.log_vec))
+                        {
+                            ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
+                            if (ptr_request != nullptr)
+                            {
+                                batch.request_vec->push_back(ptr_request);
+                            }
+                        }
+
+                        {
+                            std::lock_guard queue_lock(load_mutex);
+                            log_queue.push(batch);
+                        }
+                        LOG_INFO(
+                            thread_log,
+                            "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+                        batch_start_index = batch_end_index;
+                    }
+                });
+        }
+
+        while (log_queue.size() > 0 || batch_start_index < last_log_index)
+        {
+            ReplayLogBatch batch;
+            {
+                while (log_queue.size() == 0 && batch_start_index != last_log_index)
+                {
+                    LOG_DEBUG(
+                        log,
+                        "Sleep 1s, log queue size {}, start index {}, last index {}",
+                        log_queue.size(),
+                        batch_start_index,
+                        last_log_index);
+                    sleep(1);
+                }
+                if (log_queue.size() > 0)
+                {
+                    std::lock_guard queue_lock(load_mutex);
+                    batch = log_queue.front();
+                }
+            }
+            if (batch.log_vec == nullptr)
+            {
+                LOG_DEBUG(log, "log vector is null");
+                break;
+            }
+            for (auto request : *(batch.request_vec))
+            {
+                //replay(batch_start_index, entry);
+                storage.processRequest(request->request, request->session_id);
+            }
+            log_queue.pop();
+            last_committed_idx = batch.batch_end_index - 1;
+            LOG_INFO(log, "Replay start index {}, commit index {}", batch.batch_start_index, last_committed_idx);
+            batch.log_vec = nullptr;
+            batch.request_vec = nullptr;
+            batch.batch_start_index = 0;
+            batch.batch_end_index = 0;
+        }
+        object_thread_pool.wait();
+    }
     LOG_INFO(log, "Replay log index {} in log store", last_committed_idx);
 }
 
-bool NuRaftStateMachine::replay(const ulong &, ptr<log_entry> & entry)
-{    
+ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
+{
     if (entry->get_val_type() != nuraft::log_val_type::app_log)
     {
-        return false;
+        return nullptr;
     }
 
     ReadBufferFromNuraftBuffer buffer(entry->get_buf());
 
-    SvsKeeperStorage::RequestForSession request_for_session;
-    readIntBinary(request_for_session.session_id, buffer);
+    ptr<SvsKeeperStorage::RequestForSession> request_for_session = cs_new<SvsKeeperStorage::RequestForSession>();
+
+    readIntBinary(request_for_session->session_id, buffer);
     if (buffer.eof())
     {
-        LOG_DEBUG(log, "session time out {}", request_for_session.session_id);
-        //TODO
-        return false;
+        LOG_DEBUG(log, "session time out {}", request_for_session->session_id);
+        return nullptr;
     }
 
     int32_t length;
     Coordination::read(length, buffer);
     if (length <= 0)
     {
-        return false;
+        return nullptr;
     }
     //LOG_DEBUG(log, "length {}", length);
 
@@ -138,27 +229,10 @@ bool NuRaftStateMachine::replay(const ulong &, ptr<log_entry> & entry)
     Coordination::read(opnum, buffer);
     //LOG_DEBUG(log, "opnum {}", opnum);
 
-    request_for_session.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
-    request_for_session.request->xid = xid;
-    request_for_session.request->readImpl(buffer);
-
-    /*
-    LOG_DEBUG(
-        log,
-        "Replay log index {}, session id {}, length {}, xid {}, opnum {}",
-        log_idx,
-        request_for_session.session_id,
-        length,
-        xid,
-        opnum);
-    */
-
-    //LOG_DEBUG(log, "Replay log index {}, SessionID/XID #{}#{}", log_idx, request_for_session.session_id, request_for_session.request->xid);
-
-    storage.processRequest(request_for_session.request, request_for_session.session_id);
-
-    //last_committed_idx = log_idx;
-    return true;
+    request_for_session->request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
+    request_for_session->request->xid = xid;
+    request_for_session->request->readImpl(buffer);
+    return request_for_session;
 }
 
 SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
