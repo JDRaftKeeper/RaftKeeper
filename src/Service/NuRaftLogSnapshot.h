@@ -90,7 +90,7 @@ public:
     static const UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
     // 100M Count / 10K = 10K
     static const UInt32 SAVE_BATCH_SIZE = 10000;
-    static const int SNAPSHOT_THREAD_NUM = 4;
+    static const int SNAPSHOT_THREAD_NUM = 8;
     static const int IO_BUFFER_SIZE = 16384; //16K
 
 private:

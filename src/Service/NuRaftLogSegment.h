@@ -160,6 +160,7 @@ public:
 
     // last log index in log
     UInt64 lastLogIndex() { return last_log_index.load(std::memory_order_acquire); }
+    void setLastLogIndex(UInt64 index) { last_log_index.store(index, std::memory_order_release); }
 
     // append entry to log
     UInt64 appendEntry(ptr<log_entry> entry);
@@ -198,6 +199,7 @@ public:
 public:
     static constexpr UInt32 MAX_LOG_SIZE = 1000 * 1024 * 1024; //1G, 0.3K/Log, 3M logs
     static constexpr UInt32 MAX_SEGMENT_COUNT = 50; //50G
+    static constexpr int LOAD_THREAD_NUM = 8;
 
 private:
     int openSegment();
