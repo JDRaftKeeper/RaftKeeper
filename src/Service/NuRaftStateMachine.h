@@ -91,7 +91,7 @@ public:
     static ptr<buffer> serializeRequest(SvsKeeperStorage::RequestForSession & request);
 
 private:
-    bool replay(const ulong & log_idx, ptr<log_entry> & entry);
+    ptr<SvsKeeperStorage::RequestForSession> createRequestSession(ptr<log_entry> & entry);
 
     Poco::Logger * log;
     SvsKeeperSettingsPtr coordination_settings;

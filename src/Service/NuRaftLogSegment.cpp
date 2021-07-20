@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <Poco/File.h>
+#include <Common/ThreadPool.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push
@@ -1190,30 +1191,41 @@ int LogSegmentStore::listSegments()
 
 int LogSegmentStore::loadSegments()
 {
-    int ret = 0;
     // closed segments
-    for (auto it = segments.begin(); it != segments.end(); ++it)
+    ThreadPool load_thread_pool(LOAD_THREAD_NUM);
+    for (UInt32 thread_idx = 0; thread_idx < LOAD_THREAD_NUM; thread_idx++)
     {
-        ptr<NuRaftLogSegment> & segment = *it;
-        LOG_INFO(log, "Load closed segment, dir {}, first_index {}, last_index {}", log_dir, segment->firstIndex(), segment->lastIndex());
-        ret = segment->load();
-        if (ret != 0)
-        {
-            return ret;
-        }
-
-        if (segment->lastIndex() > last_log_index)
-        {
-            LOG_INFO(log, "Close segment last index {}", segment->lastIndex());
-            last_log_index.store(segment->lastIndex(), std::memory_order_release);
-        }
+        load_thread_pool.trySchedule([this, thread_idx] {
+            Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+            int ret = 0;
+            for (size_t seg_idx = 0; seg_idx < this->getSegments().size(); seg_idx++)
+            {
+                if (seg_idx % LOAD_THREAD_NUM == thread_idx)
+                {
+                    ptr<NuRaftLogSegment> segment = this->getSegments()[seg_idx];
+                    LOG_INFO(thread_log, "Load closed segment, first_index {}, last_index {}", segment->firstIndex(), segment->lastIndex());
+                    ret = segment->load();
+                    if (ret != 0)
+                    {
+                        LOG_WARNING(log, "Load closed segment {} failed {}", segment->firstIndex(), ret);
+                        continue;
+                    }
+                    if (segment->lastIndex() > this->lastLogIndex())
+                    {
+                        LOG_INFO(log, "Close segment last index {}", segment->lastIndex());
+                        this->setLastLogIndex(segment->lastIndex());
+                    }
+                }
+            }
+        });
     }
+    load_thread_pool.wait();
 
     // open segment
     if (open_segment)
     {
         LOG_INFO(log, "Load open segment, directory {}, file name {} ", log_dir, open_segment->getFileName());
-        ret = open_segment->load();
+        int ret = open_segment->load();
         if (ret != 0)
         {
             return ret;
