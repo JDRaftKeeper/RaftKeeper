@@ -10,6 +10,8 @@
 
 namespace DB
 {
+class SvsKeeperMetricsWriter;
+using SvsKeeperMetricsWriterPtr = std::shared_ptr<SvsKeeperMetricsWriter>;
 
 /// Write metrics in Prometheus format
 class SvsKeeperMetricsWriter
