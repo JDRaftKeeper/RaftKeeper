@@ -35,7 +35,7 @@ void SvsKeeperPrometheusRequestHandler::handleRequest(HTTPServerRequest & reques
         WriteBufferFromHTTPServerResponse wb(response, request.getMethod() == Poco::Net::HTTPRequest::HTTP_HEAD, keep_alive_timeout);
         try
         {
-            metrics_writer.write(wb);
+            metrics_writer->write(wb);
             wb.finalize();
         }
         catch (...)
@@ -53,7 +53,7 @@ HTTPRequestHandlerFactoryPtr
 createSvsKeeperPrometheusHandlerFactory(IServer & server, const std::string & config_prefix)
 {
     auto factory = std::make_shared<HandlingRuleHTTPHandlerFactory<SvsKeeperPrometheusRequestHandler>>(
-        server, SvsKeeperMetricsWriter(server.config(), config_prefix + ".endpoint"));
+        server, std::make_shared<SvsKeeperMetricsWriter>(server.config(), config_prefix + ".endpoint"));
     factory->allowGetAndHeadRequest();
     return factory;
 }

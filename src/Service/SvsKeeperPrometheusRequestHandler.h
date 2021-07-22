@@ -13,10 +13,10 @@ class SvsKeeperPrometheusRequestHandler : public HTTPRequestHandler
 {
 private:
     IServer & server;
-    const SvsKeeperMetricsWriter & metrics_writer;
+    SvsKeeperMetricsWriterPtr metrics_writer;
 
 public:
-    explicit SvsKeeperPrometheusRequestHandler(IServer & server_, const SvsKeeperMetricsWriter & metrics_writer_)
+    explicit SvsKeeperPrometheusRequestHandler(IServer & server_, SvsKeeperMetricsWriterPtr metrics_writer_)
     : server(server_)
     , metrics_writer(metrics_writer_)
     {
