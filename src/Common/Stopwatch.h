@@ -33,6 +33,7 @@ public:
     UInt64 elapsedMicroseconds() const { return elapsedNanoseconds() / 1000U; }
     UInt64 elapsedMilliseconds() const { return elapsedNanoseconds() / 1000000UL; }
     double elapsedSeconds() const      { return static_cast<double>(elapsedNanoseconds()) / 1000000000ULL; }
+    bool isRunning() const      { return is_running; }
 
 private:
     UInt64 start_ns = 0;
