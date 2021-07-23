@@ -16,7 +16,7 @@ namespace ServiceProfileEvents
 {
 /// Event identifier (index in array).
 using Event = size_t;
-using Count = size_t;
+using Count = uint64_t;
 using Counter = std::atomic<Count>;
 class Counters;
 
