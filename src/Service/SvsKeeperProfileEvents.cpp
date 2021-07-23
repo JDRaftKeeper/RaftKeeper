@@ -3,9 +3,10 @@
 /// Available events. Add something here as you wish.
 #define APPLY_FOR_EVENTS(M) \
     M(SvsKeeperInit, "") \
+    M(SvsKeeperTransactions, "") \
+    M(SvsKeeperTransactionTimeInMicroseconds, "") \
     M(SvsKeeperHeartBeat, "") \
     M(SvsKeeperSync, "") \
-    M(SvsKeeperTransactions, "") \
     M(SvsKeeperList, "") \
     M(SvsKeeperCreate, "") \
     M(SvsKeeperRemove, "") \

@@ -15,6 +15,7 @@
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Common/setThreadName.h>
 #include <common/logger_useful.h>
+#include <Service/SvsKeeperProfileEvents.h>
 
 #ifdef POCO_HAVE_FD_EPOLL
 #    include <sys/epoll.h>
@@ -22,6 +23,10 @@
 #    include <poll.h>
 #endif
 
+namespace ServiceProfileEvents
+{
+extern const Event SvsKeeperTransactionTimeInMicroseconds;
+}
 
 namespace DB
 {
@@ -316,6 +321,8 @@ void ServiceTCPHandler::runImpl()
 
     session_stopwatch.start();
     bool close_received = false;
+
+    Stopwatch process_time_stopwatch;
     try
     {
         while (true)
@@ -326,6 +333,8 @@ void ServiceTCPHandler::runImpl()
             if (result.has_requests && !close_received)
             {
                 auto [received_op, received_xid] = receiveRequest();
+
+                process_time_stopwatch.start();
 
                 if (received_op == Coordination::OpNum::Close)
                 {
@@ -339,6 +348,18 @@ void ServiceTCPHandler::runImpl()
                 }
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
+            }
+
+            if(result.responses_count != 0)
+            {
+                /// in case of one-request-and-multi-response
+                /// but watch request may take long time
+                if(process_time_stopwatch.isRunning())
+                {
+                    uint64_t process_time = process_time_stopwatch.elapsedMicroseconds();
+                    ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperTransactionTimeInMicroseconds, process_time);
+                    process_time_stopwatch.stop();
+                }
             }
 
             /// Process exact amount of responses from pipe
