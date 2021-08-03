@@ -225,11 +225,6 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperCreateRequest & request = dynamic_cast<Coordination::ZooKeeperCreateRequest &>(*zk_request);
 
 #ifdef USE_CONCURRENTMAP
-        if (container.count(request.path) == 1)
-        {
-            response.error = Coordination::Error::ZNODEEXISTS;
-            return {response_ptr, undo};
-        }
         auto parent = container.get(parentPath(request.path));
         if (parent == nullptr)
         {
@@ -240,6 +235,29 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         else if (parent->is_ephemeral)
         {
             response.error = Coordination::Error::ZNOCHILDRENFOREPHEMERALS;
+            return {response_ptr, undo};
+        }
+
+        std::string path_created = request.path;
+        if (request.is_sequential)
+        {
+            auto seq_num = parent->seq_num;
+
+            std::stringstream seq_num_str; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
+            seq_num_str.exceptions(std::ios::failbit);
+            seq_num_str << std::setw(10) << std::setfill('0') << seq_num;
+
+            path_created += seq_num_str.str();
+        }
+        if (container.count(path_created) == 1)
+        {
+            response.error = Coordination::Error::ZNODEEXISTS;
+            return {response_ptr, undo};
+        }
+        String child_path = getBaseName(path_created);
+        if (child_path.empty())
+        {
+            response.error = Coordination::Error::ZBADARGUMENTS;
             return {response_ptr, undo};
         }
         std::shared_ptr<KeeperNode> created_node = std::make_shared<KeeperNode>();
@@ -254,29 +272,16 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         if (request.is_ephemeral)
             created_node->stat.ephemeralOwner = session_id;
         created_node->is_sequental = request.is_sequential;
-        std::string path_created = request.path;
 
-        String child_path;
         long pzxid;
 
         {
             std::lock_guard parent_lock(parent->mutex);
-            if (request.is_sequential)
-            {
-                auto seq_num = parent->seq_num;
-
-                std::stringstream seq_num_str; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
-                seq_num_str.exceptions(std::ios::failbit);
-                seq_num_str << std::setw(10) << std::setfill('0') << seq_num;
-
-                path_created += seq_num_str.str();
-            }
 
             /// Increment sequential number even if node is not sequential
             ++parent->seq_num;
             response.path_created = path_created;
 
-            child_path = getBaseName(path_created);
             parent->children.insert(child_path);
 
             ++parent->stat.cversion;
@@ -935,6 +940,11 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
                 {
                     LOG_TRACE(log, "disconnect session {}, deleting its ephemeral node {}", session_id, ephemeral_path);
                     auto parent = container.at(parentPath(ephemeral_path));
+                    if (!parent)
+                    {
+                        LOG_ERROR(log, "Logical error, disconnect session {}, ephemeral znode parent not exist {}", session_id, ephemeral_path);
+                    }
+                    else
                     {
                         std::lock_guard parent_lock(parent->mutex);
                         --parent->stat.numChildren;
