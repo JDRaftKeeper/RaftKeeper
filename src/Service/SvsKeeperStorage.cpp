@@ -1057,6 +1057,9 @@ void SvsKeeperStorage::buildPathChildren()
     {
         for (auto it : container.getMap(block_idx).getMap())
         {
+            if (it.first == "/")
+               continue;
+
             auto parent_path = parentPath(it.first);
             auto child_path = getBaseName(it.first);
             auto parent = container.get(parent_path);
