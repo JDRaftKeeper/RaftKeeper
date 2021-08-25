@@ -449,7 +449,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
                     const std::string & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(sizeof(uint32_t) + data.size());
+                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     //buf->put(data.data(), data.size());
                     buf->put(data);
                     buf->pos(0);
@@ -487,8 +487,8 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
                     const std::string & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(sizeof(uint32_t) + data.size());
-                    buf->put(data.data(), data.size());
+                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                    buf->put(data);
                     buf->pos(0);
                     ReadBufferFromNuraftBuffer in(buf);
                     Int64 session_id;
