@@ -1,7 +1,11 @@
 #include <filesystem>
+#include <IO/ReadBufferFromFile.h>
+#include <IO/VarInt.h>
+#include <IO/WriteBufferFromFile.h>
 #include <Service/NuRaftInMemoryLogStore.h>
 #include <Service/NuRaftStateManager.h>
 #include <libnuraft/nuraft.hxx>
+#include <Poco/File.h>
 
 namespace fs = std::filesystem;
 
@@ -13,26 +17,44 @@ NuRaftStateManager::NuRaftStateManager(
     int id_,
     const std::string & endpoint_,
     const std::string & log_dir_,
-    const Poco::Util::AbstractConfiguration & config,
-    const String & config_name)
-    : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_)
+    ptr<cluster_config> myself_cluster_config_)
+    : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_), cur_cluster_config(myself_cluster_config_)
 {
     log = &(Poco::Logger::get("RaftStateManager"));
     curr_log_store = cs_new<NuRaftFileLogStore>(log_dir);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
-    parseClusterConfig(config, config_name + "." + "remote_servers");
+    cluster_config_file = fs::path(log_dir) / "cluster_config";
 }
 
 ptr<cluster_config> NuRaftStateManager::load_config()
 {
+    if (!Poco::File(cluster_config_file).exists())
+    {
+        LOG_INFO(log, "load config with initial cluster config.");
+        return cur_cluster_config;
+    }
+
+    std::unique_ptr<ReadBufferFromFile> read_file_buf = std::make_unique<ReadBufferFromFile>(cluster_config_file, 4096);
+    size_t size;
+    readVarUInt(size, *read_file_buf);
+    ptr<nuraft::buffer> buf = nuraft::buffer::alloc(size);
+    read_file_buf->readStrict(reinterpret_cast<char *>(buf->data()), size);
+    cur_cluster_config = nuraft::cluster_config::deserialize(*buf);
+    LOG_INFO(log, "load config with log index {}", cur_cluster_config->get_log_idx());
     return cur_cluster_config;
 }
 
 void NuRaftStateManager::save_config(const cluster_config & config)
 {
-    /// do nothing because cluster config info already in log store
+    std::unique_ptr<WriteBufferFromFile> out_file_buf = std::make_unique<WriteBufferFromFile>(cluster_config_file, 4096, O_WRONLY | O_TRUNC | O_CREAT);
+    nuraft::ptr<nuraft::buffer> data = config.serialize();
+    writeVarUInt(data->size(), *out_file_buf);
+    out_file_buf->write(reinterpret_cast<char *>(data->data()), data->size());
+    out_file_buf->finalize();
+    out_file_buf->sync();
     LOG_INFO(log, "save config with log index {}", config.get_log_idx());
+    cur_cluster_config = cluster_config::deserialize(*data);
 }
 
 void NuRaftStateManager::save_state(const srv_state & state)

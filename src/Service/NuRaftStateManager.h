@@ -25,8 +25,7 @@ public:
         int id,
         const std::string & endpoint,
         const std::string & log_dir,
-        const Poco::Util::AbstractConfiguration & config_,
-        const String & config_name_);
+        ptr<cluster_config> myself_cluster_config_);
 
     ~NuRaftStateManager() override = default;
 
@@ -50,6 +49,8 @@ public:
 
     //ptr<srv_config> get_srv_config() const { return curr_srv_config; }
 
+    ptr<cluster_config> get_cluster_config() const { return cur_cluster_config; }
+
 protected:
     NuRaftStateManager() { }
 
@@ -57,15 +58,17 @@ private:
     int my_server_id;
     std::string endpoint;
 
-    ptr<cluster_config> cur_cluster_config;
     std::unordered_set<int> start_as_follower_servers;
 
     std::string log_dir;
     ptr<log_store> curr_log_store;
 
+    ptr<cluster_config> cur_cluster_config;
+
 protected:
     Poco::Logger * log;
     std::string srv_state_file;
+    std::string cluster_config_file;
 };
 
 }
