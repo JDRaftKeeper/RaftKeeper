@@ -705,7 +705,7 @@ int LogSegmentStore::getSegment(UInt64 index, ptr<NuRaftLogSegment> & seg)
     seg = nullptr;
     UInt64 first_index = first_log_index.load(std::memory_order_acquire);
     UInt64 last_index = last_log_index.load(std::memory_order_acquire);
-    if (first_index == last_index + 1)
+    if (first_index == last_index + 1) // TODO Right?
     {
         LOG_WARNING(log, "Log segment store no data, entry index {}.", index);
         return -1;
@@ -757,9 +757,15 @@ UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
 
 int LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> entry)
 {
-    ptr<NuRaftLogSegment> seg;
-    getSegment(index, seg);
-    return seg->writeAt(index, entry);
+//    ptr<NuRaftLogSegment> seg;
+//    getSegment(index, seg);
+
+    truncateLog(index - 1);
+    if (index == lastLogIndex() + 1)
+        return appendEntry(entry);
+
+    LOG_WARNING(log, "writeAt log index {} failed, firstLogIndex {}, lastLogIndex {}.", index, firstLogIndex(), lastLogIndex());
+    return -1;
 }
 
 /*
@@ -910,9 +916,27 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
                 if (segment->firstIndex() < first_log_index)
                 {
                     first_log_index.store(segment->firstIndex(), std::memory_order_release);
+                    if ((last_log_index - 1) < first_log_index)
+                        last_log_index.store(segment->lastIndex(), std::memory_order_release);
                 }
                 it++;
             }
+        }
+    }
+
+    //remove open segment
+    if (open_segment)
+    {
+        if (open_segment->lastIndex() < first_index_kept)
+        {
+            remove_vec.push_back(open_segment);
+            open_segment = nullptr;
+        }
+        else if (open_segment->firstIndex() < first_log_index)
+        {
+            first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
+            if ((last_log_index - 1) < first_log_index)
+                last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
         }
     }
 
@@ -922,6 +946,10 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
         LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, remove_vec[i]->getFileName());
         remove_vec[i] = nullptr;
     }
+    // reset last_log_index
+    if ((last_log_index - 1) < first_log_index)
+        last_log_index.store(first_log_index - 1, std::memory_order_release);
+    // TODO need openSegment() ?
     return 0;
 }
 

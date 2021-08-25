@@ -20,7 +20,7 @@ using nuraft::ulong;
 class LogEntryQueue
 {
 public:
-    LogEntryQueue() : batch_index(0), log(&(Poco::Logger::get("FileLogStore"))) { }
+    LogEntryQueue() : batch_index(0), max_index(0), log(&(Poco::Logger::get("FileLogStore"))) { }
     ptr<log_entry> getEntry(const UInt64 & index);
     void putEntry(UInt64 & index, ptr<log_entry> & entry);
 
@@ -28,6 +28,7 @@ private:
     static constexpr UInt8 BIT_SIZE = 16;
     static constexpr UInt32 MAX_VECTOR_SIZE = 65536; //2^16
     UInt64 batch_index;
+    UInt64 max_index;
     ptr<log_entry> entry_vec[MAX_VECTOR_SIZE];
     std::shared_mutex queue_mutex;
     Poco::Logger * log;
