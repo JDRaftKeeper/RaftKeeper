@@ -42,7 +42,17 @@ private:
     bool initialized_flag = false;
     std::condition_variable initialized_cv;
 
+    ptr<cluster_config> specified_cluster_config;
+
+    ptr<cluster_config> myself_cluster_config;
+
+    int min_server_id;
+
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
+
+    void parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name);
+
+    void addServer(ptr<srv_config> srv_conf_to_add);
 
 public:
     SvsKeeperServer(
@@ -70,6 +80,8 @@ public:
     bool isLeaderAlive() const;
 
     void waitInit();
+
+    void reConfigIfNeed();
 
     void shutdown();
 

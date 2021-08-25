@@ -121,6 +121,9 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
         server->waitInit();
         LOG_DEBUG(log, "Quorum initialized");
+
+        server->reConfigIfNeed();
+        LOG_DEBUG(log, "Server reconfiged");
     }
     catch (...)
     {

@@ -40,8 +40,9 @@ SvsKeeperServer::SvsKeeperServer(
     UInt32 create_interval = config.getInt("service.snapshot_create_interval", 3600 * 1);
     std::string host = config.getString("service.host", "localhost");
     std::string port = config.getString("service.internal_port", "2281");
-
-    state_manager = cs_new<NuRaftStateManager>(server_id, host + ":" + port, log_dir, config, "service");
+    min_server_id = INT32_MAX;
+    parseClusterConfig(config, "service.remote_servers");
+    state_manager = cs_new<NuRaftStateManager>(server_id, host + ":" + port, log_dir, myself_cluster_config);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
@@ -115,14 +116,19 @@ void SvsKeeperServer::addServer(const std::vector<std::string> & tokens)
     srv_config srv_conf_to_add(server_id_to_add, 1, endpoint_to_add, std::string(), false, 50);
     LOG_DEBUG(log, "Adding server {}, {}.", toString(server_id_to_add), endpoint_to_add);
     auto ret = raft_instance->add_srv(srv_conf_to_add);
-    if (!ret->get_accepted())
+    if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
     {
-        LOG_ERROR(log, "Failed to add server: {}", ret->get_result_code());
-        return;
+        std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+        auto ret1 = raft_instance->add_srv(srv_conf_to_add);
+        if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
+        {
+            LOG_ERROR(log, "Failed to add server: {}", ret1->get_result_code());
+            return;
+        }
     }
 
     // Wait until it appears in server list.
-    const size_t MAX_TRY = 40;
+    const size_t MAX_TRY = 400;
     for (size_t jj = 0; jj < MAX_TRY; ++jj)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -133,7 +139,39 @@ void SvsKeeperServer::addServer(const std::vector<std::string> & tokens)
             break;
         }
     }
-    //    LOG_DEBUG(log, "Async request is in progress (check with `list` command)");
+    LOG_DEBUG(log, "Async request is in progress add server {}.", server_id_to_add);
+}
+
+void SvsKeeperServer::addServer(ptr<srv_config> srv_conf_to_add)
+{
+    LOG_DEBUG(log, "Adding server {}, {} after 30s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
+    std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+    auto ret = raft_instance->add_srv(*srv_conf_to_add);
+    if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
+    {
+        LOG_DEBUG(log, "Retry adding server {}, {} after 30s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
+        std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+        auto ret1 = raft_instance->add_srv(*srv_conf_to_add);
+        if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
+        {
+            LOG_ERROR(log, "Failed to add server {} : {}", srv_conf_to_add->get_endpoint(), ret1->get_result_code());
+            return;
+        }
+    }
+
+    // Wait until it appears in server list.
+    const size_t MAX_TRY = 400;
+    for (size_t jj = 0; jj < MAX_TRY; ++jj)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        ptr<srv_config> conf = raft_instance->get_srv_config(srv_conf_to_add->get_id());
+        if (conf)
+        {
+            LOG_DEBUG(log, "Add server {} done.", srv_conf_to_add->get_endpoint());
+            return;
+        }
+    }
+    LOG_DEBUG(log, "Async request is in progress add server {}.", srv_conf_to_add->get_endpoint());
 }
 
 
@@ -168,14 +206,45 @@ void SvsKeeperServer::removeServer(const std::string & endpoint)
 {
     std::vector<Server> server_list;
     getServerList(server_list);
+    std::optional<UInt32> to_remove_id;
     for (auto it = server_list.begin(); it != server_list.end(); it++)
     {
         if (it->endpoint == endpoint)
         {
-            raft_instance->remove_srv(it->server_id);
+            to_remove_id = it->server_id;
+            LOG_DEBUG(log, "Removing server {}, {} after 30s.", toString(it->server_id), endpoint);
+            std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+            auto ret = raft_instance->remove_srv(it->server_id);
+            if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
+            {
+                LOG_DEBUG(log, "Retry removing server {}, {} after 30s.", toString(it->server_id), endpoint);
+                std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+                auto ret1 = raft_instance->remove_srv(it->server_id);
+                if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
+                {
+                    LOG_ERROR(log, "Failed to remove server {} : {}", endpoint, ret1->get_result_code());
+                    return;
+                }
+            }
             break;
         }
     }
+
+    if (!to_remove_id)
+        return;
+    // Wait until it appears in server list.
+    const size_t MAX_TRY = 400;
+    for (size_t jj = 0; jj < MAX_TRY; ++jj)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        ptr<srv_config> conf = raft_instance->get_srv_config(to_remove_id.value());
+        if (!conf)
+        {
+            LOG_DEBUG(log, "Remove server {} done.", endpoint);
+            return;
+        }
+    }
+    LOG_DEBUG(log, "Async request is in progress remove server {}.", endpoint);
 }
 
 
@@ -325,6 +394,83 @@ void SvsKeeperServer::waitInit()
 std::unordered_set<int64_t> SvsKeeperServer::getDeadSessions()
 {
     return state_machine->getDeadSessions();
+}
+
+void SvsKeeperServer::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
+{
+    Poco::Util::AbstractConfiguration::Keys keys;
+    config.keys(config_name, keys);
+
+    specified_cluster_config = cs_new<cluster_config>();
+    myself_cluster_config = cs_new<cluster_config>();
+
+    for (const auto & key : keys)
+    {
+        if (startsWith(key, "server"))
+        {
+            int id_ = config.getInt(config_name + "." + key + ".server_id");
+            String host = config.getString(config_name + "." + key + ".host");
+            String port = config.getString(config_name + "." + key + ".port", "5103");
+            String endpoint_ = host + ":" + port;
+            bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
+            int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
+            auto server_config = cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_);
+            specified_cluster_config->get_servers().push_back(server_config);
+            min_server_id = std::min(id_, min_server_id);
+            if (id_ == server_id)
+                myself_cluster_config->get_servers().push_back(server_config);
+        }
+        else if (key == "async_replication")
+        {
+            specified_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
+        }
+    }
+
+    std::string s;
+    std::for_each(specified_cluster_config->get_servers().cbegin(), specified_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
+        s += " ";
+        s += srv->get_endpoint();
+    });
+
+    LOG_INFO(log, "specified raft cluster config : {}", s);
+}
+
+void SvsKeeperServer::reConfigIfNeed()
+{
+    if (min_server_id != server_id)
+        return;
+    /// diff specified_cluster_config and state_manager->get_cluster_config()
+
+    auto cur_cluster_config = state_manager->get_cluster_config();
+
+    std::vector<String> srvs_removed;
+    std::vector<ptr<srv_config>> srvs_added;
+
+    std::list<ptr<srv_config>> & new_srvs(specified_cluster_config->get_servers());
+    std::list<ptr<srv_config>> & old_srvs(cur_cluster_config->get_servers());
+
+    for (auto it = new_srvs.begin(); it != new_srvs.end(); ++it)
+    {
+        if (!cur_cluster_config->get_server((*it)->get_id()))
+            srvs_added.push_back(*it);
+    }
+
+    for (auto it = old_srvs.begin(); it != old_srvs.end(); ++it)
+    {
+        if (!specified_cluster_config->get_server((*it)->get_id()))
+            srvs_removed.push_back((*it)->get_endpoint());
+    }
+
+    for (auto & end_point : srvs_removed)
+    {
+        removeServer(end_point);
+    }
+
+    for (auto srv_add : srvs_added)
+    {
+        addServer(srv_add);
+    }
+
 }
 
 }

@@ -17,6 +17,9 @@ ptr<log_entry> makeClone(const ptr<log_entry> & entry)
 ptr<log_entry> LogEntryQueue::getEntry(const UInt64 & index)
 {
     //LOG_DEBUG(log,"get entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), index >> BIT_SIZE);
+    if (index > max_index || max_index - index >= MAX_VECTOR_SIZE)
+        return nullptr;
+
     if (index >> BIT_SIZE == batch_index || index >> BIT_SIZE == batch_index - 1)
     {
         return entry_vec[index & (MAX_VECTOR_SIZE - 1)];
@@ -32,6 +35,7 @@ void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
     std::lock_guard write_lock(queue_mutex);
     entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
     batch_index = std::max(batch_index, index >> BIT_SIZE);
+    max_index = std::max(max_index, index);
     //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
 }
 
@@ -184,12 +188,12 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
             //2^16, 65536
             if (index << 48 == 0)
             {
-                LOG_DEBUG(log, "get entry {} from disk", index);
+//                LOG_DEBUG(log, "get entry {} from disk", index);
             }
         }
         else
         {
-            LOG_DEBUG(log, "get entry {} from queue", index);
+//            LOG_DEBUG(log, "get entry {} from queue", index);
         }
     }
     if (src)
@@ -230,7 +234,7 @@ ptr<buffer> NuRaftFileLogStore::pack(ulong index, int32 cnt)
     for (auto & entry : logs)
     {
         ptr<buffer> & bb = entry;
-        buf_out->put(static_cast<ulong>(bb->size()));
+        buf_out->put(static_cast<int32>(bb->size()));
         buf_out->put(*bb);
     }
 
@@ -252,7 +256,14 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
         ptr<buffer> buf_local = buffer::alloc(buf_size);
         pack.get(buf_local);
 
+        if (cur_idx - segment_store->lastLogIndex() != 1)
+            LOG_WARNING(log, "cur_idx {}, segment_store last_log_index {}, difference is not 1", cur_idx, segment_store->lastLogIndex());
+        else
+            LOG_DEBUG(log, "cur_idx {}, segment_store last_log_index {}", cur_idx, segment_store->lastLogIndex());
+
         ptr<log_entry> le = log_entry::deserialize(*buf_local);
+//        if (cur_idx - segment_store->lastLogIndex() == 1)
+//            segment_store->appendEntry(le);
         {
             segment_store->writeAt(cur_idx, le);
         }
