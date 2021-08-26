@@ -8,6 +8,7 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/SvsKeeperServer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
+#include <Service/SvsKeeperProfileEvents.h>
 #include <libnuraft/async.hxx>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 
@@ -15,7 +16,12 @@
 //#define TEST_TCPHANDLER
 #endif
 
-
+namespace ServiceProfileEvents
+{
+extern const Event req_all;
+extern const Event req_read;
+extern const Event req_write;
+}
 namespace DB
 {
 namespace ErrorCodes
@@ -272,6 +278,7 @@ namespace
 
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
+    ServiceProfileEvents::increment(ServiceProfileEvents::req_all, 1);
     auto [session_id, request] = request_for_session;
 #ifdef TEST_TCPHANDLER
     if (Coordination::ZooKeeperCreateRequest * zk_request = dynamic_cast<Coordination::ZooKeeperCreateRequest *>(request.get()))
@@ -287,10 +294,12 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 #else
     if (isLeaderAlive() && request->isReadRequest())
     {
+        ServiceProfileEvents::increment(ServiceProfileEvents::req_read, 1);
         state_machine->processReadRequest(request_for_session);
     }
     else
     {
+        ServiceProfileEvents::increment(ServiceProfileEvents::req_write, 1);
         std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, request));
 
