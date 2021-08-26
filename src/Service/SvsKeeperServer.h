@@ -89,6 +89,14 @@ public:
     {
         return state_machine->getNodeNum();
     }
+    UInt64 getWatchNodeNum()
+    {
+        return state_machine->getWatchNodeNum();
+    }
+    UInt64 getEphemeralNodeNum()
+    {
+        return state_machine->getEphemeralNodeNum();
+    }
 
     UInt64 getNodeSizeMB()
     {
@@ -100,6 +108,7 @@ public:
     {
         return state_machine->getSessionNum();
     }
+
 };
 
 }

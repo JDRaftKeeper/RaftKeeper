@@ -14,6 +14,7 @@
 #include <Common/Exception.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
+#include <Service/AvgMinMaxCounter.h>
 
 
 namespace DB
@@ -50,8 +51,10 @@ private:
     ThreadFromGlobalPool session_cleaner_thread;
 
     std::unique_ptr<SvsKeeperServer> server;
+    AvgMinMaxCounter request_counter{"request"};
 
     Poco::Logger * log;
+
 
 private:
     void requestThread();
@@ -85,6 +88,14 @@ public:
     {
         return server->getNodeNum();
     }
+    UInt64 getWatchNodeNum()
+    {
+        return server->getWatchNodeNum();
+    }
+    UInt64 getEphemeralNodeNum()
+    {
+        return server->getEphemeralNodeNum();
+    }
 
     UInt64 getNodeSizeMB()
     {
@@ -95,6 +106,26 @@ public:
     UInt64 getSessionNum()
     {
         return server->getSessionNum();
+    }
+
+    UInt64 getOutstandingRequests()
+    {
+        return requests_queue.size();
+    }
+
+    void resetRequestCounter()
+    {
+        request_counter.reset();
+    }
+
+    void addValueToRequestCounter(UInt64 value)
+    {
+        request_counter.addDataPoint(value);
+    }
+
+    AvgMinMaxCounter getRequestCounter()
+    {
+        return request_counter;
     }
 };
 
