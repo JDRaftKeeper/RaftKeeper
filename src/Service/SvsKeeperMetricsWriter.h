@@ -27,7 +27,9 @@ private:
     const bool send_metrics;
     const bool send_status_info;
 
+    /// type counter
     static inline constexpr auto service_events_prefix = "SvsKeeperProfileEvents_";
+    /// type gauge
     static inline constexpr auto service_metrics_prefix = "SvsKeeperMetrics_";
 //    static inline constexpr auto service_status_prefix = "SvsKeeperStatusInfo_";
 };

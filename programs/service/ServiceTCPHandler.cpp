@@ -25,7 +25,7 @@
 
 namespace ServiceProfileEvents
 {
-extern const Event SvsKeeperTransactionTimeInMicroseconds;
+extern const Event req_time;
 }
 
 namespace DB
@@ -357,7 +357,8 @@ void ServiceTCPHandler::runImpl()
                 if(process_time_stopwatch.isRunning())
                 {
                     uint64_t process_time = process_time_stopwatch.elapsedMicroseconds();
-                    ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperTransactionTimeInMicroseconds, process_time);
+                    ServiceProfileEvents::increment(ServiceProfileEvents::req_time, process_time);
+                    service_keeper_storage_dispatcher->addValueToRequestCounter(process_time);
                     process_time_stopwatch.stop();
                 }
             }

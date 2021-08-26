@@ -5,10 +5,27 @@
 
 /// Available metrics. Add something here as you wish.
 #define APPLY_FOR_METRICS(M) \
-    M(IsLeader, "Whether current node is Raft leader") \
-    M(Sessions, "Active session count") \
-    M(Nodes, "nodes count which include all node types") \
-    M(StateMachineSizeInMB, "state machine size in MB, not accurate")
+    M(avg_latency, "avg latency in microsecond") \
+    M(max_latency, "max latency in microsecond") \
+    M(min_latency, "min latency in microsecond") \
+    M(num_alive_connections, "Active session count") \
+    M(outstanding_requests, "requests blocked in queue")   \
+    M(is_leader, "Whether current node is Raft leader") \
+    M(znode_count, "nodes count which include all node types") \
+    M(watch_count, "watch count") \
+    M(ephemerals_count, "ephemeral nodes count") \
+    M(approximate_data_size, "state machine size in MB, not accurate") \
+
+    /**
+     * M(packets_received, "request count") \
+     * M(packets_sent, "response count include watch response") \
+     * M(followers, "state machine size in MB, not accurate") \
+     * M(pending_syncs, "pending requests to synchronize to followers, only in leader") \
+     * M(open_file_descriptor_count, "state machine size in MB, not accurate") \
+     * M(max_file_descriptor_count, "state machine size in MB, not accurate")
+     */
+
+
 
 namespace ServiceMetrics
 {
@@ -90,6 +107,8 @@ void MetricsUpdater::run()
         try
         {
             updateMetrics();
+            /// reset request counter
+            global_context.getSvsKeeperStorageDispatcher()->resetRequestCounter();
         }
         catch (...)
         {
@@ -101,10 +120,20 @@ void MetricsUpdater::run()
 
 void MetricsUpdater::updateMetrics()
 {
-    ServiceMetrics::set(ServiceMetrics::IsLeader, global_context.getSvsKeeperStorageDispatcher()->isLeader());
-    ServiceMetrics::set(ServiceMetrics::Sessions, global_context.getSvsKeeperStorageDispatcher()->getSessionNum());
-    ServiceMetrics::set(ServiceMetrics::Nodes, global_context.getSvsKeeperStorageDispatcher()->getNodeNum());
-    ServiceMetrics::set(ServiceMetrics::StateMachineSizeInMB, global_context.getSvsKeeperStorageDispatcher()->getNodeSizeMB());
+    ServiceMetrics::set(ServiceMetrics::is_leader, global_context.getSvsKeeperStorageDispatcher()->isLeader());
+    ServiceMetrics::set(ServiceMetrics::num_alive_connections, global_context.getSvsKeeperStorageDispatcher()->getSessionNum());
+
+    ServiceMetrics::set(ServiceMetrics::znode_count, global_context.getSvsKeeperStorageDispatcher()->getNodeNum());
+    ServiceMetrics::set(ServiceMetrics::watch_count, global_context.getSvsKeeperStorageDispatcher()->getWatchNodeNum());
+    ServiceMetrics::set(ServiceMetrics::ephemerals_count, global_context.getSvsKeeperStorageDispatcher()->getEphemeralNodeNum());
+    ServiceMetrics::set(ServiceMetrics::approximate_data_size, global_context.getSvsKeeperStorageDispatcher()->getNodeSizeMB());
+
+    DB::AvgMinMaxCounter request_counter = global_context.getSvsKeeperStorageDispatcher()->getRequestCounter();
+    ServiceMetrics::set(ServiceMetrics::avg_latency, request_counter.getAvg());
+    ServiceMetrics::set(ServiceMetrics::min_latency, request_counter.getMin());
+    ServiceMetrics::set(ServiceMetrics::max_latency, request_counter.getMax());
+
+    ServiceMetrics::set(ServiceMetrics::outstanding_requests, global_context.getSvsKeeperStorageDispatcher()->getOutstandingRequests());
 }
 
 MetricsUpdater::~MetricsUpdater()
