@@ -1,6 +1,4 @@
-#ifndef CLICKHOUSE_SVSKEEPERMETRICS_H
-#define CLICKHOUSE_SVSKEEPERMETRICS_H
-
+#pragma once
 
 #include <atomic>
 #include <cstdint>
@@ -9,6 +7,7 @@
 #include <common/types.h>
 
 #include <Interpreters/Context.h>
+#include <Service/AvgMinMaxCounter.h>
 
 
 namespace ServiceMetrics
@@ -125,6 +124,3 @@ private:
 };
 
 }
-
-
-#endif //CLICKHOUSE_SVSKEEPERMETRICS_H

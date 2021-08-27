@@ -10,6 +10,7 @@
 #include <Service/proto/Log.pb.h>
 #include <Poco/File.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Service/SvsKeeperProfileEvents.h>
 
 
 #ifdef __clang__
@@ -19,6 +20,13 @@
 
 
 using namespace nuraft;
+
+namespace ServiceProfileEvents
+{
+extern const Event create_snapshot_count;
+extern const Event load_snapshot_count;
+extern const Event apply_received_snapshot_count;
+}
 
 namespace DB
 {
@@ -393,6 +401,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s)
         std::lock_guard<std::mutex> lock(snapshot_mutex);
         snap_mgr->createSnapshot(s, storage);
     }
+    ServiceProfileEvents::increment(ServiceProfileEvents::create_snapshot_count, 1);
 }
 
 void NuRaftStateMachine::save_snapshot_data(snapshot & s, const ulong offset, buffer & data)
@@ -420,6 +429,7 @@ int NuRaftStateMachine::read_snapshot_data(snapshot & s, const ulong offset, buf
 
 int NuRaftStateMachine::read_logical_snp_obj(snapshot & s, void *& user_snp_ctx, ulong obj_id, ptr<buffer> & data_out, bool & is_last_obj)
 {
+    ServiceProfileEvents::increment(ServiceProfileEvents::create_snapshot_count, 1);
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     // Snapshot doesn't exist.
     if (!snap_mgr->existSnapshot(s))
@@ -479,6 +489,7 @@ bool NuRaftStateMachine::exist_snapshot_object(snapshot & s, ulong obj_id)
 
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
+    ServiceProfileEvents::increment(ServiceProfileEvents::apply_received_snapshot_count, 1);
     //TODO: double buffer load or multi thread load
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());

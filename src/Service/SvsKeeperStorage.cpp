@@ -10,24 +10,19 @@
 
 namespace ServiceProfileEvents
 {
-extern const Event SvsKeeperInit;
-extern const Event SvsKeeperHeartBeat;
-extern const Event SvsKeeperSync;
-extern const Event SvsKeeperTransactions;
-extern const Event SvsKeeperCreate;
-extern const Event SvsKeeperRemove;
-extern const Event SvsKeeperExists;
-extern const Event SvsKeeperMulti;
-extern const Event SvsKeeperGet;
-extern const Event SvsKeeperSet;
-extern const Event SvsKeeperList;
-extern const Event SvsKeeperCheck;
-extern const Event SvsKeeperClose;
-extern const Event SvsKeeperWaitMicroseconds;
-extern const Event SvsKeeperBytesSent;
-extern const Event SvsKeeperBytesReceived;
-extern const Event SvsKeeperWatchResponse;
-extern const Event SvsKeeperListWatchResponse;
+extern const Event sm_req_heart_beat;
+extern const Event sm_req_sync;
+extern const Event sm_req_create;
+extern const Event sm_req_remove;
+extern const Event sm_req_exist;
+extern const Event sm_req_multi;
+extern const Event sm_req_get;
+extern const Event sm_req_set;
+extern const Event sm_req_list;
+extern const Event sm_req_check;
+extern const Event sm_req_close;
+extern const Event watch_response;
+extern const Event list_watch_response;
 }
 
 namespace DB
@@ -67,7 +62,7 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
         watch_response->state = Coordination::State::CONNECTED;
         for (auto watcher_session : it->second)
         {
-            ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperWatchResponse, 1);
+            ServiceProfileEvents::increment(ServiceProfileEvents::watch_response, 1);
             result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_response});
         }
 
@@ -87,7 +82,7 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
         watch_list_response->state = Coordination::State::CONNECTED;
         for (auto watcher_session : it->second)
         {
-            ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperListWatchResponse, 1);
+            ServiceProfileEvents::increment(ServiceProfileEvents::list_watch_response, 1);
             result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_list_response});
         }
 
@@ -153,7 +148,7 @@ struct SvsKeeperStorageHeartbeatRequest final : public SvsKeeperStorageRequest
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperHeartBeat, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_heart_beat, 1);
         return {zk_request->makeResponse(), {}};
     }
 };
@@ -168,7 +163,7 @@ struct SvsKeeperStorageSyncRequest final : public SvsKeeperStorageRequest
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperSync, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_sync, 1);
         auto response = zk_request->makeResponse();
         dynamic_cast<Coordination::ZooKeeperSyncResponse *>(response.get())->path
             = dynamic_cast<Coordination::ZooKeeperSyncRequest *>(zk_request.get())->path;
@@ -218,7 +213,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
     {
         Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageCreateRequest"));
 
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperCreate, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_create, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Undo undo;
         Coordination::ZooKeeperCreateResponse & response = dynamic_cast<Coordination::ZooKeeperCreateResponse &>(*response_ptr);
@@ -364,7 +359,7 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperGet, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_get, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetResponse & response = dynamic_cast<Coordination::ZooKeeperGetResponse &>(*response_ptr);
         Coordination::ZooKeeperGetRequest & request = dynamic_cast<Coordination::ZooKeeperGetRequest &>(*zk_request);
@@ -396,7 +391,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         int64_t zxid,
         int64_t session_id) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperRemove, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_remove, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperRemoveResponse & response = dynamic_cast<Coordination::ZooKeeperRemoveResponse &>(*response_ptr);
         Coordination::ZooKeeperRemoveRequest & request = dynamic_cast<Coordination::ZooKeeperRemoveRequest &>(*zk_request);
@@ -480,7 +475,7 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperExists, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_exist, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperExistsResponse & response = dynamic_cast<Coordination::ZooKeeperExistsResponse &>(*response_ptr);
         Coordination::ZooKeeperExistsRequest & request = dynamic_cast<Coordination::ZooKeeperExistsRequest &>(*zk_request);
@@ -524,7 +519,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
         int64_t zxid,
         int64_t /* session_id */) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperSet, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_set, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperSetResponse & response = dynamic_cast<Coordination::ZooKeeperSetResponse &>(*response_ptr);
         Coordination::ZooKeeperSetRequest & request = dynamic_cast<Coordination::ZooKeeperSetRequest &>(*zk_request);
@@ -618,7 +613,7 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
         int64_t /*zxid*/,
         int64_t /*session_id*/) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperList, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_list, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
         Coordination::ZooKeeperListRequest & request = dynamic_cast<Coordination::ZooKeeperListRequest &>(*zk_request);
@@ -676,7 +671,7 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
         int64_t /*zxid*/,
         int64_t /*session_id*/) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperCheck, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_check, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperCheckResponse & response = dynamic_cast<Coordination::ZooKeeperCheckResponse &>(*response_ptr);
         Coordination::ZooKeeperCheckRequest & request = dynamic_cast<Coordination::ZooKeeperCheckRequest &>(*zk_request);
@@ -754,7 +749,7 @@ struct SvsKeeperStorageMultiRequest final : public SvsKeeperStorageRequest
         int64_t zxid,
         int64_t session_id) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperMulti, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_multi, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperMultiResponse & response = dynamic_cast<Coordination::ZooKeeperMultiResponse &>(*response_ptr);
         std::vector<Undo> undo_actions;
@@ -825,7 +820,7 @@ struct SvsKeeperStorageCloseRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(SvsKeeperStorage::Container &, SvsKeeperStorage::Ephemerals &, std::shared_mutex &, int64_t, int64_t) const override
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperClose, 1);
+        ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_close, 1);
         throw DB::Exception("Called process on close request", ErrorCodes::LOGICAL_ERROR);
     }
 };
@@ -927,7 +922,6 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
 SvsKeeperStorage::ResponsesForSessions
 SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_request, int64_t session_id)
 {
-    ServiceProfileEvents::increment(ServiceProfileEvents::SvsKeeperTransactions, 1);
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {

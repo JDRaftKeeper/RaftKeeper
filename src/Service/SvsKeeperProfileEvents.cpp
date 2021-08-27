@@ -2,28 +2,26 @@
 
 /// Available events. Add something here as you wish.
 #define APPLY_FOR_EVENTS(M) \
-    M(SvsKeeperInit, "") \
-    M(SvsKeeperTransactions, "") \
-    M(SvsKeeperTransactionTimeInMicroseconds, "") \
-    M(SvsKeeperHeartBeat, "") \
-    M(SvsKeeperSync, "") \
-    M(SvsKeeperList, "") \
-    M(SvsKeeperCreate, "") \
-    M(SvsKeeperRemove, "") \
-    M(SvsKeeperExists, "") \
-    M(SvsKeeperGet, "") \
-    M(SvsKeeperSet, "") \
-    M(SvsKeeperMulti, "") \
-    M(SvsKeeperCheck, "") \
-    M(SvsKeeperClose, "") \
-    M(SvsKeeperWatchResponse, "") \
-    M(SvsKeeperListWatchResponse, "") \
-    M(SvsKeeperUserExceptions, "") \
-    M(SvsKeeperHardwareExceptions, "") \
-    M(SvsKeeperOtherExceptions, "") \
-    M(SvsKeeperWaitMicroseconds, "") \
-    M(SvsKeeperBytesSent, "") \
-    M(SvsKeeperBytesReceived, "") \
+    M(req_all, "all client request count, include heart beat, internal generated request not included") \
+    M(req_read, "client read request count, if request get with watch, treat as write request") \
+    M(req_write, "client write request count, if request get with watch, treat as write request") \
+    M(req_time, "all client request time") \
+    M(sm_req_heart_beat, "state machine request heart beat count") \
+    M(sm_req_sync, "state machine sync request count") \
+    M(sm_req_list, "list request count") \
+    M(sm_req_create, "state machine create request count") \
+    M(sm_req_remove, "state machine remove request count") \
+    M(sm_req_exist, "exists request count") \
+    M(sm_req_get, "get request count") \
+    M(sm_req_set, "state machine set request count") \
+    M(sm_req_multi, "state machine multi request count") \
+    M(sm_req_check, "check request count") \
+    M(sm_req_close, "state machine close request count") \
+    M(watch_response, "state machine watch response count") \
+    M(list_watch_response, "state machine list watch response count") \
+    M(create_snapshot_count, "snapshot creating count since startup") \
+    M(load_snapshot_count, "snapshot loading count since startup") \
+    M(apply_received_snapshot_count, "apply received snapshot count since startup") \
 
 
 namespace ServiceProfileEvents

@@ -79,6 +79,8 @@ public:
     std::unordered_set<int64_t> getDeadSessions();
 
     UInt64 getNodeNum() { return storage.getNodeNum(); }
+    UInt64 getWatchNodeNum() { return storage.getWatchNodeNum(); }
+    UInt64 getEphemeralNodeNum() { return storage.getEphemeralNodeNum(); }
 
     UInt64 getNodeSizeMB() { return storage.getNodeSizeMB(); }
 
