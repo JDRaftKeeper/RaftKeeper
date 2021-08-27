@@ -209,6 +209,18 @@ public:
         return container.size();
     }
 
+    UInt64 getWatchNodeNum() { return watches.size(); }
+
+    UInt64 getEphemeralNodeNum() {
+        std::lock_guard lock(ephemerals_mutex);
+        UInt64 res{};
+        for(const auto & a : ephemerals)
+        {
+            res += a.second.size();
+        }
+        return res;
+    }
+
     /// not accurate
     UInt64 getNodeSizeMB() const
     {
