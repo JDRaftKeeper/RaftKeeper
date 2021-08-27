@@ -1024,19 +1024,53 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
 
                 watches_type[zk_request->getPath()].emplace_back(session_id);
                 sessions_and_watchers[session_id].emplace(zk_request->getPath());
+                LOG_INFO(
+                    log,
+                    "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
+                    session_id,
+                    zk_request->getPath(),
+                    Coordination::toString(zk_request->getOpNum()),
+                    response->error,
+                    Coordination::errorMessage(response->error));
             }
             else if (response->error == Coordination::Error::ZNONODE && zk_request->getOpNum() == Coordination::OpNum::Exists)
             {
                 watches[zk_request->getPath()].emplace_back(session_id);
                 sessions_and_watchers[session_id].emplace(zk_request->getPath());
+                LOG_INFO(
+                    log,
+                    "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
+                    session_id,
+                    zk_request->getPath(),
+                    Coordination::toString(zk_request->getOpNum()),
+                    response->error,
+                    Coordination::errorMessage(response->error));
             }
         }
 
         if (response->error == Coordination::Error::ZOK)
         {
             std::lock_guard lock(watch_mutex);
+            LOG_INFO(
+                log,
+                "Process watch, session id {}, path {}, opnum {}, error no {}, msg {}",
+                session_id,
+                zk_request->getPath(),
+                Coordination::toString(zk_request->getOpNum()),
+                response->error,
+                Coordination::errorMessage(response->error));
             auto watch_responses = storage_request->processWatches(watches, list_watches);
             results.insert(results.end(), watch_responses.begin(), watch_responses.end());
+            for (auto & session_id_response : watch_responses)
+            {
+                auto * response = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
+                LOG_INFO(
+                    log,
+                    "Processed watch, session id {}, path {}, type {}",
+                    session_id_response.session_id,
+                    response->path,
+                    response->type);
+            }
         }
 
         response->xid = zk_request->xid;
@@ -1107,6 +1141,10 @@ void SvsKeeperStorage::buildPathChildren()
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
+    LOG_INFO(
+        log,
+        "clearDeadWatches, session id {}",
+        session_id);
     std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);

@@ -81,7 +81,7 @@ ptr<srv_state> NuRaftStateManager::read_state()
     unsigned int size = in.tellg();
 
     in.seekg(0, std::ios::beg);
-    char * data = new char[size];
+    char data[size];
 
     in.read(data, size);
     in.close();
