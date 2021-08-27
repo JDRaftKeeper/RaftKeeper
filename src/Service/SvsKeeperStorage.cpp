@@ -1057,13 +1057,13 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             results.insert(results.end(), watch_responses.begin(), watch_responses.end());
             for (auto & session_id_response : watch_responses)
             {
-                auto * response = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
+                auto * watch_response = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
                 LOG_INFO(
                     log,
                     "Processed watch, session id {}, path {}, type {}",
                     session_id_response.session_id,
-                    response->path,
-                    response->type);
+                    watch_response->path,
+                    watch_response->type);
             }
         }
 
