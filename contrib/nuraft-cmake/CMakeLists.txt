@@ -25,6 +25,7 @@ set(SRCS
     ${LIBRARY_DIR}/src/handle_timeout.cxx
     ${LIBRARY_DIR}/src/handle_append_entries.cxx
     ${LIBRARY_DIR}/src/cluster_config.cxx
+    ${LIBRARY_DIR}/src/snapshot_sync_ctx.cxx
 )
 
 
@@ -48,3 +49,4 @@ if(OPENSSL_SSL_LIBRARY AND OPENSSL_CRYPTO_LIBRARY)
 endif()
 
 target_include_directories (nuraft SYSTEM PUBLIC ${LIBRARY_DIR}/include)
+target_include_directories (nuraft SYSTEM PUBLIC ${LIBRARY_DIR}/src)

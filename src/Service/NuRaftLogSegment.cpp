@@ -924,7 +924,10 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
         }
     }
 
-    //remove open segment
+    //remove open segment.
+    // Because when adding a node, you may directly synchronize the snapshot and do log compaction.
+    // At this time, the log of the new node is smaller than the last log index of the snapshot.
+    // So remove the open segment.
     if (open_segment)
     {
         if (open_segment->lastIndex() < first_index_kept)
