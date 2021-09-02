@@ -64,6 +64,8 @@ struct ZooKeeperRequest : virtual Request
     /// If the request was sent and we didn't get the response and the error happens, then we cannot be sure was it processed or not.
     bool probably_sent = false;
 
+    bool restored_from_zookeeper_log = false;
+
     ZooKeeperRequest() = default;
     ZooKeeperRequest(const ZooKeeperRequest &) = default;
     virtual ~ZooKeeperRequest() override = default;
@@ -198,6 +200,9 @@ struct ZooKeeperCloseResponse final : ZooKeeperResponse
 
 struct ZooKeeperCreateRequest final : public CreateRequest, ZooKeeperRequest
 {
+    /// used only during restore from zookeeper log
+    int32_t parent_cversion = -1;
+
     ZooKeeperCreateRequest() = default;
     explicit ZooKeeperCreateRequest(const CreateRequest & base) : CreateRequest(base) {}
 
@@ -477,6 +482,46 @@ struct ZooKeeperErrorResponse final : ErrorResponse, ZooKeeperResponse
     OpNum getOpNum() const override { return OpNum::Error; }
 };
 
+//struct ZooKeeperSetACLRequest final : SetACLRequest, ZooKeeperRequest
+//{
+//    OpNum getOpNum() const override { return OpNum::SetACL; }
+//    void writeImpl(WriteBuffer & out) const override;
+//    void readImpl(ReadBuffer & in) override;
+//    ZooKeeperResponsePtr makeResponse() const override;
+//    bool isReadRequest() const override { return false; }
+//
+//    size_t bytesSize() const override { return SetACLRequest::bytesSize() + sizeof(xid); }
+//};
+//
+//struct ZooKeeperSetACLResponse final : SetACLResponse, ZooKeeperResponse
+//{
+//    void readImpl(ReadBuffer & in) override;
+//    void writeImpl(WriteBuffer & out) const override;
+//    OpNum getOpNum() const override { return OpNum::SetACL; }
+//
+//    size_t bytesSize() const override { return SetACLResponse::bytesSize() + sizeof(xid) + sizeof(zxid); }
+//};
+//
+//struct ZooKeeperGetACLRequest final : GetACLRequest, ZooKeeperRequest
+//{
+//    OpNum getOpNum() const override { return OpNum::GetACL; }
+//    void writeImpl(WriteBuffer & out) const override;
+//    void readImpl(ReadBuffer & in) override;
+//    ZooKeeperResponsePtr makeResponse() const override;
+//    bool isReadRequest() const override { return true; }
+//
+//    size_t bytesSize() const override { return GetACLRequest::bytesSize() + sizeof(xid); }
+//};
+//
+//struct ZooKeeperGetACLResponse final : GetACLResponse, ZooKeeperResponse
+//{
+//    void readImpl(ReadBuffer & in) override;
+//    void writeImpl(WriteBuffer & out) const override;
+//    OpNum getOpNum() const override { return OpNum::GetACL; }
+//
+//    size_t bytesSize() const override { return GetACLResponse::bytesSize() + sizeof(xid) + sizeof(zxid); }
+//};
+
 struct ZooKeeperMultiRequest final : MultiRequest, ZooKeeperRequest
 {
     OpNum getOpNum() const override { return OpNum::Multi; }
@@ -548,6 +593,40 @@ struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
         std::for_each(responses.begin(), responses.end(), func);
         return base;
     }
+};
+
+/// Fake internal coordination (keeper) response. Never received from client
+/// and never send to client.
+struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
+{
+    int64_t internal_id;
+    int64_t session_timeout_ms;
+    /// Who requested this session
+    int32_t server_id;
+
+    Coordination::OpNum getOpNum() const override { return OpNum::SessionID; }
+    String getPath() const override { return {}; }
+    void writeImpl(WriteBuffer & out) const override;
+    void readImpl(ReadBuffer & in) override;
+
+    Coordination::ZooKeeperResponsePtr makeResponse() const override;
+    bool isReadRequest() const override { return false; }
+};
+
+/// Fake internal coordination (keeper) response. Never received from client
+/// and never send to client.
+struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
+{
+    int64_t internal_id;
+    int64_t session_id;
+    /// Who requested this session
+    int32_t server_id;
+
+    void readImpl(ReadBuffer & in) override;
+
+    void writeImpl(WriteBuffer & out) const override;
+
+    Coordination::OpNum getOpNum() const override { return OpNum::SessionID; }
 };
 
 struct ZooKeeperSetSeqNumRequest final : SetSeqNumRequest, ZooKeeperRequest
