@@ -918,6 +918,17 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::SetSeqNum, SvsKeeperStorageSetSeqNumRequest>(*this);
 }
 
+SvsKeeperStorage::ResponsesForSessions
+SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id, std::optional<int64_t> new_last_zxid, bool check_acl [[maybe_unused]])
+{
+    if (new_last_zxid)
+    {
+        if (zxid >= *new_last_zxid)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
+        zxid = *new_last_zxid;
+    }
+    return processRequest(request, session_id);
+}
 
 SvsKeeperStorage::ResponsesForSessions
 SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_request, int64_t session_id)
@@ -1096,11 +1107,13 @@ void SvsKeeperStorage::buildPathChildren()
                 LOG_WARNING(log, "Build : can not find parent node {}", it.first);
                 std::shared_ptr<KeeperNode> node = std::make_shared<KeeperNode>();
                 node->children.insert(child_path);
+                node->stat.numChildren++;
                 container.emplace(parentPath(it.first), std::move(node));
             }
             else
             {
                 parent->children.insert(child_path);
+                parent->stat.numChildren++;
             }
         }
     }

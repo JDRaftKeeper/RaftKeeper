@@ -2,8 +2,10 @@
 #include <optional>
 #include <boost/program_options.hpp>
 
-#include <Coordination/KeeperSnapshotManager.h>
-#include <Coordination/ZooKeeperDataReader.h>
+//#include <Coordination/KeeperSnapshotManager.h>
+#include <Service/NuRaftLogSnapshot.h>
+#include <Service/ZooKeeperDataReader.h>
+#include <Service/NuRaftLogSnapshot.h>
 #include <Common/TerminalSize.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/AutoPtr.h>
@@ -39,17 +41,21 @@ int mainEntryClickHouseKeeperConverter(int argc, char ** argv)
 
     try
     {
-        DB::KeeperStorage storage(500, "");
+        DB::SvsKeeperStorage storage(500);
 
-        DB::deserializeKeeperStorageFromSnapshotsDir(storage, options["zookeeper-snapshots-dir"].as<std::string>(), logger);
+        DB::deserializeSvsKeeperStorageFromSnapshotsDir(storage, options["zookeeper-snapshots-dir"].as<std::string>(), logger);
         DB::deserializeLogsAndApplyToStorage(storage, options["zookeeper-logs-dir"].as<std::string>(), logger);
-        DB::SnapshotMetadataPtr snapshot_meta = std::make_shared<DB::SnapshotMetadata>(storage.getZXID(), 1, std::make_shared<nuraft::cluster_config>());
-        DB::KeeperStorageSnapshot snapshot(&storage, snapshot_meta);
-
-        DB::KeeperSnapshotManager manager(options["output-dir"].as<std::string>(), 1);
-        auto snp = manager.serializeSnapshotToBuffer(snapshot);
-        auto path = manager.serializeSnapshotBufferToDisk(*snp, storage.getZXID());
-        std::cout << "Snapshot serialized to path:" << path << std::endl;
+        nuraft::ptr<snapshot> new_snapshot
+            ( nuraft::cs_new<snapshot>(1, 1, std::make_shared<nuraft::cluster_config>()) ); // TODO 1 ?
+        nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
+        snap_mgr->createSnapshot(*new_snapshot, storage);
+//        DB::SnapshotMetadataPtr snapshot_meta = std::make_shared<DB::SnapshotMetadata>(storage.getZXID(), 1, std::make_shared<nuraft::cluster_config>());
+//        DB::KeeperStorageSnapshot snapshot(&storage, snapshot_meta);
+//
+//        DB::KeeperSnapshotManager manager(options["output-dir"].as<std::string>(), 1);
+//        auto snp = manager.serializeSnapshotToBuffer(snapshot);
+//        auto path = manager.serializeSnapshotBufferToDisk(*snp, storage.getZXID());
+        std::cout << "Snapshot serialized to path:" << options["output-dir"].as<std::string>() << std::endl;
     }
     catch (...)
     {
