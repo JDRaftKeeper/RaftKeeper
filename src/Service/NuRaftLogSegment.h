@@ -72,7 +72,7 @@ public:
 
     bool isOpen() const { return is_open; }
 
-    UInt64 getFileSize() const { return file_size; }
+    UInt64 getFileSize() const { return file_size.load(std::memory_order_consume); }
 
     UInt64 firstIndex() const { return first_index; }
 
@@ -122,7 +122,7 @@ private:
     std::string file_name;
     std::string create_time;
     int seg_fd;
-    UInt64 file_size;
+    std::atomic<UInt64> file_size;
     bool is_open;
     Poco::Logger * log;
     mutable std::shared_mutex log_mutex;
