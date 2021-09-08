@@ -329,10 +329,10 @@ else ()
         add_custom_target (clickhouse-service ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-service DEPENDS clickhouse)
         install (FILES ${CMAKE_CURRENT_BINARY_DIR}/clickhouse-service DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
         list(APPEND CLICKHOUSE_BUNDLE clickhouse-service)
+        add_custom_target (clickhouse-service-converter ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-service-converter DEPENDS clickhouse)
+        install (FILES ${CMAKE_CURRENT_BINARY_DIR}/clickhouse-service-converter DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
+        list(APPEND CLICKHOUSE_BUNDLE clickhouse-service-converter)
     endif ()
-    add_custom_target (clickhouse-service-converter ALL COMMAND ${CMAKE_COMMAND} -E create_symlink clickhouse clickhouse-service-converter DEPENDS clickhouse)
-    install (FILES ${CMAKE_CURRENT_BINARY_DIR}/clickhouse-service-converter DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
-    list(APPEND CLICKHOUSE_BUNDLE clickhouse-service-converter)
 
     install (TARGETS clickhouse RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
 

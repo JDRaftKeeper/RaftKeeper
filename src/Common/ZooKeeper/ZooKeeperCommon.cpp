@@ -469,6 +469,39 @@ ZooKeeperResponsePtr ZooKeeperMultiRequest::makeResponse() const { return std::m
 ZooKeeperResponsePtr ZooKeeperCloseRequest::makeResponse() const { return std::make_shared<ZooKeeperCloseResponse>(); }
 ZooKeeperResponsePtr ZooKeeperSetSeqNumRequest::makeResponse() const { return std::make_shared<ZooKeeperSetSeqNumResponse>(); }
 
+void ZooKeeperSessionIDRequest::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(internal_id, out);
+    Coordination::write(session_timeout_ms, out);
+    Coordination::write(server_id, out);
+}
+
+void ZooKeeperSessionIDRequest::readImpl(ReadBuffer & in)
+{
+    Coordination::read(internal_id, in);
+    Coordination::read(session_timeout_ms, in);
+    Coordination::read(server_id, in);
+}
+
+Coordination::ZooKeeperResponsePtr ZooKeeperSessionIDRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperSessionIDResponse>();
+}
+
+void ZooKeeperSessionIDResponse::readImpl(ReadBuffer & in)
+{
+    Coordination::read(internal_id, in);
+    Coordination::read(session_id, in);
+    Coordination::read(server_id, in);
+}
+
+void ZooKeeperSessionIDResponse::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(internal_id, out);
+    Coordination::write(session_id, out);
+    Coordination::write(server_id, out);
+}
+
 void ZooKeeperRequestFactory::registerRequest(OpNum op_num, Creator creator)
 {
     if (!op_num_to_request.try_emplace(op_num, creator).second)
@@ -526,6 +559,7 @@ ZooKeeperRequestFactory::ZooKeeperRequestFactory()
     registerZooKeeperRequest<OpNum::Check, ZooKeeperCheckRequest>(*this);
     registerZooKeeperRequest<OpNum::Multi, ZooKeeperMultiRequest>(*this);
     registerZooKeeperRequest<OpNum::SetSeqNum, ZooKeeperSetSeqNumRequest>(*this);
+    registerZooKeeperRequest<OpNum::SessionID, ZooKeeperSessionIDRequest>(*this);
 }
 
 }
