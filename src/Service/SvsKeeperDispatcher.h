@@ -127,6 +127,13 @@ public:
     {
         return request_counter;
     }
+
+    SessionAndWatcherPtr getWatchInfo() const{
+        return server->getWatchInfo();
+    }
+
+    EphemeralsPtr getEphemeralInfo() { return server->getEphemeralInfo(); }
+
 };
 
 }

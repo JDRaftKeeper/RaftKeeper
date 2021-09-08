@@ -821,8 +821,8 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     std::vector<std::string> file_vec;
     file_dir.list(file_vec);
     char time_str[128];
-    ulong log_last_index;
-    ulong object_id;
+    unsigned long log_last_index;
+    unsigned long object_id;
 
     for (auto it = file_vec.begin(); it != file_vec.end(); it++)
     {
@@ -864,8 +864,8 @@ size_t KeeperSnapshotManager::removeSnapshots()
 {
     size_t remove_count = snapshots.size() - keep_max_snapshot_count;
     char time_str[128];
-    ulong log_last_index;
-    ulong object_id;
+    unsigned long log_last_index;
+    unsigned long object_id;
     while (remove_count > 0)
     {
         auto it = snapshots.begin();

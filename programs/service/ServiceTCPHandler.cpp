@@ -6,6 +6,8 @@
 #include <IO/ReadBufferFromFileDescriptor.h>
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <IO/WriteBufferFromPocoSocket.h>
+#include <Service/FourLetterCommand.h>
+#include <Service/SvsKeeperProfileEvents.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/CurrentThread.h>
@@ -15,7 +17,6 @@
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Common/setThreadName.h>
 #include <common/logger_useful.h>
-#include <Service/SvsKeeperProfileEvents.h>
 
 #ifdef POCO_HAVE_FD_EPOLL
 #    include <sys/epoll.h>
@@ -214,17 +215,15 @@ void ServiceTCPHandler::run()
     runImpl();
 }
 
-Poco::Timespan ServiceTCPHandler::receiveHandshake()
+Poco::Timespan ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
 {
-    int32_t handshake_length;
+    /// for letter admin commands
     int32_t protocol_version;
     int64_t last_zxid_seen;
     int32_t timeout_ms;
     int64_t previous_session_id = 0; /// We don't support session restore. So previous session_id is always zero.
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
-    Coordination::read(handshake_length, *in);
-    if (handshake_length != Coordination::CLIENT_HANDSHAKE_LENGTH
-        && handshake_length != Coordination::CLIENT_HANDSHAKE_LENGTH_WITH_READONLY)
+    if (!isHandShake(handshake_length))
         throw Exception("Unexpected handshake length received: " + toString(handshake_length), ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
 
     Coordination::read(protocol_version, *in);
@@ -252,10 +251,51 @@ Poco::Timespan ServiceTCPHandler::receiveHandshake()
     return Poco::Timespan(0, timeout_ms * 1000);
 }
 
+bool ServiceTCPHandler::isHandShake(Int32 & handshake_length)
+{
+    return handshake_length == Coordination::CLIENT_HANDSHAKE_LENGTH
+        || handshake_length == Coordination::CLIENT_HANDSHAKE_LENGTH_WITH_READONLY;
+}
+
+bool ServiceTCPHandler::tryExecuteFourLetterWordCmd(Int32 & four_letter_cmd)
+{
+    if(FourLetterCommands::isKnown(four_letter_cmd))
+    {
+        auto command = FourLetterCommands::getCommand(four_letter_cmd);
+        LOG_DEBUG(log, "receive four letter command {}", command->name());
+
+        String res;
+        try
+        {
+            command->run(res);
+        }
+        catch (const Exception & e)
+        {
+            res = "Error when executing four letter command " + command->name() + ". Because: " + e.displayText();
+            tryLogCurrentException(log, res);
+        }
+
+        try
+        {
+            out->write(res.data(), res.size());
+        }
+        catch (const Exception &)
+        {
+            tryLogCurrentException(log, "Error when send 4 letter command response");
+        }
+
+        return true;
+    }
+    else
+    {
+        LOG_WARNING(log, "invalid four letter command {}", std::to_string(four_letter_cmd));
+    }
+    return false;
+}
 
 void ServiceTCPHandler::runImpl()
 {
-    setThreadName("SevKprHandler");
+    setThreadName("SvsKeeprHandler");
     ThreadStatus thread_status;
     auto global_receive_timeout = global_context.getSettingsRef().receive_timeout;
     auto global_send_timeout = global_context.getSettingsRef().send_timeout;
@@ -273,11 +313,36 @@ void ServiceTCPHandler::runImpl()
         return;
     }
 
+    int32_t header;
+    try
+    {
+        Coordination::read(header, *in);
+    }
+    catch(const Exception & e)
+    {
+        LOG_WARNING(log, "Error while read connection header {}", e.displayText());
+        return;
+    }
+
+    /// All four letter word command code is larger than 2^24 or lower than 0.
+    /// Hand shake package length must be lower than 2^24 and larger than 0.
+    /// So collision never happens.
+    int32_t four_letter_cmd = header;
+    if(!isHandShake(four_letter_cmd))
+    {
+        tryExecuteFourLetterWordCmd(four_letter_cmd);
+        return;
+    }
+
     try
     {
         LOG_TRACE(log, "Server session_timeout is {}.", session_timeout.milliseconds());
-        auto client_timeout = receiveHandshake();
+
+        int32_t handshake_length = header;
+        auto client_timeout = receiveHandshake(handshake_length);
+
         LOG_TRACE(log, "ReceiveHandshake client session_timeout is {}.", client_timeout.milliseconds());
+
         if (client_timeout != 0)
             session_timeout = std::min(client_timeout, session_timeout);
     }

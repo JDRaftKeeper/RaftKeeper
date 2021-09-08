@@ -12,9 +12,12 @@
 #include <IO/HTTPCommon.h>
 #include <IO/UseSSL.h>
 #include <Interpreters/ProcessList.h>
+#include <Server/HTTP/HTTPServer.h>
 #include <Server/HTTPHandlerFactory.h>
 #include <Server/ProtocolServerAdapter.h>
+#include <Service/FourLetterCommand.h>
 #include <Service/SvsKeeperMetrics.h>
+#include <Service/SvsKeeperPrometheusRequestHandler.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -53,9 +56,8 @@
 #include <common/logger_useful.h>
 #include <common/phdr_cache.h>
 #include <ext/scope_guard.h>
-#include <Server/HTTP/HTTPServer.h>
-#include <Service/SvsKeeperPrometheusRequestHandler.h>
 #include "ServiceTCPHandlerFactory.h"
+#include <Service/FourLetterCommand.h>
 
 namespace DB
 {
@@ -217,6 +219,8 @@ int Service::main(const std::vector<std::string> & /*args*/)
     /// start service metrics updater
     ServiceMetrics::MetricsUpdater metrics_updater(context(), 60);
     metrics_updater.start();
+
+    FourLetterCommands::registerCommands(context());
 
     /// Prometheus (if defined and not setup yet with http_port)
     port_name = "prometheus.port";
