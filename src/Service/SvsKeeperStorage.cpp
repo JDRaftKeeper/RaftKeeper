@@ -1192,4 +1192,39 @@ void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
         sessions_and_watchers.erase(watches_it);
     }
 }
+
+SessionAndWatcherPtr SvsKeeperStorage::cloneWatchInfo() const
+{
+    SessionAndWatcherPtr res = std::make_shared<SessionAndWatcher>();
+    std::unique_lock<std::shared_mutex> session_lock(session_mutex);
+    std::unique_lock<std::shared_mutex> watch_lock(watch_mutex);
+    for(const auto & session_and_watch : sessions_and_watchers)
+    {
+        std::unordered_set<std::string> paths;
+        for(const auto& path : session_and_watch.second)
+        {
+            paths.insert(path);
+        }
+        res->emplace(session_and_watch.first, std::move(paths));
+    }
+    return res;
+}
+
+EphemeralsPtr SvsKeeperStorage::cloneEphemeralInfo() const
+{
+    EphemeralsPtr res = std::make_shared<Ephemerals>();
+    std::unique_lock<std::shared_mutex> session_lock(session_mutex);
+    for(const auto & session_and_ephemeral : ephemerals)
+    {
+        std::unordered_set<std::string> paths;
+        for(const auto& path : session_and_ephemeral.second)
+        {
+            paths.insert(path);
+        }
+        res->emplace(session_and_ephemeral.first, std::move(paths));
+    }
+    return res;
+}
+
+
 }

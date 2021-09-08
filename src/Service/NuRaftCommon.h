@@ -27,6 +27,8 @@ struct BackendTimer
     UInt32 end_second = 79200;
     //default min interval is 1 hour
     UInt32 interval = 1 * 3600;
+    //100,000,000 * 0.3K / 200M = 100M * 0.3K / 200M = 150 S
+    UInt32 randomWindow = 1200; //20 minutes
 
     inline UInt32 getTodaySeconds(struct tm * curr_tm) { return curr_tm->tm_hour * 3600 + curr_tm->tm_min * 60 + curr_tm->tm_sec; }
 
@@ -75,7 +77,7 @@ struct BackendTimer
         strptime(prev_date.data(), TIME_FMT, &prev_tm);
         time_t prev_time = mktime(&prev_tm);
 
-        return difftime(curr_time, prev_time) >= interval;
+        return difftime(curr_time, prev_time) >= (interval + rand() % randomWindow);
     }
 
     bool isActionTime(time_t & prev_time, time_t & curr_time)
@@ -84,7 +86,7 @@ struct BackendTimer
         {
             time(&curr_time);
         }
-        return difftime(curr_time, prev_time) >= interval;
+        return difftime(curr_time, prev_time) >= (interval + rand() % randomWindow);
     }
 };
 
