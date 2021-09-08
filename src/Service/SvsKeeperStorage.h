@@ -150,7 +150,9 @@ public:
 #endif
 
     using Ephemerals = std::unordered_map<int64_t, std::unordered_set<std::string>>;
+    using EphemeralsPtr = std::shared_ptr<Ephemerals>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<std::string>>;
+    using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
     using SessionAndTimeout = std::unordered_map<int64_t, long>;
     using SessionIDs = std::vector<int64_t>;
 
@@ -164,12 +166,12 @@ public:
     SessionAndWatcher sessions_and_watchers;
     SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
-    std::shared_mutex session_mutex;
+    mutable std::shared_mutex session_mutex;
 
     Watches watches;
     Watches list_watches; /// Watches for 'list' request (watches on children).
 
-    std::shared_mutex watch_mutex;
+    mutable std::shared_mutex watch_mutex;
 
     std::atomic<int64_t> zxid{0};
     bool finalized{false};
@@ -219,7 +221,7 @@ public:
         return container.size();
     }
 
-    UInt64 getWatchNodeNum() { return watches.size(); }
+    UInt64 getWatchNodeNum() const { return watches.size(); }
 
     UInt64 getEphemeralNodeNum() {
         std::lock_guard lock(ephemerals_mutex);
@@ -248,8 +250,19 @@ public:
         return session_and_timeout.size();
     }
 
+    SessionAndWatcherPtr cloneWatchInfo() const;
+
+    EphemeralsPtr cloneEphemeralInfo() const;
+
 private:
     Poco::Logger * log;
 };
+
+using Ephemerals = SvsKeeperStorage::Ephemerals;
+using EphemeralsPtr = SvsKeeperStorage::EphemeralsPtr;
+using SessionAndWatcher = SvsKeeperStorage::SessionAndWatcher;
+using SessionAndWatcherPtr = SvsKeeperStorage::SessionAndWatcherPtr;
+using SessionIDs = SvsKeeperStorage::SessionIDs;
+using Watches = SvsKeeperStorage::Watches;
 
 }

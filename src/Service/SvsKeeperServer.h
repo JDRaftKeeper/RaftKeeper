@@ -109,6 +109,11 @@ public:
         return state_machine->getSessionNum();
     }
 
+    SessionAndWatcherPtr getWatchInfo() {
+        return state_machine->getWatchInfo();
+    }
+
+    EphemeralsPtr getEphemeralInfo() { return state_machine->getEphemeralInfo(); }
 };
 
 }
