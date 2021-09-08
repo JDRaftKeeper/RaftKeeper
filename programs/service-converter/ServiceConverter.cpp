@@ -5,7 +5,6 @@
 //#include <Coordination/KeeperSnapshotManager.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ZooKeeperDataReader.h>
-#include <Service/NuRaftLogSnapshot.h>
 #include <Common/TerminalSize.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/AutoPtr.h>
