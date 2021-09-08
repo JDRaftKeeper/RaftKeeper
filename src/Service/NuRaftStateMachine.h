@@ -87,6 +87,10 @@ public:
     /// no need to lock
     UInt64 getSessionNum() { return storage.getSessionNum(); }
 
+    SessionAndWatcherPtr getWatchInfo() { return storage.cloneWatchInfo(); }
+
+    EphemeralsPtr getEphemeralInfo() { return storage.cloneEphemeralInfo(); }
+
     void shutdownStorage();
 
     static SvsKeeperStorage::RequestForSession parseRequest(nuraft::buffer & data);
