@@ -23,6 +23,8 @@ using nuraft::cs_new;
 
 //const int KeeperSnapshotStore::SNAPSHOT_THREAD_NUM = 4;
 
+const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
+
 int openFileForWrite(std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
