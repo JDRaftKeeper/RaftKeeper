@@ -353,8 +353,8 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
             LOG_WARNING(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
             return -1;
         }
-        offset_term.push_back(std::make_pair(file_size, entry->get_term()));
-        file_size += LogEntryHeader::HEADER_SIZE + header.data_length;
+        offset_term.push_back(std::make_pair(file_size.load(std::memory_order_relaxed), entry->get_term()));
+        file_size.fetch_add(LogEntryHeader::HEADER_SIZE + header.data_length, std::memory_order_release);
         last_index.fetch_add(1, std::memory_order_release);
         last_log_index.store(last_index, std::memory_order_release);
     }
@@ -669,16 +669,14 @@ int LogSegmentStore::close()
 
 int LogSegmentStore::openSegment()
 {
-    if (open_segment && open_segment->getFileSize() <= max_log_size)
     {
-        return 0;
+        std::shared_lock read_lock(seg_mutex);
+        if (open_segment && open_segment->getFileSize() <= max_log_size)
+        {
+            return 0;
+        }
     }
     std::lock_guard write_lock(seg_mutex);
-    //check again
-    if (open_segment && open_segment->getFileSize() <= max_log_size)
-    {
-        return 0;
-    }
     //UInt64 last_idx(0);
     if (open_segment)
     {
