@@ -400,6 +400,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s)
     {
         std::lock_guard<std::mutex> lock(snapshot_mutex);
         snap_mgr->createSnapshot(s, storage);
+        snap_mgr->removeSnapshots();
     }
     ServiceProfileEvents::increment(ServiceProfileEvents::create_snapshot_count, 1);
 }
