@@ -136,12 +136,27 @@ NuRaftStateMachine::NuRaftStateMachine(
                         batch.batch_start_index = batch_start_index;
                         batch.batch_end_index = batch_end_index;
                         batch.request_vec = cs_new<std::vector<ptr<SvsKeeperStorage::RequestForSession>>>();
+
                         for (auto entry : *(batch.log_vec))
                         {
-                            ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
-                            if (ptr_request != nullptr)
+                            if(entry->get_val_type() != nuraft::log_val_type::app_log)
+                                continue;
+
+                            if(isNewSessionRequest(entry->get_buf()))
                             {
-                                batch.request_vec->push_back(ptr_request);
+                                /// replay session
+                                int64_t session_timeout_ms = entry->get_buf().get_ulong();
+                                int64_t session_id = storage.getSessionID(session_timeout_ms);
+                                LOG_DEBUG(log, "replay session_id {} with timeout {} from log", session_id, session_timeout_ms);
+                            }
+                            else
+                            {
+                                /// replay nodes
+                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
+                                if (ptr_request != nullptr)
+                                {
+                                    batch.request_vec->push_back(ptr_request);
+                                }
                             }
                         }
 
@@ -305,7 +320,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         LOG_INFO(log, "Begin commit log index {}", log_idx);
     }
 
-    if (data.size() == sizeof(int64_t))
+    if (isNewSessionRequest(data))
     {
         nuraft::buffer_serializer timeout_data(data);
         int64_t session_timeout_ms = timeout_data.get_i64();
@@ -529,6 +544,10 @@ KeeperNode & NuRaftStateMachine::getNode(const std::string & path)
         return *node_ptr.get();
     }
     return default_node;
+}
+bool NuRaftStateMachine::isNewSessionRequest(nuraft::buffer & data)
+{
+    return data.size() == sizeof(int64);
 }
 
 }

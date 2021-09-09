@@ -98,6 +98,7 @@ public:
 
 private:
     ptr<SvsKeeperStorage::RequestForSession> createRequestSession(ptr<log_entry> & entry);
+    static bool isNewSessionRequest(nuraft::buffer & data);
 
     Poco::Logger * log;
     SvsKeeperSettingsPtr coordination_settings;
