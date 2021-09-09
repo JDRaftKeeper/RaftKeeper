@@ -379,9 +379,9 @@ Coordination::ZooKeeperRequestPtr deserializeSetACLTxn(ReadBuffer & in)
     return nullptr;
 }
 
-Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in);
+Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in, Poco::Logger * log);
 
-Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtxn, int64_t txn_length = 0)
+Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtxn, int64_t txn_length = 0, Poco::Logger * log = nullptr)
 {
     int32_t type;
     Coordination::read(type, in);
@@ -397,6 +397,8 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
 
     int64_t in_count_before = in.count();
 
+    if (subtxn)
+        LOG_INFO(log, "type {}", type);
     switch (type)
     {
         case 1:
@@ -415,7 +417,7 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
             result = deserializeCheckVersionTxn(in);
             break;
         case 14:
-            result = deserializeMultiTxn(in);
+            result = deserializeMultiTxn(in, log);
             break;
         case -10:
             result = deserializeCreateSession(in);
@@ -427,7 +429,12 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
             result = deserializeErrorTxn(in);
             break;
         default:
-            throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Not implemented operation {}", type);
+            {
+                if (log)
+                    LOG_ERROR(log, "Not implemented operation {}", type);
+                else
+                    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Not implemented operation {}", type);
+            }
     }
 
     if (subtxn)
@@ -440,15 +447,16 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
     return result;
 }
 
-Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in)
+Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in, Poco::Logger * log = nullptr)
 {
     int32_t length;
     Coordination::read(length, in);
 
     std::shared_ptr<Coordination::ZooKeeperMultiRequest> result = std::make_shared<Coordination::ZooKeeperMultiRequest>();
+    LOG_INFO(log, "deserializeMultiTxn length {}", length);
     while (length > 0)
     {
-        auto subrequest = deserializeTxnImpl(in, true);
+        auto subrequest = deserializeTxnImpl(in, true, 0, log);
         result->requests.push_back(subrequest);
         length--;
     }
@@ -473,7 +481,7 @@ bool hasErrorsInMultiRequest(Coordination::ZooKeeperRequestPtr request)
 
 }
 
-bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * /*log*/)
+bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * log)
 {
     int64_t checksum;
     Coordination::read(checksum, in);
@@ -493,12 +501,14 @@ bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * 
     int64_t time;
     Coordination::read(time, in);
 
-    Coordination::ZooKeeperRequestPtr request = deserializeTxnImpl(in, false, txn_len);
+    Coordination::ZooKeeperRequestPtr request = deserializeTxnImpl(in, false, txn_len, log);
 
     /// Skip all other bytes
     int64_t bytes_read = in.count() - count_before;
     if (bytes_read < txn_len)
         in.ignore(txn_len - bytes_read);
+
+//    LOG_INFO(log, "txn_len is {}, count_before {}, bytes_read {}", txn_len, count_before, bytes_read);
 
     /// We don't need to apply error requests
     if (isErrorRequest(request))
