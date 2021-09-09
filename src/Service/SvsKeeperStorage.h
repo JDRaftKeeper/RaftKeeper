@@ -173,12 +173,12 @@ public:
 
     mutable std::shared_mutex watch_mutex;
 
-    std::atomic<int64_t> zxid{0};
+    std::atomic<Coordination::XID> zxid{0};
     bool finalized{false};
 
     void clearDeadWatches(int64_t session_id);
 
-    int64_t getZXID() { return zxid++; }
+    Coordination::XID getZXID() { return zxid++; }
 
 public:
     SvsKeeperStorage(int64_t tick_time_ms);
