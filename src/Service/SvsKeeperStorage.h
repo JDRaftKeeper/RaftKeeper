@@ -153,7 +153,7 @@ public:
     using EphemeralsPtr = std::shared_ptr<Ephemerals>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<std::string>>;
     using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
-    using SessionAndTimeout = std::unordered_map<int64_t, long>;
+    using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
     using SessionIDs = std::vector<int64_t>;
 
     using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
@@ -173,12 +173,12 @@ public:
 
     mutable std::shared_mutex watch_mutex;
 
-    std::atomic<Coordination::XID> zxid{0};
+    std::atomic<int64_t> zxid{0};
     bool finalized{false};
 
     void clearDeadWatches(int64_t session_id);
 
-    Coordination::XID getZXID() { return zxid++; }
+    int64_t getZXID() { return zxid++; }
 
 public:
     SvsKeeperStorage(int64_t tick_time_ms);
