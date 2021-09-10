@@ -486,7 +486,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size]);
 
     UIntMap uint_map;
-    uint_map["ZXID"] = storage.getZXID();
+    uint_map["ZXID"] = storage.zxid;
+    uint_map["SESSIONID"] = storage.session_id_counter;
 
     //Save uint map
     createMap(uint_map, save_batch_size, objects[obj_size]);
@@ -681,8 +682,8 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     buf->put(data);
                     buf->pos(0);
                     ReadBufferFromNuraftBuffer in(buf);
-                    Int64 session_id;
-                    long timeout;
+                    int64_t session_id;
+                    int64_t timeout;
                     try
                     {
                         Coordination::read(session_id, in);

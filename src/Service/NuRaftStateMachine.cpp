@@ -212,11 +212,6 @@ NuRaftStateMachine::NuRaftStateMachine(
                     LOG_WARNING(log, "Storage's session_id_counter {} must more than the session id {} of log.", storage.session_id_counter, request->session_id);
                     storage.session_id_counter = request->session_id;
                 }
-                if (request->request->xid > storage.zxid.load(std::memory_order_acquire))
-                {
-                    //LOG_WARNING(log, "Storage's zxid {} must more than session id {} of log.", storage.xid, request->request->xid);
-                    storage.zxid.store(request->request->xid, std::memory_order_release);
-                }
             }
             log_queue.pop();
             last_committed_idx = batch.batch_end_index - 1;
