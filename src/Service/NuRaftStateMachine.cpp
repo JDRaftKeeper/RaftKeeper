@@ -82,6 +82,9 @@ NuRaftStateMachine::NuRaftStateMachine(
     {
         last_committed_idx = last_snapshot->get_last_log_idx();
         apply_snapshot(*(last_snapshot.get()));
+        /// In order to meet the initial application of snapshot in the cluster. At this time, the log index is less than the last index of the snapshot, and compact is required.
+        if (logstore->next_slot() <= last_committed_idx)
+            logstore->compact(last_committed_idx);
     }
     else
     {
