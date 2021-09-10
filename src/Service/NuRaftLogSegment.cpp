@@ -897,60 +897,62 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
         return 0;
     }
 
-    std::lock_guard write_lock(seg_mutex);
-    std::vector<ptr<NuRaftLogSegment>> remove_vec;
     {
-        first_log_index.store(first_index_kept, std::memory_order_release);
-        for (auto it = segments.begin(); it != segments.end();)
+        std::lock_guard write_lock(seg_mutex);
+        std::vector<ptr<NuRaftLogSegment>> remove_vec;
         {
-            ptr<NuRaftLogSegment> & segment = *it;
-            if (segment->lastIndex() < first_index_kept)
+            first_log_index.store(first_index_kept, std::memory_order_release);
+            for (auto it = segments.begin(); it != segments.end();)
             {
-                remove_vec.push_back(segment);
-                it = segments.erase(it);
-            }
-            else
-            {
-                if (segment->firstIndex() < first_log_index)
+                ptr<NuRaftLogSegment> & segment = *it;
+                if (segment->lastIndex() < first_index_kept)
                 {
-                    first_log_index.store(segment->firstIndex(), std::memory_order_release);
-                    if ((last_log_index - 1) < first_log_index)
-                        last_log_index.store(segment->lastIndex(), std::memory_order_release);
+                    remove_vec.push_back(segment);
+                    it = segments.erase(it);
                 }
-                it++;
+                else
+                {
+                    if (segment->firstIndex() < first_log_index)
+                    {
+                        first_log_index.store(segment->firstIndex(), std::memory_order_release);
+                        if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
+                            last_log_index.store(segment->lastIndex(), std::memory_order_release);
+                    }
+                    it++;
+                }
             }
         }
-    }
 
-    //remove open segment.
-    // Because when adding a node, you may directly synchronize the snapshot and do log compaction.
-    // At this time, the log of the new node is smaller than the last log index of the snapshot.
-    // So remove the open segment.
-    if (open_segment)
-    {
-        if (open_segment->lastIndex() < first_index_kept)
+        //remove open segment.
+        // Because when adding a node, you may directly synchronize the snapshot and do log compaction.
+        // At this time, the log of the new node is smaller than the last log index of the snapshot.
+        // So remove the open segment.
+        if (open_segment)
         {
-            remove_vec.push_back(open_segment);
-            open_segment = nullptr;
+            if (open_segment->lastIndex() < first_index_kept)
+            {
+                remove_vec.push_back(open_segment);
+                open_segment = nullptr;
+            }
+            else if (open_segment->firstIndex() < first_log_index)
+            {
+                first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
+                if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
+                    last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
+            }
         }
-        else if (open_segment->firstIndex() < first_log_index)
-        {
-            first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
-            if ((last_log_index - 1) < first_log_index)
-                last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-        }
-    }
 
-    for (size_t i = 0; i < remove_vec.size(); ++i)
-    {
-        remove_vec[i]->remove();
-        LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, remove_vec[i]->getFileName());
-        remove_vec[i] = nullptr;
+        for (size_t i = 0; i < remove_vec.size(); ++i)
+        {
+            remove_vec[i]->remove();
+            LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, remove_vec[i]->getFileName());
+            remove_vec[i] = nullptr;
+        }
+        // reset last_log_index
+        if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
+            last_log_index.store(first_log_index - 1, std::memory_order_release);
     }
-    // reset last_log_index
-    if ((last_log_index - 1) < first_log_index)
-        last_log_index.store(first_log_index - 1, std::memory_order_release);
-    // TODO need openSegment() ?
+    openSegment();
     return 0;
 }
 

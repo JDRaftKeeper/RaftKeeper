@@ -397,8 +397,8 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
 
     int64_t in_count_before = in.count();
 
-    if (subtxn)
-        LOG_INFO(log, "type {}", type);
+//    if (subtxn)
+//        LOG_INFO(log, "type {}", type);
     switch (type)
     {
         case 1:
@@ -453,7 +453,7 @@ Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in, Poco::Log
     Coordination::read(length, in);
 
     std::shared_ptr<Coordination::ZooKeeperMultiRequest> result = std::make_shared<Coordination::ZooKeeperMultiRequest>();
-    LOG_INFO(log, "deserializeMultiTxn length {}", length);
+//    LOG_INFO(log, "deserializeMultiTxn length {}", length);
     while (length > 0)
     {
         auto subrequest = deserializeTxnImpl(in, true, 0, log);
