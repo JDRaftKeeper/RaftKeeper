@@ -97,7 +97,7 @@ void createObjectContainer(
     int snap_fd = -1;
     size_t file_size = 0;
     std::string obj_path;
-    LOG_INFO(log, "Create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
+    LOG_INFO(log, "Begin create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
     while (node_index <= innerMap.size())
     {
         if (max_node_size == 1 || node_index % max_node_size == 1)
@@ -160,6 +160,8 @@ void createObjectContainer(
         node_index++;
     }
 
+    LOG_INFO(log, "Finish create snapshot object for container, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
+
     if (snap_fd > 0)
     {
         ::close(snap_fd);
@@ -182,6 +184,7 @@ void createObjectEphemeral(
     UInt32 node_index = 1;
     int snap_fd = -1;
     size_t file_size = 0;
+    LOG_INFO(log, "Begin create snapshot ephemeral object, max node size {}, node index {}", max_node_size, node_index);
     while (node_index <= ephemerals.size())
     {
         if (node_index % max_node_size == 1)
@@ -194,12 +197,12 @@ void createObjectEphemeral(
             snap_fd = openFileForWrite(obj_path);
             if (snap_fd > 0)
             {
-                LOG_INFO(log, "Create snapshot object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
+                LOG_INFO(log, "Create snapshot ephemeral object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
                 obj_idx++;
             }
             else
             {
-                LOG_WARNING(log, "Create snapshot object failed, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
+                LOG_WARNING(log, "Create snapshot ephemeral object failed, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
                 break;
             }
         }
@@ -241,6 +244,8 @@ void createObjectEphemeral(
         ephemeral_it++;
         node_index++;
     }
+    
+    LOG_INFO(log, "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
 
     if (snap_fd > 0)
     {
@@ -256,11 +261,11 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
     int snap_fd = openFileForWrite(obj_path);
     if (snap_fd > 0)
     {
-        LOG_INFO(log, "Create session object, path {}", obj_path);
+        LOG_INFO(log, "Create sessions object, path {}", obj_path);
     }
     else
     {
-        LOG_WARNING(log, "Create session object failed, path {}, fd {}", obj_path, snap_fd);
+        LOG_WARNING(log, "Create sessions object failed, path {}, fd {}", obj_path, snap_fd);
         return;
     }
 
@@ -302,6 +307,8 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         node_index++;
     }
 
+    LOG_INFO(log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
+
     if (snap_fd > 0)
     {
         ::close(snap_fd);
@@ -335,7 +342,7 @@ void createMap(T& snap_map, UInt32 save_batch_size, std::string& obj_path)
                     batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
                 }
             else if
-                constexpr(std::is_same_v<T, KeeperSnapshotStore::UIntMap>)
+                constexpr(std::is_same_v<T, KeeperSnapshotStore::IntMap>)
                 {
                     batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
                 }
@@ -485,12 +492,12 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     //Save sessions
     createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size]);
 
-    UIntMap uint_map;
-    uint_map["ZXID"] = storage.zxid;
-    uint_map["SESSIONID"] = storage.session_id_counter;
+    IntMap int_map;
+    int_map["ZXID"] = storage.zxid;
+    int_map["SESSIONID"] = storage.session_id_counter;
 
     //Save uint map
-    createMap(uint_map, save_batch_size, objects[obj_size]);
+    createMap(int_map, save_batch_size, objects[obj_size]);
 
     return obj_size;
 }
@@ -706,7 +713,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
             case SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP:
             break;
             case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
-                UIntMap uint_map;
+                IntMap int_map;
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
@@ -716,7 +723,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     buf->pos(0);
                     ReadBufferFromNuraftBuffer in(buf);
                     std::string key;
-                    UInt64 value;
+                    int64_t value;
                     try
                     {
                         Coordination::read(key, in);
@@ -732,15 +739,15 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             e.displayText());
                         break;
                     }
-                    uint_map[key] = value;
+                    int_map[key] = value;
                 }
-                if (uint_map.find("ZXID") != uint_map.end())
+                if (int_map.find("ZXID") != int_map.end())
                 {
-                    storage.zxid = uint_map["ZXID"];
+                    storage.zxid = int_map["ZXID"];
                 }
-                if (uint_map.find("SESSIONID") != uint_map.end())
+                if (int_map.find("SESSIONID") != int_map.end())
                 {
-                    storage.session_id_counter = uint_map["SESSIONID"];
+                    storage.session_id_counter = int_map["SESSIONID"];
                 }
             }
             break;
