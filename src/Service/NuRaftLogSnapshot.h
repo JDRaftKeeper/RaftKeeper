@@ -87,7 +87,7 @@ public:
 #endif
 
     using StringMap = std::unordered_map<std::string, std::string>;
-    using UIntMap = std::unordered_map<std::string, UInt64>;
+    using IntMap = std::unordered_map<std::string, int64_t>;
 
     //0.3KB / Node * 100M Count =  300MB
     static const UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
