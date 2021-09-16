@@ -125,7 +125,7 @@ class SvsKeeperStorage
 public:
     static constexpr int MAP_BLOCK_NUM = 16;
 
-    int64_t session_id_counter{0};
+    int64_t session_id_counter{1};
 
     struct ResponseForSession
     {
