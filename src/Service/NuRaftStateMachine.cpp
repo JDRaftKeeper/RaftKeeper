@@ -4,6 +4,7 @@
 #include <iostream>
 #include <mutex>
 #include <string>
+#include <math.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
@@ -205,8 +206,12 @@ NuRaftStateMachine::NuRaftStateMachine(
             }
             for (auto request : *(batch.request_vec))
             {
-                //replay(batch_start_index, entry);
                 storage.processRequest(request->request, request->session_id);
+                if (request->session_id > storage.session_id_counter)
+                {
+                    LOG_WARNING(log, "Storage's session_id_counter {} must more than the session id {} of log.", storage.session_id_counter, request->session_id);
+                    storage.session_id_counter = request->session_id;
+                }
             }
             log_queue.pop();
             last_committed_idx = batch.batch_end_index - 1;

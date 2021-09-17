@@ -125,7 +125,7 @@ class SvsKeeperStorage
 public:
     static constexpr int MAP_BLOCK_NUM = 16;
 
-    int64_t session_id_counter{0};
+    int64_t session_id_counter{1};
 
     struct ResponseForSession
     {
@@ -153,7 +153,7 @@ public:
     using EphemeralsPtr = std::shared_ptr<Ephemerals>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<std::string>>;
     using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
-    using SessionAndTimeout = std::unordered_map<int64_t, long>;
+    using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
     using SessionIDs = std::vector<int64_t>;
 
     using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
