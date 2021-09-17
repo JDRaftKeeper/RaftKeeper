@@ -44,6 +44,7 @@ int mainEntryClickHouseKeeperConverter(int argc, char ** argv)
 
         DB::deserializeSvsKeeperStorageFromSnapshotsDir(storage, options["zookeeper-snapshots-dir"].as<std::string>(), logger);
         DB::deserializeLogsAndApplyToStorage(storage, options["zookeeper-logs-dir"].as<std::string>(), logger);
+        std::cout << "storage.container.size():" << storage.container.size() << std::endl;
         nuraft::ptr<snapshot> new_snapshot
             ( nuraft::cs_new<snapshot>(storage.zxid, 1, std::make_shared<nuraft::cluster_config>()) ); // TODO 1 ?
         nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
