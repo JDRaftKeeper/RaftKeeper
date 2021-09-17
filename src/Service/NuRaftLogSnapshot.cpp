@@ -97,7 +97,7 @@ void createObjectContainer(
     int snap_fd = -1;
     size_t file_size = 0;
     std::string obj_path;
-    LOG_INFO(log, "Create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
+    LOG_INFO(log, "Begin create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
     while (node_index <= innerMap.size())
     {
         if (max_node_size == 1 || node_index % max_node_size == 1)
@@ -160,6 +160,8 @@ void createObjectContainer(
         node_index++;
     }
 
+    LOG_INFO(log, "Finish create snapshot object for container, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
+
     if (snap_fd > 0)
     {
         ::close(snap_fd);
@@ -182,6 +184,7 @@ void createObjectEphemeral(
     UInt32 node_index = 1;
     int snap_fd = -1;
     size_t file_size = 0;
+    LOG_INFO(log, "Begin create snapshot ephemeral object, max node size {}, node index {}", max_node_size, node_index);
     while (node_index <= ephemerals.size())
     {
         if (node_index % max_node_size == 1)
@@ -194,12 +197,13 @@ void createObjectEphemeral(
             snap_fd = openFileForWrite(obj_path);
             if (snap_fd > 0)
             {
-                LOG_INFO(log, "Create snapshot object, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
+                LOG_INFO(log, "Create snapshot ephemeral object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
                 obj_idx++;
             }
             else
             {
-                return;
+                LOG_WARNING(log, "Create snapshot ephemeral object failed, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
+                break;
             }
         }
 
@@ -234,15 +238,139 @@ void createObjectEphemeral(
             }
             else
             {
-                return;
+                break;
             }
         }
         ephemeral_it++;
         node_index++;
     }
+    
+    LOG_INFO(log, "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
 
     if (snap_fd > 0)
     {
+        ::close(snap_fd);
+    }
+}
+
+//Create sessions
+void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt32 save_batch_size, std::string & obj_path)
+{
+    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
+    ptr<SnapshotBatchPB> batch_pb;
+    int snap_fd = openFileForWrite(obj_path);
+    if (snap_fd > 0)
+    {
+        LOG_INFO(log, "Create sessions object, path {}", obj_path);
+    }
+    else
+    {
+        LOG_WARNING(log, "Create sessions object failed, path {}, fd {}", obj_path, snap_fd);
+        return;
+    }
+
+    auto session_it = session_timeout.begin();
+    UInt32 node_index = 1;
+    size_t file_size = 0;
+    while (node_index <= session_timeout.size())
+    {
+        //first node
+        if (node_index % save_batch_size == 1)
+        {
+            batch_pb = cs_new<SnapshotBatchPB>();
+            batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_SESSION);
+            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
+        }
+
+        SnapshotItemPB * data_pb = batch_pb->add_data();
+        WriteBufferFromNuraftBuffer out;
+        Coordination::write(session_it->first, out);    //SessionID
+        Coordination::write(session_it->second, out);   //Timeout_ms
+        ptr<buffer> buf = out.getBuffer();
+        buf->pos(0);
+        data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
+
+        //last node, save to file
+        if (node_index % save_batch_size == 0 || node_index == session_timeout.size())
+        {
+            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
+            if (ret > 0)
+            {
+                file_size += ret;
+            }
+            else
+            {
+                break;
+            }
+        }
+        session_it++;
+        node_index++;
+    }
+
+    LOG_INFO(log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
+
+    if (snap_fd > 0)
+    {
+        ::close(snap_fd);
+    }
+}
+
+//Save map<string, string> or map<string, uint64>
+template <typename T>
+void createMap(T& snap_map, UInt32 save_batch_size, std::string& obj_path)
+{
+    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
+    ptr<SnapshotBatchPB> batch_pb;
+    int snap_fd = openFileForWrite(obj_path);
+    if (snap_fd > 0) {
+        LOG_INFO(log, "Create string map object, path {}", obj_path);
+    } else {
+        LOG_WARNING(log, "Create string map object failed, path {}, fd {}", obj_path, snap_fd);
+        return;
+    }
+
+    auto map_it = snap_map.begin();
+    UInt32 node_index = 1;
+    size_t file_size = 0;
+    while (node_index <= snap_map.size()) {
+        //first node
+        if (node_index % save_batch_size == 1) {
+            batch_pb = cs_new<SnapshotBatchPB>();
+            if
+                constexpr(std::is_same_v<T, KeeperSnapshotStore::StringMap>)
+                {
+                    batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
+                }
+            else if
+                constexpr(std::is_same_v<T, KeeperSnapshotStore::IntMap>)
+                {
+                    batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
+                }
+            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
+        }
+
+        SnapshotItemPB* data_pb = batch_pb->add_data();
+        WriteBufferFromNuraftBuffer out;
+        Coordination::write(map_it->first, out); //Key
+        Coordination::write(map_it->second, out); //Value
+        ptr<buffer> buf = out.getBuffer();
+        buf->pos(0);
+        data_pb->set_data(std::string(reinterpret_cast<char*>(buf->data_begin()), buf->size()));
+
+        //last node, save to file
+        if (node_index % save_batch_size == 0 || node_index == snap_map.size()) {
+            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
+            if (ret > 0) {
+                file_size += ret;
+            } else {
+                break;
+            }
+        }
+        map_it++;
+        node_index++;
+    }
+
+    if (snap_fd > 0) {
         ::close(snap_fd);
     }
 }
@@ -291,7 +419,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
         ephemeral_object_count = (storage.ephemerals.size() - 1) / max_object_node_size + 1;
     }
 
-    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count;
+    //Normal node objects、Ephemeral node objects、Others（SessionID）
+    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1;
 
     LOG_DEBUG(
         log,
@@ -303,6 +432,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
 
     std::string obj_path;
     std::map<ulong, std::string> objects;
+    //[1, obj_size]
     for (size_t i = 1; i <= obj_size; i++)
     {
         getObjectPath(i, obj_path);
@@ -358,6 +488,17 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     }
     container_thread_pool.wait();
     ephemeral_thread_pool.wait();
+
+    //Save sessions
+    createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size]);
+
+    IntMap int_map;
+    int_map["ZXID"] = storage.zxid;
+    int_map["SESSIONID"] = storage.session_id_counter;
+
+    //Save uint map
+    createMap(int_map, save_batch_size, objects[obj_size]);
+
     return obj_size;
 }
 
@@ -537,9 +678,79 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
             }
             break;
             case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
+            break;
             case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
-                //TODO:Add other type logic
-                break;
+            break;
+            case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
+                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++) {
+                    const SnapshotItemPB& item_pb = batch_pb.data(data_idx);
+                    const std::string& data = item_pb.data();
+                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                    buf->put(data);
+                    buf->pos(0);
+                    ReadBufferFromNuraftBuffer in(buf);
+                    int64_t session_id;
+                    int64_t timeout;
+                    try
+                    {
+                        Coordination::read(session_id, in);
+                        Coordination::read(timeout, in);
+                    }
+                    catch (Coordination::Exception& e)
+                    {
+                        LOG_WARNING(
+                            log,
+                            "Cant read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
+                            obj_path,
+                            data_idx,
+                            e.displayText());
+                        break;
+                    }
+                    storage.addSessionID(session_id, timeout);
+                }
+            }
+            break;
+            case SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP:
+            break;
+            case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
+                IntMap int_map;
+                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+                {
+                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                    const std::string & data = item_pb.data();
+                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                    buf->put(data);
+                    buf->pos(0);
+                    ReadBufferFromNuraftBuffer in(buf);
+                    std::string key;
+                    int64_t value;
+                    try
+                    {
+                        Coordination::read(key, in);
+                        Coordination::read(value, in);
+                    }
+                    catch (Coordination::Exception & e)
+                    {
+                        LOG_WARNING(
+                            log,
+                            "Cant read uint map snapshot {}, data index {}, key {}, excepiton {}",
+                            obj_path,
+                            data_idx,
+                            e.displayText());
+                        break;
+                    }
+                    int_map[key] = value;
+                }
+                if (int_map.find("ZXID") != int_map.end())
+                {
+                    storage.zxid = int_map["ZXID"];
+                }
+                if (int_map.find("SESSIONID") != int_map.end())
+                {
+                    storage.session_id_counter = int_map["SESSIONID"];
+                }
+            }
+            break;
             default:
                 break;
         }

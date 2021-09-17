@@ -86,6 +86,9 @@ public:
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%lu_%lu";
 #endif
 
+    using StringMap = std::unordered_map<std::string, std::string>;
+    using IntMap = std::unordered_map<std::string, int64_t>;
+
     //0.3KB / Node * 100M Count =  300MB
     static const UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
     // 100M Count / 10K = 10K
