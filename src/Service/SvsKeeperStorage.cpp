@@ -61,32 +61,45 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
         watch_response->type = event_type;
         watch_response->state = Coordination::State::CONNECTED;
         for (auto watcher_session : it->second)
-        {
-            ServiceProfileEvents::increment(ServiceProfileEvents::watch_response, 1);
             result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_response});
-        }
 
         watches.erase(it);
     }
 
     auto parent_path = parentPath(path);
-    it = list_watches.find(parent_path);
-    if (it != list_watches.end() && (event_type == Coordination::Event::CREATED || event_type == Coordination::Event::DELETED))
-    {
-        std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_list_response
-            = std::make_shared<Coordination::ZooKeeperWatchResponse>();
-        watch_list_response->path = parent_path;
-        watch_list_response->xid = Coordination::WATCH_XID;
-        watch_list_response->zxid = -1;
-        watch_list_response->type = Coordination::Event::CHILD;
-        watch_list_response->state = Coordination::State::CONNECTED;
-        for (auto watcher_session : it->second)
-        {
-            ServiceProfileEvents::increment(ServiceProfileEvents::list_watch_response, 1);
-            result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_list_response});
-        }
 
-        list_watches.erase(it);
+    Strings paths_to_check_for_list_watches;
+    if (event_type == Coordination::Event::CREATED)
+    {
+        paths_to_check_for_list_watches.push_back(parent_path); /// Trigger list watches for parent
+    }
+    else if (event_type == Coordination::Event::DELETED)
+    {
+        paths_to_check_for_list_watches.push_back(path); /// Trigger both list watches for this path
+        paths_to_check_for_list_watches.push_back(parent_path); /// And for parent path
+    }
+    /// CHANGED event never trigger list wathes
+
+    for (const auto & path_to_check : paths_to_check_for_list_watches)
+    {
+        it = list_watches.find(path_to_check);
+        if (it != list_watches.end())
+        {
+            std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_list_response = std::make_shared<Coordination::ZooKeeperWatchResponse>();
+            watch_list_response->path = path_to_check;
+            watch_list_response->xid = Coordination::WATCH_XID;
+            watch_list_response->zxid = -1;
+            if (path_to_check == parent_path)
+                watch_list_response->type = Coordination::Event::CHILD;
+            else
+                watch_list_response->type = Coordination::Event::DELETED;
+
+            watch_list_response->state = Coordination::State::CONNECTED;
+            for (auto watcher_session : it->second)
+                result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_list_response});
+
+            list_watches.erase(it);
+        }
     }
     return result;
 }
@@ -918,21 +931,18 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::SetSeqNum, SvsKeeperStorageSetSeqNumRequest>(*this);
 }
 
+
 SvsKeeperStorage::ResponsesForSessions
-SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id, std::optional<int64_t> new_last_zxid, bool check_acl [[maybe_unused]])
+SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_request, int64_t session_id, std::optional<int64_t> new_last_zxid, bool check_acl [[maybe_unused]])
 {
+
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
         zxid = *new_last_zxid;
     }
-    return processRequest(request, session_id);
-}
 
-SvsKeeperStorage::ResponsesForSessions
-SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_request, int64_t session_id)
-{
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
@@ -968,7 +978,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         /// Finish connection
         auto response = std::make_shared<Coordination::ZooKeeperCloseResponse>();
         response->xid = zk_request->xid;
-        response->zxid = getZXID();
+        response->zxid = new_last_zxid ? zxid.load() : getZXID();
         {
             std::lock_guard lock(session_mutex);
             session_expiry_queue.remove(session_id);
@@ -1080,7 +1090,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
 
         response->xid = zk_request->xid;
         /// read request not increase zxid
-        response->zxid = shouldIncreaseZxid(zk_request) ? zxid.load() : getZXID();
+        response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
 
         results.push_back(ResponseForSession{session_id, response});
     }
