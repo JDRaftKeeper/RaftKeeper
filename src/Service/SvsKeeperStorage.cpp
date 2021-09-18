@@ -841,7 +841,7 @@ struct SvsKeeperStorageCloseRequest final : public SvsKeeperStorageRequest
 void SvsKeeperStorage::finalize()
 {
     if (finalized)
-        throw DB::Exception("Testkeeper storage already finalized", ErrorCodes::LOGICAL_ERROR);
+        throw DB::Exception("Svskeeper storage already finalized", ErrorCodes::LOGICAL_ERROR);
 
     finalized = true;
 

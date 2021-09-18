@@ -295,6 +295,16 @@ int NuRaftLogSegment::close(bool is_full)
     return 0;
 }
 
+int NuRaftLogSegment::flush()
+{
+    int ret = 0;
+    if (seg_fd >= 0)
+    {
+        ret = ::fsync(seg_fd);
+    }
+    return ret;
+}
+
 int NuRaftLogSegment::remove()
 {
     std::lock_guard write_lock(log_mutex);
@@ -663,6 +673,16 @@ int LogSegmentStore::close()
         std::lock_guard write_lock(seg_mutex);
         open_segment->close(false);
         open_segment = nullptr;
+    }
+    return 0;
+}
+
+int LogSegmentStore::flush()
+{
+    if (open_segment)
+    {
+        std::lock_guard write_lock(seg_mutex);
+        return open_segment->flush();
     }
     return 0;
 }
