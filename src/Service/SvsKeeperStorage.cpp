@@ -271,6 +271,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         std::shared_ptr<KeeperNode> created_node = std::make_shared<KeeperNode>();
         created_node->stat.czxid = zxid;
         created_node->stat.mzxid = zxid;
+        created_node->stat.pzxid = zxid;
         created_node->stat.ctime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
         created_node->stat.mtime = created_node->stat.ctime;
         created_node->stat.numChildren = 0;
@@ -281,7 +282,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
             created_node->stat.ephemeralOwner = session_id;
         created_node->is_sequental = request.is_sequential;
 
-        long pzxid;
+        int64_t pzxid;
 
         {
             std::lock_guard parent_lock(parent->mutex);
