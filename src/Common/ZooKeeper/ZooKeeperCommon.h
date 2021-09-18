@@ -455,7 +455,7 @@ struct ZooKeeperCheckRequest final : CheckRequest, ZooKeeperRequest
     void readImpl(ReadBuffer & in) override;
 
     ZooKeeperResponsePtr makeResponse() const override;
-    bool isReadRequest() const override { return !has_watch; }
+    bool isReadRequest() const override { return false; }
     String toString() const override
     {
         //    String path;
