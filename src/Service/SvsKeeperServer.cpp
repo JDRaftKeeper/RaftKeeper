@@ -257,9 +257,11 @@ void SvsKeeperServer::removeServer(const std::string & endpoint)
 void SvsKeeperServer::shutdown()
 {
     state_machine->shutdownStorage();
+    if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
+        LOG_WARNING(log, "Log store flush error while server shutdown.");
     //    state_manager->flushLogStore();
     if (!launcher.shutdown(coordination_settings->shutdown_timeout.totalSeconds()))
-        LOG_WARNING(&Poco::Logger::get("NuKeeperServer"), "Failed to shutdown RAFT server in {} seconds", 5);
+        LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
 }
 
 namespace

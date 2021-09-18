@@ -290,7 +290,6 @@ void FileLogStore::close()
 
 bool NuRaftFileLogStore::flush()
 {
-    //segment_store->flush();
-    return true;
+    return segment_store->flush() == 0;
 }
 }
