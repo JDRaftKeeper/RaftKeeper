@@ -557,19 +557,8 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             }
 
             auto parent = container.at(parentPath(request.path));
-            {
-                std::lock_guard parent_lock(parent->mutex);
-                ++parent->stat.cversion;
-            }
             response.stat = node->stat;
             response.error = Coordination::Error::ZOK;
-            undo = [prev_node, parent, &container, path = request.path] {
-                container.emplace(path, prev_node);
-                {
-                    std::lock_guard parent_lock(parent->mutex);
-                    --parent->stat.cversion;
-                }
-            };
         }
         else
         {
@@ -594,11 +583,6 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
                 ++container.at(parentPath(request.path)).stat.cversion;
                 response.stat = it->second.stat;
                 response.error = Coordination::Error::ZOK;
-
-                undo = [prev_node, &container, path = request.path] {
-                    container.at(path) = prev_node;
-                    --container.at(parentPath(path)).stat.cversion;
-                };
             }
             else
             {
