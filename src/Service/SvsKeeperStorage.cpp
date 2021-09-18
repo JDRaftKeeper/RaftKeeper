@@ -444,17 +444,20 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
 
             container.erase(request.path);
 
+            int64_t ephemeral_owner{};
+
             if (prev_node->is_ephemeral)
             {
+                ephemeral_owner = prev_node->stat.ephemeralOwner;
                 std::lock_guard w_lock(ephemerals_mutex);
-                ephemerals[session_id].erase(request.path);
+                ephemerals[ephemeral_owner].erase(request.path);
             }
 
-            undo = [prev_node, &container, &ephemerals, &ephemerals_mutex, session_id, path = request.path, pzxid, child_basename] {
+            undo = [prev_node, &container, &ephemerals, &ephemerals_mutex, ephemeral_owner, path = request.path, pzxid, child_basename] {
                 if (prev_node->is_ephemeral)
                 {
                     std::lock_guard w_lock(ephemerals_mutex);
-                    ephemerals[session_id].emplace(path);
+                    ephemerals[ephemeral_owner].emplace(path);
                 }
 
                 container.emplace(path, prev_node);
