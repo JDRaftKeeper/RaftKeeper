@@ -403,7 +403,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         SvsKeeperStorage::Ephemerals & ephemerals,
         std::shared_mutex & ephemerals_mutex,
         int64_t zxid,
-        int64_t session_id) const override
+        int64_t /* session_id */) const override
     {
         ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_remove, 1);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
