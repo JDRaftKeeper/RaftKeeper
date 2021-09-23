@@ -51,7 +51,7 @@
             <operation_timeout_ms>20000</operation_timeout_ms>
             <max_stored_snapshots>5</max_stored_snapshots>
             <reserved_log_items>10000000</reserved_log_items>
-            <snapshot_distance>3000000</snapshot_distance>
+            <snapshot_distance>5</snapshot_distance>
         </coordination_settings>
 
         <remote_servers>
