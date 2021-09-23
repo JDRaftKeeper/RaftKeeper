@@ -108,19 +108,13 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
  */
 static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_request)
 {
-    if (dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+    return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperCheckRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperHeartbeatRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperListRequest *>(zk_request.get())
-        || dynamic_cast<Coordination::ZooKeeperSimpleListRequest *>(zk_request.get())
-        || dynamic_cast<Coordination::ZooKeeperSyncRequest *>(zk_request.get()))
-    {
-        return false;
-    }
-    else
-        return true;
+        || dynamic_cast<Coordination::ZooKeeperSimpleListRequest *>(zk_request.get()));
 }
 
 SvsKeeperStorage::SvsKeeperStorage(int64_t tick_time_ms) : session_expiry_queue(tick_time_ms)
@@ -428,7 +422,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         {
             response.error = Coordination::Error::ZOK;
 
-            long pzxid;
+            int64_t pzxid;
             auto prev_node = node->clone();
             auto child_basename = getBaseName(request.path);
 
@@ -1117,7 +1111,7 @@ void SvsKeeperStorage::buildPathChildren()
     /// numChildren and children.size() is matched
     for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
     {
-        for (auto it : container.getMap(block_idx).getMap())
+        for (const auto& it : container.getMap(block_idx).getMap())
         {
             if (it.first == "/")
                 continue;
