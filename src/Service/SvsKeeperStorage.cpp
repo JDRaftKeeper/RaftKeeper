@@ -1092,7 +1092,7 @@ void SvsKeeperStorage::buildPathChildren()
     /// build children
     for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
     {
-        for (auto it : container.getMap(block_idx).getMap())
+        for (const auto& it : container.getMap(block_idx).getMap())
         {
             if (it.first == "/")
                continue;
