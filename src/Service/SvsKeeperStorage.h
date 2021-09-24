@@ -167,17 +167,17 @@ public:
     Container container;
 
     Ephemerals ephemerals;
-    mutable std::shared_mutex ephemerals_mutex;
+    mutable std::mutex ephemerals_mutex;
 
     SessionAndWatcher sessions_and_watchers;
     SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
-    mutable std::shared_mutex session_mutex;
+    mutable std::mutex session_mutex;
 
     Watches watches;
     Watches list_watches; /// Watches for 'list' request (watches on children).
 
-    mutable std::shared_mutex watch_mutex;
+    mutable std::mutex watch_mutex;
 
     std::atomic<int64_t> zxid{0};
     bool finalized{false};
