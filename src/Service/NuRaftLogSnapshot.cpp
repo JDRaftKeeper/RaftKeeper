@@ -136,7 +136,6 @@ void createObjectContainer(
         Coordination::write(node->is_ephemeral, out);
         Coordination::write(node->is_sequental, out);
         Coordination::write(node->stat, out);
-        Coordination::write(node->seq_num, out);
 
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
@@ -608,7 +607,6 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
-                        Coordination::read(node->seq_num, in);
                         storage.container.emplace(key, std::move(node));
                     }
                     catch (Coordination::Exception & e)

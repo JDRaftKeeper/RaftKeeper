@@ -193,7 +193,7 @@ struct SvsKeeperStorageSetSeqNumRequest final : public SvsKeeperStorageRequest
         auto znode = container.get(request.path);
         {
             std::lock_guard lock(znode->mutex);
-            znode->seq_num = request.seq_num;
+            znode->stat.cversion = request.seq_num;
         }
 
         return {response, {}};
@@ -243,7 +243,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         std::string path_created = request.path;
         if (request.is_sequential)
         {
-            auto seq_num = parent->seq_num;
+            auto seq_num = parent->stat.cversion;
 
             std::stringstream seq_num_str; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
             seq_num_str.exceptions(std::ios::failbit);
@@ -281,8 +281,6 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         {
             std::lock_guard parent_lock(parent->mutex);
 
-            /// Increment sequential number even if node is not sequential
-            ++parent->seq_num;
             response.path_created = path_created;
 
             parent->children.insert(child_path);
@@ -298,7 +296,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
 
         if (request.is_ephemeral)
         {
-            std::lock_guard r_lock(ephemerals_mutex);
+            std::lock_guard w_lock(ephemerals_mutex);
             ephemerals[session_id].emplace(path_created);
         }
 
@@ -322,7 +320,6 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
                 std::lock_guard parent_lock(undo_parent->mutex);
                 --undo_parent->stat.cversion;
                 --undo_parent->stat.numChildren;
-                --undo_parent->seq_num;
                 undo_parent->stat.pzxid = pzxid;
                 undo_parent->children.erase(child_path);
             }
@@ -379,8 +376,8 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         }
         else
         {
-            std::lock_guard lock(node->mutex);
-            response.stat = node->stat;
+            std::shared_lock r_lock(node->mutex);
+            response.stat = node->statView();
             response.data = node->data;
             response.error = Coordination::Error::ZOK;
         }
@@ -430,7 +427,6 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
             {
                 std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
-                ++parent->stat.cversion;
                 pzxid = parent->stat.pzxid;
                 parent->stat.pzxid = zxid;
                 parent->children.erase(child_basename);
@@ -459,7 +455,6 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
                 {
                     std::lock_guard parent_lock(undo_parent->mutex);
                     ++(undo_parent->stat.numChildren);
-                    --(undo_parent->stat.cversion);
                     undo_parent->stat.pzxid = pzxid;
                     undo_parent->children.insert(child_basename);
                 }
@@ -491,12 +486,12 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperExistsResponse & response = dynamic_cast<Coordination::ZooKeeperExistsResponse &>(*response_ptr);
         Coordination::ZooKeeperExistsRequest & request = dynamic_cast<Coordination::ZooKeeperExistsRequest &>(*zk_request);
 
-        //std::shared_lock r_lock(container_mutex);
 #ifdef USE_CONCURRENTMAP
         auto node = container.get(request.path);
         if (node != nullptr)
         {
-            response.stat = node->stat;
+            std::shared_lock r_lock(node->mutex);
+            response.stat = node->statView();
             response.error = Coordination::Error::ZOK;
         }
         else
@@ -555,8 +550,12 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             }
 
             auto parent = container.at(parentPath(request.path));
-            response.stat = node->stat;
+            response.stat = node->statView();
             response.error = Coordination::Error::ZOK;
+
+            undo = [prev_node, &container, path = request.path] {
+                container.emplace(path, prev_node);
+            };
         }
         else
         {
@@ -578,7 +577,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
                 it->second.stat.mtime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
                 it->second.stat.dataLength = request.data.length();
                 it->second.data = request.data;
-                ++container.at(parentPath(request.path)).stat.cversion;
+
                 response.stat = it->second.stat;
                 response.error = Coordination::Error::ZOK;
             }
@@ -625,9 +624,9 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
                 throw DB::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
 
             {
-                std::lock_guard r_lock(node->mutex);
+                std::shared_lock r_lock(node->mutex);
                 response.names.insert(response.names.end(), node->children.begin(), node->children.end());
-                response.stat = node->stat;
+                response.stat = node->statView();
             }
             std::sort(response.names.begin(), response.names.end());
             response.error = Coordination::Error::ZOK;
@@ -676,7 +675,7 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
         {
             response.error = Coordination::Error::ZNONODE;
         }
-        else if (request.version != -1 && request.version != node->stat.version)
+        else if (request.version != -1 && request.version != node->stat.version) /// don't need lock
         {
             response.error = Coordination::Error::ZBADVERSION;
         }
@@ -834,7 +833,6 @@ void SvsKeeperStorage::finalize()
             {
                 std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
-                ++parent->stat.cversion;
                 parent->children.erase(getBaseName(ephemeral_path));
             }
             container.erase(ephemeral_path);
@@ -945,7 +943,6 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
                     {
                         std::lock_guard parent_lock(parent->mutex);
                         --parent->stat.numChildren;
-                        ++parent->stat.cversion;
                         parent->children.erase(getBaseName(ephemeral_path));
                     }
                     container.erase(ephemeral_path);
@@ -1080,7 +1077,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     return results;
 }
 
-void SvsKeeperStorage::buildPathChildren()
+void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 {
     LOG_INFO(log, "build path children in keeper storage {}", container.size());
     /// build children
@@ -1104,6 +1101,8 @@ void SvsKeeperStorage::buildPathChildren()
             else
             {
                 parent->children.insert(child_path);
+                if (from_zk_snapshot)
+                    parent->stat.numChildren++;
             }
         }
     }
