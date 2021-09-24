@@ -376,9 +376,11 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         }
         else
         {
-            std::shared_lock r_lock(node->mutex);
-            response.stat = node->statView();
-            response.data = node->data;
+            {
+                std::shared_lock r_lock(node->mutex);
+                response.stat = node->statView();
+                response.data = node->data;
+            }
             response.error = Coordination::Error::ZOK;
         }
 
@@ -490,8 +492,10 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         auto node = container.get(request.path);
         if (node != nullptr)
         {
-            std::shared_lock r_lock(node->mutex);
-            response.stat = node->statView();
+            {
+                std::shared_lock r_lock(node->mutex);
+                response.stat = node->statView();
+            }
             response.error = Coordination::Error::ZOK;
         }
         else

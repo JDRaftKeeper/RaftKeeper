@@ -1071,7 +1071,7 @@ time_t KeeperSnapshotManager::getLastCreateTime()
 
 size_t KeeperSnapshotManager::removeSnapshots()
 {
-    size_t remove_count = snapshots.size() - keep_max_snapshot_count;
+    Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
     char time_str[128];
     unsigned long log_last_index;
     unsigned long object_id;
