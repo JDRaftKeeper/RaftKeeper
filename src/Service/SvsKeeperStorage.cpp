@@ -133,7 +133,7 @@ struct SvsKeeperStorageRequest
     virtual std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & ephemerals,
-        std::shared_mutex & ephemerals_mutex,
+        std::mutex & ephemerals_mutex,
         int64_t zxid,
         int64_t session_id) const = 0;
     virtual SvsKeeperStorage::ResponsesForSessions
@@ -151,7 +151,7 @@ struct SvsKeeperStorageHeartbeatRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container &,
         SvsKeeperStorage::Ephemerals &,
-        std::shared_mutex &,
+        std::mutex &,
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
@@ -166,7 +166,7 @@ struct SvsKeeperStorageSyncRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container &,
         SvsKeeperStorage::Ephemerals &,
-        std::shared_mutex &,
+        std::mutex &,
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
@@ -184,7 +184,7 @@ struct SvsKeeperStorageSetSeqNumRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals &,
-        std::shared_mutex &,
+        std::mutex &,
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
@@ -214,7 +214,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & ephemerals,
-        std::shared_mutex & ephemerals_mutex,
+        std::mutex & ephemerals_mutex,
         int64_t zxid,
         int64_t session_id) const override
     {
@@ -302,6 +302,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
 
         undo = [&container,
                 &ephemerals,
+                &ephemerals_mutex,
                 session_id,
                 path_created,
                 pzxid,
@@ -313,6 +314,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
             }
             if (is_ephemeral)
             {
+                std::lock_guard w_lock(ephemerals_mutex);
                 ephemerals[session_id].erase(path_created);
             }
             auto undo_parent = container.at(parent_path);
@@ -360,7 +362,7 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals &,
-        std::shared_mutex &,
+        std::mutex &,
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
@@ -394,7 +396,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & ephemerals,
-        std::shared_mutex & ephemerals_mutex,
+        std::mutex & ephemerals_mutex,
         int64_t zxid,
         int64_t /* session_id */) const override
     {
@@ -479,7 +481,7 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & /* ephemerals */,
-        std::shared_mutex & /* ephemerals_mutex */,
+        std::mutex & /* ephemerals_mutex */,
         int64_t /* zxid */,
         int64_t /* session_id */) const override
     {
@@ -525,7 +527,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & /* ephemerals */,
-        std::shared_mutex & /* ephemerals_mutex */,
+        std::mutex & /* ephemerals_mutex */,
         int64_t zxid,
         int64_t /* session_id */) const override
     {
@@ -607,7 +609,7 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & /* ephemerals */,
-        std::shared_mutex & /* ephemerals_mutex */,
+        std::mutex & /* ephemerals_mutex */,
         int64_t /*zxid*/,
         int64_t /*session_id*/) const override
     {
@@ -665,7 +667,7 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & /* ephemerals */,
-        std::shared_mutex & /* ephemerals_mutex */,
+        std::mutex & /* ephemerals_mutex */,
         int64_t /*zxid*/,
         int64_t /*session_id*/) const override
     {
@@ -743,7 +745,7 @@ struct SvsKeeperStorageMultiRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage::Container & container,
         SvsKeeperStorage::Ephemerals & ephemerals,
-        std::shared_mutex & ephemerals_mutex,
+        std::mutex & ephemerals_mutex,
         int64_t zxid,
         int64_t session_id) const override
     {
@@ -816,7 +818,7 @@ struct SvsKeeperStorageCloseRequest final : public SvsKeeperStorageRequest
 {
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(SvsKeeperStorage::Container &, SvsKeeperStorage::Ephemerals &, std::shared_mutex &, int64_t, int64_t) const override
+    process(SvsKeeperStorage::Container &, SvsKeeperStorage::Ephemerals &, std::mutex &, int64_t, int64_t) const override
     {
         ServiceProfileEvents::increment(ServiceProfileEvents::sm_req_close, 1);
         throw DB::Exception("Called process on close request", ErrorCodes::LOGICAL_ERROR);
@@ -1097,10 +1099,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
             auto parent = container.get(parent_path);
             if (parent == nullptr)
             {
-                LOG_WARNING(log, "Build : can not find parent node {}", it.first);
-                std::shared_ptr<KeeperNode> node = std::make_shared<KeeperNode>();
-                node->children.insert(child_path);
-                container.emplace(parentPath(it.first), std::move(node));
+                throw DB::Exception("Logical error: Build : can not find parent node " + it.first, ErrorCodes::LOGICAL_ERROR);
             }
             else
             {
@@ -1123,19 +1122,13 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
             auto parent = container.get(parent_path);
             if (parent == nullptr)
             {
-                LOG_WARNING(log, "Check : can not find parent node {}", it.first);
+                throw DB::Exception("Logical error: Check : can not find parent node  " + it.first, ErrorCodes::LOGICAL_ERROR);
             }
             else
             {
                 if (static_cast<size_t>(parent->stat.numChildren) != parent->children.size())
                 {
-                    LOG_WARNING(
-                        log,
-                        "Check : can not match {} children size {}, {}",
-                        parent_path,
-                        parent->children.size(),
-                        parent->stat.numChildren);
-                    parent->stat.numChildren = parent->children.size();
+                    throw DB::Exception("Logical error: Check : can not match children size: " + it.first, ErrorCodes::LOGICAL_ERROR);
                 }
             }
         }
@@ -1192,8 +1185,8 @@ void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 SessionAndWatcherPtr SvsKeeperStorage::cloneWatchInfo() const
 {
     SessionAndWatcherPtr res = std::make_shared<SessionAndWatcher>();
-    std::unique_lock<std::shared_mutex> session_lock(session_mutex);
-    std::unique_lock<std::shared_mutex> watch_lock(watch_mutex);
+    std::unique_lock session_lock(session_mutex);
+    std::unique_lock watch_lock(watch_mutex);
     for(const auto & session_and_watch : sessions_and_watchers)
     {
         std::unordered_set<std::string> paths;
@@ -1209,7 +1202,7 @@ SessionAndWatcherPtr SvsKeeperStorage::cloneWatchInfo() const
 EphemeralsPtr SvsKeeperStorage::cloneEphemeralInfo() const
 {
     EphemeralsPtr res = std::make_shared<Ephemerals>();
-    std::unique_lock<std::shared_mutex> session_lock(session_mutex);
+    std::unique_lock session_lock(session_mutex);
     for(const auto & session_and_ephemeral : ephemerals)
     {
         std::unordered_set<std::string> paths;
