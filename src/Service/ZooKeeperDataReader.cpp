@@ -117,7 +117,6 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
         if (!path.empty())
         {
             node->stat.dataLength = node->data.length();
-            node->seq_num = node->stat.cversion;
 //            storage.container.insertOrReplace(path, node);
             storage.container.emplace(path, node);
 
@@ -132,7 +131,7 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
             LOG_INFO(log, "Deserialized nodes from snapshot: {}", count);
     }
 
-    storage.buildPathChildren();
+    storage.buildPathChildren(true);
 //    for (const auto & itr : storage.container)
 //    {
 //        if (itr.key != "/")
