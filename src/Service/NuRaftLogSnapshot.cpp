@@ -136,7 +136,6 @@ void createObjectContainer(
         Coordination::write(node->is_ephemeral, out);
         Coordination::write(node->is_sequental, out);
         Coordination::write(node->stat, out);
-        Coordination::write(node->seq_num, out);
 
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
@@ -608,7 +607,6 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
-                        Coordination::read(node->seq_num, in);
                         storage.container.emplace(key, std::move(node));
                     }
                     catch (Coordination::Exception & e)
@@ -1073,7 +1071,7 @@ time_t KeeperSnapshotManager::getLastCreateTime()
 
 size_t KeeperSnapshotManager::removeSnapshots()
 {
-    size_t remove_count = snapshots.size() - keep_max_snapshot_count;
+    Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
     char time_str[128];
     unsigned long log_last_index;
     unsigned long object_id;
