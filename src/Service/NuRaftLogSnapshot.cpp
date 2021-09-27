@@ -201,8 +201,7 @@ void createObjectEphemeral(
             }
             else
             {
-                LOG_WARNING(log, "Create snapshot ephemeral object failed, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
-                break;
+                return;
             }
         }
 
