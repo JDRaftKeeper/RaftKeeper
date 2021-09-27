@@ -64,6 +64,14 @@ struct Stat
             + std::to_string(ephemeralOwner) + ", " + std::to_string(dataLength) + ", " + std::to_string(numChildren) + ", "
             + std::to_string(pzxid);
     }
+
+    String toStringWithOutTime() const
+    {
+        return std::to_string(czxid) + ", " + std::to_string(mzxid) + ", "
+               + std::to_string(version) + ", " + std::to_string(cversion) + ", " + std::to_string(aversion) + ", "
+               + std::to_string(ephemeralOwner) + ", " + std::to_string(dataLength) + ", " + std::to_string(numChildren) + ", "
+               + std::to_string(pzxid);
+    }
 };
 
 enum class Error : int32_t

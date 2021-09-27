@@ -79,7 +79,7 @@ int main(int argc, char ** argv)
                     throw;
             }
 
-            std::cout << it->first << '\t' << response.stat.numChildren << '\t' << response.stat.dataLength << '\n';
+            std::cout << it->first << '\t' << response.stat.toStringWithOutTime() << '\n';
 
             for (const auto & name : response.names)
             {

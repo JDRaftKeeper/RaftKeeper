@@ -186,7 +186,7 @@ void createObjectEphemeral(
     LOG_INFO(log, "Begin create snapshot ephemeral object, max node size {}, node index {}", max_node_size, node_index);
     while (node_index <= ephemerals.size())
     {
-        if (node_index % max_node_size == 1)
+        if (max_node_size == 1 || node_index % max_node_size == 1)
         {
             if (snap_fd > 0)
             {
@@ -586,7 +586,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
         switch (batch_pb.batch_type())
         {
             case SnapshotTypePB::SNAPSHOT_TYPE_DATA: {
-                //LOG_INFO(log, "Load batch size {}, end point {}", batch_pb.data_size(), read_size);
+                LOG_INFO(log, "Load batch size {}, end point {}", batch_pb.data_size(), read_size);
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
@@ -601,12 +601,12 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     try
                     {
                         Coordination::read(key, in);
-                        //LOG_INFO(log, "Read key {}", key);
                         Coordination::read(node->data, in);
                         Coordination::read(node->acls, in);
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
+                        LOG_TRACE(log, "Read key {}", key);
                         storage.container.emplace(key, std::move(node));
                     }
                     catch (Coordination::Exception & e)
@@ -669,6 +669,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                                 e.displayText());
                             break;
                         }
+                        LOG_TRACE(log, "Read session id {}, ephemerals {}", session_id, path);
                         set.emplace(path);
                     }
                     storage.ephemerals[session_id] = set;
