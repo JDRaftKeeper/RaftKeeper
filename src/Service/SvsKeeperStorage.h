@@ -29,9 +29,8 @@ struct KeeperNode
     bool is_ephemeral = false;
     bool is_sequental = false;
     Coordination::Stat stat{};
-    int32_t seq_num = 0;
     ChildrenSet children{};
-    std::mutex mutex;
+    std::shared_mutex mutex;
     std::shared_ptr<KeeperNode> clone()
     {
         auto node = std::make_shared<KeeperNode>();
@@ -40,9 +39,16 @@ struct KeeperNode
         node->is_ephemeral = is_ephemeral;
         node->is_sequental = is_sequental;
         node->stat = stat;
-        node->seq_num = seq_num;
         node->children = children;
         return node;
+    }
+
+    Coordination::Stat statView()
+    {
+        Coordination::Stat stat_view;
+        stat_view = stat;
+        stat_view.cversion = stat.cversion * 2 - stat.numChildren;
+        return stat_view;
     }
 };
 
@@ -161,17 +167,17 @@ public:
     Container container;
 
     Ephemerals ephemerals;
-    mutable std::shared_mutex ephemerals_mutex;
+    mutable std::mutex ephemerals_mutex;
 
     SessionAndWatcher sessions_and_watchers;
     SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
-    mutable std::shared_mutex session_mutex;
+    mutable std::mutex session_mutex;
 
     Watches watches;
     Watches list_watches; /// Watches for 'list' request (watches on children).
 
-    mutable std::shared_mutex watch_mutex;
+    mutable std::mutex watch_mutex;
 
     std::atomic<int64_t> zxid{0};
     bool finalized{false};
@@ -195,7 +201,7 @@ public:
     ResponsesForSessions processRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id, std::optional<int64_t> new_last_zxid = {}, bool check_acl = true);
 
     /// build path children after load data from snapshot
-    void buildPathChildren();
+    void buildPathChildren(bool from_zk_snapshot = false);
 
     void finalize();
 
