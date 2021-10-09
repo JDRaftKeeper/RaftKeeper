@@ -1156,7 +1156,7 @@ int LogSegmentStore::listSegments()
             LOG_INFO(log, "Restore open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
             if (!open_segment)
             {
-                open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name);
+                open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, std::string(create_time));
                 continue;
             }
             else
