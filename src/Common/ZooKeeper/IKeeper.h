@@ -49,7 +49,7 @@ struct Stat
     int32_t aversion;
     int64_t ephemeralOwner;
     int32_t dataLength;
-    int32_t numChildren = 0;
+    int32_t numChildren;
     int64_t pzxid;
 
     bool operator== (const Stat & other) const
