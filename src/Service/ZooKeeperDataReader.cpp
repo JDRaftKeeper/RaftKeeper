@@ -122,7 +122,10 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
             storage.container.emplace(path, node);
 
             if (node->stat.ephemeralOwner != 0)
+            {
+                node->is_ephemeral = true;
                 storage.ephemerals[node->stat.ephemeralOwner].insert(path);
+            }
 
 //            storage.acl_map.addUsage(node.acl_id);
         }
