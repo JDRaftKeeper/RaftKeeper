@@ -114,6 +114,7 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
         Coordination::read(node->stat.aversion, in);
         Coordination::read(node->stat.ephemeralOwner, in);
         Coordination::read(node->stat.pzxid, in);
+        node->stat.numChildren = 0;
         if (!path.empty())
         {
             node->stat.dataLength = node->data.length();
