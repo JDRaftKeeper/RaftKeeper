@@ -15,6 +15,7 @@
     M(watch_count, "watch count") \
     M(ephemerals_count, "ephemeral nodes count") \
     M(approximate_data_size, "state machine size in MB, not accurate") \
+    M(zxid, "state machine zxid") \
 
     /**
      * M(packets_received, "request count") \
@@ -134,6 +135,7 @@ void MetricsUpdater::updateMetrics()
     ServiceMetrics::set(ServiceMetrics::max_latency, request_counter.getMax());
 
     ServiceMetrics::set(ServiceMetrics::outstanding_requests, global_context.getSvsKeeperStorageDispatcher()->getOutstandingRequests());
+    ServiceMetrics::set(ServiceMetrics::zxid, global_context.getSvsKeeperStorageDispatcher()->getZxid());
 }
 
 MetricsUpdater::~MetricsUpdater()

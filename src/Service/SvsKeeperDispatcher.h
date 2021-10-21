@@ -102,6 +102,11 @@ public:
         return server->getNodeSizeMB();
     }
 
+    UInt64 getZxid()
+    {
+        return server->getZxid();
+    }
+
     /// no need to lock
     UInt64 getSessionNum()
     {
