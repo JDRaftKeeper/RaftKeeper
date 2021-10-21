@@ -84,6 +84,8 @@ public:
 
     UInt64 getNodeSizeMB() { return storage.getNodeSizeMB(); }
 
+    UInt64 getZxid() { return storage.zxid.load(); }
+
     /// no need to lock
     UInt64 getSessionNum() { return storage.getSessionNum(); }
 
