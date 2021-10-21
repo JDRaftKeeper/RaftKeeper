@@ -103,6 +103,11 @@ public:
         return state_machine->getNodeSizeMB();
     }
 
+    UInt64 getZxid()
+    {
+        return state_machine->getZxid();
+    }
+
     /// no need to lock
     UInt64 getSessionNum()
     {
