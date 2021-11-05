@@ -645,7 +645,7 @@ void ZooKeeper::receiveThread()
             {
                 if (earliest_operation)
                 {
-                    throw Exception("Operation timeout (no response) for request " + toString(earliest_operation->request->getOpNum()) + " for path: " + earliest_operation->request->getPath(), Error::ZOPERATIONTIMEOUT);
+                    throw Exception("Operation timeout (no response) for request " + toString(earliest_operation->request->getOpNum()) + " session " + std::to_string(session_id) + ", xid " + std::to_string(earliest_operation->request->xid) + ", for path: " + earliest_operation->request->getPath(), Error::ZOPERATIONTIMEOUT);
                 }
                 waited += max_wait;
                 if (waited >= session_timeout.totalMicroseconds())
