@@ -444,8 +444,9 @@ void ServiceTCPHandler::runImpl()
                     return;
                 }
 
+                LOG_DEBUG(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
                 response->write(*out);
-                LOG_DEBUG(log, "Send response SessionID/xid #{}#{}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
+
                 if (response->xid == Coordination::PING_XID)
                 {
                     LOG_TRACE(log, "Send heartbeat for session #{}", session_id);
@@ -489,7 +490,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     Coordination::OpNum opnum;
     Coordination::read(opnum, *in);
 
-    LOG_INFO(log, "Receive request session #{}, length {}, xid {}, opnum {}", session_id, length, xid, opnum);
+    LOG_INFO(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
