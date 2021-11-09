@@ -577,6 +577,11 @@ void ZooKeeper::sendThread()
                     info.request->addRootPath(root_path);
 
                     info.request->probably_sent = true;
+
+                    UInt64 send_interval = std::chrono::duration_cast<std::chrono::microseconds>(now - info.time).count();
+                    if (send_interval > 9000000) /// 9s
+                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s");
+
                     info.request->write(*out);
 
                     /// We sent close request, exit
