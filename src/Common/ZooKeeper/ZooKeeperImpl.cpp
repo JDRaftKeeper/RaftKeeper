@@ -578,9 +578,10 @@ void ZooKeeper::sendThread()
 
                     info.request->probably_sent = true;
 
+                    UInt64 start_time = std::chrono::duration_cast<std::chrono::microseconds>(info.time.time_since_epoch()).count();
                     UInt64 send_interval = std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - info.time).count();
                     if (send_interval > 9000000) /// 9s
-                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, session {}, xid {}", send_interval, session_id, info.request->xid);
+                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, info.time {}, session {}, xid {}", send_interval, start_time, session_id, info.request->xid);
 
                     info.request->write(*out);
 
