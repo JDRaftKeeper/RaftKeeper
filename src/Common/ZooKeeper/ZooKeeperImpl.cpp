@@ -653,12 +653,13 @@ void ZooKeeper::receiveThread()
                     UInt64 start_time = std::chrono::duration_cast<std::chrono::microseconds>(earliest_operation->time.time_since_epoch()).count();
                     UInt64 now_time = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
                     UInt64 earliest_operation_deadline = std::chrono::duration_cast<std::chrono::microseconds>((earliest_operation->time + std::chrono::microseconds(operation_timeout.totalMicroseconds())).time_since_epoch()).count();
+                    UInt64 clock_now = std::chrono::duration_cast<std::chrono::microseconds>(clock::now().time_since_epoch()).count();
 
                     throw Exception(
                         "Operation timeout (no response) for request " + toString(earliest_operation->request->getOpNum()) + " session "
                             + std::to_string(session_id) + ", xid " + std::to_string(earliest_operation->request->xid) + ", start_time "
                             + std::to_string(start_time) + ", now_time " + std::to_string(now_time) + ", earliest_operation_deadline "
-                            + std::to_string(earliest_operation_deadline) + ", for path: " + earliest_operation->request->getPath(),
+                            + std::to_string(earliest_operation_deadline) + ", clock_now" + std::to_string(clock_now) + ", for path: " + earliest_operation->request->getPath(),
                         Error::ZOPERATIONTIMEOUT);
                 }
                 waited += max_wait;
