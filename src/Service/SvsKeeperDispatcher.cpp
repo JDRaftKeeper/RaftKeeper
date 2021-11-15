@@ -131,7 +131,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-    int thread_count = config.getInt("service.thread_count");
+//    int thread_count = config.getInt("service.thread_count");
 
 #ifdef __THREAD_POOL_VEC__
     request_threads.reserve(thread_count);
