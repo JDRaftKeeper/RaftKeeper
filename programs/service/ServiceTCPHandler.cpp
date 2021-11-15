@@ -101,7 +101,7 @@ struct SocketInterruptablePollWrapper
             fd_ready = true;
 
         int rc = 0;
-        if (!fd_ready)
+        if (!fd_ready && !socket_ready)
         {
 #if defined(POCO_HAVE_FD_EPOLL)
             epoll_event evout[2];
