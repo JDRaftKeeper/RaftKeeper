@@ -462,7 +462,8 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
 //        const auto & read_responses = service_keeper_storage_dispatcher->singleProcessReadRequest(request_info);
 //        for (const auto & session_response : read_responses)
 //        {
-//            session_response.response->write(*out);
+//            responses->push(session_response.response);
+////            session_response.response->write(*out);
 //        }
 //    }
 //    else
