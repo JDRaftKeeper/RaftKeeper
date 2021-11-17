@@ -578,12 +578,16 @@ void ZooKeeper::sendThread()
 
                     info.request->probably_sent = true;
 
+                    clock::time_point now_time = clock::now();
                     UInt64 start_time = std::chrono::duration_cast<std::chrono::microseconds>(info.time.time_since_epoch()).count();
-                    UInt64 send_interval = std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - info.time).count();
-                    if (send_interval > 9000000) /// 9s
+                    UInt64 send_interval = std::chrono::duration_cast<std::chrono::microseconds>(now_time - info.time).count();
+                    if (send_interval > 3000000) /// 3s
                         LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, info.time {}, session {}, xid {}", send_interval, start_time, session_id, info.request->xid);
 
                     info.request->write(*out);
+                    UInt64 write_interval = std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - now_time).count();
+                    if (write_interval > 3000000) /// 3s
+                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, info.time {}, session {}, xid {}", send_interval, start_time, session_id, info.request->xid);
 
                     /// We sent close request, exit
                     if (info.request->xid == CLOSE_XID)
@@ -634,7 +638,9 @@ void ZooKeeper::receiveThread()
                     earliest_operation = operations.begin()->second;
                     auto earliest_operation_deadline = earliest_operation->time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
                     if (now > earliest_operation_deadline)
-                        throw Exception("Operation timeout (deadline already expired) for path: " + earliest_operation->request->getPath(), Error::ZOPERATIONTIMEOUT);
+                        throw Exception("Operation timeout (deadline already expired) for path: " + toString(earliest_operation->request->getOpNum()) + " session "
+                                        + std::to_string(session_id) + ", xid " + std::to_string(earliest_operation->request->xid) + ", for path: " + earliest_operation->request->getPath(),
+                                        Error::ZOPERATIONTIMEOUT);
                     max_wait = std::chrono::duration_cast<std::chrono::microseconds>(earliest_operation_deadline - now).count();
                 }
             }
