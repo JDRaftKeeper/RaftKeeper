@@ -31,9 +31,10 @@ private:
     std::mutex push_request_mutex;
 
     SvsKeeperSettingsPtr coordination_settings;
-    using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
-    RequestsQueue requests_queue{1};
-    ConcurrentBoundedQueue<SvsKeeperStorage::ResponseForSession> responses_queue{1};
+    using RequestsQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession>;
+    RequestsQueue requests_queue;
+//    ConcurrentBoundedQueue<SvsKeeperStorage::ResponseForSession> responses_queue{1};
+    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
     using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
 

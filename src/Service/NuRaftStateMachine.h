@@ -21,7 +21,7 @@ using nuraft::buffer;
 using nuraft::cs_new;
 using nuraft::ptr;
 
-using SvsKeeperResponsesQueue = ConcurrentBoundedQueue<SvsKeeperStorage::ResponseForSession>;
+using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
 
 class NuRaftStateMachine : public nuraft::state_machine
 {
