@@ -82,6 +82,22 @@ void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::Zo
         session_to_response_callback.erase(session_writer);
 }
 
+SvsKeeperStorage::ResponsesForSessions SvsKeeperDispatcher::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
+{
+    if (server && server->isLeaderAlive())
+    {
+        return server->singleProcessReadRequest(request_for_session);
+    }
+    SvsKeeperStorage::ResponsesForSessions responses;
+    auto response = request_for_session.request->makeResponse();
+
+    response->xid = request_for_session.request->xid;
+    response->zxid = 0;
+    response->error = Coordination::Error::ZSYSTEMERROR;
+    responses.push_back({request_for_session.session_id, response});
+    return responses;
+}
+
 bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
 {
     {

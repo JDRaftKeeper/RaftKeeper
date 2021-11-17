@@ -71,6 +71,8 @@ public:
 
     ~SvsKeeperDispatcher() = default;
 
+    SvsKeeperStorage::ResponsesForSessions singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
+
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
     bool isLeader() const { return server->isLeader(); }

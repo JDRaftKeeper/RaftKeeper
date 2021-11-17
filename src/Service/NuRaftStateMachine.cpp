@@ -365,6 +365,11 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     }
 }
 
+SvsKeeperStorage::ResponsesForSessions NuRaftStateMachine::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
+{
+    return storage.processRequest(request_for_session.request, request_for_session.session_id);
+}
+
 void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
     SvsKeeperStorage::ResponsesForSessions responses;

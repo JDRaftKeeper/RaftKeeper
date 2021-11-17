@@ -358,18 +358,7 @@ void ServiceTCPHandler::runImpl()
             PollResult result = poll_wrapper->poll(session_timeout, in);
             if (result.has_requests && !close_received)
             {
-                auto [received_op, received_xid] = receiveRequest();
-
-                if (received_op == Coordination::OpNum::Close)
-                {
-                    LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
-                    close_xid = received_xid;
-                    close_received = true;
-                }
-                else if (received_op == Coordination::OpNum::Heartbeat)
-                {
-                    LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
-                }
+                receiveRequest();
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
             }
@@ -457,8 +446,22 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     request->xid = xid;
     request->readImpl(*in);
 
-    if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
+    if (request->isReadRequest())
+    {
+        SvsKeeperStorage::RequestForSession request_info;
+        request_info.request = request;
+        request_info.session_id = session_id;
+        const auto & read_responses = service_keeper_storage_dispatcher->singleProcessReadRequest(request_info);
+        for (const auto & session_response : read_responses)
+        {
+            session_response.response->write(*out);
+        }
+    }
+    else
+    {
+        if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
+            throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
+    }
     return std::make_pair(opnum, xid);
 }
 
