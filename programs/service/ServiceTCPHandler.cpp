@@ -358,7 +358,14 @@ void ServiceTCPHandler::runImpl()
             PollResult result = poll_wrapper->poll(session_timeout, in);
             if (result.has_requests && !close_received)
             {
-                receiveRequest();
+                auto [received_op, received_xid] = receiveRequest();
+
+                if (received_op == Coordination::OpNum::Close)
+                {
+                    LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
+                    close_xid = received_xid;
+                    close_received = true;
+                }
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
             }
