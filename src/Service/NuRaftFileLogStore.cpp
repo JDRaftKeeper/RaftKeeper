@@ -89,7 +89,10 @@ ulong NuRaftFileLogStore::start_index() const
 ptr<log_entry> NuRaftFileLogStore::last_entry() const
 {
     //    std::lock_guard<std::recursive_mutex> lock(log_lock);
-    return make_clone(last_log_entry);
+    if (last_log_entry)
+        return make_clone(last_log_entry);
+    else
+        return nullptr;
 }
 
 ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
