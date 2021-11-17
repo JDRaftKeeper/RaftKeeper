@@ -412,8 +412,9 @@ void ServiceTCPHandler::sendThread()
                 return;
             }
 
-            LOG_DEBUG(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
+            LOG_WARNING(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
             response->write(*out);
+            LOG_WARNING(log, "write response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
 
             if (response->xid == Coordination::PING_XID)
             {
@@ -447,28 +448,28 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     Coordination::OpNum opnum;
     Coordination::read(opnum, *in);
 
-    LOG_INFO(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
+    LOG_WARNING(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
     request->readImpl(*in);
 
-    if (request->isReadRequest())
-    {
-        SvsKeeperStorage::RequestForSession request_info;
-        request_info.request = request;
-        request_info.session_id = session_id;
-        const auto & read_responses = service_keeper_storage_dispatcher->singleProcessReadRequest(request_info);
-        for (const auto & session_response : read_responses)
-        {
-            session_response.response->write(*out);
-        }
-    }
-    else
-    {
-        if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
-            throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
-    }
+//    if (request->isReadRequest())
+//    {
+//        SvsKeeperStorage::RequestForSession request_info;
+//        request_info.request = request;
+//        request_info.session_id = session_id;
+//        const auto & read_responses = service_keeper_storage_dispatcher->singleProcessReadRequest(request_info);
+//        for (const auto & session_response : read_responses)
+//        {
+//            session_response.response->write(*out);
+//        }
+//    }
+//    else
+//    {
+    if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
+//    }
     return std::make_pair(opnum, xid);
 }
 
