@@ -112,13 +112,14 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
 
     LOG_DEBUG(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
 
-    std::lock_guard lock(push_request_mutex);
+//    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
-    if (request->getOpNum() == Coordination::OpNum::Close)
-        requests_queue.push(std::move(request_info));
-    else if (!requests_queue.tryPush(std::move(request_info), coordination_settings->operation_timeout_ms.totalMilliseconds()))
-        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+    requests_queue.push(request_info);
+//    if (request->getOpNum() == Coordination::OpNum::Close)
+//        requests_queue.push(std::move(request_info));
+//    else if (!requests_queue.tryPush(std::move(request_info), coordination_settings->operation_timeout_ms.totalMilliseconds()))
+//        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 
@@ -147,7 +148,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-//    int thread_count = config.getInt("service.thread_count");
+    int thread_count = config.getInt("service.thread_count");
 
 #ifdef __THREAD_POOL_VEC__
     request_threads.reserve(thread_count);
@@ -160,10 +161,10 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 #else
     request_thread = std::make_shared<ThreadPool>(1);
     responses_thread = std::make_shared<ThreadPool>(1);
-//    for (int i = 0; i < thread_count; i++)
-//    {
-    request_thread->trySchedule([this] { requestThread(); });
-//    }
+    for (int i = 0; i < thread_count; i++)
+    {
+        request_thread->trySchedule([this] { requestThread(); });
+    }
     responses_thread->trySchedule([this] { responseThread(); });
 #endif
 
