@@ -278,6 +278,13 @@ namespace
 #endif
 }
 
+SvsKeeperStorage::ResponsesForSessions SvsKeeperServer::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
+{
+    ServiceProfileEvents::increment(ServiceProfileEvents::req_all, 1);
+    ServiceProfileEvents::increment(ServiceProfileEvents::req_read, 1);
+    return state_machine->singleProcessReadRequest(request_for_session);
+}
+
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
     ServiceProfileEvents::increment(ServiceProfileEvents::req_all, 1);
@@ -320,7 +327,6 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
             return;
         }
 
-        SvsKeeperStorage::ResponsesForSessions responses;
         auto response = request->makeResponse();
 
         response->xid = request->xid;

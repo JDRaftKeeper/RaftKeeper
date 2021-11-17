@@ -74,6 +74,8 @@ public:
     //NodeMap & getNodeMap() { return node_map; }
     SvsKeeperStorage & getStorage() { return storage; }
 
+    SvsKeeperStorage::ResponsesForSessions singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
+
     void processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
 
     std::unordered_set<int64_t> getDeadSessions();
