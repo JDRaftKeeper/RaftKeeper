@@ -309,7 +309,7 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSes
 ptr<buffer> NuRaftStateMachine::pre_commit(const ulong log_idx, buffer & data)
 {
     // Nothing to do with pre-commit in this example.
-    LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
     return nullptr;
 }
 
@@ -317,7 +317,7 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 {
     // Nothing to do with rollback,
     // as this example doesn't do anything on pre-commit.
-    LOG_DEBUG(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
 }
 
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data)
@@ -325,7 +325,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     //2^19 = 524,288
     if (log_idx << 45 == 0)
     {
-        LOG_INFO(log, "Begin commit log index {}", log_idx);
+        LOG_TRACE(log, "Begin commit log index {}", log_idx);
     }
 
     if (isNewSessionRequest(data))
@@ -348,7 +348,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         auto request_for_session = parseRequest(data);
         SvsKeeperStorage::ResponsesForSessions responses_for_sessions;
         {
-            LOG_DEBUG(
+            LOG_TRACE(
                 log,
                 "Commit log index {}, SessionID/XID #{}#{}",
                 log_idx,

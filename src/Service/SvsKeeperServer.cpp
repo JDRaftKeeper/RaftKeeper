@@ -166,7 +166,7 @@ void SvsKeeperServer::addServer(ptr<srv_config> srv_conf_to_add)
     }
 
     // Wait until it appears in server list.
-    const size_t MAX_TRY = 400;
+    const size_t MAX_TRY = 4 * 60 * 10; // 10 minutes
     for (size_t jj = 0; jj < MAX_TRY; ++jj)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
@@ -312,7 +312,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
         std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, request));
 
-        LOG_DEBUG(
+        LOG_TRACE(
             log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
 
         ptr<nuraft::cmd_result<ptr<buffer>>> result;

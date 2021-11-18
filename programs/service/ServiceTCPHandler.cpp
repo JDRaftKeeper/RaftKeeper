@@ -351,12 +351,12 @@ void ServiceTCPHandler::runImpl()
 
     try
     {
-        while (!closed)
+        while (!closed && !close_received)
         {
             using namespace std::chrono_literals;
 
             PollResult result = poll_wrapper->poll(session_timeout, in);
-            if (result.has_requests && !close_received)
+            if (result.has_requests)
             {
                 auto [received_op, received_xid] = receiveRequest();
 
@@ -375,7 +375,7 @@ void ServiceTCPHandler::runImpl()
 
             if (session_stopwatch.elapsedMicroseconds() > static_cast<UInt64>(session_timeout.totalMicroseconds()))
             {
-                LOG_DEBUG(log, "Session #{} expired", session_id);
+                LOG_INFO(log, "Session #{} expired", session_id);
                 service_keeper_storage_dispatcher->finishSession(session_id);
                 break;
             }
@@ -384,7 +384,7 @@ void ServiceTCPHandler::runImpl()
     catch (const Exception & ex)
     {
         closed = true;
-        LOG_INFO(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
+        LOG_ERROR(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
         service_keeper_storage_dispatcher->finishSession(session_id);
     }
 }
@@ -401,20 +401,20 @@ void ServiceTCPHandler::sendThread()
             if (!responses->tryPop(response, session_timeout.totalMilliseconds()))
             {
                 closed = true;
-                LOG_DEBUG(log, "Session #{} expired.", session_id);
+                LOG_INFO(log, "Session #{} expired.", session_id);
                 return;
             }
 
             if (response->xid == close_xid)
             {
                 closed = true;
-                LOG_DEBUG(log, "Session #{} successfully closed", session_id);
+                LOG_INFO(log, "Session #{} successfully closed", session_id);
                 return;
             }
 
-            LOG_WARNING(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
+            LOG_TRACE(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
             response->write(*out);
-            LOG_WARNING(log, "write response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
+            LOG_TRACE(log, "write response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
 
             if (response->xid == Coordination::PING_XID)
             {
@@ -423,7 +423,7 @@ void ServiceTCPHandler::sendThread()
             if (response->error == Coordination::Error::ZSESSIONEXPIRED)
             {
                 closed = true;
-                LOG_DEBUG(log, "Session #{} expired because server shutting down or quorum is not alive", session_id);
+                LOG_INFO(log, "Session #{} expired because server shutting down or quorum is not alive", session_id);
                 service_keeper_storage_dispatcher->finishSession(session_id);
                 return;
             }
@@ -432,7 +432,7 @@ void ServiceTCPHandler::sendThread()
     catch (const Exception & ex)
     {
         closed = true;
-        LOG_INFO(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
+        LOG_ERROR(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
         service_keeper_storage_dispatcher->finishSession(session_id);
     }
 }
@@ -448,7 +448,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     Coordination::OpNum opnum;
     Coordination::read(opnum, *in);
 
-    LOG_WARNING(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
+    LOG_TRACE(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
