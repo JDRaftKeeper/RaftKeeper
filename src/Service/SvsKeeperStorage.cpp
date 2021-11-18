@@ -230,7 +230,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         auto parent = container.get(parentPath(request.path));
         if (parent == nullptr)
         {
-            LOG_INFO(log, "Create no parent {}, path {}", parentPath(request.path), request.path);
+            LOG_TRACE(log, "Create no parent {}, path {}", parentPath(request.path), request.path);
             response.error = Coordination::Error::ZNONODE;
             return {response_ptr, undo};
         }
@@ -1001,7 +1001,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             if (!(zk_request->getOpNum() == Coordination::OpNum::Remove && response->error == Coordination::Error::ZNONODE)
                 && !(zk_request->getOpNum() == Coordination::OpNum::Create && response->error == Coordination::Error::ZNODEEXISTS))
             {
-                LOG_INFO(
+                LOG_TRACE(
                     log,
                     "Zxid {}, session id {}, opnum {}, error no {}, msg {}",
                     zxid,
@@ -1024,7 +1024,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
 
                 watches_type[zk_request->getPath()].emplace_back(session_id);
                 sessions_and_watchers[session_id].emplace(zk_request->getPath());
-                LOG_INFO(
+                LOG_TRACE(
                     log,
                     "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
                     session_id,
@@ -1037,7 +1037,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             {
                 watches[zk_request->getPath()].emplace_back(session_id);
                 sessions_and_watchers[session_id].emplace(zk_request->getPath());
-                LOG_INFO(
+                LOG_TRACE(
                     log,
                     "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
                     session_id,
@@ -1051,7 +1051,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         if (response->error == Coordination::Error::ZOK)
         {
             std::lock_guard lock(watch_mutex);
-            LOG_INFO(
+            LOG_TRACE(
                 log,
                 "Process watch, session id {}, path {}, opnum {}, error no {}, msg {}",
                 session_id,
@@ -1064,7 +1064,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             for (auto & session_id_response : watch_responses)
             {
                 auto * watch_response = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
-                LOG_INFO(
+                LOG_TRACE(
                     log,
                     "Processed watch, session id {}, path {}, type {}",
                     session_id_response.session_id,

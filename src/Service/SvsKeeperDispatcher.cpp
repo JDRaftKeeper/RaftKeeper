@@ -110,16 +110,15 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     request_info.request = request;
     request_info.session_id = session_id;
 
-    LOG_DEBUG(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
+    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
 
 //    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
-    requests_queue.push(request_info);
-//    if (request->getOpNum() == Coordination::OpNum::Close)
-//        requests_queue.push(std::move(request_info));
-//    else if (!requests_queue.tryPush(std::move(request_info), coordination_settings->operation_timeout_ms.totalMilliseconds()))
-//        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+    if (request->getOpNum() == Coordination::OpNum::Close)
+        requests_queue.push(std::move(request_info));
+    else if (!requests_queue.tryPush(std::move(request_info), coordination_settings->operation_timeout_ms.totalMilliseconds()))
+        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 

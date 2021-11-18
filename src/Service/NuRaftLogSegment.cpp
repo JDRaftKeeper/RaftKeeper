@@ -368,7 +368,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         last_index.fetch_add(1, std::memory_order_release);
         last_log_index.store(last_index, std::memory_order_release);
     }
-    LOG_DEBUG(
+    LOG_TRACE(
         log,
         "Append term {}, index {}, length {}, crc {}, file {}, entry type {}.",
         header.term,
@@ -382,7 +382,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
 
 int NuRaftLogSegment::writeAt(UInt64 index, const ptr<log_entry> entry)
 {
-    LOG_INFO(log, "Write at term {}, index {}", entry->get_term(), index);
+    LOG_TRACE(log, "Write at term {}, index {}", entry->get_term(), index);
     return 0;
 }
 
