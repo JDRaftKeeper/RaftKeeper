@@ -33,7 +33,7 @@ private:
     SvsKeeperSettingsPtr coordination_settings;
     using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
     RequestsQueue requests_queue{20000};
-    ConcurrentBoundedQueue<SvsKeeperStorage::ResponseForSession> responses_queue{20000};
+    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
 //    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
     using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
