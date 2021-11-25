@@ -56,7 +56,7 @@ public:
     // remove the segment
     int remove();
 
-    int flush();
+    inline int flush() const;
 
     // serialize entry, and append to open segment,return new start index
     UInt64 appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index);
