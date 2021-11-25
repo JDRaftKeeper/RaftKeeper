@@ -295,7 +295,7 @@ int NuRaftLogSegment::close(bool is_full)
     return 0;
 }
 
-int NuRaftLogSegment::flush()
+int NuRaftLogSegment::flush() const
 {
     int ret = 0;
     if (seg_fd >= 0)
@@ -351,13 +351,14 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         vec[0].iov_len = LogEntryHeader::HEADER_SIZE;
         vec[1].iov_base = reinterpret_cast<void *>(entry_str);
         vec[1].iov_len = header.data_length;
-        errno = 0;
     }
+    errno = 0;
     {
         std::lock_guard write_lock(log_mutex);
         header.index = last_index.load(std::memory_order_acquire) + 1;
         //ssize_t ret = pwritev(seg_fd, vec, 2, file_size);
         ssize_t ret = writev(seg_fd, vec, 2);
+        flush();
         if (ret < 0 || ret != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
         {
             LOG_WARNING(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
