@@ -1132,7 +1132,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
                     {
                         LOG_ERROR(log, "path {}, children {}", parent_path, path);
                     }
-                    LOG_ERROR(log, "Logical error: Check : can not match children size: {}, stat numChildren: {}, children: {}", it.first, toString(parent->stat.numChildren), toString(parent->children.size()));
+                    throw DB::Exception("Logical error: Check : can not match children size: " + it.first + ", stat numChildren: " + toString(parent->stat.numChildren) + ", children: " + toString(parent->children.size()), ErrorCodes::LOGICAL_ERROR);
                 }
             }
         }
