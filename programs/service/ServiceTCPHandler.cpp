@@ -41,6 +41,7 @@ namespace ErrorCodes
 
 struct PollResult
 {
+    size_t responses_count{0};
     bool has_requests{false};
     bool error{false};
 };
@@ -48,6 +49,8 @@ struct PollResult
 struct SocketInterruptablePollWrapper
 {
     int sockfd;
+    PipeFDs pipe;
+    ReadBufferFromFileDescriptor response_in;
 
 #if defined(POCO_HAVE_FD_EPOLL)
     int epollfd;
@@ -58,10 +61,12 @@ struct SocketInterruptablePollWrapper
     using InterruptCallback = std::function<void()>;
 
     explicit SocketInterruptablePollWrapper(const Poco::Net::StreamSocket & poco_socket_)
-        : sockfd(poco_socket_.impl()->sockfd())
+        : sockfd(poco_socket_.impl()->sockfd()), response_in(pipe.fds_rw[0])
     {
+        pipe.setNonBlockingReadWrite();
+
 #if defined(POCO_HAVE_FD_EPOLL)
-        epollfd = epoll_create(1);
+        epollfd = epoll_create(2);
         if (epollfd < 0)
             throwFromErrno("Cannot epoll_create", ErrorCodes::SYSTEM_ERROR);
 
@@ -72,26 +77,39 @@ struct SocketInterruptablePollWrapper
             ::close(epollfd);
             throwFromErrno("Cannot insert socket into epoll queue", ErrorCodes::SYSTEM_ERROR);
         }
+        pipe_event.events = EPOLLIN | EPOLLERR | EPOLLPRI;
+        pipe_event.data.fd = pipe.fds_rw[0];
+        if (epoll_ctl(epollfd, EPOLL_CTL_ADD, pipe.fds_rw[0], &pipe_event) < 0)
+        {
+            ::close(epollfd);
+            throwFromErrno("Cannot insert socket into epoll queue", ErrorCodes::SYSTEM_ERROR);
+        }
 #endif
     }
+
+    int getResponseFD() const { return pipe.fds_rw[1]; }
 
     PollResult poll(Poco::Timespan remaining_time, const std::shared_ptr<ReadBufferFromPocoSocket> & in)
     {
         bool socket_ready = false;
+        bool fd_ready = false;
 
         if (in->available() != 0)
             socket_ready = true;
 
+        if (response_in.available() != 0)
+            fd_ready = true;
+
         int rc = 0;
-        if (!socket_ready)
+        if (!fd_ready)
         {
 #if defined(POCO_HAVE_FD_EPOLL)
-            epoll_event evout[1];
-            evout[0].data.fd = -1;
+            epoll_event evout[2];
+            evout[0].data.fd = evout[1].data.fd = -1;
             do
             {
                 Poco::Timestamp start;
-                rc = epoll_wait(epollfd, evout, 1, remaining_time.totalMilliseconds());
+                rc = epoll_wait(epollfd, evout, 2, remaining_time.totalMilliseconds());
                 if (rc < 0 && errno == EINTR)
                 {
                     Poco::Timestamp end;
@@ -103,17 +121,24 @@ struct SocketInterruptablePollWrapper
                 }
             } while (rc < 0 && errno == EINTR);
 
-            if (rc >= 1)
-                socket_ready = true;
+            for (int i = 0; i < rc; ++i)
+            {
+                if (evout[i].data.fd == sockfd)
+                    socket_ready = true;
+                if (evout[i].data.fd == pipe.fds_rw[0])
+                    fd_ready = true;
+            }
 #else
-            pollfd poll_buf[1];
+            pollfd poll_buf[2];
             poll_buf[0].fd = sockfd;
             poll_buf[0].events = POLLIN;
+            poll_buf[1].fd = pipe.fds_rw[0];
+            poll_buf[1].events = POLLIN;
 
             do
             {
                 Poco::Timestamp start;
-                rc = ::poll(poll_buf, 1, remaining_time.totalMilliseconds());
+                rc = ::poll(poll_buf, 2, remaining_time.totalMilliseconds());
                 if (rc < 0 && errno == POCO_EINTR)
                 {
                     Poco::Timestamp end;
@@ -127,11 +152,22 @@ struct SocketInterruptablePollWrapper
 
             if (rc >= 1 && poll_buf[0].revents & POLLIN)
                 socket_ready = true;
+            if (rc >= 1 && poll_buf[1].revents & POLLIN)
+                fd_ready = true;
 #endif
         }
 
         PollResult result{};
         result.has_requests = socket_ready;
+        if (fd_ready)
+        {
+            UInt8 dummy;
+            readIntBinary(dummy, response_in);
+            result.responses_count = 1;
+            auto available = response_in.available();
+            response_in.ignore(available);
+            result.responses_count += available;
+        }
 
         if (rc < 0)
             result.error = true;
@@ -176,7 +212,6 @@ void ServiceTCPHandler::sendHandshake(bool has_leader)
 
 void ServiceTCPHandler::run()
 {
-    send_thread = ThreadFromGlobalPool(&ServiceTCPHandler::sendThread, this);
     runImpl();
 }
 
@@ -341,24 +376,30 @@ void ServiceTCPHandler::runImpl()
         return;
     }
 
-    auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) {
+    auto response_fd = poll_wrapper->getResponseFD();
+    auto response_callback = [this, response_fd](const Coordination::ZooKeeperResponsePtr & response) {
         responses->push(response);
+        UInt8 single_byte = 1;
+        [[maybe_unused]] int result = write(response_fd, &single_byte, sizeof(single_byte));
     };
     service_keeper_storage_dispatcher->registerSession(session_id, response_callback);
 
     session_stopwatch.start();
     bool close_received = false;
 
+    Stopwatch process_time_stopwatch;
     try
     {
-        while (!closed && !close_received)
+        while (true)
         {
             using namespace std::chrono_literals;
 
             PollResult result = poll_wrapper->poll(session_timeout, in);
-            if (result.has_requests)
+            if (result.has_requests && !close_received)
             {
                 auto [received_op, received_xid] = receiveRequest();
+
+                process_time_stopwatch.start();
 
                 if (received_op == Coordination::OpNum::Close)
                 {
@@ -366,8 +407,58 @@ void ServiceTCPHandler::runImpl()
                     close_xid = received_xid;
                     close_received = true;
                 }
+                else if (received_op == Coordination::OpNum::Heartbeat)
+                {
+                    LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
+                }
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
+            }
+
+            if(result.responses_count != 0)
+            {
+                /// in case of one-request-and-multi-response
+                /// but watch request may take long time
+                if(process_time_stopwatch.isRunning())
+                {
+                    uint64_t process_time = process_time_stopwatch.elapsedMicroseconds();
+                    ServiceProfileEvents::increment(ServiceProfileEvents::req_time, process_time);
+                    service_keeper_storage_dispatcher->addValueToRequestCounter(process_time);
+                    process_time_stopwatch.stop();
+                }
+            }
+
+            /// Process exact amount of responses from pipe
+            /// otherwise state of responses queue and signaling pipe
+            /// became inconsistent and race condition is possible.
+            while (result.responses_count != 0)
+            {
+                Coordination::ZooKeeperResponsePtr response;
+
+                if (!responses->tryPop(response))
+                    throw Exception(ErrorCodes::LOGICAL_ERROR, "We must have ready response, but queue is empty. It's a bug.");
+
+                if (response->xid == close_xid)
+                {
+                    LOG_DEBUG(log, "Session #{} successfully closed", session_id);
+                    return;
+                }
+
+                LOG_TRACE(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
+                response->write(*out);
+
+                if (response->xid == Coordination::PING_XID)
+                {
+                    LOG_TRACE(log, "Send heartbeat for session #{}", session_id);
+                }
+                if (response->error == Coordination::Error::ZSESSIONEXPIRED)
+                {
+                    LOG_DEBUG(log, "Session #{} expired because server shutting down or quorum is not alive", session_id);
+                    service_keeper_storage_dispatcher->finishSession(session_id);
+                    return;
+                }
+
+                result.responses_count--;
             }
 
             if (result.error)
@@ -375,7 +466,7 @@ void ServiceTCPHandler::runImpl()
 
             if (session_stopwatch.elapsedMicroseconds() > static_cast<UInt64>(session_timeout.totalMicroseconds()))
             {
-                LOG_INFO(log, "Session #{} expired", session_id);
+                LOG_DEBUG(log, "Session #{} expired", session_id);
                 service_keeper_storage_dispatcher->finishSession(session_id);
                 break;
             }
@@ -383,55 +474,6 @@ void ServiceTCPHandler::runImpl()
     }
     catch (const Exception & ex)
     {
-        closed = true;
-        LOG_ERROR(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
-        service_keeper_storage_dispatcher->finishSession(session_id);
-    }
-}
-
-void ServiceTCPHandler::sendThread()
-{
-    setThreadName("SvsKeeprSender");
-    try
-    {
-        while (!closed)
-        {
-            Coordination::ZooKeeperResponsePtr response;
-
-            if (!responses->tryPop(response, session_timeout.totalMilliseconds()))
-            {
-                closed = true;
-                LOG_INFO(log, "Session #{} expired.", session_id);
-                return;
-            }
-
-            if (response->xid == close_xid)
-            {
-                closed = true;
-                LOG_INFO(log, "Session #{} successfully closed", session_id);
-                return;
-            }
-
-            LOG_TRACE(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
-            response->write(*out);
-            LOG_TRACE(log, "write response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
-
-            if (response->xid == Coordination::PING_XID)
-            {
-                LOG_TRACE(log, "Send heartbeat for session #{}", session_id);
-            }
-            if (response->error == Coordination::Error::ZSESSIONEXPIRED)
-            {
-                closed = true;
-                LOG_INFO(log, "Session #{} expired because server shutting down or quorum is not alive", session_id);
-                service_keeper_storage_dispatcher->finishSession(session_id);
-                return;
-            }
-        }
-    }
-    catch (const Exception & ex)
-    {
-        closed = true;
         LOG_ERROR(log, "Got exception processing session #{}: {}", session_id, getExceptionMessage(ex, true));
         service_keeper_storage_dispatcher->finishSession(session_id);
     }
@@ -454,31 +496,9 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     request->xid = xid;
     request->readImpl(*in);
 
-//    if (request->isReadRequest())
-//    {
-//        SvsKeeperStorage::RequestForSession request_info;
-//        request_info.request = request;
-//        request_info.session_id = session_id;
-//        const auto & read_responses = service_keeper_storage_dispatcher->singleProcessReadRequest(request_info);
-//        for (const auto & session_response : read_responses)
-//        {
-//            responses->push(session_response.response);
-////            session_response.response->write(*out);
-//        }
-//    }
-//    else
-//    {
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
-//    }
     return std::make_pair(opnum, xid);
-}
-
-ServiceTCPHandler::~ServiceTCPHandler()
-{
-    closed = true;
-    if (send_thread.joinable())
-        send_thread.join();
 }
 
 }

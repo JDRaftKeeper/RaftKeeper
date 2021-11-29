@@ -48,16 +48,11 @@ private:
 
     Coordination::XID close_xid = Coordination::CLOSE_XID;
 
-    std::atomic<bool> closed = false;
-
-    ThreadFromGlobalPool send_thread;
-
     /// Streams for reading/writing from/to client connection socket.
     std::shared_ptr<ReadBufferFromPocoSocket> in;
     std::shared_ptr<WriteBufferFromPocoSocket> out;
 
     void runImpl();
-    void sendThread();
 
     void sendHandshake(bool has_leader);
     Poco::Timespan receiveHandshake(int32_t handshake_length);
@@ -66,8 +61,6 @@ private:
     bool tryExecuteFourLetterWordCmd(Int32 & four_letter_cmd);
 
     std::pair<Coordination::OpNum, Coordination::XID> receiveRequest();
-
-    ~ServiceTCPHandler() override;
 };
 
 }
