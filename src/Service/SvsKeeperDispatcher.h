@@ -116,6 +116,12 @@ public:
         return server->getSessionNum();
     }
 
+    UInt64 getAliveConnectionsCount()
+    {
+        std::lock_guard lock(session_to_response_callback_mutex);
+        return session_to_response_callback.size();
+    }
+
     UInt64 getOutstandingRequests()
     {
         return requests_queue.size();
