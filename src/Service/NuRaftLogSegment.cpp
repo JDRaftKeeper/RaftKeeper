@@ -297,7 +297,7 @@ int NuRaftLogSegment::close(bool is_full)
 
 int NuRaftLogSegment::flush() const
 {
-    int ret = 0;
+    int ret = -1;
     if (seg_fd >= 0)
     {
         ret = ::fsync(seg_fd);
@@ -685,7 +685,7 @@ int LogSegmentStore::flush()
         std::lock_guard write_lock(seg_mutex);
         return open_segment->flush();
     }
-    return 0;
+    return -1;
 }
 
 int LogSegmentStore::openSegment()
