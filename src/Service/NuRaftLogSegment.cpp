@@ -595,14 +595,6 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
 
     LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", path, file_descriptor, file_size, truncate_size);
 
-    // seek fd
-    off_t ret_off = lseek(file_descriptor, truncate_size, SEEK_SET);
-    if (ret_off < 0)
-    {
-        LOG_ERROR(log, "Fail to lseek fd {} to size {}, path {}.", file_descriptor, truncate_size, path);
-        ret = ret_off;
-    }
-    else
     {
         std::lock_guard write_lock(log_mutex);
         offset_term.resize(first_truncate_in_offset);
@@ -614,6 +606,13 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     if (is_open)
     {
         openFile();
+    }
+    // seek fd
+    off_t ret_off = lseek(seg_fd, truncate_size, SEEK_SET);
+    if (ret_off < 0)
+    {
+        LOG_ERROR(log, "Fail to lseek fd {} to size {}, path {}.", file_descriptor, truncate_size, path);
+        ret = ret_off;
     }
     return ret;
 }
