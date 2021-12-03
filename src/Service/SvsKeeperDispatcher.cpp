@@ -158,7 +158,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     for (int i = 0; i < thread_count; ++i)
         response_threads.emplace_back(&SvsKeeperStorageDispatcher::responseThread, this);
 #else
-    request_thread = std::make_shared<ThreadPool>(1);
+    request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
     for (int i = 0; i < thread_count; i++)
     {
