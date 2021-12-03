@@ -1,0 +1,24 @@
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/C++.gitlab-ci.yml
+
+stages:
+  - build and test
+
+build and test:
+  stage: build and test
+  tags:
+    - "test"
+  script:
+    - git submodule update --init --recursive
+    - export CC=clang-13
+    - export CXX=clang++-13
+    - mkdir build
+    - cd build
+    - cmake ..
+    - ninja
+    - echo "Build success!"
+    - ./src/unit_tests_dbms
+    - echo "Unit test finished."
+
