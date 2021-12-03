@@ -358,7 +358,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         header.index = last_index.load(std::memory_order_acquire) + 1;
         //ssize_t ret = pwritev(seg_fd, vec, 2, file_size);
         ssize_t ret = writev(seg_fd, vec, 2);
-        flush();
+//        flush();
         if (ret < 0 || ret != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
         {
             LOG_WARNING(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
