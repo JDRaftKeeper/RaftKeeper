@@ -373,12 +373,46 @@ TEST(RaftLog, truncateLog)
     }
     ASSERT_EQ(log_store->getSegments().size(), 7);
     ASSERT_EQ(log_store->lastLogIndex(),16);
+
     ASSERT_EQ(log_store->truncateLog(15), 0); //tuncate open segment
     ASSERT_EQ(log_store->lastLogIndex(),15);
+
+    ptr<log_entry> log = log_store->getEntry(15);
+    ASSERT_EQ(log->get_term(), 1);
+    ASSERT_EQ(log->get_val_type(), app_log);
+    ptr<LogEntryPB> pb = LogEntry::parsePB(log->get_buf());
+    ASSERT_EQ(pb->entry_type(), OP_TYPE_CREATE);
+    ASSERT_EQ(pb->data_size(), 1);
+    ASSERT_EQ("/ck/table/table1", pb->data(0).key());
+    ASSERT_EQ("CREATE TABLE table1;", pb->data(0).data());
+
     ASSERT_EQ(log_store->getSegments().size(), 7);
     ASSERT_EQ(log_store->truncateLog(13), 0); //tuncate close and open segment
     ASSERT_EQ(log_store->getSegments().size(), 6);
     ASSERT_EQ(log_store->lastLogIndex(), 13); //tuncate close and open segment
+
+    ASSERT_EQ(log_store->truncateLog(2), 0); //tuncate close and open segment
+
+    ptr<log_entry> log2 = log_store->getEntry(2);
+    ASSERT_EQ(log2->get_term(), 1);
+    ASSERT_EQ(log2->get_val_type(), app_log);
+    ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
+    ASSERT_EQ(pb2->entry_type(), OP_TYPE_CREATE);
+    ASSERT_EQ(pb2->data_size(), 1);
+    ASSERT_EQ("/ck/table/table1", pb2->data(0).key());
+    ASSERT_EQ("CREATE TABLE table1;", pb2->data(0).data());
+
+    ASSERT_EQ(log_store->truncateLog(1), 0); //tuncate close and open segment
+
+    ptr<log_entry> log3 = log_store->getEntry(1);
+    ASSERT_EQ(log3->get_term(), 1);
+    ASSERT_EQ(log3->get_val_type(), app_log);
+    ptr<LogEntryPB> pb3 = LogEntry::parsePB(log3->get_buf());
+    ASSERT_EQ(pb3->entry_type(), OP_TYPE_CREATE);
+    ASSERT_EQ(pb3->data_size(), 1);
+    ASSERT_EQ("/ck/table/table1", pb3->data(0).key());
+    ASSERT_EQ("CREATE TABLE table1;", pb3->data(0).data());
+
     ASSERT_EQ(log_store->close(), 0);
     //cleanDirectory(log_dir);
 }
