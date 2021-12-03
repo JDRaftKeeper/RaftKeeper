@@ -583,7 +583,7 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     }
 
     std::string path = getOpenPath();
-    int file_descriptor = ::open(path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int file_descriptor = ::open(path.c_str(), O_RDWR | O_CREAT, 0644);
 
     errno = 0;
     int ret = ftruncate(file_descriptor, truncate_size);
@@ -1038,7 +1038,7 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
             else if (last_index_kept >= segment->firstIndex() && last_index_kept <= segment->lastIndex())
             {
                 last_segment = segment;
-                it = segments.erase(it);
+                it++;
             }
             else
             {
@@ -1072,7 +1072,13 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
     {
         bool closed = !last_segment->isOpen();
         const int ret = last_segment->truncate(last_index_kept);
-        if (ret == 0 && closed && last_segment->isOpen())
+        if (ret != 0)
+        {
+            LOG_ERROR(log, "Truncate error {}, last_index_kept {}", last_segment->getFileName(), last_index_kept);
+            return ret;
+        }
+
+        if (closed && last_segment->isOpen())
         {
             std::lock_guard write_lock(seg_mutex);
             if (open_segment)
@@ -1080,6 +1086,9 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
                 LOG_WARNING(log, "Open segment is not nullptr.");
             }
             open_segment.swap(last_segment);
+
+            if (!segments.empty())
+                segments.erase(segments.end() - 1);
         }
         return ret;
     }
