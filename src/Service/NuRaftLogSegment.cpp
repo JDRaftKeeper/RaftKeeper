@@ -582,38 +582,33 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
         is_open = true;
     }
 
-    std::string path = getOpenPath();
-    int file_descriptor = ::open(path.c_str(), O_RDWR | O_CREAT, 0644);
+    openFile();
 
     errno = 0;
-    int ret = ftruncate(file_descriptor, truncate_size);
+    int ret = ftruncate(seg_fd, truncate_size);
     if (ret != 0)
     {
         LOG_INFO(log, "Truncate failed errno {}, msg {}", errno, strerror(errno));
         return ret;
     }
 
-    LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", path, file_descriptor, file_size, truncate_size);
+    LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", getOpenPath(), seg_fd, file_size, truncate_size);
 
+    // seek fd
+    off_t ret_off = lseek(seg_fd, truncate_size, SEEK_SET);
+    if (ret_off < 0)
+    {
+        LOG_ERROR(log, "Fail to lseek fd {} to size {}, path {}.", seg_fd, truncate_size, getOpenPath());
+        ret = ret_off;
+    }
+    else
     {
         std::lock_guard write_lock(log_mutex);
         offset_term.resize(first_truncate_in_offset);
         last_index.store(last_index_kept, std::memory_order_release);
         file_size = truncate_size;
     }
-    ::close(file_descriptor);
 
-    if (is_open)
-    {
-        openFile();
-    }
-    // seek fd
-    off_t ret_off = lseek(seg_fd, truncate_size, SEEK_SET);
-    if (ret_off < 0)
-    {
-        LOG_ERROR(log, "Fail to lseek fd {} to size {}, path {}.", file_descriptor, truncate_size, path);
-        ret = ret_off;
-    }
     return ret;
 }
 
