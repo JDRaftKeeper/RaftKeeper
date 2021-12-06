@@ -768,7 +768,7 @@ UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
     return open_segment->appendEntry(entry, last_log_index);
 }
 
-int LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> entry)
+UInt64 LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> entry)
 {
 //    ptr<NuRaftLogSegment> seg;
 //    getSegment(index, seg);
@@ -1018,7 +1018,6 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
     ptr<NuRaftLogSegment> last_segment = nullptr;
     {
         std::lock_guard write_lock(seg_mutex);
-        last_log_index.store(last_index_kept, std::memory_order_release);
         //remove finished segment
         for (auto it = segments.begin(); it != segments.end();)
         {
@@ -1084,12 +1083,15 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
             if (!segments.empty())
                 segments.erase(segments.end() - 1);
         }
+        if (ret == 0)
+            last_log_index.store(last_index_kept, std::memory_order_release);
         return ret;
     }
     else
     {
         LOG_WARNING(log, "Truncate log not found last segment, last_index_kept {}.", last_index_kept);
     }
+    last_log_index.store(last_index_kept, std::memory_order_release); // TODO
     return 0;
 }
 
