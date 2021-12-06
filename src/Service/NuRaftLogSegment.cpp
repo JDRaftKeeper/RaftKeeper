@@ -1091,7 +1091,7 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
     {
         LOG_WARNING(log, "Truncate log not found last segment, last_index_kept {}.", last_index_kept);
     }
-    last_log_index.store(last_index_kept, std::memory_order_release); // TODO
+    last_log_index.store(last_index_kept, std::memory_order_release);
     return 0;
 }
 
