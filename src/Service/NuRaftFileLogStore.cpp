@@ -58,6 +58,16 @@ void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
     }
 }
 
+void LogEntryQueue::clear()
+{
+    LOG_DEBUG(log,"clear log queue.");
+    std::lock_guard write_lock(queue_mutex);
+    batch_index = 0;
+    max_index = 0;
+    for (size_t i = 0; i < MAX_VECTOR_SIZE; ++i)
+        entry_vec[i] = nullptr;
+}
+
 NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new)
 {
     log = &(Poco::Logger::get("FileLogStore"));
@@ -144,7 +154,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     if (segment_store->writeAt(index, new_entry) == index)
     {
         ptr<log_entry> clone = makeClone(entry);
-        log_queue.putEntryOrClear(index, clone);
+        log_queue.clear();
     }
 
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);

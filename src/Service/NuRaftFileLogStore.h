@@ -24,6 +24,7 @@ public:
     ptr<log_entry> getEntry(const UInt64 & index);
     void putEntry(UInt64 & index, ptr<log_entry> & entry);
     void putEntryOrClear(UInt64 & index, ptr<log_entry> & entry);
+    void clear();
 
 private:
     static constexpr UInt8 BIT_SIZE = 16;
