@@ -168,7 +168,7 @@ public:
     // append entry to log
     UInt64 appendEntry(ptr<log_entry> entry);
 
-    int writeAt(UInt64 index, const ptr<log_entry> entry);
+    UInt64 writeAt(UInt64 index, const ptr<log_entry> entry);
 
     // get logentry by index
     ptr<log_entry> getEntry(UInt64 index);

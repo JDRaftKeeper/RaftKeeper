@@ -90,6 +90,19 @@ ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::st
     return entry_pb;
 }
 
+ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, const std::string & key, const std::string & data)
+{
+    ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
+    entry_pb->set_entry_type(ENTRY_TYPE_DATA);
+    entry_pb->mutable_log_index()->set_term(term);
+    entry_pb->mutable_log_index()->set_index(index);
+    LogDataPB * data_pb = entry_pb->add_data();
+    data_pb->set_op_type(op);
+    data_pb->set_key(key);
+    data_pb->set_data(data);
+    return entry_pb;
+}
+
 void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key, std::string & data, ptr<LogEntryPB> & entry_pb)
 {
     entry_pb = cs_new<LogEntryPB>();
@@ -412,6 +425,75 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ(pb3->data_size(), 1);
     ASSERT_EQ("/ck/table/table1", pb3->data(0).key());
     ASSERT_EQ("CREATE TABLE table1;", pb3->data(0).data());
+
+    ASSERT_EQ(log_store->close(), 0);
+    //cleanDirectory(log_dir);
+}
+
+TEST(RaftLog, writeAt)
+{
+    std::string log_dir(LOG_DIR + "/9");
+    cleanDirectory(log_dir);
+    auto log_store = LogSegmentStore::getInstance(log_dir, true);
+    ASSERT_EQ(log_store->init(10000, 3), 0);
+
+    UInt64 term = 1;
+    std::string key("/ck/table/table1");
+    std::string data("CREATE TABLE table1;");
+    LogOpTypePB op = OP_TYPE_CREATE;
+    //8 segment, index 1-16
+    for (int i = 0; i < 16; i++)
+    {
+        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+    }
+
+//    ptr<cluster_config> new_conf = cs_new<cluster_config>
+//        ( 8,
+//          1 );
+//    ptr<srv_config> srv_conf = cs_new<srv_config>(1, "127.0.0.1");
+//    new_conf->get_servers().push_back(srv_conf);
+//    new_conf->set_user_ctx( "" );
+//    new_conf->set_async_replication( false );
+//    ptr<buffer> new_conf_buf( new_conf->serialize() );
+//    ptr<log_entry> entry( cs_new<log_entry>( 2, new_conf_buf, log_val_type::conf ) );
+//    log_store->writeAt(8, entry);
+//
+//    ptr<log_entry> log = log_store->getEntry(8);
+//    ASSERT_EQ(log->get_term(), 2);
+//    ASSERT_EQ(log->get_val_type(), conf);
+//
+//
+//    auto entry_pb = createEntryPB(term, 0, op, "/ck/table/table2", "CREATE TABLE table2;");
+//    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+//    ptr<log_entry> entry_log = cs_new<log_entry>(2, msg_buf);
+//    log_store->writeAt(9, entry_log);
+
+    auto entry_pb1 = createEntryPB(term, 0, op, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
+    ptr<buffer> msg_buf1 = LogEntry::serializePB(entry_pb1);
+    ptr<log_entry> entry_log1 = cs_new<log_entry>(2, msg_buf1);
+    log_store->writeAt(10, entry_log1);
+
+    ptr<log_entry> log1 = log_store->getEntry(10);
+    ASSERT_EQ(log1->get_term(), 2);
+    ASSERT_EQ(log1->get_val_type(), app_log);
+    ptr<LogEntryPB> pb1 = LogEntry::parsePB(log1->get_buf());
+    ASSERT_EQ(pb1->entry_type(), OP_TYPE_CREATE);
+    ASSERT_EQ(pb1->data_size(), 1);
+    ASSERT_EQ("/ck/table/table2222222222222222222221", pb1->data(0).key());
+    ASSERT_EQ("CREATE TABLE table222222222222222222222333;", pb1->data(0).data());
+
+    key = "/ck/table/table22222222222233312222221";
+    data = "CREATE TABLE table22222222221111123222222222333;";
+    appendEntry(log_store, term, op, key, data);
+
+    ptr<log_entry> log2 = log_store->getEntry(11);
+    ASSERT_EQ(log2->get_term(), 1);
+    ASSERT_EQ(log2->get_val_type(), app_log);
+    ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
+    ASSERT_EQ(pb2->entry_type(), OP_TYPE_CREATE);
+    ASSERT_EQ(pb2->data_size(), 1);
+    ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
+    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
 
     ASSERT_EQ(log_store->close(), 0);
     //cleanDirectory(log_dir);
