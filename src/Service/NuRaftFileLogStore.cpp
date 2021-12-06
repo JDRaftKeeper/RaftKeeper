@@ -17,6 +17,7 @@ ptr<log_entry> makeClone(const ptr<log_entry> & entry)
 ptr<log_entry> LogEntryQueue::getEntry(const UInt64 & index)
 {
     //LOG_DEBUG(log,"get entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), index >> BIT_SIZE);
+    std::shared_lock read_lock(queue_mutex);
     if (index > max_index || max_index - index >= MAX_VECTOR_SIZE)
         return nullptr;
 
@@ -39,13 +40,22 @@ void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
     //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
 }
 
-void LogEntryQueue::putEntryAndSetMaxIndex(UInt64 & index, ptr<log_entry> & entry)
+void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
 {
     std::lock_guard write_lock(queue_mutex);
-    entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
-    batch_index = std::max(batch_index, index >> BIT_SIZE);
-    max_index = index;
-    //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
+    if (index >> BIT_SIZE == batch_index || index >> BIT_SIZE == batch_index - 1)
+    {
+        entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
+        max_index = index;
+    }
+    else
+    {
+        LOG_DEBUG(log,"clear log queue.");
+        batch_index = 0;
+        max_index = 0;
+        for (size_t i = 0; i < MAX_VECTOR_SIZE; ++i)
+            entry_vec[i] = nullptr;
+    }
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new)
@@ -134,7 +144,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     if (segment_store->writeAt(index, new_entry) == index)
     {
         ptr<log_entry> clone = makeClone(entry);
-        log_queue.putEntryAndSetMaxIndex(index, clone);
+        log_queue.putEntryOrClear(index, clone);
     }
 
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
