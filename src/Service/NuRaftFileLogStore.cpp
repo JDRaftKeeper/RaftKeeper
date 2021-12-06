@@ -39,6 +39,15 @@ void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
     //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
 }
 
+void LogEntryQueue::putEntryAndSetMaxIndex(UInt64 & index, ptr<log_entry> & entry)
+{
+    std::lock_guard write_lock(queue_mutex);
+    entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
+    batch_index = std::max(batch_index, index >> BIT_SIZE);
+    max_index = index;
+    //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
+}
+
 NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new)
 {
     log = &(Poco::Logger::get("FileLogStore"));
@@ -122,7 +131,12 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     //ptr<LogEntry> ch_entry = std::static_pointer_cast<LogEntry>(entry);
     //logs_count += ch_entry->setIndex(index);
     ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
-    segment_store->writeAt(index, new_entry);
+    if (segment_store->writeAt(index, new_entry) == index)
+    {
+        ptr<log_entry> clone = makeClone(entry);
+        log_queue.putEntryAndSetMaxIndex(index, clone);
+    }
+
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
     last_log_entry = new_entry;
     LOG_DEBUG(log, "write entry at {}", index);

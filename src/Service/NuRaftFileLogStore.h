@@ -23,6 +23,7 @@ public:
     LogEntryQueue() : batch_index(0), max_index(0), log(&(Poco::Logger::get("FileLogStore"))) { }
     ptr<log_entry> getEntry(const UInt64 & index);
     void putEntry(UInt64 & index, ptr<log_entry> & entry);
+    void putEntryAndSetMaxIndex(UInt64 & index, ptr<log_entry> & entry);
 
 private:
     static constexpr UInt8 BIT_SIZE = 16;
