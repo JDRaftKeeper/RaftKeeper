@@ -12,8 +12,8 @@ build and test:
     - "test"
   script:
     - git submodule update --init --recursive
-    - export CC=clang-13
-    - export CXX=clang++-13
+    - export CC=clang-11
+    - export CXX=clang++-11
     - mkdir build
     - cd build
     - cmake ..
@@ -21,4 +21,3 @@ build and test:
     - echo "Build success!"
     - ./src/unit_tests_dbms
     - echo "Unit test finished."
-
