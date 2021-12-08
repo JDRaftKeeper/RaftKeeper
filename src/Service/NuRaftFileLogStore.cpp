@@ -150,15 +150,14 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     //std::lock_guard<std::recursive_mutex> lock(log_lock);
     //ptr<LogEntry> ch_entry = std::static_pointer_cast<LogEntry>(entry);
     //logs_count += ch_entry->setIndex(index);
-    ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
-    if (segment_store->writeAt(index, new_entry) == index)
+//    ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
+    if (segment_store->writeAt(index, entry) == index)
     {
-        ptr<log_entry> clone = makeClone(entry);
         log_queue.clear();
     }
 
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
-    last_log_entry = new_entry;
+    last_log_entry = entry;
     LOG_DEBUG(log, "write entry at {}", index);
 }
 

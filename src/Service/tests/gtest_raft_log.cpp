@@ -396,8 +396,8 @@ TEST(RaftLog, truncateLog)
     ptr<LogEntryPB> pb = LogEntry::parsePB(log->get_buf());
     ASSERT_EQ(pb->entry_type(), OP_TYPE_CREATE);
     ASSERT_EQ(pb->data_size(), 1);
-    ASSERT_EQ("/ck/table/table1", pb->data(0).key());
-    ASSERT_EQ("CREATE TABLE table1;", pb->data(0).data());
+    ASSERT_EQ("/ck", pb->data(0).key());
+    ASSERT_EQ("CRE;", pb->data(0).data());
 
     ASSERT_EQ(log_store->getSegments().size(), 7);
     ASSERT_EQ(log_store->truncateLog(13), 0); //tuncate close and open segment
@@ -438,8 +438,8 @@ TEST(RaftLog, writeAt)
     ASSERT_EQ(log_store->init(10000, 3), 0);
 
     UInt64 term = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    std::string key("/ck");
+    std::string data("CRE;");
     LogOpTypePB op = OP_TYPE_CREATE;
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
@@ -447,26 +447,36 @@ TEST(RaftLog, writeAt)
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
 
-//    ptr<cluster_config> new_conf = cs_new<cluster_config>
-//        ( 8,
-//          1 );
-//    ptr<srv_config> srv_conf = cs_new<srv_config>(1, "127.0.0.1");
-//    new_conf->get_servers().push_back(srv_conf);
-//    new_conf->set_user_ctx( "" );
-//    new_conf->set_async_replication( false );
-//    ptr<buffer> new_conf_buf( new_conf->serialize() );
-//    ptr<log_entry> entry( cs_new<log_entry>( 2, new_conf_buf, log_val_type::conf ) );
-//    log_store->writeAt(8, entry);
-//
-//    ptr<log_entry> log = log_store->getEntry(8);
-//    ASSERT_EQ(log->get_term(), 2);
-//    ASSERT_EQ(log->get_val_type(), conf);
-//
-//
-//    auto entry_pb = createEntryPB(term, 0, op, "/ck/table/table2", "CREATE TABLE table2;");
-//    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-//    ptr<log_entry> entry_log = cs_new<log_entry>(2, msg_buf);
-//    log_store->writeAt(9, entry_log);
+    ptr<cluster_config> new_conf = cs_new<cluster_config>
+        ( 454570345,
+          454569083, false );
+    ptr<srv_config> srv_conf1 = cs_new<srv_config>(4, 0, "10.199.141.7:5103", "", 0, 1);
+    ptr<srv_config> srv_conf2 = cs_new<srv_config>(13, 0, "10.199.141.8:5103", "", 0, 1);
+    ptr<srv_config> srv_conf3 = cs_new<srv_config>(15, 0, "10.199.141.6:5103", "", 0, 1);
+    new_conf->get_servers().push_back(srv_conf1);
+    new_conf->get_servers().push_back(srv_conf2);
+    new_conf->get_servers().push_back(srv_conf3);
+    new_conf->set_user_ctx( "" );
+    ptr<buffer> new_conf_buf( new_conf->serialize() );
+    ptr<log_entry> entry( cs_new<log_entry>( 2, new_conf_buf, log_val_type::conf ) );
+    ASSERT_EQ(log_store->writeAt(8, entry), 8);
+
+    ptr<log_entry> log = log_store->getEntry(8);
+    ptr<cluster_config> new_conf1 =
+        cluster_config::deserialize(log->get_buf());
+
+    ASSERT_EQ(new_conf1->get_servers().size(), 3);
+    ASSERT_EQ(new_conf1->get_log_idx(), 454570345);
+    ASSERT_EQ(new_conf1->get_prev_log_idx(), 454569083);
+    ASSERT_EQ(new_conf1->get_user_ctx(), "");
+    ASSERT_EQ(new_conf1->is_async_replication(), false);
+    ASSERT_EQ(log->get_term(), 2);
+    ASSERT_EQ(log->get_val_type(), conf);
+
+    auto entry_pb = createEntryPB(term, 0, op, "/ck/table/table2", "CREATE TABLE table2;");
+    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+    ptr<log_entry> entry_log = cs_new<log_entry>(2, msg_buf);
+    log_store->writeAt(9, entry_log);
 
     auto entry_pb1 = createEntryPB(term, 0, op, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
     ptr<buffer> msg_buf1 = LogEntry::serializePB(entry_pb1);
