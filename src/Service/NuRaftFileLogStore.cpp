@@ -313,6 +313,7 @@ bool NuRaftFileLogStore::compact(ulong last_log_index)
 {
     //std::lock_guard<std::recursive_mutex> lock(log_lock);
     segment_store->removeSegment(last_log_index + 1);
+    log_queue.clear();
     //start_idx = last_log_index + 1;
     LOG_DEBUG(log, "compact last_log_index {}", last_log_index);
     return true;
