@@ -434,8 +434,7 @@ TEST(RaftLog, writeAt)
 {
     std::string log_dir(LOG_DIR + "/9");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(10000, 3), 0);
+    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
 
     UInt64 term = 1;
     std::string key("/ck");
@@ -444,7 +443,10 @@ TEST(RaftLog, writeAt)
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        auto entry_pb = createEntryPB(term, 0, op, key, data);
+        ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+        ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
+        ASSERT_EQ(file_store->append(entry_log), i + 1);
     }
 
     ptr<cluster_config> new_conf = cs_new<cluster_config>
@@ -459,9 +461,10 @@ TEST(RaftLog, writeAt)
     new_conf->set_user_ctx( "" );
     ptr<buffer> new_conf_buf( new_conf->serialize() );
     ptr<log_entry> entry( cs_new<log_entry>( 2, new_conf_buf, log_val_type::conf ) );
-    ASSERT_EQ(log_store->writeAt(8, entry), 8);
 
-    ptr<log_entry> log = log_store->getEntry(8);
+    file_store->write_at(8, entry);
+
+    ptr<log_entry> log = file_store->entry_at(8);
     ptr<cluster_config> new_conf1 =
         cluster_config::deserialize(log->get_buf());
 
@@ -476,14 +479,14 @@ TEST(RaftLog, writeAt)
     auto entry_pb = createEntryPB(term, 0, op, "/ck/table/table2", "CREATE TABLE table2;");
     ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
     ptr<log_entry> entry_log = cs_new<log_entry>(2, msg_buf);
-    log_store->writeAt(9, entry_log);
+    file_store->write_at(9, entry_log);
 
     auto entry_pb1 = createEntryPB(term, 0, op, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
     ptr<buffer> msg_buf1 = LogEntry::serializePB(entry_pb1);
     ptr<log_entry> entry_log1 = cs_new<log_entry>(2, msg_buf1);
-    log_store->writeAt(10, entry_log1);
+    file_store->write_at(10, entry_log1);
 
-    ptr<log_entry> log1 = log_store->getEntry(10);
+    ptr<log_entry> log1 = file_store->entry_at(10);
     ASSERT_EQ(log1->get_term(), 2);
     ASSERT_EQ(log1->get_val_type(), app_log);
     ptr<LogEntryPB> pb1 = LogEntry::parsePB(log1->get_buf());
@@ -494,9 +497,12 @@ TEST(RaftLog, writeAt)
 
     key = "/ck/table/table22222222222233312222221";
     data = "CREATE TABLE table22222222221111123222222222333;";
-    appendEntry(log_store, term, op, key, data);
+    auto entry_pb2 = createEntryPB(term, 0, op, key, data);
+    ptr<buffer> msg_buf2 = LogEntry::serializePB(entry_pb2);
+    ptr<log_entry> entry_log2 = cs_new<log_entry>(term, msg_buf2);
+    ASSERT_EQ(file_store->append(entry_log2), 11);
 
-    ptr<log_entry> log2 = log_store->getEntry(11);
+    ptr<log_entry> log2 = file_store->entry_at(11);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
     ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
@@ -505,7 +511,7 @@ TEST(RaftLog, writeAt)
     ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
 
-    ASSERT_EQ(log_store->close(), 0);
+//    ASSERT_EQ(file_store->close(), 0);
     //cleanDirectory(log_dir);
 }
 
