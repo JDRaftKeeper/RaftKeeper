@@ -95,7 +95,7 @@ TEST(RaftStateMachine, createSnapshotTime)
     ASSERT_TRUE(timer.isActionTime("", 1614190200));
 
     //currtime 2021-02-24 3:00:00
-    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614106800));
+    ASSERT_TRUE(timer.isActionTime("20210224010000", 1614106800));
 
     //currtime 2021-02-24 22:00:00
     ASSERT_TRUE(timer.isActionTime("20210224020000", 1614175200));
