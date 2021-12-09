@@ -35,6 +35,7 @@ build and test:
     - export CLICKHOUSE_TESTS_SERVER_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/service
-#    - ./runner test_keeper*
-    - echo "Temporarily skip integration test"
+    - ./runner 'test_servicekeeper_back_to_back -ss'
+    - ./runner 'test_servicekeeper_multinode_ch_cluster -ss'
+    - ./runner 'test_servicekeeper_multinode_simple -ss'
     - echo "Integration test finished."
