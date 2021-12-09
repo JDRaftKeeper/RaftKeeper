@@ -967,7 +967,6 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
         if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
             last_log_index.store(first_log_index - 1, std::memory_order_release);
     }
-    openSegment();
     return 0;
 }
 
