@@ -929,11 +929,8 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         zxid = *new_last_zxid;
     }
 
-    {
-        /// ZooKeeper update sessions expirity for each request, not only for heartbeats
-        std::lock_guard lock(session_mutex);
-        session_expiry_queue.update(session_id, session_and_timeout[session_id]);
-    }
+    /// ZooKeeper update sessions expirity for each request, not only for heartbeats
+    session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
 
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
@@ -1134,7 +1131,8 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
                     {
                         LOG_ERROR(log, "path {}, children {}", parent_path, path);
                     }
-                    throw DB::Exception("Logical error: Check : can not match children size: " + it.first + ", stat numChildren: " + toString(parent->stat.numChildren) + ", children: " + toString(parent->children.size()), ErrorCodes::LOGICAL_ERROR);
+                    LOG_ERROR(log, "Logical error: Check : can not match children size: {}, stat numChildren: {}, children: {}", it.first, toString(parent->stat.numChildren), toString(parent->children.size()));
+                    parent->stat.numChildren = parent->children.size(); /// Fix
                 }
             }
         }
