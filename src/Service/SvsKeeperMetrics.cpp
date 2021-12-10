@@ -122,7 +122,7 @@ void MetricsUpdater::run()
 void MetricsUpdater::updateMetrics()
 {
     ServiceMetrics::set(ServiceMetrics::is_leader, global_context.getSvsKeeperStorageDispatcher()->isLeader());
-    ServiceMetrics::set(ServiceMetrics::num_alive_connections, global_context.getSvsKeeperStorageDispatcher()->getAliveConnectionsCount());
+    ServiceMetrics::set(ServiceMetrics::num_alive_connections, global_context.getSvsKeeperStorageDispatcher()->getSessionNum());
 
     ServiceMetrics::set(ServiceMetrics::znode_count, global_context.getSvsKeeperStorageDispatcher()->getNodeNum());
     ServiceMetrics::set(ServiceMetrics::watch_count, global_context.getSvsKeeperStorageDispatcher()->getWatchNodeNum());
