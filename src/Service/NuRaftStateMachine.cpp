@@ -249,7 +249,7 @@ void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSe
         responses_queue.push(response);
 }
 
-std::unordered_set<int64_t> NuRaftStateMachine::getDeadSessions()
+std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
 {
     return storage.getDeadSessions();
 }
