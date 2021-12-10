@@ -929,6 +929,12 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         zxid = *new_last_zxid;
     }
 
+    {
+        /// ZooKeeper update sessions expirity for each request, not only for heartbeats
+        std::lock_guard lock(session_mutex);
+        session_expiry_queue.update(session_id, session_and_timeout[session_id]);
+    }
+
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
@@ -973,10 +979,6 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
-        {
-            std::lock_guard lock(session_mutex);
-            session_expiry_queue.update(session_id, session_and_timeout[session_id]);
-        }
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
         auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
         response->xid = zk_request->xid;

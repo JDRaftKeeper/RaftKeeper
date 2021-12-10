@@ -232,16 +232,10 @@ Poco::Timespan ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
         throw Exception("Unexpected protocol version: " + toString(protocol_version), ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
 
     Coordination::read(last_zxid_seen, *in);
-
-    if (last_zxid_seen != 0)
-        throw Exception("Client Last zxid seen is " + toString(last_zxid_seen) + ", non zero last_zxid_seen is not supported", ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
-
     Coordination::read(timeout_ms, *in);
+
+    /// TODO Stop ignoring this value
     Coordination::read(previous_session_id, *in);
-
-    if (previous_session_id != 0 && previous_session_id != -1)
-        throw Exception("Previous session id is " + toString(previous_session_id) + ", non zero and -1 previous session id is not supported", ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
-
     Coordination::read(passwd, *in);
 
     int8_t readonly;
