@@ -78,7 +78,7 @@ public:
 
     void processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
 
-    std::unordered_set<int64_t> getDeadSessions();
+    std::vector<int64_t> getDeadSessions();
 
     UInt64 getNodeNum() { return storage.getNodeNum(); }
     UInt64 getWatchNodeNum() { return storage.getWatchNodeNum(); }

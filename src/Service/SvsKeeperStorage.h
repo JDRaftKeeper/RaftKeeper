@@ -194,7 +194,7 @@ public:
         std::lock_guard lock(session_mutex);
         auto result = session_id_counter++;
         session_and_timeout.emplace(result, session_timeout_ms);
-        session_expiry_queue.update(result, session_timeout_ms);
+        session_expiry_queue.addNewSessionOrUpdate(result, session_timeout_ms);
         return result;
     }
 
@@ -208,13 +208,13 @@ public:
     /// Add session id. Used when restoring KeeperStorage from snapshot.
     void addSessionID(int64_t session_id, int64_t session_timeout_ms)
     {
+        std::lock_guard lock(session_mutex);
         session_and_timeout.emplace(session_id, session_timeout_ms);
-        session_expiry_queue.update(session_id, session_timeout_ms);
+        session_expiry_queue.addNewSessionOrUpdate(session_id, session_timeout_ms);
     }
 
-    std::unordered_set<int64_t> getDeadSessions()
+    std::vector<int64_t> getDeadSessions()
     {
-        std::lock_guard lock(session_mutex);
         return session_expiry_queue.getExpiredSessions();
     }
 
@@ -226,7 +226,8 @@ public:
 
     UInt64 getWatchNodeNum() const { return watches.size(); }
 
-    UInt64 getEphemeralNodeNum() {
+    UInt64 getEphemeralNodeNum()
+    {
         std::lock_guard lock(ephemerals_mutex);
         UInt64 res{};
         for(const auto & a : ephemerals)
