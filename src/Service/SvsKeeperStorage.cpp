@@ -929,6 +929,9 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         zxid = *new_last_zxid;
     }
 
+    /// ZooKeeper update sessions expirity for each request, not only for heartbeats
+    session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
@@ -973,10 +976,6 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
-        {
-            std::lock_guard lock(session_mutex);
-            session_expiry_queue.update(session_id, session_and_timeout[session_id]);
-        }
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
         auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
         response->xid = zk_request->xid;
@@ -1132,7 +1131,8 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
                     {
                         LOG_ERROR(log, "path {}, children {}", parent_path, path);
                     }
-                    throw DB::Exception("Logical error: Check : can not match children size: " + it.first + ", stat numChildren: " + toString(parent->stat.numChildren) + ", children: " + toString(parent->children.size()), ErrorCodes::LOGICAL_ERROR);
+                    LOG_ERROR(log, "Logical error: Check : can not match children size: {}, stat numChildren: {}, children: {}", it.first, toString(parent->stat.numChildren), toString(parent->children.size()));
+                    parent->stat.numChildren = parent->children.size(); /// Fix
                 }
             }
         }

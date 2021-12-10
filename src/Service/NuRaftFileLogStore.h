@@ -40,7 +40,9 @@ class NuRaftFileLogStore : public nuraft::log_store
 {
     __nocopy__(NuRaftFileLogStore)
 
-    public : NuRaftFileLogStore(const std::string & log_dir, bool force_new = false);
+public :
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new = false);
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_);
     ~NuRaftFileLogStore() override;
 
     ulong next_slot() const override;
@@ -70,6 +72,8 @@ class NuRaftFileLogStore : public nuraft::log_store
     bool compact(ulong last_log_index) override;
 
     bool flush() override;
+
+    const ptr<LogSegmentStore> segmentStore() const { return segment_store; }
 
 private:
     static ptr<log_entry> make_clone(const ptr<log_entry> & entry);
