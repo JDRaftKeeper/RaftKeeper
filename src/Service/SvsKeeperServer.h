@@ -39,8 +39,9 @@ private:
     Poco::Logger * log;
 
     std::mutex initialized_mutex;
-    bool initialized_flag = false;
+    std::atomic<bool> initialized_flag = false;
     std::condition_variable initialized_cv;
+    std::atomic<bool> initial_batch_committed = false;
 
     ptr<cluster_config> specified_cluster_config;
 
@@ -75,7 +76,7 @@ public:
 
     int64_t getSessionID(int64_t session_timeout_ms);
 
-    std::unordered_set<int64_t> getDeadSessions();
+    std::vector<int64_t> getDeadSessions();
 
     bool isLeader() const;
 
