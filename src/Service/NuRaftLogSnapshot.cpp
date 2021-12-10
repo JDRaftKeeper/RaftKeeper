@@ -29,7 +29,7 @@ int openFileForWrite(std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     errno = 0;
-    int snap_fd = ::open(obj_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+    int snap_fd = ::open(obj_path.c_str(), O_RDWR | O_CREAT, 0644);
     if (snap_fd < 0)
     {
         LOG_ERROR(log, "Created new snapshot object {} failed, fd {}, error:{}", obj_path, snap_fd, strerror(errno));
