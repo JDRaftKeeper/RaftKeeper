@@ -731,14 +731,14 @@ class ClickHouseServiceCluster:
             subprocess.check_output(clickhouse_start_cmd)
             print("ClickHouse instance created")
 
-            start_deadline = time.time() + 20.0  # seconds
+            start_deadline = time.time() + 70.0  # seconds
             for instance in self.instances.values():
                 instance.docker_client = self.docker_client
                 instance.ip_address = self.get_instance_ip(instance.name)
 
-                print("Waiting for ClickHouse start...")
+                print("Waiting for ClickHouse-service start...")
                 instance.wait_for_start(start_deadline)
-                print("ClickHouse started")
+                print("ClickHouse-service started")
 
                 # instance.client = Client(instance.ip_address, command=self.client_bin_path)
 
