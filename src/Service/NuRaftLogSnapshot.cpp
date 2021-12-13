@@ -417,8 +417,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
         ephemeral_object_count = (storage.ephemerals.size() - 1) / max_object_node_size + 1;
     }
 
-    //Normal node objects、Ephemeral node objects、Others（SessionID）
-    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1;
+    //Normal node objects、Ephemeral node objects、Sessions、Others(int_map)
+    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1;
 
     LOG_DEBUG(
         log,
@@ -488,7 +488,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     ephemeral_thread_pool.wait();
 
     //Save sessions
-    createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size]);
+    createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size - 1]);
 
     IntMap int_map;
     int_map["ZXID"] = storage.zxid;
@@ -704,6 +704,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             e.displayText());
                         break;
                     }
+                    LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
                     storage.addSessionID(session_id, timeout);
                 }
             }
