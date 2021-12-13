@@ -35,7 +35,11 @@ build and test:
     - export CLICKHOUSE_TESTS_SERVER_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/service
+    - rm -r __pycache__ .pytest_cache/
     - ./runner 'test_servicekeeper_back_to_back -ss'
+    - rm -r __pycache__ .pytest_cache/
     - ./runner 'test_servicekeeper_multinode_ch_cluster -ss'
+    - rm -r __pycache__ .pytest_cache/
     - ./runner 'test_servicekeeper_multinode_simple -ss'
+    - rm -r __pycache__ .pytest_cache/
     - echo "Integration test finished."
