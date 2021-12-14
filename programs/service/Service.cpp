@@ -16,8 +16,6 @@
 #include <Server/HTTPHandlerFactory.h>
 #include <Server/ProtocolServerAdapter.h>
 #include <Service/FourLetterCommand.h>
-#include <Service/SvsKeeperMetrics.h>
-#include <Service/SvsKeeperPrometheusRequestHandler.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -56,7 +54,7 @@
 #include <common/logger_useful.h>
 #include <common/phdr_cache.h>
 #include <ext/scope_guard.h>
-#include "ServiceTCPHandlerFactory.h"
+#include <Service/ServiceTCPHandlerFactory.h>
 #include <Service/FourLetterCommand.h>
 
 namespace DB
@@ -193,7 +191,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
     http_params->setKeepAliveTimeout(keep_alive_timeout);
 
     //get port from config
-    std::string listen_host = config().getString("service.host");
+    std::string listen_host = config().getString("service.host", "0.0.0.0");
     //unsigned short listen_port = config().getInt("frontend_port", ServerPort);
     bool listen_try = config().getBool("listen_try", false);
 
@@ -216,29 +214,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
     });
     //    }
 
-    /// start service metrics updater
-    ServiceMetrics::MetricsUpdater metrics_updater(context(), 60);
-    metrics_updater.start();
-
-    FourLetterCommands::registerCommands(context());
-
-    /// Prometheus (if defined and not setup yet with http_port)
-    port_name = "prometheus.port";
-    createServer(listen_host, port_name, listen_try, [&](UInt16 port)
-    {
-        Poco::Net::ServerSocket socket;
-        auto address = socketBindListen(socket, listen_host, port);
-        socket.setReceiveTimeout(settings.http_receive_timeout);
-        socket.setSendTimeout(settings.http_send_timeout);
-
-        servers->emplace_back(port_name, std::make_unique<HTTPServer>(context(),
-            createSvsKeeperPrometheusHandlerFactory(*this, "prometheus"),
-                                             server_pool,
-                                             socket,
-                                             http_params));
-
-        LOG_INFO(log, "Listening for Prometheus: http://{}", address.toString());
-    });
+    FourLetterCommandFactory::registerCommands(*global_context->getSvsKeeperStorageDispatcher());
 
     /// 3. Start the TCPServer
     for (auto & server : *servers)

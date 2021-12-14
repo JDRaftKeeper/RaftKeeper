@@ -1653,11 +1653,8 @@ void Context::initializeServiceKeeperStorageDispatcher() const
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to initialize NuKeeper multiple times");
 
     const auto & config = getConfigRef();
-    if (config.has("service"))
-    {
-        shared->service_keeper_storage_dispatcher = std::make_shared<SvsKeeperDispatcher>();
-        shared->service_keeper_storage_dispatcher->initialize(config);
-    }
+    shared->service_keeper_storage_dispatcher = std::make_shared<SvsKeeperDispatcher>();
+    shared->service_keeper_storage_dispatcher->initialize(config);
 }
 
 std::shared_ptr<SvsKeeperDispatcher> & Context::getSvsKeeperStorageDispatcher() const

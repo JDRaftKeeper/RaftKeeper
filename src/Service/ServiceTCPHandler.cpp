@@ -7,7 +7,6 @@
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <IO/WriteBufferFromPocoSocket.h>
 #include <Service/FourLetterCommand.h>
-#include <Service/SvsKeeperProfileEvents.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/CurrentThread.h>
@@ -24,13 +23,19 @@
 #    include <poll.h>
 #endif
 
-namespace ServiceProfileEvents
-{
-extern const Event req_time;
-}
-
 namespace DB
 {
+struct LastOp
+{
+public:
+    String name{"NA"};
+    int64_t last_cxid{-1};
+    int64_t last_zxid{-1};
+    int64_t last_response_time{0};
+};
+
+static const LastOp EMPTY_LAST_OP{"NA", -1, -1, 0};
+
 namespace ErrorCodes
 {
     extern const int SYSTEM_ERROR;
@@ -192,7 +197,9 @@ ServiceTCPHandler::ServiceTCPHandler(IServer & server_, const Poco::Net::StreamS
           0, global_context.getConfigRef().getUInt("service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
     , poll_wrapper(std::make_unique<SocketInterruptablePollWrapper>(socket_))
     , responses(std::make_unique<ThreadSafeResponseQueue>())
+    , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
+    ServiceTCPHandler::registerConnection(this);
 }
 
 void ServiceTCPHandler::sendHandshake(bool has_leader)
@@ -251,40 +258,36 @@ bool ServiceTCPHandler::isHandShake(Int32 & handshake_length)
         || handshake_length == Coordination::CLIENT_HANDSHAKE_LENGTH_WITH_READONLY;
 }
 
-bool ServiceTCPHandler::tryExecuteFourLetterWordCmd(Int32 & four_letter_cmd)
+bool ServiceTCPHandler::tryExecuteFourLetterWordCmd(int32_t command)
 {
-    if(FourLetterCommands::isKnown(four_letter_cmd))
+    if (!FourLetterCommandFactory::instance().isKnown(command))
     {
-        auto command = FourLetterCommands::getCommand(four_letter_cmd);
-        LOG_DEBUG(log, "receive four letter command {}", command->name());
+        LOG_WARNING(log, "invalid four letter command {}", IFourLetterCommand::toName(command));
+        return false;
+    }
+    else if (!FourLetterCommandFactory::instance().isEnabled(command))
+    {
+        LOG_WARNING(log, "Not enabled four letter command {}", IFourLetterCommand::toName(command));
+        return false;
+    }
+    else
+    {
+        auto command_ptr = FourLetterCommandFactory::instance().get(command);
+        LOG_DEBUG(log, "Receive four letter command {}", command_ptr->name());
 
-        String res;
         try
         {
-            command->run(res);
-        }
-        catch (const Exception & e)
-        {
-            res = "Error when executing four letter command " + command->name() + ". Because: " + e.displayText();
-            tryLogCurrentException(log, res);
-        }
-
-        try
-        {
+            String res = command_ptr->run();
             out->write(res.data(), res.size());
+            out->next();
         }
-        catch (const Exception &)
+        catch (...)
         {
-            tryLogCurrentException(log, "Error when send 4 letter command response");
+            tryLogCurrentException(log, "Error when executing four letter command " + command_ptr->name());
         }
 
         return true;
     }
-    else
-    {
-        LOG_WARNING(log, "invalid four letter command {}", std::to_string(four_letter_cmd));
-    }
-    return false;
 }
 
 void ServiceTCPHandler::runImpl()
@@ -322,7 +325,7 @@ void ServiceTCPHandler::runImpl()
     /// Hand shake package length must be lower than 2^24 and larger than 0.
     /// So collision never happens.
     int32_t four_letter_cmd = header;
-    if(!isHandShake(four_letter_cmd))
+    if (!isHandShake(four_letter_cmd))
     {
         tryExecuteFourLetterWordCmd(four_letter_cmd);
         return;
@@ -330,12 +333,8 @@ void ServiceTCPHandler::runImpl()
 
     try
     {
-        LOG_TRACE(log, "Server session_timeout is {}.", session_timeout.milliseconds());
-
         int32_t handshake_length = header;
         auto client_timeout = receiveHandshake(handshake_length);
-
-        LOG_TRACE(log, "ReceiveHandshake client session_timeout is {}.", client_timeout.milliseconds());
 
         if (client_timeout != 0)
             session_timeout = std::min(client_timeout, session_timeout);
@@ -392,7 +391,7 @@ void ServiceTCPHandler::runImpl()
             if (result.has_requests && !close_received)
             {
                 auto [received_op, received_xid] = receiveRequest();
-
+                packageReceived();
                 process_time_stopwatch.start();
 
                 if (received_op == Coordination::OpNum::Close)
@@ -407,19 +406,6 @@ void ServiceTCPHandler::runImpl()
                 }
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
-            }
-
-            if(result.responses_count != 0)
-            {
-                /// in case of one-request-and-multi-response
-                /// but watch request may take long time
-                if(process_time_stopwatch.isRunning())
-                {
-                    uint64_t process_time = process_time_stopwatch.elapsedMicroseconds();
-                    ServiceProfileEvents::increment(ServiceProfileEvents::req_time, process_time);
-                    service_keeper_storage_dispatcher->addValueToRequestCounter(process_time);
-                    process_time_stopwatch.stop();
-                }
             }
 
             /// Process exact amount of responses from pipe
@@ -437,6 +423,9 @@ void ServiceTCPHandler::runImpl()
                     LOG_DEBUG(log, "Session #{} successfully closed", session_id);
                     return;
                 }
+
+                updateStats(response);
+                packageSent();
 
                 LOG_TRACE(log, "Send response session {}, xid {}, zxid {}, error {}", session_id, response->xid, response->zxid, response->error);
                 response->write(*out);
@@ -493,6 +482,148 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
     return std::make_pair(opnum, xid);
+}
+
+void ServiceTCPHandler::packageSent()
+{
+    {
+        std::lock_guard lock(conn_stats_mutex);
+        conn_stats.incrementPacketsSent();
+    }
+    service_keeper_storage_dispatcher->incrementPacketsSent();
+}
+
+void ServiceTCPHandler::packageReceived()
+{
+    {
+        std::lock_guard lock(conn_stats_mutex);
+        conn_stats.incrementPacketsReceived();
+    }
+    service_keeper_storage_dispatcher->incrementPacketsReceived();
+}
+
+void ServiceTCPHandler::updateStats(Coordination::ZooKeeperResponsePtr & response)
+{
+    /// update statistics ignoring watch response and heartbeat.
+    if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat)
+    {
+        Int64 elapsed = (Poco::Timestamp() - operations[response->xid]) / 1000;
+        {
+            std::lock_guard lock(conn_stats_mutex);
+            conn_stats.updateLatency(elapsed);
+        }
+        service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
+
+        last_op.set(std::make_unique<LastOp>(LastOp{
+            .name = Coordination::toString(response->getOpNum()),
+            .last_cxid = response->xid,
+            .last_zxid = response->zxid,
+            .last_response_time = Poco::Timestamp().epochMicroseconds() / 1000,
+            }));
+    }
+
+}
+
+KeeperConnectionStats ServiceTCPHandler::getConnectionStats() const
+{
+    std::lock_guard lock(conn_stats_mutex);
+    return conn_stats;
+}
+
+void ServiceTCPHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
+{
+    KeeperConnectionStats stats = getConnectionStats();
+
+    writeText(" ", buf);
+    writeText(socket().peerAddress().toString(), buf);
+    writeText("(recved=", buf);
+    writeIntText(stats.getPacketsReceived(), buf);
+    writeText(",sent=", buf);
+    writeIntText(stats.getPacketsSent(), buf);
+    if (!brief)
+    {
+        if (session_id != 0)
+        {
+            writeText(",sid=0x", buf);
+            writeText(getHexUIntLowercase(session_id), buf);
+
+            writeText(",lop=", buf);
+            LastOpPtr op = last_op.get();
+            writeText(op->name, buf);
+            writeText(",est=", buf);
+            writeIntText(established.epochMicroseconds() / 1000, buf);
+            writeText(",to=", buf);
+            writeIntText(session_timeout.totalMilliseconds(), buf);
+            int64_t last_cxid = op->last_cxid;
+            if (last_cxid >= 0)
+            {
+                writeText(",lcxid=0x", buf);
+                writeText(getHexUIntLowercase(last_cxid), buf);
+            }
+            writeText(",lzxid=0x", buf);
+            writeText(getHexUIntLowercase(op->last_zxid), buf);
+            writeText(",lresp=", buf);
+            writeIntText(op->last_response_time, buf);
+
+            writeText(",llat=", buf);
+            writeIntText(stats.getLastLatency(), buf);
+            writeText(",minlat=", buf);
+            writeIntText(stats.getMinLatency(), buf);
+            writeText(",avglat=", buf);
+            writeIntText(stats.getAvgLatency(), buf);
+            writeText(",maxlat=", buf);
+            writeIntText(stats.getMaxLatency(), buf);
+        }
+    }
+    writeText(")", buf);
+    writeText("\n", buf);
+}
+
+void ServiceTCPHandler::resetStats()
+{
+    {
+        std::lock_guard lock(conn_stats_mutex);
+        conn_stats.reset();
+    }
+    last_op.set(std::make_unique<LastOp>(EMPTY_LAST_OP));
+}
+
+ServiceTCPHandler::~ServiceTCPHandler()
+{
+    ServiceTCPHandler::unregisterConnection(this);
+}
+
+std::mutex ServiceTCPHandler::conns_mutex;
+std::unordered_set<ServiceTCPHandler *> ServiceTCPHandler::connections;
+
+void ServiceTCPHandler::registerConnection(ServiceTCPHandler * conn)
+{
+    std::lock_guard lock(conns_mutex);
+    connections.insert(conn);
+}
+
+void ServiceTCPHandler::unregisterConnection(ServiceTCPHandler * conn)
+{
+    std::lock_guard lock(conns_mutex);
+    connections.erase(conn);
+}
+
+void ServiceTCPHandler::dumpConnections(WriteBufferFromOwnString & buf, bool brief)
+{
+    std::lock_guard lock(conns_mutex);
+    for (auto * conn : connections)
+    {
+        conn->dumpStats(buf, brief);
+    }
+}
+
+void ServiceTCPHandler::resetConnsStats()
+{
+    std::lock_guard lock(conns_mutex);
+    for (auto * conn : connections)
+    {
+        conn->resetStats();
+    }
 }
 
 }

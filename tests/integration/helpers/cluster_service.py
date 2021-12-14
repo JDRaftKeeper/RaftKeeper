@@ -395,7 +395,7 @@ class ClickHouseServiceCluster:
         subprocess.check_call(self.base_cmd + ["up", "--force-recreate", "--no-deps", "-d", node.name])
         node.ip_address = self.get_instance_ip(node.name)
         node.client = Client(node.ip_address, command=self.client_bin_path)
-        start_deadline = time.time() + 20.0  # seconds
+        start_deadline = time.time() + 80.0  # seconds
         node.wait_for_start(start_deadline)
         return node
 
@@ -731,7 +731,7 @@ class ClickHouseServiceCluster:
             subprocess.check_output(clickhouse_start_cmd)
             print("ClickHouse instance created")
 
-            start_deadline = time.time() + 20.0  # seconds
+            start_deadline = time.time() + 80.0  # seconds
             for instance in self.instances.values():
                 instance.docker_client = self.docker_client
                 instance.ip_address = self.get_instance_ip(instance.name)
@@ -1156,14 +1156,14 @@ class ClickHouseInstance:
             if status == 'exited':
                 raise Exception(
                     "Instance `{}' failed to start. Container status: {}, logs: {}".format(self.name, status,
-                                                                                           handle.logs()))
+                                                                                           handle.logs().decode()))
 
             current_time = time.time()
             time_left = deadline - current_time
             if deadline is not None and current_time >= deadline:
                 raise Exception("Timed out while waiting for instance `{}' with ip address {} to start. "
                                 "Container status: {}, logs: {}".format(self.name, self.ip_address, status,
-                                                                        handle.logs()))
+                                                                        handle.logs().decode()))
 
             # Repeatedly poll the instance address until there is something that listens there.
             # Usually it means that ClickHouse is ready to accept queries.
