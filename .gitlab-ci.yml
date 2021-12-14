@@ -42,3 +42,10 @@ build and test:
     - ./runner 'test_servicekeeper_multinode_simple -ss'
     - rm -r __pycache__ .pytest_cache/
     - echo "Integration test finished."
+
+
+    - echo "Start performance test."
+    - cd ./benchmark/raft-benchmark
+    - mvn clean compile package
+    - cd target
+    - unzip raft-benchmark-1.0-bin.zip
