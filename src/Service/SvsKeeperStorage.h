@@ -9,6 +9,8 @@
 #include <Common/ThreadPool.h>
 #include <Common/ZooKeeper/IKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <IO/Operators.h>
+#include <IO/WriteBufferFromString.h>
 
 namespace DB
 {
@@ -50,6 +52,8 @@ struct KeeperNode
         stat_view.cversion = stat.cversion * 2 - stat.numChildren;
         return stat_view;
     }
+    /// Object memory size
+    uint64_t sizeInBytes() const;
 };
 
 #ifdef USE_CONCURRENTMAP
@@ -218,45 +222,42 @@ public:
         return session_expiry_queue.getExpiredSessions();
     }
 
-    /// no need to lock
-    UInt64 getNodeNum() const
+    /// Introspection functions mostly used in 4-letter commands
+    uint64_t getNodesCount() const
     {
         return container.size();
     }
 
-    UInt64 getWatchNodeNum() const { return watches.size(); }
-
-    UInt64 getEphemeralNodeNum()
+    uint64_t getApproximateDataSize() const
     {
-        std::lock_guard lock(ephemerals_mutex);
-        UInt64 res{};
-        for(const auto & a : ephemerals)
-        {
-            res += a.second.size();
-        }
-        return res;
-    }
-
-    /// not accurate
-    UInt64 getNodeSizeMB() const
-    {
-        UInt64 node_count = getNodeNum();
+        UInt64 node_count = container.size();
         UInt64 size_bytes = container.getBlockNum() * sizeof(Container::InnerMap) /* Inner map size */
-            + node_count * 8 / 0.75             /*hash map array size*/
-            + node_count * sizeof(KeeperNode)   /*node size*/
-            + node_count * 100;                 /*path and child of node size*/
-        return size_bytes / 1024 / 1024;
+            + node_count * 8 / 0.75 /*hash map array size*/
+            + node_count * sizeof(KeeperNode) /*node size*/
+            + node_count * 100; /*path and child of node size*/
+        return size_bytes;
     }
 
-    /// no need to lock
-    UInt64 getSessionNum() const
+    uint64_t getTotalWatchesCount() const;
+
+    uint64_t getWatchedPathsCount() const
     {
-        return session_and_timeout.size();
+        std::lock_guard lock(watch_mutex);
+        return watches.size() + list_watches.size();
     }
 
-    SessionAndWatcherPtr cloneWatchInfo() const;
+    uint64_t getSessionsWithWatchesCount() const;
 
-    EphemeralsPtr cloneEphemeralInfo() const;
+    uint64_t getSessionWithEphemeralNodesCount() const
+    {
+        std::lock_guard lock(watch_mutex);
+        return ephemerals.size();
+    }
+    uint64_t getTotalEphemeralNodesCount() const;
+
+    void dumpWatches(WriteBufferFromOwnString & buf) const;
+    void dumpWatchesByPath(WriteBufferFromOwnString & buf) const;
+    void dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const;
 
 private:
     Poco::Logger * log;
