@@ -17,6 +17,8 @@
 #include <Common/Stopwatch.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <Common/MultiVersion.h>
+
 
 namespace DB
 {
@@ -28,11 +30,33 @@ using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<Coordination::ZooKeeper
 
 using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
 
+struct LastOp;
+using LastOpMultiVersion = MultiVersion<LastOp>;
+using LastOpPtr = LastOpMultiVersion::Version;
+
 class ServiceTCPHandler : public Poco::Net::TCPServerConnection
 {
 public:
+    static void registerConnection(ServiceTCPHandler * conn);
+    static void unregisterConnection(ServiceTCPHandler * conn);
+    /// dump all connections statistics
+    static void dumpConnections(WriteBufferFromOwnString & buf, bool brief);
+    static void resetConnsStats();
+
+private:
+    static std::mutex conns_mutex;
+    /// all connections
+    static std::unordered_set<ServiceTCPHandler *> connections;
+
+public:
     ServiceTCPHandler(IServer & server_, const Poco::Net::StreamSocket & socket_);
     void run() override;
+
+    KeeperConnectionStats getConnectionStats() const;
+    void dumpStats(WriteBufferFromOwnString & buf, bool brief);
+    void resetStats();
+
+    ~ServiceTCPHandler() override;
 private:
     IServer & server;
     Poco::Logger * log;
@@ -58,9 +82,24 @@ private:
     Poco::Timespan receiveHandshake(int32_t handshake_length);
 
     static bool isHandShake(Int32 & handshake_length) ;
-    bool tryExecuteFourLetterWordCmd(Int32 & four_letter_cmd);
+    bool tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
 
     std::pair<Coordination::OpNum, Coordination::XID> receiveRequest();
+
+    void packageSent();
+    void packageReceived();
+
+    void updateStats(Coordination::ZooKeeperResponsePtr & response);
+
+    Poco::Timestamp established;
+
+    using Operations = std::map<Coordination::XID, Poco::Timestamp>;
+    Operations operations;
+
+    LastOpMultiVersion last_op;
+
+    mutable std::mutex conn_stats_mutex;
+    KeeperConnectionStats conn_stats;
 };
 
 }

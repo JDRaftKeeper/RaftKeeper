@@ -1,206 +1,422 @@
 #include <Service/FourLetterCommand.h>
+
 #include <Service/SvsKeeperDispatcher.h>
+#include <Service/ServiceTCPHandler.h>
+#include <common/logger_useful.h>
+#include <Poco/Environment.h>
+#include <Poco/Path.h>
+#include <Common/getCurrentProcessFDCount.h>
+#include <Common/getMaxFileDescriptorCount.h>
+#include <Common/StringUtils/StringUtils.h>
+#include <Service/Keeper4LWInfo.h>
+#include <common/find_symbols.h>
+#include <IO/WriteHelpers.h>
+#include <IO/Operators.h>
+#include <Poco/String.h>
+
+#include <unistd.h>
 
 namespace DB
 {
-FourLetterCommand::FourLetterCommand(const Context & global_context_) : global_context(global_context_)
+namespace ErrorCodes
+{
+    extern const int LOGICAL_ERROR;
+}
+
+IFourLetterCommand::IFourLetterCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    : keeper_dispatcher(keeper_dispatcher_)
 {
 }
 
-Int32 FourLetterCommand::code()
+int32_t IFourLetterCommand::code()
 {
-    Int32 res = *reinterpret_cast<Int32 *>(name().data());
+    return toCode(name());
+}
+
+String IFourLetterCommand::toName(int32_t code)
+{
+    int reverted_code = __builtin_bswap32(code);
+    return String(reinterpret_cast<char *>(&reverted_code), 4);
+}
+
+int32_t IFourLetterCommand::toCode(const String & name)
+{
+    int32_t res = *reinterpret_cast<const int32_t *>(name.data());
     /// keep consistent with Coordination::read method by changing big endian to little endian.
     return __builtin_bswap32(res);
 }
 
-void FourLetterCommand::printSet(FourLetterCommand::StringBuffer & ss, std::unordered_set<String> & target, String && prefix)
-{
-    for (const auto & str : target)
-    {
-        ss << prefix << str << std::endl;
-    }
-}
-FourLetterCommand::~FourLetterCommand() = default;
+IFourLetterCommand::~IFourLetterCommand() = default;
 
-String MntrCommand::name()
+FourLetterCommandFactory & FourLetterCommandFactory::instance()
 {
-    return "mntr";
-}
-void MntrCommand::run(String & res)
-{
-    /// TODO implementation
-    res.data();
+    static FourLetterCommandFactory factory;
+    return factory;
 }
 
-MntrCommand::~MntrCommand() = default;
-
-String WchsCommand::name()
-{
-    return "wchs";
-}
-
-/**
- * Example:
- * 18 connections watching 54 paths
- * Total watches:54
- */
-void WchsCommand::run(String & res)
-{
-    SessionAndWatcherPtr watch_info = global_context.getSvsKeeperStorageDispatcher()->getWatchInfo();
-
-    int connection_num = watch_info->size();
-    int watch_num{};
-    std::unordered_set<String> watch_paths;
-
-    for (auto & watch_elem : *watch_info)
-    {
-        watch_num += watch_elem.second.size();
-        watch_paths.insert(watch_elem.second.begin(), watch_elem.second.end());
-    }
-
-    StringBuffer ss;
-    ss << connection_num << " connections watching " << watch_paths.size() << " paths" << std::endl;
-    ss << "Total watches:" << watch_num << std::endl;
-
-    res = ss.str();
-}
-
-WchsCommand::~WchsCommand() = default;
-
-String WchcCommand::name()
-{
-    return "wchc";
-}
-
-void WchcCommand::run(String & res)
-{
-    SessionAndWatcherPtr watch_info = global_context.getSvsKeeperStorageDispatcher()->getWatchInfo();
-
-    int connection_num = watch_info->size();
-    int watch_num{};
-    std::unordered_set<String> watch_paths;
-
-    StringBuffer watches_out;
-    watches_out << std::hex;
-
-    for (auto & watch_elem : *watch_info)
-    {
-        watch_num += watch_elem.second.size();
-        watch_paths.insert(watch_elem.second.begin(), watch_elem.second.end());
-
-        watches_out << "\tSession id 0x" << watch_elem.first << ": " << std::endl;
-        printSet(watches_out, watch_elem.second, "\t\t");
-    }
-
-    StringBuffer ss;
-    ss << connection_num << " connections watching " << watch_paths.size() << " paths" << std::endl;
-    ss << "Total watches:" << watch_num << std::endl;
-
-    ss << std::endl << "Details: " << std::endl;
-    ss << watches_out.str() << std::endl;
-    res = ss.str();
-}
-
-WchcCommand::~WchcCommand() = default;
-
-String DumpCommand::name()
-{
-    return "dump";
-}
-void DumpCommand::run(String & res)
-{
-    /// TODO limit to 1000
-    EphemeralsPtr ephemerals = global_context.getSvsKeeperStorageDispatcher()->getEphemeralInfo();
-    int connection_num = ephemerals->size();
-    int watch_num{};
-    std::unordered_set<String> ephemeral_paths;
-
-    StringBuffer ephemerals_out;
-    ephemerals_out << std::hex;
-
-    for (auto & ephemeral_elem : *ephemerals)
-    {
-        watch_num += ephemeral_elem.second.size();
-        ephemeral_paths.insert(ephemeral_elem.second.begin(), ephemeral_elem.second.end());
-
-        ephemerals_out << "\tSession id 0x" << ephemeral_elem.first << ": " << std::endl;
-        printSet(ephemerals_out, ephemeral_elem.second, "\t\t");
-    }
-
-    StringBuffer ss;
-    ss << connection_num << " connections creating " << ephemeral_paths.size() << " ephemeral paths" << std::endl;
-    ss << "Total ephemerals:" << watch_num << std::endl;
-
-    ss << std::endl << "Details: " << std::endl;
-    ss << ephemerals_out.str() << std::endl;
-    res = ss.str();
-}
-DumpCommand::~DumpCommand() = default;
-
-String RuokCommand::name()
-{
-    return "ruok";
-}
-void RuokCommand::run(String & res)
-{
-    res = "imok";
-}
-RuokCommand::~RuokCommand() = default;
-
-volatile bool FourLetterCommands::initialized = false;
-std::unordered_map<Int32, FourLetterCommandPtr> FourLetterCommands::commands = {};
-
-bool FourLetterCommands::isKnown(Int32 code)
+void FourLetterCommandFactory::checkInitialization() const
 {
     if (!initialized)
-    {
-        throw Exception("Four letter command " + std::to_string(code) + " not initialized", ErrorCodes::LOGICAL_ERROR);
-    }
+        throw Exception("Four letter command  not initialized", ErrorCodes::LOGICAL_ERROR);
+}
+
+bool FourLetterCommandFactory::isKnown(int32_t code)
+{
+    checkInitialization();
     return commands.contains(code);
 }
 
-FourLetterCommandPtr FourLetterCommands::getCommand(Int32 code)
+FourLetterCommandPtr FourLetterCommandFactory::get(int32_t code)
 {
-    if (!initialized)
-    {
-        throw Exception("Four letter command " + std::to_string(code) + " not initialized", ErrorCodes::LOGICAL_ERROR);
-    }
+    checkInitialization();
     return commands.at(code);
 }
 
-void FourLetterCommands::registerCommand(FourLetterCommandPtr & command)
+void FourLetterCommandFactory::registerCommand(FourLetterCommandPtr & command)
 {
     if (commands.contains(command->code()))
-    {
-        throw Exception("Four letter command " + std::to_string(command->code()) + " already registered", ErrorCodes::LOGICAL_ERROR);
-    }
-    auto * log = &Poco::Logger::get("FourLetterCommands");
-    LOG_INFO(log, "Register four letter command " + command->name() + " - " + std::to_string(command->code()));
+        throw Exception("Four letter command " + command->name() + " already registered", ErrorCodes::LOGICAL_ERROR);
+
     commands.emplace(command->code(), std::move(command));
 }
 
-void FourLetterCommands::registerCommands(const Context & global_context)
+void FourLetterCommandFactory::registerCommands(SvsKeeperDispatcher & keeper_dispatcher)
 {
-    if (!initialized)
+    FourLetterCommandFactory & factory = FourLetterCommandFactory::instance();
+
+    if (!factory.isInitialized())
     {
-        FourLetterCommandPtr mntr_command = std::make_shared<MntrCommand>(global_context);
-        registerCommand(mntr_command);
+        FourLetterCommandPtr ruok_command = std::make_shared<RuokCommand>(keeper_dispatcher);
+        factory.registerCommand(ruok_command);
 
-        FourLetterCommandPtr wchs_command = std::make_shared<WchsCommand>(global_context);
-        registerCommand(wchs_command);
+        FourLetterCommandPtr mntr_command = std::make_shared<MonitorCommand>(keeper_dispatcher);
+        factory.registerCommand(mntr_command);
 
-        FourLetterCommandPtr wchc_command = std::make_shared<WchcCommand>(global_context);
-        registerCommand(wchc_command);
+        FourLetterCommandPtr conf_command = std::make_shared<ConfCommand>(keeper_dispatcher);
+        factory.registerCommand(conf_command);
 
-        FourLetterCommandPtr dump_command = std::make_shared<DumpCommand>(global_context);
-        registerCommand(dump_command);
+        FourLetterCommandPtr cons_command = std::make_shared<ConsCommand>(keeper_dispatcher);
+        factory.registerCommand(cons_command);
 
-        FourLetterCommandPtr ruok_command = std::make_shared<RuokCommand>(global_context);
-        registerCommand(ruok_command);
+        FourLetterCommandPtr brief_watch_command = std::make_shared<BriefWatchCommand>(keeper_dispatcher);
+        factory.registerCommand(brief_watch_command);
 
-        initialized = true;
+        FourLetterCommandPtr data_size_command = std::make_shared<DataSizeCommand>(keeper_dispatcher);
+        factory.registerCommand(data_size_command);
+
+        FourLetterCommandPtr dump_command = std::make_shared<DumpCommand>(keeper_dispatcher);
+        factory.registerCommand(dump_command);
+
+        FourLetterCommandPtr envi_command = std::make_shared<EnviCommand>(keeper_dispatcher);
+        factory.registerCommand(envi_command);
+
+        FourLetterCommandPtr is_rad_only_command = std::make_shared<IsReadOnlyCommand>(keeper_dispatcher);
+        factory.registerCommand(is_rad_only_command);
+
+        FourLetterCommandPtr rest_conn_stats_command = std::make_shared<RestConnStatsCommand>(keeper_dispatcher);
+        factory.registerCommand(rest_conn_stats_command);
+
+        FourLetterCommandPtr server_stat_command = std::make_shared<ServerStatCommand>(keeper_dispatcher);
+        factory.registerCommand(server_stat_command);
+
+        FourLetterCommandPtr stat_command = std::make_shared<StatCommand>(keeper_dispatcher);
+        factory.registerCommand(stat_command);
+
+        FourLetterCommandPtr stat_reset_command = std::make_shared<StatResetCommand>(keeper_dispatcher);
+        factory.registerCommand(stat_reset_command);
+
+        FourLetterCommandPtr watch_by_path_command = std::make_shared<WatchByPathCommand>(keeper_dispatcher);
+        factory.registerCommand(watch_by_path_command);
+
+        FourLetterCommandPtr watch_command = std::make_shared<WatchCommand>(keeper_dispatcher);
+        factory.registerCommand(watch_command);
+
+        factory.initializeWhiteList(keeper_dispatcher);
+        factory.setInitialize(true);
     }
+}
+
+bool FourLetterCommandFactory::isEnabled(int32_t code)
+{
+    checkInitialization();
+    if (!white_list.empty() && *white_list.cbegin() == WHITE_LIST_ALL)
+        return true;
+
+    return std::find(white_list.begin(), white_list.end(), code) != white_list.end();
+}
+
+void FourLetterCommandFactory::initializeWhiteList(SvsKeeperDispatcher & keeper_dispatcher)
+{
+    const auto & keeper_settings = keeper_dispatcher.getKeeperConfigurationAndSettings();
+
+    String list_str = keeper_settings->four_letter_word_white_list;
+    Strings tokens;
+    splitInto<','>(tokens, list_str);
+
+    for (String token: tokens)
+    {
+        Poco::trim(token);
+
+        if (token == "*")
+        {
+            white_list.clear();
+            white_list.push_back(WHITE_LIST_ALL);
+            return;
+        }
+        else
+        {
+            if (commands.contains(IFourLetterCommand::toCode(token)))
+            {
+                white_list.push_back(IFourLetterCommand::toCode(token));
+            }
+            else
+            {
+                auto * log = &Poco::Logger::get("FourLetterCommandFactory");
+                LOG_WARNING(log, "Find invalid keeper 4lw command {} when initializing, ignore it.", token);
+            }
+        }
+    }
+}
+
+String RuokCommand::run()
+{
+    return "imok";
+}
+
+namespace
+{
+
+void print(IFourLetterCommand::StringBuffer & buf, const String & key, const String & value)
+{
+    writeText("zk_", buf);
+    writeText(key, buf);
+    writeText("\t", buf);
+    writeText(value, buf);
+    writeText("\n", buf);
+}
+
+void print(IFourLetterCommand::StringBuffer & buf, const String & key, uint64_t value)
+{
+    print(buf, key, toString(value));
+}
+
+}
+
+String MonitorCommand::run()
+{
+    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
+
+    if (!keeper_info.has_leader)
+        return "This instance is not currently serving requests";
+
+    const auto & state_machine = keeper_dispatcher.getStateMachine();
+
+    StringBuffer ret;
+    print(ret, "version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+
+    print(ret, "avg_latency", stats.getAvgLatency());
+    print(ret, "max_latency", stats.getMaxLatency());
+    print(ret, "min_latency", stats.getMinLatency());
+    print(ret, "packets_received", stats.getPacketsReceived());
+    print(ret, "packets_sent", stats.getPacketsSent());
+
+    print(ret, "num_alive_connections", keeper_info.alive_connections_count);
+    print(ret, "outstanding_requests", keeper_info.outstanding_requests_count);
+
+    print(ret, "server_state", keeper_info.getRole());
+
+    print(ret, "znode_count", state_machine.getNodesCount());
+    print(ret, "watch_count", state_machine.getTotalWatchesCount());
+    print(ret, "ephemerals_count", state_machine.getTotalEphemeralNodesCount());
+    print(ret, "approximate_data_size", state_machine.getApproximateDataSize());
+
+#if defined(__linux__) || defined(__APPLE__)
+    print(ret, "open_file_descriptor_count", getCurrentProcessFDCount());
+    print(ret, "max_file_descriptor_count", getMaxFileDescriptorCount());
+#endif
+
+    if (keeper_info.is_leader)
+    {
+        print(ret, "followers", keeper_info.follower_count);
+        print(ret, "synced_followers", keeper_info.synced_follower_count);
+    }
+
+    return ret.str();
+}
+
+String StatResetCommand::run()
+{
+    keeper_dispatcher.resetConnectionStats();
+    return "Server stats reset.\n";
+}
+
+String NopCommand::run()
+{
+    return "";
+}
+
+String ConfCommand::run()
+{
+    StringBuffer buf;
+    keeper_dispatcher.getKeeperConfigurationAndSettings()->dump(buf);
+    return buf.str();
+}
+
+String ConsCommand::run()
+{
+    StringBuffer buf;
+    ServiceTCPHandler::dumpConnections(buf, false);
+    return buf.str();
+}
+
+String RestConnStatsCommand::run()
+{
+    ServiceTCPHandler::resetConnsStats();
+    return "Connection stats reset.\n";
+}
+
+String ServerStatCommand::run()
+{
+    StringBuffer buf;
+
+    auto write = [&buf](const String & key, const String & value)
+    {
+        writeText(key, buf);
+        writeText(": ", buf);
+        writeText(value, buf);
+        writeText("\n", buf);
+    };
+
+    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
+
+    write("ClickHouse Keeper version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+
+    StringBuffer latency;
+    latency << stats.getMinLatency() << "/" << stats.getAvgLatency() << "/" << stats.getMaxLatency();
+    write("Latency min/avg/max", latency.str());
+
+    write("Received", toString(stats.getPacketsReceived()));
+    write("Sent ", toString(stats.getPacketsSent()));
+    write("Connections", toString(keeper_info.alive_connections_count));
+    write("Outstanding", toString(keeper_info.outstanding_requests_count));
+    write("Zxid", toString(keeper_info.last_zxid));
+    write("Mode", keeper_info.getRole());
+    write("Node count", toString(keeper_info.total_nodes_count));
+
+    return buf.str();
+}
+
+String StatCommand::run()
+{
+    StringBuffer buf;
+
+    auto write = [&buf] (const String & key, const String & value) { buf << key << ": " << value << '\n'; };
+
+    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
+
+    write("ClickHouse Keeper version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+
+    buf << "Clients:\n";
+    ServiceTCPHandler::dumpConnections(buf, true);
+    buf << '\n';
+
+    StringBuffer latency;
+    latency << stats.getMinLatency() << "/" << stats.getAvgLatency() << "/" << stats.getMaxLatency();
+    write("Latency min/avg/max", latency.str());
+
+    write("Received", toString(stats.getPacketsReceived()));
+    write("Sent ", toString(stats.getPacketsSent()));
+    write("Connections", toString(keeper_info.alive_connections_count));
+    write("Outstanding", toString(keeper_info.outstanding_requests_count));
+    write("Zxid", toString(keeper_info.last_zxid));
+    write("Mode", keeper_info.getRole());
+    write("Node count", toString(keeper_info.total_nodes_count));
+
+    return buf.str();
+}
+
+String BriefWatchCommand::run()
+{
+    StringBuffer buf;
+    const auto & state_machine = keeper_dispatcher.getStateMachine();
+    buf << state_machine.getSessionsWithWatchesCount() << " connections watching "
+        << state_machine.getWatchedPathsCount() << " paths\n";
+    buf << "Total watches:" << state_machine.getTotalWatchesCount() << "\n";
+    return buf.str();
+}
+
+String WatchCommand::run()
+{
+    StringBuffer buf;
+    const auto & state_machine = keeper_dispatcher.getStateMachine();
+    state_machine.dumpWatches(buf);
+    return buf.str();
+}
+
+String WatchByPathCommand::run()
+{
+    StringBuffer buf;
+    const auto & state_machine = keeper_dispatcher.getStateMachine();
+    state_machine.dumpWatchesByPath(buf);
+    return buf.str();
+}
+
+String DataSizeCommand::run()
+{
+    StringBuffer buf;
+    buf << "snapshot_dir_size: " << keeper_dispatcher.getSnapDirSize() << '\n';
+    buf << "log_dir_size: " << keeper_dispatcher.getLogDirSize() << '\n';
+    return buf.str();
+}
+
+String DumpCommand::run()
+{
+    StringBuffer buf;
+    const auto & state_machine = keeper_dispatcher.getStateMachine();
+    state_machine.dumpSessionsAndEphemerals(buf);
+    return buf.str();
+}
+
+String EnviCommand::run()
+{
+    using Poco::Environment;
+    using Poco::Path;
+
+    StringBuffer buf;
+    buf << "Environment:\n";
+    buf << "clickhouse.keeper.version=" << (String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH) << '\n';
+
+    buf << "host.name=" << Environment::nodeName() << '\n';
+    buf << "os.name=" << Environment::osDisplayName() << '\n';
+    buf << "os.arch=" << Environment::osArchitecture() << '\n';
+    buf << "os.version=" << Environment::osVersion() << '\n';
+    buf << "cpu.count=" << Environment::processorCount() << '\n';
+
+    String os_user;
+    os_user.resize(256, '\0');
+    if (0 == getlogin_r(os_user.data(), os_user.size() - 1))
+        os_user.resize(strlen(os_user.c_str()));
+    else
+        os_user.clear();    /// Don't mind if we cannot determine user login.
+
+    buf << "user.name=" << os_user << '\n';
+
+    buf << "user.home=" << Path::home() << '\n';
+    buf << "user.dir=" << Path::current() << '\n';
+    buf << "user.tmp=" << Path::temp() << '\n';
+
+    return buf.str();
+}
+
+String IsReadOnlyCommand::run()
+{
+    if (keeper_dispatcher.isObserver())
+        return "ro";
+    else
+        return "rw";
 }
 
 }

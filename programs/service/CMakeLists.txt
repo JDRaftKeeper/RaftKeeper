@@ -1,6 +1,4 @@
 set (CLICKHOUSE_SERVICE_SOURCES        
-	${CMAKE_CURRENT_SOURCE_DIR}/ServiceTCPHandler.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/ServiceTCPHandlerFactory.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/Service.cpp
 )
  

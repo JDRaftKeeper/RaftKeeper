@@ -2,6 +2,7 @@
 #include <Common/DNSResolver.h>
 #include <Common/isLocalAddress.h>
 #include <Common/setThreadName.h>
+#include <Common/checkStackSize.h>
 
 namespace DB
 {
@@ -11,9 +12,10 @@ namespace ErrorCodes
     extern const int TIMEOUT_EXCEEDED;
 }
 
+namespace fs = std::filesystem;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
-    : coordination_settings(std::make_shared<SvsKeeperSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
+    : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
 {
 }
 
@@ -24,7 +26,7 @@ void SvsKeeperDispatcher::requestThread()
     {
         SvsKeeperStorage::RequestForSession request;
 
-        UInt64 max_wait = UInt64(coordination_settings->operation_timeout_ms.totalMilliseconds());
+        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
 
         if (requests_queue.tryPop(request, max_wait))
         {
@@ -50,7 +52,7 @@ void SvsKeeperDispatcher::responseThread()
     {
         SvsKeeperStorage::ResponseForSession response_for_session;
 
-        UInt64 max_wait = UInt64(coordination_settings->operation_timeout_ms.totalMilliseconds());
+        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
 
         if (responses_queue.tryPop(response_for_session, max_wait))
         {
@@ -117,7 +119,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
         requests_queue.push(std::move(request_info));
-    else if (!requests_queue.tryPush(std::move(request_info), coordination_settings->operation_timeout_ms.totalMilliseconds()))
+    else if (!requests_queue.tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
@@ -125,10 +127,9 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
 void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
     LOG_DEBUG(log, "Initializing storage dispatcher");
+    configuration_and_settings = KeeperConfigurationAndSettings::loadFromConfig(config, true);
 
-    coordination_settings->loadFromConfig("service.coordination_settings", config);
-
-    server = std::make_unique<SvsKeeperServer>(config.getInt("service.my_id"), coordination_settings, config, responses_queue);
+    server = std::make_unique<SvsKeeperServer>(configuration_and_settings, config, responses_queue);
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
@@ -147,7 +148,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-    int thread_count = config.getInt("service.thread_count");
+    int thread_count = configuration_and_settings->thread_count;
 
 #ifdef __THREAD_POOL_VEC__
     request_threads.reserve(thread_count);
@@ -268,7 +269,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
             tryLogCurrentException(__PRETTY_FUNCTION__);
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+        std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
     }
 }
 
@@ -279,4 +280,68 @@ void SvsKeeperDispatcher::finishSession(int64_t session_id)
     if (session_it != session_to_response_callback.end())
         session_to_response_callback.erase(session_it);
 }
+
+void SvsKeeperDispatcher::updateKeeperStatLatency(uint64_t process_time_ms)
+{
+    std::lock_guard lock(keeper_stats_mutex);
+    keeper_stats.updateLatency(process_time_ms);
+}
+
+static uint64_t getDirSize(const fs::path & dir)
+{
+    checkStackSize();
+    if (!fs::exists(dir))
+        return 0;
+
+    fs::directory_iterator it(dir);
+    fs::directory_iterator end;
+
+    uint64_t size{0};
+    while (it != end)
+    {
+        if (it->is_regular_file())
+            size += fs::file_size(*it);
+        else
+            size += getDirSize(it->path());
+        ++it;
+    }
+    return size;
+}
+
+uint64_t SvsKeeperDispatcher::getLogDirSize() const
+{
+    return getDirSize(configuration_and_settings->log_storage_path);
+}
+
+uint64_t SvsKeeperDispatcher::getSnapDirSize() const
+{
+    return getDirSize(configuration_and_settings->snapshot_storage_path);
+}
+
+Keeper4LWInfo SvsKeeperDispatcher::getKeeper4LWInfo()
+{
+    Keeper4LWInfo result;
+    result.is_follower = server->isFollower();
+    result.is_standalone = !result.is_follower && server->getFollowerCount() == 0;
+    result.is_leader = isLeader();
+    result.is_observer = server->isObserver();
+    result.has_leader = hasLeader();
+    {
+        std::lock_guard lock(push_request_mutex);
+        result.outstanding_requests_count = requests_queue.size();
+    }
+    {
+        std::lock_guard lock(session_to_response_callback_mutex);
+        result.alive_connections_count = session_to_response_callback.size();
+    }
+    if (result.is_leader)
+    {
+        result.follower_count = server->getFollowerCount();
+        result.synced_follower_count = server->getSyncedFollowerCount();
+    }
+    result.total_nodes_count = server->getKeeperStateMachine()->getNodesCount();
+    result.last_zxid = server->getKeeperStateMachine()->getLastProcessedZxid();
+    return result;
+}
+
 }

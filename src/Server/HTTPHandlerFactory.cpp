@@ -10,7 +10,6 @@
 #include "NotFoundHandler.h"
 #include "PrometheusRequestHandler.h"
 #include "ReplicasStatusHandler.h"
-#include "Service/SvsKeeperPrometheusRequestHandler.h"
 #include "StaticRequestHandler.h"
 #include "WebUIRequestHandler.h"
 
