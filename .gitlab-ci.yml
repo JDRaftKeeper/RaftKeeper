@@ -25,7 +25,7 @@ build and test:
     - ninja
     - echo "Build success!"
 
-    - ./src/unit_tests_dbms
+    - ./src/unit_tests_dbms --gtest_filter="Raft*"
     - echo "Unit test finished."
 
     - echo "Start integration tests"
