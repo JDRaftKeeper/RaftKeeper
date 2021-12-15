@@ -358,7 +358,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         header.index = last_index.load(std::memory_order_acquire) + 1;
         //ssize_t ret = pwritev(seg_fd, vec, 2, file_size);
         ssize_t ret = writev(seg_fd, vec, 2);
-//        flush();
+        //flush();
         if (ret < 0 || ret != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
         {
             LOG_WARNING(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
@@ -627,16 +627,20 @@ int LogSegmentStore::init(UInt32 max_log_size_, UInt32 max_segment_count_)
 {
     LOG_INFO(log, "Begin init log segment store, max log size {} bytes, max segment count {}.", max_log_size_, max_segment_count_);
     max_log_size = max_log_size_;
-    max_segment_count = max_segment_count_;
+    max_segment_count = max_segment_count_;    
 
     if (Directory::createDir(log_dir) != 0)
     {
         LOG_ERROR(log, "Fail to create directory {}", log_dir);
         return -1;
     }
+    
+    //Initialize class variables
     int ret = 0;
     first_log_index.store(1);
     last_log_index.store(0);
+    open_segment = nullptr;
+    
     do
     {
         ret = listSegments();
@@ -770,8 +774,8 @@ UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
 
 UInt64 LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> entry)
 {
-//    ptr<NuRaftLogSegment> seg;
-//    getSegment(index, seg);
+    //ptr<NuRaftLogSegment> seg;
+    //getSegment(index, seg);
 
     truncateLog(index - 1);
     if (index == lastLogIndex() + 1)
@@ -1098,7 +1102,7 @@ int LogSegmentStore::reset(UInt64 next_log_index)
 {
     if (next_log_index <= 0)
     {
-        //        LOG_ERROR << "Invalid next_log_index=" << next_log_index << " path: " << log_dir;
+        //LOG_ERROR << "Invalid next_log_index=" << next_log_index << " path: " << log_dir;
         return EINVAL;
     }
     std::vector<ptr<NuRaftLogSegment>> popped;
@@ -1162,6 +1166,7 @@ int LogSegmentStore::listSegments()
             if (!open_segment)
             {
                 open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, std::string(create_time));
+                LOG_INFO(log, "Create open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
                 continue;
             }
             else
