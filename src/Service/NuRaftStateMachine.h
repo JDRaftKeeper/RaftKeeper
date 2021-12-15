@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <Service/NuRaftLogSnapshot.h>
+#include <Service/RaftTaskManager.h>
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
 #include <Service/SvsKeeperThreadSafeQueue.h>
@@ -67,6 +68,14 @@ public:
 
     ulong last_commit_index() override { return last_committed_idx; }
 
+    //Get persistence last committed index
+    ulong getLastCommittedIndex()
+    {
+        ulong index;
+        task_manager->getLastCommitted(index);
+        return index;
+    }
+
     bool exists(const std::string & path);
 
     KeeperNode & getNode(const std::string & path);
@@ -96,7 +105,7 @@ public:
     uint64_t getTotalEphemeralNodesCount() const;
     uint64_t getApproximateDataSize() const;
 
-    void shutdownStorage();
+    void shutdown();
 
     static SvsKeeperStorage::RequestForSession parseRequest(nuraft::buffer & data);
     static ptr<buffer> serializeRequest(SvsKeeperStorage::RequestForSession & request);
@@ -114,6 +123,8 @@ private:
 
     // Last committed Raft log number.
     std::atomic<uint64_t> last_committed_idx;
+    //Backend async task manager
+    ptr<RaftTaskManager> task_manager;
     // Mutex for `snapshots`.
     std::mutex snapshot_mutex;
     std::string snapshot_dir;
