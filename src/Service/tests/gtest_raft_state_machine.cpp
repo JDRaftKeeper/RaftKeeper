@@ -1,3 +1,4 @@
+#include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/SvsKeeperStorage.h>
@@ -17,8 +18,9 @@ using namespace Coordination;
 
 namespace DB
 {
-void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
+void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
 {
+    //Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
     ACLs default_acls;
     ACL acl;
     acl.permissions = ACL::All;
@@ -36,14 +38,24 @@ void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & 
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    //Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
-    //LOG_INFO(log, "Path {}, data {}", request->path, request->data);
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    //LOG_INFO(log, "index {}", index);
+    if (store != nullptr)
+    {
+        //auto entry_pb = createEntryPB(term, 0, op, key, data);
+        //ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+        ptr<log_entry> entry_log = cs_new<log_entry>(term, buf);
+        store->append(entry_log);
+    }
+
     machine.commit(index, *(buf.get()));
 }
 
+void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
+{
+    createZNodeLog(machine, key, data, nullptr, 0);
 }
-
 void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
 {
     ACLs default_acls;
@@ -84,22 +96,25 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
     machine.commit(index, *(buf.get()));
 }
 
+}
+
 TEST(RaftStateMachine, createSnapshotTime)
 {
     BackendTimer timer;
     timer.begin_second = 7200;
     timer.end_second = 79200;
     timer.interval = 1 * 3600;
+    timer.randomWindow = 60; // 60 seconds
 
     //empty
     ASSERT_TRUE(timer.isActionTime("", 1614190200));
 
-    //currtime 2021-02-24 3:00:00
-    ASSERT_TRUE(timer.isActionTime("20210224010000", 1614106800));
+    //currtime 2021-02-24 3:01:01
+    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614106861));
 
     //currtime 2021-02-24 22:00:00
     ASSERT_TRUE(timer.isActionTime("20210224020000", 1614175200));
-    
+
     //currtime 2021-02-24 2:59:59
     ASSERT_FALSE(timer.isActionTime("20210224020000", 1614106799));
 
@@ -115,8 +130,8 @@ TEST(RaftStateMachine, serializeAndParse)
     std::string snap_dir(SNAP_DIR + "/0");
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
+
+    //NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
 
     ACLs default_acls;
     ACL acl;
@@ -144,30 +159,37 @@ TEST(RaftStateMachine, serializeAndParse)
         ASSERT_EQ(request_2->path, request->path);
         ASSERT_EQ(request_2->data, request->data);
     }
+    
+    //machine.shutdown();
+    cleanDirectory(snap_dir);
 }
 
 TEST(RaftStateMachine, appendEntry)
 {
     std::string snap_dir(SNAP_DIR + "/1");
+    cleanDirectory(snap_dir);
+
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
-    cleanDirectory(snap_dir);
     std::string key("/table1");
     std::string data("CREATE TABLE table1;");
     createZNode(machine, key, data);
     KeeperNode & node = machine.getNode(key);
     ASSERT_EQ(node.data, data);
+
+    machine.shutdown();
     cleanDirectory(snap_dir);
 }
 
 TEST(RaftStateMachine, modifyEntry)
 {
     std::string snap_dir(SNAP_DIR + "/2");
+    cleanDirectory(snap_dir);
+
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
-    cleanDirectory(snap_dir);
     std::string key("/table1");
     std::string data1("CREATE TABLE table1;");
     //LogOpTypePB op = OP_TYPE_CREATE;
@@ -187,16 +209,23 @@ TEST(RaftStateMachine, modifyEntry)
     removeZNode(machine, key);
     KeeperNode & node3 = machine.getNode(key);
     ASSERT_TRUE(node3.data.empty());
+
+    machine.shutdown();
     cleanDirectory(snap_dir);
 }
 
+
 TEST(RaftStateMachine, createSnapshot)
 {
+    auto log = &(Poco::Logger::get("Test_RaftStateMachine"));
     std::string snap_dir(SNAP_DIR + "/3");
+    cleanDirectory(snap_dir);
+
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
-    cleanDirectory(snap_dir);
+    LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
+
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt32 last_index = 35;
     for (auto i = 0; i < last_index; i++)
@@ -205,10 +234,18 @@ TEST(RaftStateMachine, createSnapshot)
         std::string data = "table_" + key;
         createZNode(machine, key, data);
     }
+
+    sleep(1);
+
+    LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
+
+    ASSERT_EQ(machine.last_commit_index(), machine.getLastCommittedIndex());
+
     UInt64 term = 1;
     snapshot meta(last_index, term, config);
     machine.create_snapshot(meta);
     ASSERT_EQ(machine.getStorage().container.size(), 36);
+    machine.shutdown();
     cleanDirectory(snap_dir);
 }
 
@@ -216,12 +253,14 @@ TEST(RaftStateMachine, syncSnapshot)
 {
     std::string snap_dir_1(SNAP_DIR + "/4");
     std::string snap_dir_2(SNAP_DIR + "/5");
+    cleanDirectory(snap_dir_1);
+    cleanDirectory(snap_dir_2);
+
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3);
     NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3);
-    cleanDirectory(snap_dir_1);
-    cleanDirectory(snap_dir_2);
+
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
     UInt32 last_index = 1024;
@@ -252,30 +291,83 @@ TEST(RaftStateMachine, syncSnapshot)
     {
         ASSERT_TRUE(machine_target.exist_snapshot_object(meta, i));
     }
+
+    machine_source.shutdown();
+    machine_target.shutdown();
     cleanDirectory(snap_dir_1);
     cleanDirectory(snap_dir_2);
 }
 
 /*
-TEST(RaftStateMachine, loadSnapshot)
+UInt64 appendEntry(ptr<NuRaftFileLogStore> store, UInt64 term, LogOpTypePB op, std::string & key, std::string & data)
 {
-    std::string snap_dir(SNAP_DIR + "/6");
-    SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
-    cleanDirectory(snap_dir);
-    ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
-    UInt32 last_index = 35;
-    for (auto i = 0; i < last_index; i++)
-    {
-        std::string key = "/" + std::to_string(i + 1);
-        std::string data = "table_" + key;
-        createZNode(machine, key, data);
-    }
-    UInt64 term = 1;
-    snapshot meta(last_index, term, config);
-    machine.create_snapshot(meta);
-    ASSERT_EQ(machine.getStorage().container.size(), 36);
-    cleanDirectory(snap_dir);
+    auto entry_pb = createEntryPB(term, 0, op, key, data);
+    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+    ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
+    return store->append(entry_log);
 }
 */
+
+TEST(RaftStateMachine, initStateMachine)
+{
+    auto log = &(Poco::Logger::get("Test_RaftStateMachine"));
+    std::string snap_dir(SNAP_DIR + "/6");
+    std::string log_dir(LOG_DIR + "/6");
+
+    cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
+
+    //Create
+    {
+        SvsKeeperResponsesQueue queue;
+        SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+        ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
+
+        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, log_store);
+
+        ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
+        UInt32 last_index = 128;
+        UInt64 term = 1;
+
+        for (auto i = 0; i < last_index; i++)
+        {
+            UInt32 index = i + 1;
+            std::string key = "/" + std::to_string(index);
+            std::string data = "table_" + key;
+            createZNodeLog(machine, key, data, log_store, term);
+        }
+        sleep(1);
+        LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
+        ASSERT_EQ(machine.last_commit_index(), machine.getLastCommittedIndex());
+        snapshot meta(last_index, term, config);
+        machine.create_snapshot(meta);
+
+        for (auto i = 0; i < last_index; i++)
+        {
+            UInt32 index = last_index + i + 1;
+            std::string key = "/" + std::to_string(index);
+            std::string data = "table_" + key;
+            createZNodeLog(machine, key, data, log_store, term);
+        }
+        sleep(1);
+        LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
+
+        ASSERT_EQ(machine.getStorage().container.size(), 257);
+        machine.shutdown();
+    }
+
+    // Load
+    {
+        SvsKeeperResponsesQueue queue;
+        SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+        ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
+
+        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, log_store);
+        LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
+        ASSERT_EQ(machine.last_commit_index(), 256);
+        machine.shutdown();
+    }
+
+    cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
+}
