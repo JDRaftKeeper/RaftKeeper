@@ -215,5 +215,6 @@ TEST(RaftPerformance, machineCreateThread)
             byte_rate,
             count_rate);
     }
+    machine.shutdown();
     cleanDirectory(snap_dir);
 }

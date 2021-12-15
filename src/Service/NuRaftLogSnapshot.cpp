@@ -159,7 +159,12 @@ void createObjectContainer(
         node_index++;
     }
 
-    LOG_INFO(log, "Finish create snapshot object for container, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
+    LOG_INFO(
+        log,
+        "Finish create snapshot object for container, max node size {}, node index {}, file size {}",
+        max_node_size,
+        node_index,
+        file_size);
 
     if (snap_fd > 0)
     {
@@ -196,7 +201,8 @@ void createObjectEphemeral(
             snap_fd = openFileForWrite(obj_path);
             if (snap_fd > 0)
             {
-                LOG_INFO(log, "Create snapshot ephemeral object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
+                LOG_INFO(
+                    log, "Create snapshot ephemeral object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
                 obj_idx++;
             }
             else
@@ -242,8 +248,13 @@ void createObjectEphemeral(
         ephemeral_it++;
         node_index++;
     }
-    
-    LOG_INFO(log, "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}", max_node_size, node_index, file_size);
+
+    LOG_INFO(
+        log,
+        "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}",
+        max_node_size,
+        node_index,
+        file_size);
 
     if (snap_fd > 0)
     {
@@ -282,8 +293,8 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
 
         SnapshotItemPB * data_pb = batch_pb->add_data();
         WriteBufferFromNuraftBuffer out;
-        Coordination::write(session_it->first, out);    //SessionID
-        Coordination::write(session_it->second, out);   //Timeout_ms
+        Coordination::write(session_it->first, out); //SessionID
+        Coordination::write(session_it->second, out); //Timeout_ms
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
         data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
@@ -305,7 +316,8 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         node_index++;
     }
 
-    LOG_INFO(log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
+    LOG_INFO(
+        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
 
     if (snap_fd > 0)
     {
@@ -315,14 +327,17 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
 
 //Save map<string, string> or map<string, uint64>
 template <typename T>
-void createMap(T& snap_map, UInt32 save_batch_size, std::string& obj_path)
+void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     ptr<SnapshotBatchPB> batch_pb;
     int snap_fd = openFileForWrite(obj_path);
-    if (snap_fd > 0) {
+    if (snap_fd > 0)
+    {
         LOG_INFO(log, "Create string map object, path {}", obj_path);
-    } else {
+    }
+    else
+    {
         LOG_WARNING(log, "Create string map object failed, path {}, fd {}", obj_path, snap_fd);
         return;
     }
@@ -330,37 +345,41 @@ void createMap(T& snap_map, UInt32 save_batch_size, std::string& obj_path)
     auto map_it = snap_map.begin();
     UInt32 node_index = 1;
     size_t file_size = 0;
-    while (node_index <= snap_map.size()) {
+    while (node_index <= snap_map.size())
+    {
         //first node
-        if (node_index % save_batch_size == 1) {
+        if (node_index % save_batch_size == 1)
+        {
             batch_pb = cs_new<SnapshotBatchPB>();
-            if
-                constexpr(std::is_same_v<T, KeeperSnapshotStore::StringMap>)
-                {
-                    batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
-                }
-            else if
-                constexpr(std::is_same_v<T, KeeperSnapshotStore::IntMap>)
-                {
-                    batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
-                }
+            if constexpr (std::is_same_v<T, KeeperSnapshotStore::StringMap>)
+            {
+                batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
+            }
+            else if constexpr (std::is_same_v<T, KeeperSnapshotStore::IntMap>)
+            {
+                batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
+            }
             LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
         }
 
-        SnapshotItemPB* data_pb = batch_pb->add_data();
+        SnapshotItemPB * data_pb = batch_pb->add_data();
         WriteBufferFromNuraftBuffer out;
         Coordination::write(map_it->first, out); //Key
         Coordination::write(map_it->second, out); //Value
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
-        data_pb->set_data(std::string(reinterpret_cast<char*>(buf->data_begin()), buf->size()));
+        data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
 
         //last node, save to file
-        if (node_index % save_batch_size == 0 || node_index == snap_map.size()) {
+        if (node_index % save_batch_size == 0 || node_index == snap_map.size())
+        {
             auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0) {
+            if (ret > 0)
+            {
                 file_size += ret;
-            } else {
+            }
+            else
+            {
                 break;
             }
         }
@@ -368,7 +387,8 @@ void createMap(T& snap_map, UInt32 save_batch_size, std::string& obj_path)
         node_index++;
     }
 
-    if (snap_fd > 0) {
+    if (snap_fd > 0)
+    {
         ::close(snap_fd);
     }
 }
@@ -676,13 +696,14 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
             }
             break;
             case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
-            break;
+                break;
             case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
-            break;
+                break;
             case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
-                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++) {
-                    const SnapshotItemPB& item_pb = batch_pb.data(data_idx);
-                    const std::string& data = item_pb.data();
+                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+                {
+                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                    const std::string & data = item_pb.data();
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
@@ -694,7 +715,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(session_id, in);
                         Coordination::read(timeout, in);
                     }
-                    catch (Coordination::Exception& e)
+                    catch (Coordination::Exception & e)
                     {
                         LOG_WARNING(
                             log,
@@ -710,7 +731,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
             }
             break;
             case SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP:
-            break;
+                break;
             case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
                 IntMap int_map;
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
@@ -790,10 +811,7 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
     auto node = storage.container.get("/");
     if (node != nullptr)
     {
-        for (auto it : node->children)
-        {
-            LOG_INFO(log, "Root path child {}", it);
-        }
+        LOG_INFO(log, "Root path children count {}", node->children.size());
     }
     else
     {
@@ -1034,9 +1052,15 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     unsigned long log_last_index;
     unsigned long object_id;
 
-    for (auto it = file_vec.begin(); it != file_vec.end(); it++)
+    for (auto file : file_vec)
     {
-        sscanf((*it).c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+        if (file.find("snapshot_") == file.npos)
+        {
+            LOG_INFO(log, "Skip no snapshot file {}", file);
+            continue;
+        }
+        sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+
         if (snapshots.find(log_last_index) == snapshots.end())
         {
             ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(log_last_index, log_last_index - 1);
@@ -1044,9 +1068,9 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
             snap_store->init(time_str);
             snapshots[meta.get_last_log_idx()] = snap_store;
-            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", (*it), time_str, log_last_index, object_id);
+            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
         }
-        std::string full_path = snap_dir + "/" + *it;
+        std::string full_path = snap_dir + "/" + file;
         snapshots[log_last_index]->addObjectPath(object_id, full_path);
     }
     LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
@@ -1087,6 +1111,11 @@ size_t KeeperSnapshotManager::removeSnapshots()
             dir_obj.list(files);
             for (auto file : files)
             {
+                if (file.find("snapshot_") == file.npos)
+                {
+                    LOG_INFO(log, "Skip no snapshot file {}", file);
+                    continue;
+                }
                 sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
                 if (remove_log_index == log_last_index)
                 {
