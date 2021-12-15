@@ -105,7 +105,13 @@ def test_performance(started_cluster):
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
-    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark/target", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # my_env = os.environ.copy()
+    # my_env["PATH"] = "/usr/local/bin/apache-maven-3.3.9/bin:" + my_env["PATH"]
+    # res = subprocess.call("cd /ClickHouse/benchmark/raft-benchmark && mvn clean compile package", timeout=500, env=my_env, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    # print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark/target && unzip -o raft-benchmark-1.0-bin.zip", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
@@ -123,14 +129,26 @@ def test_performance(started_cluster):
 
     host1 = started_cluster.get_instance_ip('node1')
     res = subprocess.run("sed -i 's/NODE1/" + host1 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
     host2 = started_cluster.get_instance_ip('node2')
     res = subprocess.run("sed -i 's/NODE2/" + host2 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
     host3 = started_cluster.get_instance_ip('node3')
     res = subprocess.run("sed -i 's/NODE3/" + host3 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-    res = subprocess.run("/bin/bash /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+
+    res = subprocess.run("/bin/bash /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", timeout=500, env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("sed -i 's/" + host1 + "/NODE1/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    res = subprocess.run("sed -i 's/" + host2 + "/NODE2/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    res = subprocess.run("sed -i 's/" + host3 + "/NODE3/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

@@ -15,5 +15,5 @@ done
 #do
 #        java -cp $classpath com.jd.raft.benchmark.Main "zookeeper" "10.199.141.13:2181,10.199.140.251:2181,10.199.140.250:2181" ${i} 256 600 "create"
 #done
-java -cp $classpath com.jd.raft.benchmark.Main "raft" "NODE1:5102,NODE2:5102,NODE3:5102" 100 256 60 "create"
-java -cp $classpath com.jd.raft.benchmark.Main "raft" "NODE1:5102,NODE2:5102,NODE3:5102" 100 256 60 "mix"
+java -cp $classpath com.jd.raft.benchmark.Main "raft" "NODE1:5102,NODE2:5102,NODE3:5102" 100 256 3 "create"
+java -cp $classpath com.jd.raft.benchmark.Main "raft" "NODE1:5102,NODE2:5102,NODE3:5102" 100 256 3 "mix"
