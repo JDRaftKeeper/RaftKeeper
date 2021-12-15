@@ -23,7 +23,8 @@ public class Main {
     public static void main(String[] args) {
         Main main = new Main();
         try {
-            main.benchmark(args);//主程序入口
+            System.out.println("=================");
+//             main.benchmark(args);//主程序入口
         } catch (Exception e) {
             e.printStackTrace();
         }
