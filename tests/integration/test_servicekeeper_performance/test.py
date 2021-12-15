@@ -68,9 +68,9 @@ def test_performance(started_cluster):
 
     wait_nodes(cluster1, node1, node2, node3)
     #
-    # res = subprocess.run("pwd", env=None, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
-    # print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+    res = subprocess.run("pwd", env=None, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
     # if res.returncode != 0:
     #     # check_call(...) from subprocess does not print stderr, so we do it manually
     #     raise Exception('Command {} return non-zero code {}: {}'.format(args, res.returncode, res.stderr.decode('utf-8')))
@@ -97,6 +97,30 @@ def test_performance(started_cluster):
     #- mvn clean compile package
     #- cd target
     #- unzip raft-benchmark-1.0-bin.zip
+    res = subprocess.run("ls /ClickHouse", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark/target", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("cd /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
+    res = subprocess.run("ls /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
+    print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
+
     host1 = started_cluster.get_instance_ip('node1')
     res = subprocess.run("sed -i 's/NODE1/" + host1 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -106,7 +130,7 @@ def test_performance(started_cluster):
     host3 = started_cluster.get_instance_ip('node3')
     res = subprocess.run("sed -i 's/NODE3/" + host3 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    res = subprocess.run("/ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    res = subprocess.run("/bin/bash /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
