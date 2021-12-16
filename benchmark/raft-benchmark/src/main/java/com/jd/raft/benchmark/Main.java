@@ -23,8 +23,8 @@ public class Main {
     public static void main(String[] args) {
         Main main = new Main();
         try {
-            System.out.println("=================");
-//             main.benchmark(args);//主程序入口
+//             System.out.println("=================");
+            main.benchmark(args);//主程序入口
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -69,7 +69,7 @@ public class Main {
             bytes[i] = 'a';
         }
         NODE_PREFIX = new String(bytes);
-        System.out.println("node prefix size " + NODE_PREFIX.getBytes().length);
+//         System.out.println("node prefix size " + NODE_PREFIX.getBytes().length);
     }
     public static final byte[] BLANK_BYTE = "".getBytes();//空数据，为了创造空节点
 //---------------------------------end benchmark data---------------------------------------
@@ -159,17 +159,17 @@ public class Main {
             baseStart= Integer.parseInt(args[7]);
         }
 
-        System.out.println("\n================= Config =================");
-        System.out.println("target: " + target);
-        System.out.println("client: " + client);
-        System.out.println("threads: " + threads);
-        System.out.println("payloadSize: " + payloadSize);
-        System.out.println("duration: " + duration + " s");
-        //System.out.println("batchCnt: " + batchCnt );
-        System.out.println("model: " + commandStr);//只创造
-        System.out.println("baseSize: " + baseSize);
-        System.out.println("baseStart: " + baseStart);
-        System.out.println("\n");
+//         System.out.println("\n================= Config =================");
+//         System.out.println("target: " + target);
+//         System.out.println("client: " + client);
+//         System.out.println("threads: " + threads);
+//         System.out.println("payloadSize: " + payloadSize);
+//         System.out.println("duration: " + duration + " s");
+//         //System.out.println("batchCnt: " + batchCnt );
+//         System.out.println("model: " + commandStr);//只创造
+//         System.out.println("baseSize: " + baseSize);
+//         System.out.println("baseStart: " + baseStart);
+//         System.out.println("\n");
         String modeStr = "mode : ";
         if(baseSize == 0){
             modeStr += "benchmark";
@@ -181,8 +181,8 @@ public class Main {
         }else{
             modeStr += "import data";
         }
-        System.out.println(modeStr);
-        System.out.println("\n");
+//         System.out.println(modeStr);
+//         System.out.println("\n");
     }
 
     private void Initialization(){
@@ -210,15 +210,20 @@ public class Main {
         };
     }
 
-    private void run() throws InterruptedException, IOException, KeeperException, ExecutionException {
-        System.out.println("start running!!!!!!!!!!!!!!");
+    private void run() throws Exception {
+//         System.out.println("start running!!!!!!!!!!!!!!");
         long startTime = System.nanoTime();
         // run benchmark
 
         CountDownLatch latch = new CountDownLatch(threads);
-        ZooTask.createRootPath();
+        try{
+            ZooTask.createRootPath();
+        } catch (Exception e) {
+            throw e;
+        }
+
         ZooTask.createBaseRootPath();
-        System.out.println("start running!!!!!!!!!!!!!!");
+//         System.out.println("start running!!!!!!!!!!!!!!");
         runStartTime = System.nanoTime();
         Thread[] threadVec=new Thread[threads];
         if(target.equals("zookeeper") | target.equals("raft")){//如果等于zk和raft
@@ -251,7 +256,7 @@ public class Main {
     }
 
     private void calculateIndexes() {
-        System.out.println("start calculate!!!!!!!!!!!!!!");
+//         System.out.println("start calculate!!!!!!!!!!!!!!");
         for(int i=0;i<4;++i){
             for(int j = 0; j< RT_BUCKET_SIZE; ++j){
                 sumCountVec[i] += rtBucketsVec[i][j].get();
@@ -287,7 +292,7 @@ public class Main {
         }
 
         if(sumCount != totalCnt.get()){
-            System.out.println("sum of rtCount " + sumCount);
+//             System.out.println("sum of rtCount " + sumCount);
         }
 
         failRate = 100 * ((1.0 * errorCount) / totalCnt.get());//失败率
@@ -379,75 +384,76 @@ public class Main {
     }
 
     private void print() throws IOException {//打印结果
-        System.out.println("\n\n================= Result =================");
-        System.out.println("measured in microsecond");
-        System.out.println("thread_size,avgTps,avgRT(microsecond),TP90(microsecond),TP99(microsecond),TP999(microsecond),timeoutCount,failRate");
-        System.out.println(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+timeoutCount+","+failRate);
-        System.out.println("\n");
-        System.out.println("total  requests: " + totalCnt.get());
-        System.out.println("fail count: " + errorCount);
-        System.out.println("fail count: " + errorCount);
+//         System.out.println("\n\n================= Result =================");
+//         System.out.println("measured in microsecond");
+//         System.out.println("thread_size,avgTps,avgRT(microsecond),TP90(microsecond),TP99(microsecond),TP999(microsecond),timeoutCount,failRate");
+//         System.out.println(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+timeoutCount+","+failRate);
+//         System.out.println("\n");
+//         System.out.println("total  requests: " + totalCnt.get());
+//         System.out.println("fail count: " + errorCount);
+//         System.out.println("fail count: " + errorCount);
 
         //写每个线程的tps文件
-        String threadTpsFilePath = "threadTPSResult"+"-"+threads+"-"+commandStr+"-"+baseSize+".txt";
-        File fileTT = new File(threadTpsFilePath);
-        FileOutputStream fosTT = null;
-        if(!fileTT.exists()){
-            fileTT.createNewFile();//如果文件不存在，就创建该文件
-            fosTT = new FileOutputStream(fileTT);//首次写入获取
-        }else{
-            //如果文件已存在，那么就在文件末尾追加写入
-            fosTT = new FileOutputStream(fileTT,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
-        }
-        OutputStreamWriter oswTT = new OutputStreamWriter(fosTT, "UTF-8");
-        for(int i =0;i<threads;++i){
-            StringBuilder tempString = new StringBuilder();
-            //int index=(int)((runFinishTime- runStartTime)/1000_000_000)+5;
-            for(int j=0;j<RT_TIME_SIZE;++j){
-                tempString.append(threadTpsVec[i][j]+" ");
-            }
-            oswTT.write(tempString.toString());
-            oswTT.write("\n");
-        }
-        oswTT.close();
+//         String threadTpsFilePath = "threadTPSResult"+"-"+threads+"-"+commandStr+"-"+baseSize+".txt";
+//         File fileTT = new File(threadTpsFilePath);
+//         FileOutputStream fosTT = null;
+//         if(!fileTT.exists()){
+//             fileTT.createNewFile();//如果文件不存在，就创建该文件
+//             fosTT = new FileOutputStream(fileTT);//首次写入获取
+//         }else{
+//             //如果文件已存在，那么就在文件末尾追加写入
+//             fosTT = new FileOutputStream(fileTT,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
+//         }
+//         OutputStreamWriter oswTT = new OutputStreamWriter(fosTT, "UTF-8");
+//         for(int i =0;i<threads;++i){
+//             StringBuilder tempString = new StringBuilder();
+//             //int index=(int)((runFinishTime- runStartTime)/1000_000_000)+5;
+//             for(int j=0;j<RT_TIME_SIZE;++j){
+//                 tempString.append(threadTpsVec[i][j]+" ");
+//             }
+//             oswTT.write(tempString.toString());
+//             oswTT.write("\n");
+//         }
+//         oswTT.close();
 
         //写tps文件
-        String tpsFilePath = "TPSResult"+"-"+threads+"-"+commandStr+"-"+baseSize+".txt";
-        File fileT = new File(tpsFilePath);
-        FileOutputStream fosT = null;
-        if(!fileT.exists()){
-            fileT.createNewFile();//如果文件不存在，就创建该文件
-            fosT = new FileOutputStream(fileT);//首次写入获取
-        }else{
-            //如果文件已存在，那么就在文件末尾追加写入
-            fosT = new FileOutputStream(fileT,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
-        }
-        OutputStreamWriter oswT = new OutputStreamWriter(fosT, "UTF-8");
+//         String tpsFilePath = "TPSResult"+"-"+threads+"-"+commandStr+"-"+baseSize+".txt";
+//         File fileT = new File(tpsFilePath);
+//         FileOutputStream fosT = null;
+//         if(!fileT.exists()){
+//             fileT.createNewFile();//如果文件不存在，就创建该文件
+//             fosT = new FileOutputStream(fileT);//首次写入获取
+//         }else{
+//             //如果文件已存在，那么就在文件末尾追加写入
+//             fosT = new FileOutputStream(fileT,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
+//         }
+//         OutputStreamWriter oswT = new OutputStreamWriter(fosT, "UTF-8");
         StringBuilder tempString = new StringBuilder();
         //int index=(int)((runFinishTime- runStartTime)/1000_000_000)+5;
         for(int i=0;i<RT_TIME_SIZE;++i){
             tempString.append(tpsVec[i]+" ");
         }
-        oswT.write(tempString.toString());
-        oswT.close();
+        System.out.println(tempString);
+//         oswT.write(tempString.toString());
+//         oswT.close();
 
         //写result
-        String filePath = "result"+"-"+commandStr+"-"+baseSize+".txt";
-        File file = new File(filePath);
-        FileOutputStream fos = null;
-        if(!file.exists()){
-            file.createNewFile();//如果文件不存在，就创建该文件
-            fos = new FileOutputStream(file);//首次写入获取
-        }else{
-            //如果文件已存在，那么就在文件末尾追加写入
-            fos = new FileOutputStream(file,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
-        }
-        OutputStreamWriter osw = new OutputStreamWriter(fos, "UTF-8");
-        osw.write(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+errorCount+","+ timeoutCount+","+outBucketCount+","+totalCnt.get()+","+maxTps+"\n");
-        for(int i=0;i<4;++i){
-            osw.write(threads+","+avgRTVec[i]+","+otp90[i]+","+otp99[i]+","+otp999[i]+","+rtBucketsVec[i][RT_BUCKET_SIZE-1].get()+"\n");
-        }
-        osw.close();
+//         String filePath = "result"+"-"+commandStr+"-"+baseSize+".txt";
+//         File file = new File(filePath);
+//         FileOutputStream fos = null;
+//         if(!file.exists()){
+//             file.createNewFile();//如果文件不存在，就创建该文件
+//             fos = new FileOutputStream(file);//首次写入获取
+//         }else{
+//             //如果文件已存在，那么就在文件末尾追加写入
+//             fos = new FileOutputStream(file,true);//这里构造方法多了一个参数true,表示在文件末尾追加写入
+//         }
+//         OutputStreamWriter osw = new OutputStreamWriter(fos, "UTF-8");
+//         osw.write(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+errorCount+","+ timeoutCount+","+outBucketCount+","+totalCnt.get()+","+maxTps+"\n");
+//         for(int i=0;i<4;++i){
+//             osw.write(threads+","+avgRTVec[i]+","+otp90[i]+","+otp99[i]+","+otp999[i]+","+rtBucketsVec[i][RT_BUCKET_SIZE-1].get()+"\n");
+//         }
+//         osw.close();
     }
 
     /**
