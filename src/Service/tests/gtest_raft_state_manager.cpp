@@ -3,6 +3,7 @@
 //
 
 #include <Service/NuRaftStateManager.h>
+#include<cstdio>
 #include <gtest/gtest.h>
 
 namespace DB
@@ -14,7 +15,12 @@ class MockedRaftStateManager : public NuRaftStateManager
 public:
     MockedRaftStateManager() : NuRaftStateManager() {
         log = &(Poco::Logger::get("RaftStateManager"));
-        srv_state_file = "/tmp/srv_state_test";
+        srv_state_file = "./srv_state_test";
+    }
+
+    ~MockedRaftStateManager() override
+    {
+        remove(srv_state_file.c_str());
     }
 };
 
