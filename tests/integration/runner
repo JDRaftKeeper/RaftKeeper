@@ -19,7 +19,8 @@ INTERGATION_DIR_IN_REPO = "tests/integration"
 SRC_DIR_IN_REPO = "src"
 RAFT_BENCHMARK_DIR_IN_REPO = "benchmark/raft-benchmark"
 
-DIND_INTEGRATION_TESTS_IMAGE_NAME = "clickhouse-integration-tests-runner"
+# DIND_INTEGRATION_TESTS_IMAGE_NAME = "yandex/clickhouse-integration-tests-runner"
+DIND_INTEGRATION_TESTS_IMAGE_NAME = "clickhouse-integration-tests-runner" #run raft-benchmark
 
 def check_args_and_update_paths(args):
     if args.clickhouse_root:
@@ -147,7 +148,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--docker-image-version",
-        default="v2",
+        default="v3", #old "latest". run raft-benchmark
         help="Version of docker image which runner will use to run tests")
 
     parser.add_argument(

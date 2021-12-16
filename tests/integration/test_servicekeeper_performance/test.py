@@ -127,21 +127,24 @@ def test_performance(started_cluster):
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
-    host1 = started_cluster.get_instance_ip('node1')
+    host1 = cluster1.get_instance_ip('node1')
     res = subprocess.run("sed -i 's/NODE1/" + host1 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
-    host2 = started_cluster.get_instance_ip('node2')
+    host2 = cluster1.get_instance_ip('node2')
     res = subprocess.run("sed -i 's/NODE2/" + host2 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
-    host3 = started_cluster.get_instance_ip('node3')
+    host3 = cluster1.get_instance_ip('node3')
     res = subprocess.run("sed -i 's/NODE3/" + host3 + "/g' /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
     print('Stdout:\n{}\n'.format(res.stdout.decode('utf-8')))
 
+    # zk = get_fake_zk(cluster1, 'node1', timeout=30.0)
+    # zk.create("/test12", b"hello")
+    # print(zk.get("/test12"))
 
     res = subprocess.run("/bin/bash /ClickHouse/benchmark/raft-benchmark/target/raft-benchmark-1.0/bin/test.sh", timeout=500, env=None, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     print('Stderr:\n{}\n'.format(res.stderr.decode('utf-8')))
