@@ -50,7 +50,7 @@ void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
     }
     else
     {
-        LOG_DEBUG(log,"clear log queue.");
+        LOG_DEBUG(log, "clear log queue.");
         batch_index = 0;
         max_index = 0;
         for (size_t i = 0; i < MAX_VECTOR_SIZE; ++i)
@@ -60,7 +60,7 @@ void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
 
 void LogEntryQueue::clear()
 {
-    LOG_DEBUG(log,"clear log queue.");
+    LOG_DEBUG(log, "clear log queue.");
     std::lock_guard write_lock(queue_mutex);
     batch_index = 0;
     max_index = 0;
@@ -74,7 +74,34 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
 
-    segment_store->init();
+    if (segment_store->init() >= 0)
+    {
+        LOG_INFO(log, "Init file log store, last log index {}, log dir {}", segment_store->lastLogIndex(), log_dir);
+    }
+    else
+    {
+        LOG_WARNING(log, "Init file log store failed, log dir {}", log_dir);
+        return;
+    }
+
+    if (segment_store->lastLogIndex() < 1)
+    {
+        /// no log entry exists, return a dummy constant entry with value set to null and term set to zero
+        last_log_entry = cs_new<log_entry>(0, nuraft::buffer::alloc(0));
+    }
+    else
+    {
+        last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
+    }
+}
+
+NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_)
+{
+    log = &(Poco::Logger::get("FileLogStore"));
+
+    segment_store = LogSegmentStore::getInstance(log_dir, force_new);
+
+    segment_store->init(max_log_size_, max_segment_count_);
 
     if (segment_store->lastLogIndex() < 1)
     {
@@ -169,7 +196,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     //std::lock_guard<std::recursive_mutex> lock(log_lock);
     //ptr<LogEntry> ch_entry = std::static_pointer_cast<LogEntry>(entry);
     //logs_count += ch_entry->setIndex(index);
-//    ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
+    //ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
     if (segment_store->writeAt(index, entry) == index)
     {
         log_queue.clear();
@@ -244,7 +271,7 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
             //2^16, 65536
             if (index << 48 == 0)
             {
-//                LOG_DEBUG(log, "get entry {} from disk", index);
+                //LOG_DEBUG(log, "get entry {} from disk", index);
             }
         }
         else
@@ -318,8 +345,8 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
             LOG_DEBUG(log, "cur_idx {}, segment_store last_log_index {}", cur_idx, segment_store->lastLogIndex());
 
         ptr<log_entry> le = log_entry::deserialize(*buf_local);
-//        if (cur_idx - segment_store->lastLogIndex() == 1)
-//            segment_store->appendEntry(le);
+        //if (cur_idx - segment_store->lastLogIndex() == 1)
+        //  segment_store->appendEntry(le);
         {
             segment_store->writeAt(cur_idx, le);
         }

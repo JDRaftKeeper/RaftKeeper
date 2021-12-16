@@ -302,9 +302,11 @@ uint64_t NuRaftStateMachine::getApproximateDataSize() const
     return storage.getApproximateDataSize();
 }
 
-void NuRaftStateMachine::shutdownStorage()
+void NuRaftStateMachine::shutdown()
 {
+    LOG_INFO(log, "State machine shut down");
     storage.finalize();
+    task_manager->shutDown();
 }
 
 bool compareTime(const std::string & s1, const std::string & s2)
