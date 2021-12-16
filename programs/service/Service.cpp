@@ -23,7 +23,7 @@
 #include "Poco/Timestamp.h"
 #include <Poco/DirectoryIterator.h>
 #include <Poco/Net/HTTPServer.h>
-#include <Poco/Net/NetException.h>
+#include <Poco/Net/NetException.h>SvsKeeperServer.cpp
 #include <Poco/Util/HelpFormatter.h>
 #include <Poco/Version.h>
 #include <Common/ClickHouseRevision.h>
