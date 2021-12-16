@@ -114,25 +114,6 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
     }
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_)
-{
-    log = &(Poco::Logger::get("FileLogStore"));
-
-    segment_store = LogSegmentStore::getInstance(log_dir, force_new);
-
-    segment_store->init(max_log_size_, max_segment_count_);
-
-    if (segment_store->lastLogIndex() < 1)
-    {
-        /// no log entry exists, return a dummy constant entry with value set to null and term set to zero
-        last_log_entry = cs_new<log_entry>(0, nuraft::buffer::alloc(0));
-    }
-    else
-    {
-        last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
-    }
-}
-
 NuRaftFileLogStore::~NuRaftFileLogStore()
 {
 }
