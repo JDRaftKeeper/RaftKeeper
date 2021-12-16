@@ -47,5 +47,5 @@ build and test:
     - echo "Start performance test."
     - cd ./benchmark/raft-benchmark
     - mvn clean compile package
-    - cd target
-    - unzip raft-benchmark-1.0-bin.zip
+    - cd ../../tests/integration
+    - ./runner 'test_servicekeeper_performance -ss'
