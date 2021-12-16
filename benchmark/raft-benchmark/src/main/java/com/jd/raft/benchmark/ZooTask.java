@@ -32,16 +32,17 @@ public class ZooTask implements Runnable {
 
     public static ZooKeeper createClient() throws IOException {
         // init zookeeper client
-        return new ZooKeeper(Main.client, 1000000, null);
+        return new ZooKeeper(Main.client, 30000, null);
     }//初始化客户端
 
-    public static void createRootPath() throws IOException {
+    public static void createRootPath() throws Exception {
         // init zookeeper client
         ZooKeeper zoo1 = createClient();
         try {
             zoo1.create(Main.ROOT_PATH, Main.BLANK_BYTE, ZooDefs.Ids.OPEN_ACL_UNSAFE, PERSISTENT);
         } catch (KeeperException e) {
-//                e.printStackTrace();
+//             e.printStackTrace();
+//             throw e;
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -148,7 +149,7 @@ public class ZooTask implements Runnable {
             long t3 = System.nanoTime();
 
             if(errorBatchCount > 0){
-                System.out.println("task " + id + " error bath count is " + errorBatchCount);
+//                 System.out.println("task " + id + " error bath count is " + errorBatchCount);
             }
 
             //Main.totalTime.addAndGet((t3 - t2)/1_000_000);//加上时间
@@ -458,9 +459,9 @@ public class ZooTask implements Runnable {
         executor.awaitTermination(1, TimeUnit.DAYS);
 
         long endTime = System.currentTimeMillis();
-        System.out.println(new Date());
-        System.out.println("create base nodes " + (Main.baseSize - failedBaseNodes.get()));
-        System.out.println("create " + Main.baseSize + " nodes, time cost " + (endTime-starTime)/1000 + " s");
+//         System.out.println(new Date());
+//         System.out.println("create base nodes " + (Main.baseSize - failedBaseNodes.get()));
+//         System.out.println("create " + Main.baseSize + " nodes, time cost " + (endTime-starTime)/1000 + " s");
 
     }
 
