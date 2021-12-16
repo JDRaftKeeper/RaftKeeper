@@ -736,9 +736,9 @@ class ClickHouseServiceCluster:
                 instance.docker_client = self.docker_client
                 instance.ip_address = self.get_instance_ip(instance.name)
 
-                print("Waiting for ClickHouse start...")
+                print("Waiting for ClickHouse-service start...")
                 instance.wait_for_start(start_deadline)
-                print("ClickHouse started")
+                print("ClickHouse-service started")
 
                 # instance.client = Client(instance.ip_address, command=self.client_bin_path)
 
@@ -1156,14 +1156,14 @@ class ClickHouseInstance:
             if status == 'exited':
                 raise Exception(
                     "Instance `{}' failed to start. Container status: {}, logs: {}".format(self.name, status,
-                                                                                           handle.logs().decode()))
+                                                                                           handle.logs()))
 
             current_time = time.time()
             time_left = deadline - current_time
             if deadline is not None and current_time >= deadline:
                 raise Exception("Timed out while waiting for instance `{}' with ip address {} to start. "
                                 "Container status: {}, logs: {}".format(self.name, self.ip_address, status,
-                                                                        handle.logs().decode()))
+                                                                        handle.logs()))
 
             # Repeatedly poll the instance address until there is something that listens there.
             # Usually it means that ClickHouse is ready to accept queries.
