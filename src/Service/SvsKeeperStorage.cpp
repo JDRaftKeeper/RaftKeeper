@@ -930,8 +930,10 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     }
 
     /// ZooKeeper update sessions expirity for each request, not only for heartbeats
-    session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-
+    {
+        std::lock_guard lock(session_mutex);
+        session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+    }
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
