@@ -37,3 +37,10 @@ build and test:
     - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/service
     - ./runner 'test_servicekeeper* -ss'
     - echo "Integration test finished."
+
+
+#    - echo "Start performance test."
+#    - cd ../../benchmark/raft-benchmark
+#    - mvn clean compile package
+#    - cd ../../tests/integration
+#    - ./runner 'test_servicekeeper_performance -ss'
