@@ -283,7 +283,7 @@ def test_cmd_conf(started_cluster):
 
         assert result["internal_port"] == "5103"
         assert result["thread_count"] == "16"
-        assert result["snapshot_create_interval"] == "3600"
+        assert result["snapshot_create_interval"] == "10000"
         assert result["snapshot_start_time"] == "7200"
         assert result["snapshot_end_time"] == "79200"
 
