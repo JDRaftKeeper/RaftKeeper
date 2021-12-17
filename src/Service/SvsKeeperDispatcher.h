@@ -14,7 +14,6 @@
 #include <Common/Exception.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
-#include <Service/AvgMinMaxCounter.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperConnectionStats.h>
@@ -56,7 +55,6 @@ private:
     ThreadFromGlobalPool session_cleaner_thread;
 
     std::unique_ptr<SvsKeeperServer> server;
-    AvgMinMaxCounter request_counter{"request"};
 
     mutable std::mutex keeper_stats_mutex;
     KeeperConnectionStats keeper_stats;

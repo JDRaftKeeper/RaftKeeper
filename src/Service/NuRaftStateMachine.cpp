@@ -63,9 +63,15 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "begin init state machine, snapshot directory {}", snap_dir);
 
     snapshot_dir = snap_dir;
+
     timer.begin_second = snap_begin_second;
     timer.end_second = snap_end_second;
     timer.interval = internal;
+
+    task_manager = cs_new<RaftTaskManager>(snapshot_dir);
+    /// last committed idx of prev term from disk
+    ulong prev_last_committed_idx = 0;
+    task_manager->getLastCommitted(prev_last_committed_idx);
 
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
     //load snapshot meta from disk
@@ -76,9 +82,6 @@ NuRaftStateMachine::NuRaftStateMachine(
     {
         last_committed_idx = last_snapshot->get_last_log_idx();
         apply_snapshot(*(last_snapshot.get()));
-        /// In order to meet the initial application of snapshot in the cluster. At this time, the log index is less than the last index of the snapshot, and compact is required.
-        if (logstore->next_slot() <= last_committed_idx)
-            logstore->compact(last_committed_idx);
     }
     else
     {
@@ -86,6 +89,165 @@ NuRaftStateMachine::NuRaftStateMachine(
     }
 
     LOG_INFO(log, "Replay snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
+
+    //[ batch_start_index, batch_end_index )
+    ulong batch_start_index = 0;
+    ulong batch_end_index = 0;
+    if (logstore != nullptr)
+    {
+        std::mutex load_mutex;
+        std::condition_variable load_cond;
+        ulong last_log_index = logstore->next_slot() - 1;
+        if (prev_last_committed_idx != 0 && prev_last_committed_idx < last_log_index)
+        {
+            last_log_index = prev_last_committed_idx;
+        }
+
+        batch_start_index = last_committed_idx + 1;
+        std::queue<ReplayLogBatch> log_queue;
+
+        LOG_INFO(
+            log,
+            "Begin replay log, first log index {} and last log index {} in log file ( prev index {}, log index {} )",
+            batch_start_index,
+            last_log_index,
+            prev_last_committed_idx,
+            logstore->next_slot() - 1);
+
+        UInt32 REPLAY_THREAD_NUM = 1;
+        ThreadPool object_thread_pool(REPLAY_THREAD_NUM);
+        for (UInt32 thread_idx = 0; thread_idx < REPLAY_THREAD_NUM; thread_idx++)
+        {
+            object_thread_pool.trySchedule(
+                [this, thread_idx, last_log_index, &load_mutex, &log_queue, &batch_start_index, &batch_end_index, &logstore] {
+                    Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+                    while (batch_start_index < last_log_index)
+                    {
+                        while (log_queue.size() >= 10)
+                        {
+                            LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
+                            sleep(1);
+                            //load_cond.wait();
+                        }
+
+                        //0.3 * 10000 = 3M
+                        batch_end_index = batch_start_index + 10000;
+                        if (batch_end_index > last_log_index + 1)
+                            batch_end_index = last_log_index + 1;
+
+                        LOG_INFO(
+                            thread_log,
+                            "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+
+                        ReplayLogBatch batch;
+                        batch.log_vec = logstore->log_entries_ext(batch_start_index, batch_end_index, 0);
+
+                        batch.batch_start_index = batch_start_index;
+                        batch.batch_end_index = batch_end_index;
+                        batch.request_vec = cs_new<std::vector<ptr<SvsKeeperStorage::RequestForSession>>>();
+
+                        int idx = 0;
+                        for (auto entry : *(batch.log_vec))
+                        {
+                            if (entry->get_val_type() != nuraft::log_val_type::app_log)
+                            {
+                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry->get_val_type());
+                                continue;
+                            }
+
+                            if (isNewSessionRequest(entry->get_buf()))
+                            {
+                                /// replay session
+                                int64_t session_timeout_ms = entry->get_buf().get_ulong();
+                                int64_t session_id = storage.getSessionID(session_timeout_ms);
+                                LOG_DEBUG(log, "replay session_id {} with timeout {} from log", session_id, session_timeout_ms);
+                            }
+                            else
+                            {
+                                /// replay nodes
+                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
+                                LOG_DEBUG(log, "create request session {}", ptr_request->session_id);
+
+                                if (ptr_request != nullptr)
+                                {
+                                    batch.request_vec->push_back(ptr_request);
+                                }
+                            }
+                            idx++;
+                        }
+
+                        {
+                            std::lock_guard queue_lock(load_mutex);
+                            log_queue.push(batch);
+                        }
+                        LOG_INFO(
+                            thread_log,
+                            "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+                        batch_start_index = batch_end_index;
+                    }
+                });
+        }
+
+        while (log_queue.size() > 0 || batch_start_index < last_log_index)
+        {
+            ReplayLogBatch batch;
+            {
+                while (log_queue.size() == 0 && batch_start_index != last_log_index)
+                {
+                    LOG_DEBUG(
+                        log,
+                        "Sleep 100ms, log queue size {}, start index {}, last index {}",
+                        log_queue.size(),
+                        batch_start_index,
+                        last_log_index);
+                    usleep(100000);
+                }
+                if (log_queue.size() > 0)
+                {
+                    std::lock_guard queue_lock(load_mutex);
+                    batch = log_queue.front();
+                }
+            }
+            if (batch.log_vec == nullptr)
+            {
+                LOG_DEBUG(log, "log vector is null");
+                break;
+            }
+            for (auto request : *(batch.request_vec))
+            {
+                storage.processRequest(request->request, request->session_id);
+                if (request->session_id > storage.session_id_counter)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Storage's session_id_counter {} must more than the session id {} of log.",
+                        storage.session_id_counter,
+                        request->session_id);
+                    storage.session_id_counter = request->session_id;
+                }
+            }
+            log_queue.pop();
+            last_committed_idx = batch.batch_end_index - 1;
+            LOG_INFO(log, "Replay start index {}, commit index {}", batch.batch_start_index, last_committed_idx);
+            batch.log_vec = nullptr;
+            batch.request_vec = nullptr;
+            batch.batch_start_index = 0;
+            batch.batch_end_index = 0;
+        }
+        object_thread_pool.wait();
+
+        /// In order to meet the initial application of snapshot in the cluster. At this time, the log index is less than the last index of the snapshot, and compact is required.
+        if (logstore->next_slot() <= last_committed_idx)
+            logstore->compact(last_committed_idx);
+    }
+
+    LOG_INFO(log, "Replay last committed index {} in log store", last_committed_idx);
 }
 
 ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
@@ -203,6 +365,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         }
         LOG_DEBUG(log, "Session ID response {} with timeout {}", session_id, session_timeout_ms);
         last_committed_idx = log_idx;
+        task_manager->afterCommitted(last_committed_idx);
         return response;
     }
     else
@@ -221,13 +384,14 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             for (auto & response_for_session : responses_for_sessions)
                 responses_queue.push(response_for_session);
         }
-
         last_committed_idx = log_idx;
+        task_manager->afterCommitted(last_committed_idx);
         return nullptr;
     }
 }
 
-SvsKeeperStorage::ResponsesForSessions NuRaftStateMachine::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
+SvsKeeperStorage::ResponsesForSessions
+NuRaftStateMachine::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
     return storage.processRequest(request_for_session.request, request_for_session.session_id);
 }
