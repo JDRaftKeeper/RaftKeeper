@@ -6,6 +6,7 @@
         <log_dir>/var/lib/clickhouse/coordination/log</log_dir>
         <snapshot_dir>/var/lib/clickhouse/coordination/snapshots</snapshot_dir>
         <snapshot_create_interval>10000</snapshot_create_interval>
+        <snapshot_distance>3000000</snapshot_distance>
         <four_letter_word_white_list>*</four_letter_word_white_list>
 
         <coordination_settings>
