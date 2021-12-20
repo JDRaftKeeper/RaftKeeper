@@ -403,6 +403,9 @@ void ServiceTCPHandler::runImpl()
                 {
                     LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
                 }
+                else
+                    operations[received_xid] = Poco::Timestamp();
+
                 /// Each request restarts session stopwatch
                 session_stopwatch.restart();
             }
