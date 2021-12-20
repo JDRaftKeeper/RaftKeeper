@@ -347,7 +347,7 @@ def test_cmd_srvr(started_cluster):
             if len(row) != 0:
                 result[row[0].strip()] = row[1].strip()
 
-        assert 'ClickHouse Keeper version' in result
+        assert 'Raft Service version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '10'
         assert result['Sent'] == '10'
@@ -385,7 +385,7 @@ def test_cmd_stat(started_cluster):
             if len(row) != 0:
                 result[row[0].strip()] = row[1].strip()
 
-        assert 'ClickHouse Keeper version' in result
+        assert 'Raft Service version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '10'
         assert result['Sent'] == '10'
