@@ -9,6 +9,7 @@
 #include <Common/getMaxFileDescriptorCount.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Service/Keeper4LWInfo.h>
+#include <Service/Defines.h>
 #include <common/find_symbols.h>
 #include <IO/WriteHelpers.h>
 #include <IO/Operators.h>
@@ -213,7 +214,7 @@ String MonitorCommand::run()
     const auto & state_machine = keeper_dispatcher.getStateMachine();
 
     StringBuffer ret;
-    print(ret, "version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+    print(ret, "version", String(KEEPER_VERSION) + "-" + VERSION_GITHASH);
 
     print(ret, "avg_latency", stats.getAvgLatency());
     print(ret, "max_latency", stats.getMaxLatency());
