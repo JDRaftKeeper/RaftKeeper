@@ -41,7 +41,7 @@ private:
     /// otherwise maybe microsecond is better
     uint64_t total_latency = 0;
     uint64_t max_latency = 0;
-    uint64_t min_latency = 0;
+    uint64_t min_latency = ULLONG_MAX;
 
     /// last operation latency
     uint64_t last_latency = 0;

@@ -27,7 +27,6 @@ namespace DB
 {
 struct LastOp
 {
-public:
     String name{"NA"};
     int64_t last_cxid{-1};
     int64_t last_zxid{-1};
