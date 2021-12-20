@@ -1,3 +1,3 @@
 #pragma once
 
-#define KEEPER_DEFAULT_PATH "/var/lib/clickhouse-keeper/"
+#define KEEPER_VERSION "v2.0.0"
