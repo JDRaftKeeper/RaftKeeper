@@ -214,7 +214,7 @@ String MonitorCommand::run()
     const auto & state_machine = keeper_dispatcher.getStateMachine();
 
     StringBuffer ret;
-    print(ret, "version", String(KEEPER_VERSION) + "-" + VERSION_GITHASH);
+    print(ret, "version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
 
     print(ret, "avg_latency", stats.getAvgLatency());
     print(ret, "max_latency", stats.getMaxLatency());
@@ -292,7 +292,7 @@ String ServerStatCommand::run()
     KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
-    write("ClickHouse Keeper version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+    write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
 
     StringBuffer latency;
     latency << stats.getMinLatency() << "/" << stats.getAvgLatency() << "/" << stats.getMaxLatency();
@@ -318,7 +318,7 @@ String StatCommand::run()
     KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
-    write("ClickHouse Keeper version", String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH);
+    write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
 
     buf << "Clients:\n";
     ServiceTCPHandler::dumpConnections(buf, true);
@@ -388,7 +388,7 @@ String EnviCommand::run()
 
     StringBuffer buf;
     buf << "Environment:\n";
-    buf << "clickhouse.keeper.version=" << (String(VERSION_DESCRIBE) + "-" + VERSION_GITHASH) << '\n';
+    buf << "raft.service.version=" << (String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH) << '\n';
 
     buf << "host.name=" << Environment::nodeName() << '\n';
     buf << "os.name=" << Environment::osDisplayName() << '\n';
