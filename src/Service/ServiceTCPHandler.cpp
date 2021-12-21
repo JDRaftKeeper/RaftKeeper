@@ -514,6 +514,7 @@ void ServiceTCPHandler::updateStats(Coordination::ZooKeeperResponsePtr & respons
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
         }
+        operations.erase(response->xid);
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 
         last_op.set(std::make_unique<LastOp>(LastOp{
