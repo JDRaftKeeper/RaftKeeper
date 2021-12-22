@@ -3,6 +3,7 @@
 #include <common/types.h>
 #include <memory>
 #include <cstdint>
+#include <limits>
 
 namespace DB
 {
@@ -41,7 +42,7 @@ private:
     /// otherwise maybe microsecond is better
     uint64_t total_latency = 0;
     uint64_t max_latency = 0;
-    uint64_t min_latency = ULLONG_MAX;
+    uint64_t min_latency = std::numeric_limits<uint64_t>::max();
 
     /// last operation latency
     uint64_t last_latency = 0;
