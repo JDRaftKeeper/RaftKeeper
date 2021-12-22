@@ -35,7 +35,7 @@ build and test:
     - export CLICKHOUSE_TESTS_SERVER_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=$build_dir/programs/clickhouse
     - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/server
-    - ./runner 'test_servicekeeper* -ss'
+    - ./runner 'test_servicekeeper_* -ss'
     - echo "Integration test finished."
 
 
