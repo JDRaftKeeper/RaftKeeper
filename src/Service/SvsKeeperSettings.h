@@ -49,7 +49,7 @@ using SvsKeeperSettingsPtr = std::shared_ptr<SvsKeeperSettings>;
 /// which are not stored in settings. Allows to dump configuration
 /// with 4lw commands.
 struct KeeperConfigurationAndSettings
-    {
+{
     static constexpr int NOT_EXIST = -1;
     static const String DEFAULT_FOUR_LETTER_WORD_CMD;
 
@@ -75,13 +75,13 @@ struct KeeperConfigurationAndSettings
     String snapshot_storage_path;
 
     void dump(WriteBufferFromOwnString & buf) const;
-    static std::shared_ptr<KeeperConfigurationAndSettings> loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+    static std::shared_ptr<KeeperConfigurationAndSettings>
+    loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
 
-    private:
-        static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
-        static String getSnapshotsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
-    };
+private:
+    static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+    static String getSnapshotsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+};
 
 using KeeperConfigurationAndSettingsPtr = std::shared_ptr<KeeperConfigurationAndSettings>;
-
 }
