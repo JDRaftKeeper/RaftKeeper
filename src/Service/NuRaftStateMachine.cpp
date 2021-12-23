@@ -601,8 +601,8 @@ bool NuRaftStateMachine::exist_snapshot_object(snapshot & s, ulong obj_id)
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
     //TODO: double buffer load or multi thread load
-    std::lock_guard<std::mutex> lock(snapshot_mutex);
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
     return snap_mgr->parseSnapshot(s, storage);
 }
 

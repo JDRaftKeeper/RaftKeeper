@@ -540,7 +540,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     }
 
     //Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP、TODO cluster_config
-    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1 + 1 + 1;
+    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1 + 1;
 
     LOG_DEBUG(
         log,
@@ -565,10 +565,12 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
 
     int snap_version_fd = openFileForWrite(snap_dir + "/snapshot_version_" + curr_time);
     auto snap_version = static_cast<uint8_t>(version);
-    ssize_t ret = pwrite(snap_version_fd, static_cast<unsigned char *>(&snap_version), sizeof(uint8_t), 0);
-    LOG_INFO(log, "Write snapshot_version {}, file {}", version, "snapshot_version_" + curr_time);
+    errno = 0;
+    ssize_t ret = pwrite(snap_version_fd, &snap_version, sizeof(uint8_t), 0);
     if (ret < ssize_t(sizeof(uint8_t)))
-        LOG_ERROR(log, "Write snapshot_version file error");
+        LOG_ERROR(log, "Write snapshot_version file error {}, ret {}", strerror(errno), ret);
+    else
+        LOG_INFO(log, "Write snapshot_version {}, file {}", snap_version, "snapshot_version_" + curr_time);
     ::fsync(snap_version_fd);
     ::close(snap_version_fd);
 
@@ -1257,11 +1259,16 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
         {
             char time_str_for_version[128];
             sscanf(file.c_str(), "snapshot_version_%[^_]", time_str_for_version);
-            int snap_version_fd = openFileForWrite(file);
-            SnapshotVersion version;
-            read(snap_version_fd, &version, sizeof(SnapshotVersion));
+            int snap_version_fd = openFileForWrite(snap_dir + "/" + file);
+            uint8_t version;
+            errno = 0;
+            ssize_t ret = read(snap_version_fd, &version, sizeof(uint8_t));
+            if (ret != sizeof(uint8_t))
+                LOG_ERROR(log, "read file {} error, ret {}, {}", file, ret, strerror(errno));
+            else
+                LOG_INFO(log, "read filename {}, time {}, version {}", file, time_str_for_version, version);
             ::close(snap_version_fd);
-            time_versions.emplace(time_str_for_version, version);
+            time_versions.emplace(time_str_for_version, static_cast<SnapshotVersion>(version));
         }
     }
 
@@ -1281,6 +1288,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
         if (it != time_versions.end()) /// version > V0
         {
             version = it->second;
+            LOG_INFO(log, "load filename {}, time {}, version {}", file, time_str, version);
             sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu_%lu", time_str, &log_last_index, &last_log_term, &object_id);
         }
         else
@@ -1297,7 +1305,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             snap_store->init(time_str);
             snap_store->version = version;
             snapshots[meta.get_last_log_idx()] = snap_store;
-            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
+            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}, version {}", file, time_str, log_last_index, object_id, version);
         }
         std::string full_path = snap_dir + "/" + file;
         snapshots[log_last_index]->addObjectPath(object_id, full_path);
