@@ -36,6 +36,7 @@ public:
         UInt32 internal,
         UInt32 keep_max_snapshot_count,
         ptr<nuraft::log_store> logstore = nullptr,
+        std::string superdigest = "",
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
 
     ~NuRaftStateMachine() override { }

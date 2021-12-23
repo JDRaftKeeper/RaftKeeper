@@ -60,9 +60,10 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     ptr<log_store> logstore,
+    std::string superdigest,
     UInt32 object_node_size)
     : coordination_settings(coordination_settings_)
-    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds())
+    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));

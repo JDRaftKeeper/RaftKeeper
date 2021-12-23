@@ -9,6 +9,7 @@
 #include <Common/ThreadPool.h>
 #include <Common/ZooKeeper/IKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Service/ACLMap.h>
 
 namespace DB
 {
@@ -25,7 +26,7 @@ using ChildrenSet = std::unordered_set<std::string>;
 struct KeeperNode
 {
     String data;
-    Coordination::ACLs acls{};
+    uint64_t acl_id = 0; /// 0 -- no ACL by default
     bool is_ephemeral = false;
     bool is_sequental = false;
     Coordination::Stat stat{};
@@ -35,7 +36,7 @@ struct KeeperNode
     {
         auto node = std::make_shared<KeeperNode>();
         node->data = data;
-        node->acls = acls;
+        node->acl_id = acl_id;
         node->is_ephemeral = is_ephemeral;
         node->is_sequental = is_sequental;
         node->stat = stat;
@@ -147,6 +148,20 @@ public:
         Coordination::ZooKeeperRequestPtr request;
     };
 
+    struct AuthID
+    {
+        std::string scheme;
+        std::string id;
+
+        bool operator==(const AuthID & other) const
+        {
+            return scheme == other.scheme && id == other.id;
+        }
+    };
+
+    using AuthIDs = std::vector<AuthID>;
+    using SessionAndAuth = std::unordered_map<int64_t, AuthIDs>;
+
     using RequestsForSessions = std::vector<RequestForSession>;
 
 #ifdef USE_CONCURRENTMAP
@@ -164,6 +179,8 @@ public:
 
     using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
 
+    SessionAndAuth session_and_auth;
+
     Container container;
 
     Ephemerals ephemerals;
@@ -179,15 +196,20 @@ public:
 
     mutable std::mutex watch_mutex;
 
+    /// ACLMap for more compact ACLs storage inside nodes.
+    ACLMap acl_map;
+
     std::atomic<int64_t> zxid{0};
     bool finalized{false};
+
+    const String superdigest;
 
     void clearDeadWatches(int64_t session_id);
 
     int64_t getZXID() { return zxid++; }
 
 public:
-    SvsKeeperStorage(int64_t tick_time_ms);
+    SvsKeeperStorage(int64_t tick_time_ms, const String & superdigest_ = "");
 
     int64_t getSessionID(int64_t session_timeout_ms)
     {
