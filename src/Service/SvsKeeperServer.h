@@ -22,7 +22,7 @@ class SvsKeeperServer
 private:
     int server_id;
 
-    SvsKeeperSettingsPtr coordination_settings;
+    KeeperConfigurationAndSettingsPtr coordination_and_settings;
 
     nuraft::ptr<NuRaftStateMachine> state_machine;
 
@@ -41,7 +41,7 @@ private:
     std::mutex initialized_mutex;
     std::atomic<bool> initialized_flag = false;
     std::condition_variable initialized_cv;
-    std::atomic<bool> initial_batch_committed = false;
+//    std::atomic<bool> initial_batch_committed = false;
 
     ptr<cluster_config> specified_cluster_config;
 
@@ -57,8 +57,7 @@ private:
 
 public:
     SvsKeeperServer(
-        int server_id_,
-        const SvsKeeperSettingsPtr & coordination_settings_,
+        const KeeperConfigurationAndSettingsPtr & coordination_and_settings_,
         const Poco::Util::AbstractConfiguration & config,
         SvsKeeperResponsesQueue & responses_queue_);
 
@@ -88,40 +87,22 @@ public:
 
     void shutdown();
 
-    UInt64 getNodeNum()
+    nuraft::ptr<NuRaftStateMachine> getKeeperStateMachine() const
     {
-        return state_machine->getNodeNum();
-    }
-    UInt64 getWatchNodeNum()
-    {
-        return state_machine->getWatchNodeNum();
-    }
-    UInt64 getEphemeralNodeNum()
-    {
-        return state_machine->getEphemeralNodeNum();
+        return state_machine;
     }
 
-    UInt64 getNodeSizeMB()
-    {
-        return state_machine->getNodeSizeMB();
-    }
 
-    UInt64 getZxid()
-    {
-        return state_machine->getZxid();
-    }
+    bool isFollower() const;
 
-    /// no need to lock
-    UInt64 getSessionNum()
-    {
-        return state_machine->getSessionNum();
-    }
+    bool isObserver() const;
 
-    SessionAndWatcherPtr getWatchInfo() {
-        return state_machine->getWatchInfo();
-    }
+    /// @return follower count if node is not leader return 0
+    uint64_t getFollowerCount() const;
 
-    EphemeralsPtr getEphemeralInfo() { return state_machine->getEphemeralInfo(); }
+    /// @return synced follower count if node is not leader return 0
+    uint64_t getSyncedFollowerCount() const;
+
 };
 
 }

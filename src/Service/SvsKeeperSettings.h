@@ -5,6 +5,7 @@
 #include <Core/SettingsEnums.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
 #include <Poco/Util/AbstractConfiguration.h>
+#include <IO/WriteBufferFromString.h>
 
 namespace DB
 {
@@ -32,8 +33,7 @@ struct Settings;
     M(UInt64, rotate_log_storage_interval, 100000, "How many records will be stored in one log storage file", 0) \
     M(Bool, force_sync, true, " Call fsync on each change in RAFT changelog", 0) \
     M(UInt64, nuraft_thread_size, 32, "NuRaft thread pool size", 0) \
-    M(UInt64, fresh_log_gap, 200, "When node became fresh", 0)                                                         \
-    M(String, super_digest, "", "super digest", 0)
+    M(UInt64, fresh_log_gap, 200, "When node became fresh", 0)
 
 DECLARE_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
@@ -45,4 +45,45 @@ struct SvsKeeperSettings : public BaseSettings<SvsKeeperSettingsTraits>
 
 using SvsKeeperSettingsPtr = std::shared_ptr<SvsKeeperSettings>;
 
+/// Coordination settings + some other parts of keeper configuration
+/// which are not stored in settings. Allows to dump configuration
+/// with 4lw commands.
+struct KeeperConfigurationAndSettings
+{
+    static constexpr int NOT_EXIST = -1;
+    static const String DEFAULT_FOUR_LETTER_WORD_CMD;
+
+    KeeperConfigurationAndSettings();
+    int server_id;
+
+    int tcp_port;
+    String host;
+
+    int internal_port;
+    int thread_count;
+
+    int snapshot_create_interval;
+    int snapshot_start_time;
+    int snapshot_end_time;
+
+    String four_letter_word_white_list;
+
+    String super_digest;
+
+    bool standalone_keeper;
+    SvsKeeperSettingsPtr coordination_settings;
+
+    String log_storage_path;
+    String snapshot_storage_path;
+
+    void dump(WriteBufferFromOwnString & buf) const;
+    static std::shared_ptr<KeeperConfigurationAndSettings>
+    loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+
+private:
+    static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+    static String getSnapshotsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+};
+
+using KeeperConfigurationAndSettingsPtr = std::shared_ptr<KeeperConfigurationAndSettings>;
 }
