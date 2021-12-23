@@ -239,6 +239,52 @@ void ZooKeeperListResponse::writeImpl(WriteBuffer & out) const
     Coordination::write(stat, out);
 }
 
+void ZooKeeperSetACLRequest::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(path, out);
+    Coordination::write(acls, out);
+    Coordination::write(version, out);
+}
+
+void ZooKeeperSetACLRequest::readImpl(ReadBuffer & in)
+{
+    Coordination::read(path, in);
+    Coordination::read(acls, in);
+    Coordination::read(version, in);
+}
+
+void ZooKeeperSetACLResponse::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(stat, out);
+}
+
+void ZooKeeperSetACLResponse::readImpl(ReadBuffer & in)
+{
+    Coordination::read(stat, in);
+}
+
+void ZooKeeperGetACLRequest::readImpl(ReadBuffer & in)
+{
+    Coordination::read(path, in);
+}
+
+void ZooKeeperGetACLRequest::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(path, out);
+}
+
+void ZooKeeperGetACLResponse::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(acl, out);
+    Coordination::write(stat, out);
+}
+
+void ZooKeeperGetACLResponse::readImpl(ReadBuffer & in)
+{
+    Coordination::read(acl, in);
+    Coordination::read(stat, in);
+}
+
 void ZooKeeperCheckRequest::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(path, out);
@@ -468,6 +514,8 @@ ZooKeeperResponsePtr ZooKeeperCheckRequest::makeResponse() const { return std::m
 ZooKeeperResponsePtr ZooKeeperMultiRequest::makeResponse() const { return std::make_shared<ZooKeeperMultiResponse>(requests); }
 ZooKeeperResponsePtr ZooKeeperCloseRequest::makeResponse() const { return std::make_shared<ZooKeeperCloseResponse>(); }
 ZooKeeperResponsePtr ZooKeeperSetSeqNumRequest::makeResponse() const { return std::make_shared<ZooKeeperSetSeqNumResponse>(); }
+ZooKeeperResponsePtr ZooKeeperSetACLRequest::makeResponse() const { return std::make_shared<ZooKeeperSetACLResponse>(); }
+ZooKeeperResponsePtr ZooKeeperGetACLRequest::makeResponse() const { return std::make_shared<ZooKeeperGetACLResponse>(); }
 
 void ZooKeeperSessionIDRequest::writeImpl(WriteBuffer & out) const
 {

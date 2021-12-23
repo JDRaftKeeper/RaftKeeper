@@ -11,6 +11,7 @@
 #include <Poco/File.h>
 #include <Common/Exception.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <IO/WriteHelpers.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push
@@ -19,13 +20,20 @@
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int UNKNOWN_FORMAT_VERSION;
+    extern const int BROTLI_WRITE_FAILED;
+}
+
 using nuraft::cs_new;
 
 //const int KeeperSnapshotStore::SNAPSHOT_THREAD_NUM = 4;
 
 const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
 
-int openFileForWrite(std::string & obj_path)
+int openFileForWrite(const std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     errno = 0;
@@ -132,7 +140,7 @@ void createObjectContainer(
         ptr<KeeperNode> node = container_it->second;
         Coordination::write(container_it->first, out);
         Coordination::write(node->data, out);
-        Coordination::write(node->acls, out);
+        writeBinary(node->acl_id, out);
         Coordination::write(node->is_ephemeral, out);
         Coordination::write(node->is_sequental, out);
         Coordination::write(node->stat, out);
@@ -263,7 +271,7 @@ void createObjectEphemeral(
 }
 
 //Create sessions
-void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt32 save_batch_size, std::string & obj_path)
+void createSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     ptr<SnapshotBatchPB> batch_pb;
@@ -278,10 +286,10 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         return;
     }
 
-    auto session_it = session_timeout.begin();
+    auto session_it = storage.session_and_timeout.begin();
     UInt32 node_index = 1;
     size_t file_size = 0;
-    while (node_index <= session_timeout.size())
+    while (node_index <= storage.session_and_timeout.size())
     {
         //first node
         if (node_index % save_batch_size == 1)
@@ -295,12 +303,24 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         WriteBufferFromNuraftBuffer out;
         Coordination::write(session_it->first, out); //SessionID
         Coordination::write(session_it->second, out); //Timeout_ms
+
+        SvsKeeperStorage::AuthIDs ids;
+        if (storage.session_and_auth.count(session_it->first))
+            ids = storage.session_and_auth.at(session_it->first);
+
+        writeBinary(ids.size(), out);
+        for (const auto & [scheme, id] : ids)
+        {
+            writeBinary(scheme, out);
+            writeBinary(id, out);
+        }
+
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
         data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
 
         //last node, save to file
-        if (node_index % save_batch_size == 0 || node_index == session_timeout.size())
+        if (node_index % save_batch_size == 0 || node_index == storage.session_and_timeout.size())
         {
             auto ret = saveBatch(snap_fd, batch_pb, obj_path);
             if (ret > 0)
@@ -317,7 +337,7 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
     }
 
     LOG_INFO(
-        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
+        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, storage.session_and_timeout.size(), file_size);
 
     if (snap_fd > 0)
     {
@@ -387,11 +407,93 @@ void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
         node_index++;
     }
 
+    LOG_INFO(
+        log, "Finish create string map object, object path {}, map count {}, file size {}", obj_path, snap_map.size(), file_size);
+
     if (snap_fd > 0)
     {
         ::close(snap_fd);
     }
 }
+
+void createAclMaps(SvsKeeperStorage & storage, UInt32 save_batch_size, std::string & obj_path)
+{
+    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
+    ptr<SnapshotBatchPB> batch_pb;
+    int snap_fd = openFileForWrite(obj_path);
+    if (snap_fd > 0)
+    {
+        LOG_INFO(log, "Create acl map object, path {}", obj_path);
+    }
+    else
+    {
+        LOG_WARNING(log, "Create acl map object failed, path {}, fd {}", obj_path, snap_fd);
+        return;
+    }
+
+    const auto & acl_map = storage.acl_map.getMapping();
+    auto acl_it = acl_map.begin();
+    UInt32 node_index = 1;
+    size_t file_size = 0;
+    while (node_index <= acl_map.size())
+    {
+        //first node
+        if (node_index % save_batch_size == 1)
+        {
+            batch_pb = cs_new<SnapshotBatchPB>();
+            batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP);
+            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
+        }
+
+        SnapshotItemPB * data_pb = batch_pb->add_data();
+        WriteBufferFromNuraftBuffer out;
+
+        /// Serialize ACLs MAP
+//        writeBinary(acl_map.size(), out);
+        const auto & [acl_id, acls] = *acl_it;
+        writeBinary(acl_id, out);
+        writeBinary(acls.size(), out);
+        for (const auto & acl : acls)
+        {
+            writeBinary(acl.permissions, out);
+            writeBinary(acl.scheme, out);
+            writeBinary(acl.id, out);
+        }
+
+        ptr<buffer> buf = out.getBuffer();
+        buf->pos(0);
+        data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
+
+        //last node, save to file
+        if (node_index % save_batch_size == 0 || node_index == acl_map.size())
+        {
+            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
+            if (ret > 0)
+            {
+                file_size += ret;
+            }
+            else
+            {
+                if (snap_fd > 0)
+                {
+                    ::close(snap_fd);
+                }
+                throw Exception(ErrorCodes::BROTLI_WRITE_FAILED, "saveBatch error {}", obj_path);
+            }
+        }
+        acl_it++;
+        node_index++;
+    }
+
+    LOG_INFO(
+        log, "Finish create acl map object, object path {}, acl count {}, file size {}", obj_path, acl_map.size(), file_size);
+
+    if (snap_fd > 0)
+    {
+        ::close(snap_fd);
+    }
+}
+
 
 void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
 {
@@ -437,8 +539,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
         ephemeral_object_count = (storage.ephemerals.size() - 1) / max_object_node_size + 1;
     }
 
-    //Normal node objects、Ephemeral node objects、Sessions、Others(int_map)
-    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1;
+    //Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP、TODO cluster_config
+    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1 + 1 + 1;
 
     LOG_DEBUG(
         log,
@@ -460,6 +562,15 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     }
 
     UInt32 batch_size = save_batch_size;
+
+    int snap_version_fd = openFileForWrite(snap_dir + "/snapshot_version_" + curr_time);
+    auto snap_version = static_cast<uint8_t>(version);
+    ssize_t ret = pwrite(snap_version_fd, static_cast<unsigned char *>(&snap_version), sizeof(uint8_t), 0);
+    LOG_INFO(log, "Write snapshot_version {}, file {}", version, "snapshot_version_" + curr_time);
+    if (ret < ssize_t(sizeof(uint8_t)))
+        LOG_ERROR(log, "Write snapshot_version file error");
+    ::fsync(snap_version_fd);
+    ::close(snap_version_fd);
 
     ThreadPool container_thread_pool(SNAPSHOT_THREAD_NUM + 1);
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
@@ -508,14 +619,16 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     ephemeral_thread_pool.wait();
 
     //Save sessions
-    createSessions(storage.session_and_timeout, save_batch_size, objects[obj_size - 1]);
+    createSessions(storage, save_batch_size, objects[obj_size - 2]);
 
     IntMap int_map;
     int_map["ZXID"] = storage.zxid;
     int_map["SESSIONID"] = storage.session_id_counter;
 
     //Save uint map
-    createMap(int_map, save_batch_size, objects[obj_size]);
+    createMap(int_map, save_batch_size, objects[obj_size - 1]);
+
+    createAclMaps(storage, save_batch_size, objects[obj_size]);
 
     return obj_size;
 }
@@ -621,7 +734,33 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     {
                         Coordination::read(key, in);
                         Coordination::read(node->data, in);
-                        Coordination::read(node->acls, in);
+                        if (version >= SnapshotVersion::V1)
+                        {
+                            readBinary(node->acl_id, in);
+                        }
+                        else if (version == SnapshotVersion::V0)
+                        {
+                            /// Deserialize ACL
+                            size_t acls_size;
+                            readBinary(acls_size, in);
+                            Coordination::ACLs acls;
+                            for (size_t i = 0; i < acls_size; ++i)
+                            {
+                                Coordination::ACL acl;
+                                readBinary(acl.permissions, in);
+                                readBinary(acl.scheme, in);
+                                readBinary(acl.id, in);
+                                acls.push_back(acl);
+                            }
+                            node->acl_id = storage.acl_map.convertACLs(acls);
+                        }
+
+                        /// Some strange ACLID during deserialization from ZooKeeper
+                        if (node->acl_id == std::numeric_limits<uint64_t>::max())
+                            node->acl_id = 0;
+
+                        storage.acl_map.addUsage(node->acl_id);
+
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
@@ -714,6 +853,25 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                     {
                         Coordination::read(session_id, in);
                         Coordination::read(timeout, in);
+                        if (version >= SnapshotVersion::V1)
+                        {
+                            size_t session_auths_size;
+                            readBinary(session_auths_size, in);
+
+                            SvsKeeperStorage::AuthIDs ids;
+                            size_t session_auth_counter = 0;
+                            while (session_auth_counter < session_auths_size)
+                            {
+                                String scheme, id;
+                                readBinary(scheme, in);
+                                readBinary(id, in);
+                                ids.emplace_back(SvsKeeperStorage::AuthID{scheme, id});
+
+                                session_auth_counter++;
+                            }
+                            if (!ids.empty())
+                                storage.session_and_auth[session_id] = ids;
+                        }
                     }
                     catch (Coordination::Exception & e)
                     {
@@ -730,7 +888,35 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                 }
             }
             break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP:
+            case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
+                if (version >= SnapshotVersion::V1)
+                {
+                    for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+                    {
+                        const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                        const std::string & data = item_pb.data();
+                        ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                        buf->put(data);
+                        buf->pos(0);
+                        ReadBufferFromNuraftBuffer in(buf);
+
+                        uint64_t acl_id;
+                        readBinary(acl_id, in);
+
+                        size_t acls_size;
+                        readBinary(acls_size, in);
+                        Coordination::ACLs acls;
+                        for (size_t i = 0; i < acls_size; ++i)
+                        {
+                            Coordination::ACL acl;
+                            readBinary(acl.permissions, in);
+                            readBinary(acl.scheme, in);
+                            readBinary(acl.id, in);
+                            acls.push_back(acl);
+                        }
+                        storage.acl_map.addMapping(acl_id, acls);
+                    }
+                }
                 break;
             case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
                 IntMap int_map;
@@ -781,6 +967,10 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
 
 void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
 {
+    SnapshotVersion current_version = static_cast<SnapshotVersion>(version);
+    if (current_version > CURRENT_SNAPSHOT_VERSION)
+        throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", version);
+
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
     {
@@ -798,7 +988,14 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
                         it->first,
                         it->second,
                         this->objects_path.size());
-                    this->parseOneObject(it->second, storage);
+                    try
+                    {
+                        this->parseOneObject(it->second, storage);
+                    }
+                    catch(Exception & e)
+                    {
+                        LOG_ERROR(log, "parseOneObject error {}, {}", it->second, getExceptionMessage(e, true));
+                    }
                 }
                 obj_idx++;
             }
@@ -1052,21 +1249,53 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     unsigned long log_last_index;
     unsigned long object_id;
 
+    /// time is snapshots sign, V0 not has snapshot_version_time_str file
+    std::map<String, SnapshotVersion> time_versions;
     for (auto file : file_vec)
     {
-        if (file.find("snapshot_") == file.npos)
+        if (file.find("snapshot_version_") != file.npos)
         {
-            LOG_INFO(log, "Skip no snapshot file {}", file);
+            char time_str_for_version[128];
+            sscanf(file.c_str(), "snapshot_version_%[^_]", time_str_for_version);
+            int snap_version_fd = openFileForWrite(file);
+            SnapshotVersion version;
+            read(snap_version_fd, &version, sizeof(SnapshotVersion));
+            ::close(snap_version_fd);
+            time_versions.emplace(time_str_for_version, version);
+        }
+    }
+
+    for (auto file : file_vec)
+    {
+        if (file.find("snapshot_") == file.npos || file.find("snapshot_version_") != file.npos)
+        {
+            LOG_INFO(log, "Skip no snapshot data file {}", file);
             continue;
         }
-        sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+
+        sscanf(file.c_str(), "snapshot_%[^_]", time_str);
+
+        unsigned long last_log_term = 1;
+        SnapshotVersion version;
+        auto it = time_versions.find(time_str);
+        if (it != time_versions.end()) /// version > V0
+        {
+            version = it->second;
+            sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu_%lu", time_str, &log_last_index, &last_log_term, &object_id);
+        }
+        else
+        {
+            version = SnapshotVersion::V0;
+            sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
+        }
 
         if (snapshots.find(log_last_index) == snapshots.end())
         {
-            ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(log_last_index, log_last_index - 1);
-            nuraft::snapshot meta(log_last_index, 1, config);
+            ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(log_last_index, log_last_index - 1); /// TODO async_replication, servers ?
+            nuraft::snapshot meta(log_last_index, last_log_term, config);
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
             snap_store->init(time_str);
+            snap_store->version = version;
             snapshots[meta.get_last_log_idx()] = snap_store;
             LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
         }

@@ -368,7 +368,7 @@ Coordination::ZooKeeperRequestPtr deserializeErrorTxn(ReadBuffer & in)
 
 Coordination::ZooKeeperRequestPtr deserializeSetACLTxn(ReadBuffer & in)
 {
-//    std::shared_ptr<Coordination::ZooKeeperSetACLRequest> result = std::make_shared<Coordination::ZooKeeperSetACLRequest>();
+    std::shared_ptr<Coordination::ZooKeeperSetACLRequest> result = std::make_shared<Coordination::ZooKeeperSetACLRequest>();
 
     String path;
     Coordination::ACLs acls;
@@ -378,8 +378,8 @@ Coordination::ZooKeeperRequestPtr deserializeSetACLTxn(ReadBuffer & in)
     Coordination::read(acls, in);
     Coordination::read(version, in);
     /// It stores version + 1 (which should be, not for request)
-//    result->version -= 1;
-//    result->restored_from_zookeeper_log = true;
+    result->version -= 1;
+    result->restored_from_zookeeper_log = true;
 
     return nullptr;
 }
