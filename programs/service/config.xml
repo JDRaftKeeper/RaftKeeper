@@ -20,7 +20,7 @@
 
     <service>
         <my_id>1</my_id>
-        <host>localhost</host>
+        <host>0.0.0.0</host>
         <log_dir>./raft_log</log_dir>
         <snapshot_dir>./raft_snapshot</snapshot_dir>
         <snapshot_create_interval>86400</snapshot_create_interval>

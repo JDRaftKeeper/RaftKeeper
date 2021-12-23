@@ -14,7 +14,11 @@
 #include <Common/Exception.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
-#include <Service/AvgMinMaxCounter.h>
+#include <Service/NuRaftStateMachine.h>
+#include <Service/Keeper4LWInfo.h>
+#include <Service/KeeperConnectionStats.h>
+#include <Service/NuRaftStateMachine.h>
+#include <Service/SvsKeeperSettings.h>
 
 
 namespace DB
@@ -30,7 +34,6 @@ class SvsKeeperDispatcher
 private:
     std::mutex push_request_mutex;
 
-    SvsKeeperSettingsPtr coordination_settings;
     using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
     RequestsQueue requests_queue{20000};
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
@@ -52,7 +55,11 @@ private:
     ThreadFromGlobalPool session_cleaner_thread;
 
     std::unique_ptr<SvsKeeperServer> server;
-    AvgMinMaxCounter request_counter{"request"};
+
+    mutable std::mutex keeper_stats_mutex;
+    KeeperConnectionStats keeper_stats;
+
+    KeeperConfigurationAndSettingsPtr configuration_and_settings;
 
     Poco::Logger * log;
 
@@ -76,78 +83,71 @@ public:
 
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
-    bool isLeader() const { return server->isLeader(); }
-
-    bool hasLeader() const { return server->isLeaderAlive(); }
-
     int64_t getSessionID(long session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
 
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback);
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
 
-    /// no need to lock
-    UInt64 getNodeNum()
+    /// Invoked when a request completes.
+    void updateKeeperStatLatency(uint64_t process_time_ms);
+
+    /// Are we leader
+    bool isLeader() const
     {
-        return server->getNodeNum();
-    }
-    UInt64 getWatchNodeNum()
-    {
-        return server->getWatchNodeNum();
-    }
-    UInt64 getEphemeralNodeNum()
-    {
-        return server->getEphemeralNodeNum();
+        return server->isLeader();
     }
 
-    UInt64 getNodeSizeMB()
+    bool hasLeader() const
     {
-        return server->getNodeSizeMB();
+        return server->isLeaderAlive();
     }
 
-    UInt64 getZxid()
+    bool isObserver() const
     {
-        return server->getZxid();
+        return server->isObserver();
     }
 
-    /// no need to lock
-    UInt64 getSessionNum()
+    uint64_t getLogDirSize() const;
+
+    uint64_t getSnapDirSize() const;
+
+    /// Request statistics such as qps, latency etc.
+    KeeperConnectionStats getKeeperConnectionStats() const
     {
-        return server->getSessionNum();
+        std::lock_guard lock(keeper_stats_mutex);
+        return keeper_stats;
     }
 
-    UInt64 getAliveConnectionsCount()
+    Keeper4LWInfo getKeeper4LWInfo();
+
+    const NuRaftStateMachine & getStateMachine() const
     {
-        std::lock_guard lock(session_to_response_callback_mutex);
-        return session_to_response_callback.size();
+        return *server->getKeeperStateMachine();
     }
 
-    UInt64 getOutstandingRequests()
+    const KeeperConfigurationAndSettingsPtr & getKeeperConfigurationAndSettings() const
     {
-        return requests_queue.size();
+        return configuration_and_settings;
     }
 
-    void resetRequestCounter()
+    void incrementPacketsSent()
     {
-        request_counter.reset();
+        std::lock_guard lock(keeper_stats_mutex);
+        keeper_stats.incrementPacketsSent();
     }
 
-    void addValueToRequestCounter(UInt64 value)
+    void incrementPacketsReceived()
     {
-        request_counter.addDataPoint(value);
+        std::lock_guard lock(keeper_stats_mutex);
+        keeper_stats.incrementPacketsReceived();
     }
 
-    AvgMinMaxCounter getRequestCounter()
+    void resetConnectionStats()
     {
-        return request_counter;
+        std::lock_guard lock(keeper_stats_mutex);
+        keeper_stats.reset();
     }
-
-    SessionAndWatcherPtr getWatchInfo() const{
-        return server->getWatchInfo();
-    }
-
-    EphemeralsPtr getEphemeralInfo() { return server->getEphemeralInfo(); }
-
 };
 
 }

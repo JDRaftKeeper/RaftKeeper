@@ -8,7 +8,6 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/SvsKeeperServer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
-#include <Service/SvsKeeperProfileEvents.h>
 #include <libnuraft/async.hxx>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <boost/algorithm/string.hpp>
@@ -17,12 +16,6 @@
 //#define TEST_TCPHANDLER
 #endif
 
-namespace ServiceProfileEvents
-{
-extern const Event req_all;
-extern const Event req_read;
-extern const Event req_write;
-}
 namespace DB
 {
 namespace ErrorCodes
@@ -49,37 +42,35 @@ std::string checkAndGetSuperdigest(const String & user_and_digest)
 
 }
 SvsKeeperServer::SvsKeeperServer(
-    int server_id_,
-    const SvsKeeperSettingsPtr & coordination_settings_,
+    const KeeperConfigurationAndSettingsPtr & coordination_and_settings_,
     const Poco::Util::AbstractConfiguration & config,
     SvsKeeperResponsesQueue & responses_queue_)
-    : server_id(server_id_)
-    , coordination_settings(coordination_settings_)
+    : server_id(coordination_and_settings_->server_id)
+    , coordination_and_settings(coordination_and_settings_)
     , responses_queue(responses_queue_)
     , log(&(Poco::Logger::get("RaftKeeperServer")))
 {
-    std::string log_dir = config.getString("service.log_dir", "./raft_log");
-    std::string snapshot_dir = config.getString("service.snapshot_dir", "./raft_snapshot");
-    UInt32 start_time = config.getInt("service.snapshot_start_time", 7200);
-    UInt32 end_time = config.getInt("service.snapshot_end_time", 79200);
-    UInt32 create_interval = config.getInt("service.snapshot_create_interval", 3600 * 1);
-    std::string host = config.getString("service.host", "localhost");
-    std::string port = config.getString("service.internal_port", "2281");
     min_server_id = INT32_MAX;
     parseClusterConfig(config, "service.remote_servers");
-    state_manager = cs_new<NuRaftStateManager>(server_id, host + ":" + port, log_dir, myself_cluster_config);
+
+    state_manager = cs_new<NuRaftStateManager>(
+        server_id,
+        coordination_and_settings->host + ":" + std::to_string(coordination_and_settings->tcp_port),
+        coordination_and_settings->log_storage_path,
+        myself_cluster_config);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
-        coordination_settings,
-        snapshot_dir,
-        start_time,
-        end_time,
-        create_interval,
-        coordination_settings->max_stored_snapshots,
+        coordination_and_settings->coordination_settings,
+        coordination_and_settings->snapshot_storage_path,
+        coordination_and_settings->snapshot_start_time,
+        coordination_and_settings->snapshot_end_time,
+        coordination_and_settings->snapshot_create_interval,
+        coordination_and_settings->coordination_settings->max_stored_snapshots,
         state_manager->load_log_store(),
-        checkAndGetSuperdigest(coordination_settings->super_digest));
+        checkAndGetSuperdigest(coordination_and_settings->super_digest));
 }
+
 
 void SvsKeeperServer::startup(const Poco::Util::AbstractConfiguration & config)
 {
@@ -89,7 +80,7 @@ void SvsKeeperServer::startup(const Poco::Util::AbstractConfiguration & config)
     g_config.num_append_threads_ = 2;
     nuraft::nuraft_global_mgr::init(g_config);
     */
-
+    auto coordination_settings = coordination_and_settings->coordination_settings;
     nuraft::raft_params params;
     params.heart_beat_interval_ = coordination_settings->heart_beat_interval_ms.totalMilliseconds();
     params.election_timeout_lower_bound_ = coordination_settings->election_timeout_lower_bound_ms.totalMilliseconds();
@@ -108,7 +99,7 @@ void SvsKeeperServer::startup(const Poco::Util::AbstractConfiguration & config)
     init_options.skip_initial_election_timeout_ = state_manager->shouldStartAsFollower();
     init_options.raft_callback_ = [this](nuraft::cb_func::Type type, nuraft::cb_func::Param * param) { return callbackFunc(type, param); };
 
-    UInt16 port = config.getInt("service.internal_port", 2281);
+    UInt16 port = config.getInt("service.internal_port", 5103);
 
     raft_instance = launcher.init(
         state_machine,
@@ -170,8 +161,8 @@ void SvsKeeperServer::addServer(const std::vector<std::string> & tokens)
 
 void SvsKeeperServer::addServer(ptr<srv_config> srv_conf_to_add)
 {
-    LOG_DEBUG(log, "Adding server {}, {} after 30s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
-    std::this_thread::sleep_for(std::chrono::milliseconds(30000));
+    LOG_DEBUG(log, "Adding server {}, {} after 10s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
+    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
     auto ret = raft_instance->add_srv(*srv_conf_to_add);
     if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
     {
@@ -280,7 +271,7 @@ void SvsKeeperServer::shutdown()
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
     //    state_manager->flushLogStore();
-    if (!launcher.shutdown(coordination_settings->shutdown_timeout.totalSeconds()))
+    if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
 }
 
@@ -300,14 +291,11 @@ namespace
 
 SvsKeeperStorage::ResponsesForSessions SvsKeeperServer::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    ServiceProfileEvents::increment(ServiceProfileEvents::req_all, 1);
-    ServiceProfileEvents::increment(ServiceProfileEvents::req_read, 1);
     return state_machine->singleProcessReadRequest(request_for_session);
 }
 
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    ServiceProfileEvents::increment(ServiceProfileEvents::req_all, 1);
     auto [session_id, request] = request_for_session;
 #ifdef TEST_TCPHANDLER
     if (Coordination::ZooKeeperCreateRequest * zk_request = dynamic_cast<Coordination::ZooKeeperCreateRequest *>(request.get()))
@@ -323,12 +311,10 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 #else
     if (isLeaderAlive() && request->isReadRequest())
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::req_read, 1);
         state_machine->processReadRequest(request_for_session);
     }
     else
     {
-        ServiceProfileEvents::increment(ServiceProfileEvents::req_write, 1);
         std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, request));
 
@@ -404,12 +390,45 @@ bool SvsKeeperServer::isLeader() const
     return raft_instance->is_leader();
 }
 
+
+bool SvsKeeperServer::isObserver() const
+{
+    auto cluster_config = state_manager->get_cluster_config();
+    return cluster_config->get_server(server_id)->is_learner();
+}
+
+bool SvsKeeperServer::isFollower() const
+{
+    return !isLeader() && !isObserver();
+}
+
 bool SvsKeeperServer::isLeaderAlive() const
 {
     return raft_instance->is_leader_alive();
 }
 
-nuraft::cb_func::ReturnCode SvsKeeperServer::callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * /*param*/)
+uint64_t SvsKeeperServer::getFollowerCount() const
+{
+    return raft_instance->get_peer_info_all().size();
+}
+
+uint64_t SvsKeeperServer::getSyncedFollowerCount() const
+{
+    uint64_t last_log_idx = raft_instance->get_last_log_idx();
+    const auto followers = raft_instance->get_peer_info_all();
+
+    uint64_t stale_followers = 0;
+
+    const uint64_t stale_follower_gap = raft_instance->get_current_params().stale_log_gap_;
+    for (const auto & fl : followers)
+    {
+        if (last_log_idx > fl.last_log_idx_ + stale_follower_gap)
+            stale_followers++;
+    }
+    return followers.size() - stale_followers;
+}
+
+nuraft::cb_func::ReturnCode SvsKeeperServer::callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * /* param */)
 {
     if (type == nuraft::cb_func::Type::BecomeFresh || type == nuraft::cb_func::Type::BecomeLeader)
     {
@@ -423,7 +442,7 @@ nuraft::cb_func::ReturnCode SvsKeeperServer::callbackFunc(nuraft::cb_func::Type 
 void SvsKeeperServer::waitInit()
 {
     std::unique_lock lock(initialized_mutex);
-    int64_t timeout = coordination_settings->startup_timeout.totalMilliseconds();
+    int64_t timeout = coordination_and_settings->coordination_settings->startup_timeout.totalMilliseconds();
     if (!initialized_cv.wait_for(lock, std::chrono::milliseconds(timeout), [&] { return initialized_flag.load(); }))
         throw Exception(ErrorCodes::RAFT_ERROR, "Failed to wait RAFT initialization");
 }

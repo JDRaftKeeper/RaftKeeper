@@ -90,20 +90,21 @@ public:
 
     std::vector<int64_t> getDeadSessions();
 
-    UInt64 getNodeNum() { return storage.getNodeNum(); }
-    UInt64 getWatchNodeNum() { return storage.getWatchNodeNum(); }
-    UInt64 getEphemeralNodeNum() { return storage.getEphemeralNodeNum(); }
+    /// Introspection functions for 4lw commands
+    uint64_t getLastProcessedZxid() const;
 
-    UInt64 getNodeSizeMB() { return storage.getNodeSizeMB(); }
+    uint64_t getNodesCount() const;
+    uint64_t getTotalWatchesCount() const;
+    uint64_t getWatchedPathsCount() const;
+    uint64_t getSessionsWithWatchesCount() const;
 
-    UInt64 getZxid() { return storage.zxid.load(); }
+    void dumpWatches(WriteBufferFromOwnString & buf) const;
+    void dumpWatchesByPath(WriteBufferFromOwnString & buf) const;
+    void dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const;
 
-    /// no need to lock
-    UInt64 getSessionNum() { return storage.getSessionNum(); }
-
-    SessionAndWatcherPtr getWatchInfo() { return storage.cloneWatchInfo(); }
-
-    EphemeralsPtr getEphemeralInfo() { return storage.cloneEphemeralInfo(); }
+    uint64_t getSessionWithEphemeralNodesCount() const;
+    uint64_t getTotalEphemeralNodesCount() const;
+    uint64_t getApproximateDataSize() const;
 
     void shutdown();
 
