@@ -406,7 +406,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         setNode(storage, key, value);
     }
     ASSERT_EQ(storage.container.size(),4098);
-    sleep(1);
+    sleep(1); /// snapshot_create_interval minest is 1
     snapshot meta2(2 * last_index, term, config);
     object_size = snap_mgr.createSnapshot(meta2, storage);
 
@@ -422,5 +422,6 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 TEST(RaftSnapshot, parseSnapshot)
 {
     parseSnapshot(V0, V0);
+    sleep(1); /// snapshot_create_interval minest is 1
     parseSnapshot(V1, V1);
 }
