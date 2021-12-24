@@ -48,7 +48,7 @@ uint64_t ACLMap::convertACLs(const Coordination::ACLs & acls)
         return acl_to_num[acls];
 
     /// Start from one
-    auto index = acl_to_num.size() + 1;
+    auto index = max_acl_id++;
 
     acl_to_num[acls] = index;
     num_to_acl[index] = acls;
