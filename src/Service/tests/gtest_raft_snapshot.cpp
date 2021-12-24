@@ -224,7 +224,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     cleanDirectory(snap_save_dir);
 }
 
-TEST(RaftSnapshot, parseSnapshot)
+void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion parse_version)
 {
     std::string snap_dir(SNAP_DIR + "/5");
     cleanDirectory(snap_dir);
@@ -301,14 +301,14 @@ TEST(RaftSnapshot, parseSnapshot)
     ASSERT_EQ(storage.container.size(),2050); /// Include "/" node, "/1020/test112"
 
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, storage);
+    size_t object_size = snap_mgr.createSnapshot(meta, storage, create_version);
 
     /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 + 1);
 
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
-    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
+    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage, parse_version));
 
     /// compare container
     ASSERT_EQ(new_storage.container.size(),2050); /// Include "/" node, "/1020/test112"
@@ -393,7 +393,7 @@ TEST(RaftSnapshot, parseSnapshot)
     ASSERT_EQ(storage.container.size(),4098);
     sleep(1);
     snapshot meta2(2 * last_index, term, config);
-    object_size = snap_mgr.createSnapshot(meta2, storage);    
+    object_size = snap_mgr.createSnapshot(meta2, storage);
 
     KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
     ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
@@ -402,4 +402,11 @@ TEST(RaftSnapshot, parseSnapshot)
     ASSERT_EQ(new_snap_mgr.removeSnapshots(), 1);
 
     cleanDirectory(snap_dir);
+}
+
+TEST(RaftSnapshot, parseSnapshot)
+{
+    parseSnapshot(V0, V0);
+//    parseSnapshot(V0, V1);
+//    parseSnapshot(V1, V1);
 }
