@@ -5,9 +5,12 @@ from helpers.cluster_service import ClickHouseServiceCluster
 from helpers.network import PartitionManager
 import time
 
+<<<<<<< HEAD
 from kazoo import client
 from kazoo.retry import KazooRetry
 
+=======
+>>>>>>> 9c9a3c1f03 (support reconnect to keeper)
 cluster = ClickHouseServiceCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
@@ -17,7 +20,11 @@ node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'
                              stay_alive=True)
 
 from kazoo.client import KazooClient, KazooState
+<<<<<<< HEAD
 from kazoo.exceptions import ZookeeperError, NoNodeError
+=======
+from kazoo.exceptions import ConnectionLoss
+>>>>>>> 9c9a3c1f03 (support reconnect to keeper)
 
 
 @pytest.fixture(scope="module")
@@ -62,11 +69,15 @@ def wait_nodes():
 
 def get_fake_zk(node_name, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node_name) + ":5102", timeout=timeout)
+<<<<<<< HEAD
     _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1)
+=======
+>>>>>>> 9c9a3c1f03 (support reconnect to keeper)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
 
+<<<<<<< HEAD
 def restart_cluster(zk, first_session_id):
     print("Restarting cluster, client previous session id is ", first_session_id)
     node1.kill_clickhouse(stop_start_wait_sec=0.1)
@@ -164,6 +175,8 @@ def test_session_expired(started_cluster):
             zk.stop()
             zk.close()
 
+=======
+>>>>>>> 9c9a3c1f03 (support reconnect to keeper)
 # network partition does not work.
 # def test_reconnection_with_partition(started_cluster):
 #     wait_nodes()
@@ -215,3 +228,40 @@ def test_session_expired(started_cluster):
 #         if zk is not None:
 #             zk.stop()
 #             zk.close()
+<<<<<<< HEAD
+=======
+
+
+def test_reconnection_with_down_raft(started_cluster):
+    wait_nodes()
+    zk = None
+    try:
+        zk = get_fake_zk(node1.name, timeout=100)
+        first_session_id = zk._session_id
+        print("Client session id", first_session_id)
+        print("Client session timeout", zk._session_timeout)
+
+        zk.create("/test_reconnection_with_down_raft", b"hello")
+
+        try:
+            print("restart", first_session_id)
+            node1.kill_clickhouse(stop_start_wait_sec=0.1)
+            node2.kill_clickhouse(stop_start_wait_sec=0.1)
+            node3.kill_clickhouse(stop_start_wait_sec=0.1)
+            time.sleep(1)
+            node1.restore_clickhouse()
+            node2.restore_clickhouse()
+            node3.restore_clickhouse()
+            wait_nodes()
+
+            data, stat = zk.get("/test_reconnection_with_down_raft")
+            assert data == b"hello"
+            assert zk._session_id == first_session_id
+        except Exception as ex:
+            print("error test ", ex)
+            assert False
+    finally:
+        if zk is not None:
+            zk.stop()
+            zk.close()
+>>>>>>> 9c9a3c1f03 (support reconnect to keeper)
