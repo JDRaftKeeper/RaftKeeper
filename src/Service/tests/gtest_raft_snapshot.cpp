@@ -83,7 +83,7 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     storage.processRequest(request, 1);
 }
 
-void setACL(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
+void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
 {
 //    'digest', 'user1:password1'
 //    String scheme = "digest";
@@ -95,6 +95,13 @@ void setACL(SvsKeeperStorage & storage, uint64_t session_id, const std::string &
     storage.processRequest(request, session_id);
 }
 
+ACLs getACL(SvsKeeperStorage & storage, const std::string key)
+{
+    auto request = cs_new<ZooKeeperGetACLRequest>();
+    request->path = key;
+    auto responses = storage.processRequest(request, 1);
+    return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses[0].response).acl;
+}
 
 void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const std::string value)
 {
@@ -237,7 +244,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// session 1
     storage.getSessionID(3000);
 
-    setACL(storage, 1, "digest", "user1:password1"); /// set acl to session
+    addAuth(storage, 1, "digest", "user1:password1"); /// set acl to session
     UInt32 last_index = 2048;
     UInt32 term = 1;
     for (int i = 1; i <= 1024; i++)
@@ -354,9 +361,9 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
     ASSERT_EQ(storage.zxid, new_storage.zxid);
 
+    /// compare ACLs
     if (create_version >= V1 && parse_version >= V1)
     {
-        /// compare ACLs
         /// include : empty, vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
         ASSERT_EQ(new_storage.acl_map.getMapping().size(), 5);
         ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
@@ -385,6 +392,10 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         acl_usage_counter.erase(0);
         new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
         ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
+
+        const auto & acls_1020 = getACL(new_storage, "/1020");
+        ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls_1020[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
         /// end of compare
     }
 
