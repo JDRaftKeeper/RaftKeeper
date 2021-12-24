@@ -511,12 +511,15 @@ void createAclMaps(SvsKeeperStorage & storage, UInt32 save_batch_size, std::stri
 void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
 {
     char path_buf[1024];
-    snprintf(path_buf, 1024, SNAPSHOT_FILE_NAME, curr_time.c_str(), log_last_index, object_id);
+    if (version >= V1)
+        snprintf(path_buf, 1024, SNAPSHOT_FILE_NAME_V1, curr_time.c_str(), last_log_index, last_log_term, object_id);
+    else if (version == V0)
+        snprintf(path_buf, 1024, SNAPSHOT_FILE_NAME, curr_time.c_str(), last_log_index, object_id);
     obj_path = path_buf;
     obj_path = snap_dir + "/" + obj_path;
 }
 
-void KeeperSnapshotStore::getFileTime(const std::string file_name, std::string & time)
+void KeeperSnapshotStore::getFileTime(const std::string & file_name, std::string & time)
 {
     auto it1 = file_name.find("_");
     auto it2 = file_name.find("_", it1 + 1);

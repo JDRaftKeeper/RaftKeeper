@@ -55,7 +55,8 @@ public:
         , log(&(Poco::Logger::get("KeeperSnapshotStore")))
     {
         //snap_header.entry_size = meta.size();
-        log_last_index = meta.get_last_log_idx();
+        last_log_index = meta.get_last_log_idx();
+        last_log_term = meta.get_last_log_term();
         ptr<buffer> snap_buf = meta.serialize();
         snap_meta = snapshot::deserialize(*(snap_buf.get()));
         if (max_object_node_size == 0)
@@ -82,15 +83,17 @@ public:
 
     time_t & getCreateTimeT() { return curr_time_t; }
 
-    static void getFileTime(const std::string file_name, std::string & time);
+    static void getFileTime(const std::string & file_name, std::string & time);
 
 public:
 #ifdef __APPLE__
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%llu_%llu";
+    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%llu_%llu_%llu";
 #else
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%lu_%lu";
+    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
 #endif
 
     using StringMap = std::unordered_map<std::string, std::string>;
@@ -117,7 +120,8 @@ private:
     Poco::Logger * log;
     //SnapshotHeader snap_header;
     ptr<snapshot> snap_meta;
-    UInt64 log_last_index;
+    UInt64 last_log_index;
+    UInt64 last_log_term;
     std::map<ulong, std::string> objects_path;
     std::string curr_time;
     time_t curr_time_t;
