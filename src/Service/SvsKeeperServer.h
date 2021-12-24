@@ -74,6 +74,7 @@ public:
     void putRequest(const SvsKeeperStorage::RequestForSession & request);
 
     int64_t getSessionID(int64_t session_timeout_ms);
+    void updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
 
     std::vector<int64_t> getDeadSessions();
 

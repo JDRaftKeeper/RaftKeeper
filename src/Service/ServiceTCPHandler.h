@@ -23,6 +23,16 @@
 namespace DB
 {
 
+struct ConnectRequest
+{
+    int32_t protocol_version;
+    int64_t last_zxid_seen;
+    int32_t timeout_ms;
+    int64_t previous_session_id = 0;
+    std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
+    bool readonly;
+};
+
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
@@ -79,7 +89,7 @@ private:
     void runImpl();
 
     void sendHandshake(bool has_leader);
-    Poco::Timespan receiveHandshake(int32_t handshake_length);
+    ConnectRequest receiveHandshake(int32_t handshake_length);
 
     static bool isHandShake(Int32 & handshake_length) ;
     bool tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);

@@ -90,7 +90,7 @@ public:
     std::vector<int64_t> getDeadSessions();
 
     /// Introspection functions for 4lw commands
-    uint64_t getLastProcessedZxid() const;
+    int64_t getLastProcessedZxid() const;
 
     uint64_t getNodesCount() const;
     uint64_t getTotalWatchesCount() const;
@@ -104,6 +104,7 @@ public:
     uint64_t getSessionWithEphemeralNodesCount() const;
     uint64_t getTotalEphemeralNodesCount() const;
     uint64_t getApproximateDataSize() const;
+    bool containsSession(int64_t session_id) const;
 
     void shutdown();
 

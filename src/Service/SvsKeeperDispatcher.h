@@ -83,7 +83,11 @@ public:
 
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
-    int64_t getSessionID(long session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
+    int64_t getSessionID(int64_t session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
+    void updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
+    {
+        return server->updateSessionTimeout(session_id, session_timeout_ms);
+    }
 
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback);
     /// Call if we don't need any responses for this session no more (session was expired)
