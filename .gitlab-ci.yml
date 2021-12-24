@@ -10,7 +10,7 @@ stages:
 style check:
   stage: stylecheck
   tags:
-    - "code style check"
+    - "test"
   script:
     - export cur_dir=`pwd`
     - echo "current dir is $cur_dir"
