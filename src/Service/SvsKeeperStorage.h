@@ -222,6 +222,8 @@ public:
         return session_expiry_queue.getExpiredSessions();
     }
 
+    bool containsSession(int64_t session_id) const;
+
     /// Introspection functions mostly used in 4-letter commands
     uint64_t getNodesCount() const
     {
