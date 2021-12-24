@@ -928,6 +928,7 @@ struct SvsKeeperStorageSetACLRequest final : public SvsKeeperStorageRequest
             uint64_t acl_id = storage.acl_map.convertACLs(node_acls);
             storage.acl_map.addUsage(acl_id);
 
+            std::lock_guard node_lock(node->mutex);
             node->acl_id = acl_id;
             ++node->stat.aversion;
 
@@ -974,6 +975,7 @@ struct SvsKeeperStorageGetACLRequest final : public SvsKeeperStorageRequest
         }
         else
         {
+            std::shared_lock r_lock(node->mutex);
             response.stat = node->stat;
             response.acl = storage.acl_map.convertNumber(node->acl_id);
         }
@@ -1174,6 +1176,11 @@ void SvsKeeperStorage::finalize()
         list_watches.clear();
         sessions_and_watchers.clear();
         session_expiry_queue.clear();
+        session_and_timeout.clear();
+    }
+    {
+        std::lock_guard auth_lock(auth_mutex);
+        session_and_auth.clear();
     }
 }
 
@@ -1293,6 +1300,10 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             std::lock_guard lock(session_mutex);
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
+        }
+        {
+            std::lock_guard lock(auth_mutex);
+            session_and_auth.erase(session_id);
         }
         results.push_back(ResponseForSession{session_id, response});
     }
