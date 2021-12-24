@@ -32,6 +32,7 @@ private:
     NumToACLMap num_to_acl;
     UsageCounter usage_counter;
     mutable std::mutex acl_mutex;
+    uint64_t max_acl_id{1};
 public:
 
     /// Convert ACL to number. If it's new ACL than adds it to map
