@@ -1222,6 +1222,8 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::Check, SvsKeeperStorageCheckRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, SvsKeeperStorageMultiRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::SetSeqNum, SvsKeeperStorageSetSeqNumRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::SetACL, SvsKeeperStorageSetACLRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::GetACL, SvsKeeperStorageGetACLRequest>(*this);
 }
 
 

@@ -1143,12 +1143,13 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
     objects_path[obj_id] = path;
 }
 
-size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage)
+size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage, const SnapshotVersion version)
 {
     size_t store_size = storage.container.size() + storage.ephemerals.size();
     meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
     snap_store->init();
+    snap_store->version = version;
     LOG_INFO(
         log,
         "Create snapshot last_log_term {}, last_log_idx {}, size {}, SM container size {}, SM ephemeral size {}",
@@ -1221,7 +1222,7 @@ bool KeeperSnapshotManager::saveSnapshotObject(snapshot & meta, ulong obj_id, bu
     return true;
 }
 
-bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage)
+bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage, const SnapshotVersion version)
 {
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())
@@ -1230,6 +1231,7 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, SvsKeeperStorag
         return false;
     }
     ptr<KeeperSnapshotStore> store = it->second;
+    store->version = version;
     store->parseObject(storage);
     LOG_INFO(
         log,
