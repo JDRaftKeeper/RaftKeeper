@@ -94,7 +94,9 @@ void createObjectContainer(
     UInt32 obj_idx,
     UInt16 object_count,
     UInt32 save_batch_size,
-    std::map<ulong, std::string> & objects_path)
+    std::map<ulong, std::string> & objects_path,
+    const SvsKeeperStorage & storage,
+    const SnapshotVersion version)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     UInt32 max_node_size = (innerMap.size() - 1) / object_count + 1;
@@ -140,7 +142,15 @@ void createObjectContainer(
         ptr<KeeperNode> node = container_it->second;
         Coordination::write(container_it->first, out);
         Coordination::write(node->data, out);
-        writeBinary(node->acl_id, out);
+
+        if (version >= V1)
+            writeBinary(node->acl_id, out);
+        else if (version == V0)
+        {
+            const auto & acls = storage.acl_map.convertNumber(node->acl_id);
+            Coordination::write(acls, out);
+        }
+
         Coordination::write(node->is_ephemeral, out);
         Coordination::write(node->is_sequental, out);
         Coordination::write(node->stat, out);
@@ -271,7 +281,7 @@ void createObjectEphemeral(
 }
 
 //Create sessions
-void createSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, std::string & obj_path)
+void createSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, const SnapshotVersion version, std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     ptr<SnapshotBatchPB> batch_pb;
@@ -304,15 +314,18 @@ void createSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, std::str
         Coordination::write(session_it->first, out); //SessionID
         Coordination::write(session_it->second, out); //Timeout_ms
 
-        SvsKeeperStorage::AuthIDs ids;
-        if (storage.session_and_auth.count(session_it->first))
-            ids = storage.session_and_auth.at(session_it->first);
-
-        writeBinary(ids.size(), out);
-        for (const auto & [scheme, id] : ids)
+        if (version >= V1)
         {
-            writeBinary(scheme, out);
-            writeBinary(id, out);
+            SvsKeeperStorage::AuthIDs ids;
+            if (storage.session_and_auth.count(session_it->first))
+                ids = storage.session_and_auth.at(session_it->first);
+
+            writeBinary(ids.size(), out);
+            for (const auto & [scheme, id] : ids)
+            {
+                writeBinary(scheme, out);
+                writeBinary(id, out);
+            }
         }
 
         ptr<buffer> buf = out.getBuffer();
@@ -577,7 +590,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     ThreadPool container_thread_pool(SNAPSHOT_THREAD_NUM + 1);
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
     {
-        container_thread_pool.trySchedule([thread_idx, &storage, &objects, container_object_count, batch_size] {
+        container_thread_pool.trySchedule([thread_idx, &storage, &objects, container_object_count, batch_size, snp_version = version] {
             Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.ContainerThread"));
             int obj_idx = 0;
             for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
@@ -595,7 +608,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
                         container_object_count,
                         batch_size,
                         objects.size());
-                    createObjectContainer(storage.container.getMap(i), obj_idx, container_object_count, batch_size, objects);
+                    createObjectContainer(storage.container.getMap(i), obj_idx, container_object_count, batch_size, objects, storage, snp_version);
                 }
             }
         });
@@ -621,7 +634,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     ephemeral_thread_pool.wait();
 
     //Save sessions
-    createSessions(storage, save_batch_size, objects[obj_size - 2]);
+    createSessions(storage, save_batch_size, version, objects[obj_size - 2]);
 
     IntMap int_map;
     int_map["ZXID"] = storage.zxid;
@@ -630,7 +643,10 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
     //Save uint map
     createMap(int_map, save_batch_size, objects[obj_size - 1]);
 
-    createAclMaps(storage, save_batch_size, objects[obj_size]);
+    if (version >= V1)
+    {
+        createAclMaps(storage, save_batch_size, objects[obj_size]);
+    }
 
     return obj_size;
 }
@@ -743,17 +759,8 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         else if (version == SnapshotVersion::V0)
                         {
                             /// Deserialize ACL
-                            size_t acls_size;
-                            readBinary(acls_size, in);
                             Coordination::ACLs acls;
-                            for (size_t i = 0; i < acls_size; ++i)
-                            {
-                                Coordination::ACL acl;
-                                readBinary(acl.permissions, in);
-                                readBinary(acl.scheme, in);
-                                readBinary(acl.id, in);
-                                acls.push_back(acl);
-                            }
+                            Coordination::read(acls, in);
                             node->acl_id = storage.acl_map.convertACLs(acls);
                         }
 

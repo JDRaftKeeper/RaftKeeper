@@ -306,6 +306,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 + 1);
 
+
+    snap_mgr.loadSnapshotMetas();
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage, parse_version));
@@ -321,7 +323,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             auto new_node = new_storage.container.get(it->first);
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
-            ASSERT_EQ(new_node->acl_id, it->second->acl_id);
+            if (create_version >= V1 && parse_version >= V1)
+                ASSERT_EQ(new_node->acl_id, it->second->acl_id);
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
             ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
             ASSERT_EQ(new_node->stat, it->second->stat);
@@ -344,45 +347,48 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
     ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
 
+    /// compare session_and_auth
+    if (create_version >= V1 && parse_version >= V1)
+        ASSERT_EQ(storage.session_and_auth,new_storage.session_and_auth);
+
     /// compare Others(int_map)
     ASSERT_EQ(storage.session_id_counter,4);
     ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
     ASSERT_EQ(storage.zxid, new_storage.zxid);
 
-    /// compare session_and_auth
-    ASSERT_EQ(storage.session_and_auth,new_storage.session_and_auth);
-
-    /// compare ACLs
-    /// include : empty, vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
-    ASSERT_EQ(new_storage.acl_map.getMapping().size(), 5);
-    ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
-
-    const auto & acls = new_storage.acl_map.convertNumber(storage.container.get("/1020")->acl_id);
-    ASSERT_EQ(acls.size(), 2);
-    ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
-    ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-
-    for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1022")->acl_id))
+    if (create_version >= V1 && parse_version >= V1)
     {
-        ASSERT_EQ(acl.permissions, ACL::Read);
+        /// compare ACLs
+        /// include : empty, vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
+        ASSERT_EQ(new_storage.acl_map.getMapping().size(), 5);
+        ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
+
+        const auto & acls = new_storage.acl_map.convertNumber(storage.container.get("/1020")->acl_id);
+        ASSERT_EQ(acls.size(), 2);
+        ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+
+        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1022")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::Read);
+        }
+
+        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1024")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::All);
+            ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        }
+
+        const auto & const_acl_usage_counter = storage.acl_map.getUsageCounter();
+        auto & acl_usage_counter = const_cast<decltype(storage.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
+        const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
+        auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
+
+        acl_usage_counter.erase(0);
+        new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
+        ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
+        /// end of compare
     }
-
-    for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1024")->acl_id))
-    {
-        ASSERT_EQ(acl.permissions, ACL::All);
-        ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-    }
-
-    const auto & const_acl_usage_counter = storage.acl_map.getUsageCounter();
-    auto & acl_usage_counter = const_cast<decltype(storage.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
-    const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
-    auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
-
-    acl_usage_counter.erase(0);
-    new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
-    ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
-    /// end of compare
-
 
     for (int i = last_index; i < 2 * last_index; i++)
     {
@@ -407,6 +413,5 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 TEST(RaftSnapshot, parseSnapshot)
 {
     parseSnapshot(V0, V0);
-//    parseSnapshot(V0, V1);
-//    parseSnapshot(V1, V1);
+    parseSnapshot(V1, V1);
 }
