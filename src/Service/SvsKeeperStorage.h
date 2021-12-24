@@ -183,6 +183,7 @@ public:
 
     using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
 
+    mutable std::shared_mutex auth_mutex;
     SessionAndAuth session_and_auth;
 
     Container container;
@@ -206,14 +207,14 @@ public:
     std::atomic<int64_t> zxid{0};
     bool finalized{false};
 
-    const String superdigest;
+    const String super_digest;
 
     void clearDeadWatches(int64_t session_id);
 
     int64_t getZXID() { return zxid++; }
 
 public:
-    SvsKeeperStorage(int64_t tick_time_ms, const String & superdigest_ = "");
+    SvsKeeperStorage(int64_t tick_time_ms, const String & super_digest_ = "");
 
     int64_t getSessionID(int64_t session_timeout_ms)
     {
