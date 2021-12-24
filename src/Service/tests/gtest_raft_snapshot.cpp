@@ -306,8 +306,6 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 + 1);
 
-
-    snap_mgr.loadSnapshotMetas();
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage, parse_version));
