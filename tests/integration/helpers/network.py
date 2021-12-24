@@ -22,6 +22,26 @@ class PartitionManager:
         self._netem_delayed_instances = []
         _NetworkManager.get()
 
+    def drop_port_connections(self, port, action='DROP'):
+        self._add_rule({'source': '0.0.0.0/0', 'destination_port': port, 'action': action})
+        self._add_rule({'destination': '0.0.0.0/0', 'source_port': port, 'action': action})
+
+    def restore_port_connections(self, port, action='DROP'):
+        self._delete_rule({'source': '0.0.0.0/0', 'destination_port': port, 'action': action})
+        self._delete_rule({'destination': '0.0.0.0/0', 'source_port': port, 'action': action})
+
+    def drop_raft_connections(self, instance, port, action='DROP'):
+        self._check_instance(instance)
+
+        self._add_rule({'source': '0.0.0.0/0', 'destination': instance.ip_address, 'destination_port': port, 'action': action})
+        self._add_rule({'source': instance.ip_address, 'destination': '0.0.0.0/0', 'source_port': port, 'action': action})
+
+    def restore_raft_connections(self, instance, port, action='DROP'):
+        self._check_instance(instance)
+
+        self._delete_rule({'source': '0.0.0.0/0', 'destination': instance.ip_address, 'destination_port': port, 'action': action})
+        self._delete_rule({'source': instance.ip_address, 'destination': '0.0.0.0/0', 'source_port': port, 'action': action})
+
     def drop_instance_zk_connections(self, instance, action='DROP'):
         self._check_instance(instance)
 
@@ -33,6 +53,16 @@ class PartitionManager:
 
         self._delete_rule({'source': instance.ip_address, 'destination_port': 2181, 'action': action})
         self._delete_rule({'destination': instance.ip_address, 'source_port': 2181, 'action': action})
+
+    def partition_instances_by_ip(self, left, right, port=None, action='DROP'):
+        def create_rule(src, dst):
+            rule = {'source': src, 'destination': dst, 'action': action}
+            if port is not None:
+                rule['destination_port'] = port
+            return rule
+
+        self._add_rule(create_rule(left, right))
+        self._add_rule(create_rule(right, left))
 
     def partition_instances(self, left, right, port=None, action='DROP'):
         self._check_instance(left)

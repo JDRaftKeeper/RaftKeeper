@@ -1260,5 +1260,10 @@ uint64_t SvsKeeperStorage::getTotalEphemeralNodesCount() const
     return ret;
 }
 
+bool SvsKeeperStorage::containsSession(int64_t session_id) const
+{
+    std::lock_guard lock(session_mutex);
+    return session_and_timeout.contains(session_id);
+}
 
 }
