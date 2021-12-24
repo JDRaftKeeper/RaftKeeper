@@ -411,7 +411,7 @@ std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
     return storage.getDeadSessions();
 }
 
-uint64_t NuRaftStateMachine::getLastProcessedZxid() const
+int64_t NuRaftStateMachine::getLastProcessedZxid() const
 {
     return storage.zxid.load();
 }
@@ -464,6 +464,11 @@ void NuRaftStateMachine::dumpSessionsAndEphemerals(WriteBufferFromOwnString & bu
 uint64_t NuRaftStateMachine::getApproximateDataSize() const
 {
     return storage.getApproximateDataSize();
+}
+
+bool NuRaftStateMachine::containsSession(int64_t session_id) const
+{
+    return storage.containsSession(session_id);
 }
 
 void NuRaftStateMachine::shutdown()

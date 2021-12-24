@@ -13,6 +13,7 @@
 #include <Common/NetException.h>
 #include <Common/PipeFDs.h>
 #include <Common/Stopwatch.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Common/setThreadName.h>
 #include <common/logger_useful.h>
@@ -41,6 +42,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int UNEXPECTED_PACKET_FROM_CLIENT;
     extern const int TIMEOUT_EXCEEDED;
+    extern const int READONLY;
 }
 
 struct PollResult
@@ -221,13 +223,12 @@ void ServiceTCPHandler::run()
     runImpl();
 }
 
-Poco::Timespan ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
+ConnectRequest ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
 {
-    /// for letter admin commands
     int32_t protocol_version;
     int64_t last_zxid_seen;
     int32_t timeout_ms;
-    int64_t previous_session_id = 0; /// We don't support session restore. So previous session_id is always zero.
+    int64_t previous_session_id = 0;
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
     if (!isHandShake(handshake_length))
         throw Exception("Unexpected handshake length received: " + toString(handshake_length), ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
@@ -240,15 +241,24 @@ Poco::Timespan ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
     Coordination::read(last_zxid_seen, *in);
     Coordination::read(timeout_ms, *in);
 
-    /// TODO Stop ignoring this value
+    int64_t last_zxid = service_keeper_storage_dispatcher->getStateMachine().getLastProcessedZxid();
+    if (last_zxid_seen > last_zxid)
+    {
+        String msg = "Refusing session request  as it has seen zxid 0x" + getHexUIntLowercase(last_zxid_seen) + " our last zxid is 0x"
+            + getHexUIntLowercase(last_zxid) + " client must try another server";
+
+        throw Exception(msg, ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
+    }
+
     Coordination::read(previous_session_id, *in);
     Coordination::read(passwd, *in);
 
-    int8_t readonly;
+    bool readonly{false};
+
     if (handshake_length == Coordination::CLIENT_HANDSHAKE_LENGTH_WITH_READONLY)
         Coordination::read(readonly, *in);
 
-    return Poco::Timespan(0, timeout_ms * 1000);
+    return {protocol_version, last_zxid_seen, timeout_ms, previous_session_id, passwd, readonly};
 }
 
 bool ServiceTCPHandler::isHandShake(Int32 & handshake_length)
@@ -330,16 +340,24 @@ void ServiceTCPHandler::runImpl()
         return;
     }
 
+    ConnectRequest connect_req;
     try
     {
-        int32_t handshake_length = header;
-        auto client_timeout = receiveHandshake(handshake_length);
+        LOG_TRACE(log, "Server session_timeout is {}.", session_timeout.totalMilliseconds());
 
-        if (client_timeout != 0)
-            session_timeout = std::min(client_timeout, session_timeout);
+        int32_t handshake_length = header;
+        connect_req = receiveHandshake(handshake_length);
+
+        if (connect_req.timeout_ms != 0)
+            session_timeout = std::min(Poco::Timespan(connect_req.timeout_ms * 1000), session_timeout);
+
+        LOG_TRACE(log, "ReceiveHandshake client session_timeout is {}.", session_timeout.totalMilliseconds());
     }
-    catch (const Exception & e) /// Typical for an incorrect username, password, or address.
+    catch (const Exception & e)
     {
+        /// Typical for an incorrect username, password
+        /// and bad protocol version, bad las zxid, rw connection to a read only server
+        /// Close the connection directly.
         LOG_WARNING(log, "Cannot receive handshake {}", e.displayText());
         return;
     }
@@ -348,9 +366,35 @@ void ServiceTCPHandler::runImpl()
     {
         try
         {
-            LOG_INFO(log, "Requesting session ID for the new client");
-            session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-            LOG_INFO(log, "Received session ID {}", session_id);
+            if (connect_req.previous_session_id != 0)
+            {
+                session_id = connect_req.previous_session_id;
+                /// existed session
+                if (!service_keeper_storage_dispatcher->getStateMachine().containsSession(connect_req.previous_session_id))
+                {
+                    /// session expired, set timeout <=0
+                    LOG_WARNING(
+                        log,
+                        "Client try to reconnects but session 0x{} is already expired",
+                        getHexUIntLowercase(connect_req.previous_session_id));
+                    session_timeout = -1;
+                    sendHandshake(true);
+                    return;
+                }
+                else
+                {
+                    /// update session timeout
+                    service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds());
+                    LOG_INFO(log, "Client reconnected with session 0x{}", getHexUIntLowercase(connect_req.previous_session_id));
+                }
+            }
+            else
+            {
+                /// new session
+                LOG_INFO(log, "Requesting session ID for new client");
+                session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
+                LOG_INFO(log, "Received session ID {}", session_id);
+            }
         }
         catch (const Exception & e)
         {
@@ -379,7 +423,6 @@ void ServiceTCPHandler::runImpl()
     session_stopwatch.start();
     bool close_received = false;
 
-    Stopwatch process_time_stopwatch;
     try
     {
         while (true)
@@ -391,7 +434,6 @@ void ServiceTCPHandler::runImpl()
             {
                 auto [received_op, received_xid] = receiveRequest();
                 packageReceived();
-                process_time_stopwatch.start();
 
                 if (received_op == Coordination::OpNum::Close)
                 {
