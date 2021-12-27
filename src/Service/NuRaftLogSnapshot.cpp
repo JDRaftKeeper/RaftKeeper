@@ -526,6 +526,32 @@ void KeeperSnapshotStore::getFileTime(const std::string & file_name, std::string
     time = file_name.substr(it1 + 1, it2 - it1);
 }
 
+bool KeeperSnapshotStore::writeSnapshotVersion(const SnapshotVersion version_) const
+{
+    int snap_version_fd = openFileForWrite(snap_dir + "/snapshot_version_" + curr_time);
+    auto snap_version = static_cast<uint8_t>(version_);
+    errno = 0;
+    ssize_t ret = pwrite(snap_version_fd, &snap_version, sizeof(uint8_t), 0);
+    if (ret < ssize_t(sizeof(uint8_t)))
+    {
+        LOG_ERROR(log, "Write snapshot_version file error {}, ret {}", strerror(errno), ret);
+        return false;
+    }
+    else
+        LOG_INFO(log, "Write snapshot_version {}, file {}", snap_version, "snapshot_version_" + curr_time);
+
+    if (::fsync(snap_version_fd) == -1)
+    {
+        LOG_ERROR(log, "fsync snapshot_version file error {}, ret {}", strerror(errno), ret);
+    }
+    if (::close(snap_version_fd) == -1)
+    {
+        LOG_ERROR(log, "close snapshot_version file error {}, ret {}", strerror(errno), ret);
+        return false;
+    }
+    return true;
+}
+
 size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
 {
     if (snap_meta->size() == 0)
@@ -579,16 +605,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
 
     UInt32 batch_size = save_batch_size;
 
-    int snap_version_fd = openFileForWrite(snap_dir + "/snapshot_version_" + curr_time);
-    auto snap_version = static_cast<uint8_t>(version);
-    errno = 0;
-    ssize_t ret = pwrite(snap_version_fd, &snap_version, sizeof(uint8_t), 0);
-    if (ret < ssize_t(sizeof(uint8_t)))
-        LOG_ERROR(log, "Write snapshot_version file error {}, ret {}", strerror(errno), ret);
-    else
-        LOG_INFO(log, "Write snapshot_version {}, file {}", snap_version, "snapshot_version_" + curr_time);
-    ::fsync(snap_version_fd);
-    ::close(snap_version_fd);
+    if (!writeSnapshotVersion(version))
+        return -1;
 
     ThreadPool container_thread_pool(SNAPSHOT_THREAD_NUM + 1);
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
@@ -1054,7 +1072,11 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
     size_t file_size = ::lseek(snap_fd, 0, SEEK_END);
     ::lseek(snap_fd, 0, SEEK_SET);
 
-    buffer = buffer::alloc(file_size);
+    auto snap_version = static_cast<uint8_t>(version);
+
+    buffer = buffer::alloc(file_size + sizeof(uint8_t));
+    buffer->put(snap_version);
+
     size_t offset = 0;
     char read_buf[IO_BUFFER_SIZE];
     while (offset < file_size)
@@ -1101,7 +1123,6 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
 
     std::string obj_path;
     getObjectPath(obj_id, obj_path);
-
     int snap_fd = openFileForWrite(obj_path);
     if (snap_fd < 0)
     {
@@ -1109,17 +1130,26 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
     }
 
     buffer.pos(0);
+    auto snapshot_version = buffer.get_byte();
+
+    Poco::File snapshot_version_file(snap_dir + "/snapshot_version_" + curr_time);
+    if (!snapshot_version_file.exists())
+    {
+        writeSnapshotVersion(SnapshotVersion(snapshot_version));
+    }
+
+    size_t object_size = buffer.size() - 1;
     size_t offset = 0;
-    while (offset < buffer.size())
+    while (offset < object_size)
     {
         int buf_size;
-        if (offset + IO_BUFFER_SIZE < buffer.size())
+        if (offset + IO_BUFFER_SIZE < object_size)
         {
             buf_size = IO_BUFFER_SIZE;
         }
         else
         {
-            buf_size = buffer.size() - offset;
+            buf_size = object_size - offset;
         }
         errno = 0;
         ssize_t ret = pwrite(snap_fd, buffer.get_raw(buf_size), buf_size, offset);
@@ -1145,7 +1175,7 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
     }
 
     objects_path[obj_id] = obj_path;
-    LOG_INFO(log, "Save object path {}, file size {}, obj_id {}.", obj_path, buffer.size(), obj_id);
+    LOG_INFO(log, "Save object path {}, file size {}, obj_id {}.", obj_path, object_size, obj_id);
 }
 
 void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
