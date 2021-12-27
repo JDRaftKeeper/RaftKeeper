@@ -258,12 +258,12 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             ACL acl1;
             acl1.permissions = ACL::All;
             acl1.scheme = "digest";
-            acl1.id = "user1:password1";
+            acl1.id = "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=";
 
             ACL acl2;
             acl2.permissions = ACL::All;
             acl2.scheme = "digest";
-            acl2.id = "user1:password";
+            acl2.id = "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=";
             acls.emplace_back(std::move(acl1));
             acls.emplace_back(std::move(acl2));
 
@@ -273,17 +273,17 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         else if (i == 1022)
         {
             /// set read permission to "/1022" node
-            setACLNode(storage, key, value, ACL::Read, "digest", "user1:password1");
+            setACLNode(storage, key, value, ACL::Read, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
         }
         else if (i == 1024)
         {
             /// Set a password different from session 1
-            setACLNode(storage, key, value, ACL::All, "digest", "user1:password");
+            setACLNode(storage, key, value, ACL::All, "digest", "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
         }
         else if (i % 2)
             setNode(storage, key, value);
         else
-            setACLNode(storage, key, value, ACL::All, "digest", "user1:password1"); /// set acl to even number node
+            setACLNode(storage, key, value, ACL::All, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI="); /// set acl to even number node
     }
 
     for (int i = 0; i < 1024; i++)
