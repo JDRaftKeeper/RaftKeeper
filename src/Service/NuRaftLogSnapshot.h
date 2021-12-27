@@ -67,6 +67,8 @@ public:
     }
     ~KeeperSnapshotStore() { }
 
+    bool writeSnapshotVersion(const SnapshotVersion version_) const;
+
     //create snapshot object, return the size of objects
     size_t createObjects(SvsKeeperStorage & storage);
     // init snapshot store for receive snapshot object
