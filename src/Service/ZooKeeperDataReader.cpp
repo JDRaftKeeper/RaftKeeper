@@ -58,7 +58,7 @@ int64_t deserializeSessionAndTimeout(SvsKeeperStorage & storage, ReadBuffer & in
     return max_session_id;
 }
 
-void deserializeACLMap(SvsKeeperStorage & /* storage */, ReadBuffer & in)
+void deserializeACLMap(SvsKeeperStorage & storage, ReadBuffer & in)
 {
     int32_t count;
     Coordination::read(count, in);
@@ -80,7 +80,7 @@ void deserializeACLMap(SvsKeeperStorage & /* storage */, ReadBuffer & in)
             acls.push_back(acl);
             acls_len--;
         }
-//        storage.acl_map.addMapping(map_index, acls);
+        storage.acl_map.addMapping(map_index, acls);
 
         count--;
     }

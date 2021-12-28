@@ -91,10 +91,12 @@ public:
 #ifdef __APPLE__
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%llu_%llu";
+    //snapshot_createtime_lastlogindex_lastlogterm_objectid
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%llu_%llu_%llu";
 #else
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%lu_%lu";
+    //snapshot_createtime_lastlogindex_lastlogterm_objectid
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
 #endif
 

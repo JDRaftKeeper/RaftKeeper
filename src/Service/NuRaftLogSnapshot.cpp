@@ -88,6 +88,22 @@ size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj
     return SnapshotBatchHeader::HEADER_SIZE + header.data_length;
 }
 
+static String toString(const Coordination::ACLs & acls)
+{
+    String ret = "[ ";
+    for (auto & acl : acls)
+    {
+        ret += std::to_string(acl.permissions);
+        ret += ", ";
+        ret += acl.scheme;
+        ret += ", ";
+        ret += acl.id;
+        ret += ", ";
+    }
+    ret += " ]";
+    return ret;
+}
+
 //return end object index
 void createObjectContainer(
     SvsKeeperStorage::Container::InnerMap & innerMap,
@@ -144,7 +160,10 @@ void createObjectContainer(
         Coordination::write(node->data, out);
 
         if (version >= V1)
+        {
             writeBinary(node->acl_id, out);
+            LOG_TRACE(log, "createObjectContainer path {}, acl_id {}", container_it->first, node->acl_id);
+        }
         else if (version == V0)
         {
             const auto & acls = storage.acl_map.convertNumber(node->acl_id);
@@ -464,6 +483,7 @@ void createAclMaps(SvsKeeperStorage & storage, UInt32 save_batch_size, std::stri
         /// Serialize ACLs MAP
 //        writeBinary(acl_map.size(), out);
         const auto & [acl_id, acls] = *acl_it;
+        LOG_TRACE(log, "createAclMaps acl_id {}, node_acls {}", acl_id, toString(acls));
         writeBinary(acl_id, out);
         writeBinary(acls.size(), out);
         for (const auto & acl : acls)
@@ -783,6 +803,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             Coordination::ACLs acls;
                             Coordination::read(acls, in);
                             node->acl_id = storage.acl_map.convertACLs(acls);
+                            LOG_TRACE(log, "parseOneObject path {}, acl_id {}, node_acls {}", key, node->acl_id, toString(acls));
                         }
 
                         /// Some strange ACLID during deserialization from ZooKeeper
@@ -790,6 +811,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             node->acl_id = 0;
 
                         storage.acl_map.addUsage(node->acl_id);
+                        LOG_TRACE(log, "parseOneObject path {}, acl_id {}", key, node->acl_id);
 
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
@@ -944,6 +966,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             readBinary(acl.id, in);
                             acls.push_back(acl);
                         }
+                        LOG_TRACE(log, "parseOneObject acl_id {}, node_acls {}", acl_id, toString(acls));
                         storage.acl_map.addMapping(acl_id, acls);
                     }
                 }

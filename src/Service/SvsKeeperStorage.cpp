@@ -58,6 +58,22 @@ static String generateDigest(const String & userdata)
     return user_password[0] + ":" + base64Encode(getSHA1(userdata));
 }
 
+static String toString(const Coordination::ACLs & acls)
+{
+    String ret = "[ ";
+    for (auto & acl : acls)
+    {
+        ret += std::to_string(acl.permissions);
+        ret += ", ";
+        ret += acl.scheme;
+        ret += ", ";
+        ret += acl.id;
+        ret += ", ";
+    }
+    ret += " ]";
+    return ret;
+}
+
 static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, const std::vector<SvsKeeperStorage::AuthID> & session_auths)
 {
     if (node_acls.empty())
@@ -369,6 +385,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         storage.acl_map.addUsage(acl_id);
 
         created_node->acl_id = acl_id;
+        LOG_TRACE(log, "path {}, acl_id {}, node_acls {}", zk_request->getPath(), created_node->acl_id, toString(node_acls));
         created_node->stat.czxid = zxid;
         created_node->stat.mzxid = zxid;
         created_node->stat.pzxid = zxid;
@@ -465,12 +482,14 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
 {
     bool checkAuth(SvsKeeperStorage & storage, int64_t session_id) const override
     {
+        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageGetRequest"));
         auto & container = storage.container;
         auto node = container.get(zk_request->getPath());
         if (node == nullptr)
             return true;
 
         const auto & node_acls = storage.acl_map.convertNumber(node->acl_id);
+        LOG_TRACE(log, "path {}, acl_id {}, node_acls {}", zk_request->getPath(), node->acl_id, toString(node_acls));
         if (node_acls.empty())
             return true;
 
