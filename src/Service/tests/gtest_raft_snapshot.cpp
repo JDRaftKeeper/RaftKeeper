@@ -364,8 +364,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// compare ACLs
     if (create_version >= V1 && parse_version >= V1)
     {
-        /// include : empty, vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
-        ASSERT_EQ(new_storage.acl_map.getMapping().size(), 5);
+        /// include : vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
+        ASSERT_EQ(new_storage.acl_map.getMapping().size(), 4);
         ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
 
         const auto & acls = new_storage.acl_map.convertNumber(storage.container.get("/1020")->acl_id);
