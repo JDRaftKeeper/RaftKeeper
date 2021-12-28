@@ -148,3 +148,39 @@ def test_reconnection_with_down_raft(started_cluster):
         if zk is not None:
             zk.stop()
             zk.close()
+
+
+def test_reconnection_with_session_expire(started_cluster):
+    wait_nodes()
+    zk = None
+    try:
+        zk = get_fake_zk(node1.name, timeout=1)
+        first_session_id = zk._session_id
+        print("Client session id", first_session_id)
+        print("Client session timeout", zk._session_timeout)
+        zk.create("/test_reconnection_with_session_expire", b"hello")
+
+        print("restart cluster")
+        node1.kill_clickhouse(stop_start_wait_sec=0.1)
+        node2.kill_clickhouse(stop_start_wait_sec=0.1)
+        node3.kill_clickhouse(stop_start_wait_sec=0.1)
+        time.sleep(2)
+        node1.restore_clickhouse()
+        node2.restore_clickhouse()
+        node3.restore_clickhouse()
+        wait_nodes()
+
+        try:
+            zk.get("/test_reconnection_with_session_expire")
+        except:
+            assert True
+        else:
+            assert False
+        zk = get_fake_zk(node1.name, timeout=3)
+        data, stat = zk.get("/test_reconnection_with_session_expire")
+        assert data == b"hello"
+        assert zk._session_id > first_session_id
+    finally:
+        if zk is not None:
+            zk.stop()
+            zk.close()
