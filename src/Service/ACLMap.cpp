@@ -74,7 +74,7 @@ void ACLMap::addMapping(uint64_t acls_id, const Coordination::ACLs & acls)
     std::lock_guard lock(acl_mutex);
     num_to_acl[acls_id] = acls;
     acl_to_num[acls] = acls_id;
-    max_acl_id = std::max(acls_id, max_acl_id);
+    max_acl_id = std::max(acls_id + 1, max_acl_id); /// max_acl_id pointer next slot
 }
 
 void ACLMap::addUsage(uint64_t acl_id)
