@@ -44,6 +44,9 @@ uint64_t ACLMap::convertACLs(const Coordination::ACLs & acls)
 {
     std::lock_guard lock(acl_mutex);
 
+    if (acls.empty())
+        return 0;
+
     if (acl_to_num.count(acls))
         return acl_to_num[acls];
 
