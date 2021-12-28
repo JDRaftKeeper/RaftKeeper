@@ -60,18 +60,23 @@ static String generateDigest(const String & userdata)
 
 static String toString(const Coordination::ACLs & acls)
 {
-    String ret = "[ ";
+    WriteBufferFromOwnString ret;
+    String left_bracket = "[ ";
+    String comma = ", ";
+    String right_bracket = " ]";
+    ret.write(left_bracket.c_str(), left_bracket.length());
     for (auto & acl : acls)
     {
-        ret += std::to_string(acl.permissions);
-        ret += ", ";
-        ret += acl.scheme;
-        ret += ", ";
-        ret += acl.id;
-        ret += ", ";
+        auto permissions = std::to_string(acl.permissions);
+        ret.write(permissions.c_str(), permissions.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.scheme.c_str(), acl.scheme.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.id.c_str(), acl.id.length());
+        ret.write(comma.c_str(), comma.length());
     }
-    ret += " ]";
-    return ret;
+    ret.write(right_bracket.c_str(), right_bracket.length());
+    return ret.str();
 }
 
 static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, const std::vector<SvsKeeperStorage::AuthID> & session_auths)
@@ -104,8 +109,7 @@ static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, c
 static bool fixupACL(
     const std::vector<Coordination::ACL> & request_acls,
     const std::vector<SvsKeeperStorage::AuthID> & current_ids,
-    std::vector<Coordination::ACL> & result_acls,
-    bool hash_acls [[maybe_unused]])
+    std::vector<Coordination::ACL> & result_acls)
 {
     if (request_acls.empty())
         return true;
@@ -140,8 +144,6 @@ static bool fixupACL(
             valid_found = true;
 
             /// Consistent with zookeeper, accept generated digest
-//            if (hash_acls)
-//                new_acl.id = generateDigest(new_acl.id);
             result_acls.push_back(new_acl);
         }
     }
@@ -375,7 +377,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         auto & session_auth_ids = storage.session_and_auth[session_id];
 
         Coordination::ACLs node_acls;
-        if (!fixupACL(request.acls, session_auth_ids, node_acls, !request.restored_from_zookeeper_log))
+        if (!fixupACL(request.acls, session_auth_ids, node_acls))
         {
             response.error = Coordination::Error::ZINVALIDACL;
             return {response_ptr, {}};
@@ -938,7 +940,7 @@ struct SvsKeeperStorageSetACLRequest final : public SvsKeeperStorageRequest
             auto & session_auth_ids = storage.session_and_auth[session_id];
             Coordination::ACLs node_acls;
 
-            if (!fixupACL(request.acls, session_auth_ids, node_acls, !request.restored_from_zookeeper_log))
+            if (!fixupACL(request.acls, session_auth_ids, node_acls))
             {
                 response.error = Coordination::Error::ZINVALIDACL;
                 return {response_ptr, {}};

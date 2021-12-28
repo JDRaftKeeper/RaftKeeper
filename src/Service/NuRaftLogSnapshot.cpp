@@ -90,18 +90,23 @@ size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj
 
 static String toString(const Coordination::ACLs & acls)
 {
-    String ret = "[ ";
+    WriteBufferFromOwnString ret;
+    String left_bracket = "[ ";
+    String comma = ", ";
+    String right_bracket = " ]";
+    ret.write(left_bracket.c_str(), left_bracket.length());
     for (auto & acl : acls)
     {
-        ret += std::to_string(acl.permissions);
-        ret += ", ";
-        ret += acl.scheme;
-        ret += ", ";
-        ret += acl.id;
-        ret += ", ";
+        auto permissions = std::to_string(acl.permissions);
+        ret.write(permissions.c_str(), permissions.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.scheme.c_str(), acl.scheme.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.id.c_str(), acl.id.length());
+        ret.write(comma.c_str(), comma.length());
     }
-    ret += " ]";
-    return ret;
+    ret.write(right_bracket.c_str(), right_bracket.length());
+    return ret.str();
 }
 
 //return end object index
