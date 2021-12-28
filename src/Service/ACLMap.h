@@ -55,7 +55,7 @@ public:
         return usage_counter;
     }
 
-    /// Add mapping to ACLMap. Used during deserialization.
+    /// Add mapping to ACLMap. Used during deserialization from snapshot.
     void addMapping(uint64_t acls_id, const Coordination::ACLs & acls);
 
     /// Add/remove usage of some id. Used to remove unused ACLs.
