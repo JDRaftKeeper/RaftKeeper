@@ -5,6 +5,7 @@ import os
 import logging
 import csv
 import sys
+import re
 
 
 def process_result(result_folder):
@@ -69,10 +70,22 @@ def printErrorFile(result_folder):
         printFile(duplicate_log_path)
 
 def printFile(file):
-    fileName = open(file)
-    for line in fileName:
-        print(line)
-    fileName.close()
+    print(file)
+    f = open(file)
+    if "style_output.txt" in file:
+        for line in f:
+            pattern = re.compile(r':[0-9]+:')
+            subStrArr = pattern.findall(line)
+            subStr = subStrArr[0]
+            res = line.split(subStr, 1)
+            if res[1].isspace():
+                print(res[0],subStr,"whitespace error")
+            else:
+                print(line)
+    else:
+        for line in f:
+            print(line)
+    f.close()
 
 if __name__ == "__main__":
     repo_path = os.path.join(os.getenv("GITHUB_WORKSPACE", os.path.abspath("../../")))
