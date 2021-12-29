@@ -76,6 +76,9 @@ def printFile(file):
         for line in f:
             pattern = re.compile(r':[0-9]+:')
             subStrArr = pattern.findall(line)
+            if len(subStrArr) == 0:
+                print(line)
+                continue
             subStr = subStrArr[0]
             res = line.split(subStr, 1)
             if res[1].isspace():
