@@ -70,7 +70,6 @@ def printErrorFile(result_folder):
         printFile(duplicate_log_path)
 
 def printFile(file):
-    print(file)
     f = open(file)
     if "style_output.txt" in file:
         for line in f:
@@ -82,7 +81,7 @@ def printFile(file):
             subStr = subStrArr[0]
             res = line.split(subStr, 1)
             if res[1].isspace():
-                print(res[0],subStr,"whitespace error")
+                print(res[0],subStr," whitespace error")
             else:
                 print(line)
     else:
