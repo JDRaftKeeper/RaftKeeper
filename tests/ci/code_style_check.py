@@ -45,29 +45,33 @@ def printErrorFile(result_folder):
     if not os.path.exists(style_log_path):
         logging.info("No style check log on path %s", style_log_path)
     elif os.stat(style_log_path).st_size != 0:
-        print("style error: ")
+        print("style [error] ********************************************************************")
         printFile(style_log_path)
+        print("style [error] ********************************************************************")
 
     typos_log_path = '{}/typos_output.txt'.format(result_folder)
     if not os.path.exists(style_log_path):
         logging.info("No typos check log on path %s", style_log_path)
     elif os.stat(style_log_path).st_size != 0:
-        print("typos error: ")
+        print("typos [error] ********************************************************************")
         printFile(typos_log_path)
+        print("typos [error] ********************************************************************")
 
     whitespaces_log_path = '{}/whitespaces_output.txt'.format(result_folder)
     if not os.path.exists(style_log_path):
         logging.info("No whitespaces check log on path %s", style_log_path)
     elif os.stat(whitespaces_log_path).st_size != 0:
-        print("whitespace error: ")
+        print("whitespace [error] ********************************************************************")
         printFile(whitespaces_log_path)
+        print("whitespace [error] ********************************************************************")
 
     duplicate_log_path = '{}/duplicate_output.txt'.format(result_folder)
     if not os.path.exists(duplicate_log_path):
         logging.info("No header duplicates check log on path %s", duplicate_log_path)
     elif os.stat(duplicate_log_path).st_size != 0:
-        print("duplicate error: ")
+        print("duplicate [error] ********************************************************************")
         printFile(duplicate_log_path)
+        print("duplicate [error] ********************************************************************")
 
 def printFile(file):
     f = open(file)
