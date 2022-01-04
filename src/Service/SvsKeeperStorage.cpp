@@ -32,6 +32,7 @@ static std::string getBaseName(const String & path)
 static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
     const String & path, SvsKeeperStorage::Watches & watches, SvsKeeperStorage::Watches & list_watches, Coordination::Event event_type)
 {
+    static auto * log = &(Poco::Logger::get("SvsKeeperStorage"));
     SvsKeeperStorage::ResponsesForSessions result;
     auto it = watches.find(path);
     if (it != watches.end())
@@ -43,8 +44,10 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
         watch_response->type = event_type;
         watch_response->state = Coordination::State::CONNECTED;
         for (auto watcher_session : it->second)
+        {
             result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_response});
-
+            LOG_TRACE(log, "Watch triggered path {}, watcher session{}", path, watcher_session);
+        }
         watches.erase(it);
     }
 
@@ -903,7 +906,20 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
     /// ZooKeeper update sessions expirity for each request, not only for heartbeats
     {
         std::lock_guard lock(session_mutex);
+        if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
+        {
+            if (!session_and_timeout.contains(session_id))
+            {
+                SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
+                auto response = storage_request->zk_request->makeResponse();
+                response->error = Coordination::Error::ZSESSIONEXPIRED;
+                SvsKeeperStorage::ResponsesForSessions results;
+                results.push_back(ResponseForSession{session_id, response});
+                return results;
+            }
+        }
         session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+
     }
     SvsKeeperStorage::ResponsesForSessions results;
     if (zk_request->getOpNum() == Coordination::OpNum::Close)

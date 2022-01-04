@@ -366,7 +366,7 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
     return sid;
 }
 
-void SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
+bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
 {
     auto request = std::make_shared<Coordination::ZooKeeperHeartbeatRequest>();
     request->xid = Coordination::PING_XID;
@@ -379,6 +379,12 @@ void SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session
 
     if (result->get_result_code() != nuraft::cmd_result_code::OK)
         throw Exception(ErrorCodes::RAFT_ERROR, "Update session timeout failed to RAFT");
+
+    auto response = std::make_shared<Coordination::ZooKeeperHeartbeatResponse>();
+    auto buffer = ReadBufferFromNuraftBuffer(result->get());
+    response->readImpl(buffer);
+
+    return response->error == Coordination::Error::ZSESSIONEXPIRED;
 }
 
 bool SvsKeeperServer::isLeader() const

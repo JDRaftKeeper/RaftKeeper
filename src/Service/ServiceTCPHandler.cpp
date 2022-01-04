@@ -43,6 +43,7 @@ namespace ErrorCodes
     extern const int UNEXPECTED_PACKET_FROM_CLIENT;
     extern const int TIMEOUT_EXCEEDED;
     extern const int READONLY;
+    extern const int RAFT_ERROR;
 }
 
 struct PollResult
@@ -384,8 +385,17 @@ void ServiceTCPHandler::runImpl()
                 else
                 {
                     /// update session timeout
-                    service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds());
-                    LOG_INFO(log, "Client reconnected with session 0x{}", getHexUIntLowercase(connect_req.previous_session_id));
+                    if (service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds()))
+                    {
+                        /// session was expired when updating
+                        session_timeout = -1;
+                        throw Exception(
+                            ErrorCodes::RAFT_ERROR,
+                            "Session 0x{} was expired when updating",
+                            getHexUIntLowercase(connect_req.previous_session_id));
+                    }
+                    else
+                        LOG_INFO(log, "Client reconnected with session 0x{}", getHexUIntLowercase(connect_req.previous_session_id));
                 }
             }
             else
