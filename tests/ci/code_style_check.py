@@ -45,38 +45,50 @@ def printErrorFile(result_folder):
     if not os.path.exists(style_log_path):
         logging.info("No style check log on path %s", style_log_path)
     elif os.stat(style_log_path).st_size != 0:
-        print("style [error] ********************************************************************")
+        print("\n\033[31mstyle [error] **********************************************************************************************************\033[0m\n")
         printFile(style_log_path)
-        print("style [error] ********************************************************************")
 
     typos_log_path = '{}/typos_output.txt'.format(result_folder)
     if not os.path.exists(style_log_path):
         logging.info("No typos check log on path %s", style_log_path)
     elif os.stat(style_log_path).st_size != 0:
-        print("typos [error] ********************************************************************")
+        print("\n\033[31mtypos [error] **********************************************************************************************************\033[0m\n")
         printFile(typos_log_path)
-        print("typos [error] ********************************************************************")
 
     whitespaces_log_path = '{}/whitespaces_output.txt'.format(result_folder)
     if not os.path.exists(style_log_path):
         logging.info("No whitespaces check log on path %s", style_log_path)
     elif os.stat(whitespaces_log_path).st_size != 0:
-        print("whitespace [error] ********************************************************************")
+        print("\n\033[31mwhitespace [error] **********************************************************************************************************\033[0m\n")
         printFile(whitespaces_log_path)
-        print("whitespace [error] ********************************************************************")
 
     duplicate_log_path = '{}/duplicate_output.txt'.format(result_folder)
     if not os.path.exists(duplicate_log_path):
         logging.info("No header duplicates check log on path %s", duplicate_log_path)
     elif os.stat(duplicate_log_path).st_size != 0:
-        print("duplicate [error] ********************************************************************")
+        print("\n\033[31mduplicate [error] **********************************************************************************************************\033[0m\n")
         printFile(duplicate_log_path)
-        print("duplicate [error] ********************************************************************")
 
 def printFile(file):
     f = open(file)
     if "style_output.txt" in file:
         for line in f:
+            # 清理多余的头文件报错
+            patternDoth = re.compile(r'.h:[\s]+')
+            subStrDoth = patternDoth.findall(line)
+            if len(subStrDoth) > 0:
+                continue
+            # 清理多余的cpp文件报错
+            patternDotcpp = re.compile(r'.cpp:[\s]+')
+            subStrDotcpp = patternDotcpp.findall(line)
+            if len(subStrDotcpp) > 0:
+                continue
+            # 清理多余的python文件报错
+            patternDotpy = re.compile(r'.py:[\s]+')
+            subStrDotpy = patternDotpy.findall(line)
+            if len(subStrDotpy) > 0:
+                continue
+            # 处理输出文件
             pattern = re.compile(r':[0-9]+:')
             subStrArr = pattern.findall(line)
             if len(subStrArr) == 0:
@@ -84,6 +96,7 @@ def printFile(file):
                 continue
             subStr = subStrArr[0]
             res = line.split(subStr, 1)
+            # 标记 write space error
             if res[1].isspace():
                 print(res[0],subStr," whitespace error")
             else:
@@ -93,11 +106,12 @@ def printFile(file):
             print(line)
     f.close()
 
+
 if __name__ == "__main__":
     repo_path = os.path.join(os.getenv("GITHUB_WORKSPACE", os.path.abspath("../../")))
     temp_path = os.path.join(os.getenv("RUNNER_TEMP", os.path.abspath("./temp")), 'style_check')
-    print(repo_path)
-    print(temp_path)
+    # print(repo_path)
+    # print(temp_path)
 
     name = "codeStyleCheck_ck"
     docker_image = "yandex/clickhouse-style-test:latest"
