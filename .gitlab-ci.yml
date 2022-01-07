@@ -28,8 +28,8 @@ build with gcc:
     - git submodule sync
     - git submodule update --init --recursive
 
-    - export CC=gcc-10
-    - export CXX=gcc++-10
+    - export CC=gcc-11
+    - export CXX=g++-11
 
     - mkdir build_gcc
     - cd build_gcc
