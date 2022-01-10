@@ -672,7 +672,7 @@ struct ZooKeeperSetSeqNumResponse final : SetSeqNumResponse, ZooKeeperResponse
 {
     void readImpl(ReadBuffer &) override {}
     void writeImpl(WriteBuffer &) const override {}
-    OpNum getOpNum() const override { return OpNum::Set; }
+    OpNum getOpNum() const override { return OpNum::SetSeqNum; }
 
     bool operator== (const ZooKeeperResponse &) const override
     {
