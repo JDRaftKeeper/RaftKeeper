@@ -75,7 +75,7 @@ public:
 
     int64_t getSessionID(int64_t session_timeout_ms);
     /// update session timeout
-    /// @return whether session is expired when updating
+    /// @return whether success
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
 
     std::vector<int64_t> getDeadSessions();
