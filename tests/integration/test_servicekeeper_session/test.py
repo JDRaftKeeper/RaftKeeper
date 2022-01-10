@@ -114,6 +114,7 @@ def test_reconnection(started_cluster):
         assert data == b"I_am_ephemeral_node"
 
         zk.set("/test_reconnection", b"world")
+        global watch_triggered
         assert watch_triggered
 
         assert zk._session_id == first_session_id

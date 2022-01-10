@@ -292,30 +292,25 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
 
 SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
 {
-    //auto log = &(Poco::Logger::get("KeeperStateMachine"));
-
     ReadBufferFromNuraftBuffer buffer(data);
     SvsKeeperStorage::RequestForSession request_for_session;
     readIntBinary(request_for_session.session_id, buffer);
-    //LOG_DEBUG(log, "session id {}", request_for_session.session_id);
 
     int32_t length;
     Coordination::read(length, buffer);
-    //LOG_DEBUG(log, "length {}", length);
 
     int32_t xid;
     Coordination::read(xid, buffer);
-    //LOG_DEBUG(log, "xid {}", xid);
 
     Coordination::OpNum opnum;
     Coordination::read(opnum, buffer);
-    //LOG_DEBUG(log, "opnum {}", opnum);
 
     request_for_session.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request_for_session.request->xid = xid;
     request_for_session.request->readImpl(buffer);
 
-    //LOG_DEBUG(log, "Parse session id {}, length {}, xid {}, opnum {}", request_for_session.session_id, length, xid, opnum);
+    auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
+    LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", request_for_session.session_id, length, xid, Coordination::toString(opnum));
 
     return request_for_session;
 }
@@ -380,12 +375,12 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
                 log_idx,
                 request_for_session.session_id,
                 request_for_session.request->xid);
-            /// TODO atomic process request and add response to queue
             responses_for_sessions = storage.processRequest(request_for_session.request, request_for_session.session_id);
 
             for (auto & response_for_session : responses_for_sessions)
             {
-                if (auto * update_session_resp = dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response_for_session.response.get()))
+                if (dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response_for_session.response.get()))
+                    /// TODO multi update session requests
                     update_session_response = response_for_session.response;
                 else
                     responses_queue.push(response_for_session);
@@ -394,9 +389,14 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
 
-        WriteBufferFromNuraftBuffer out;
-        update_session_response->write(out);
-        return out.getBuffer();
+        if (update_session_response)
+        {
+            WriteBufferFromNuraftBuffer out;
+            update_session_response->write(out);
+            return out.getBuffer();
+        }
+        else
+            return nullptr;
     }
 }
 
