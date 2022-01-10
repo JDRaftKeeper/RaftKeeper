@@ -528,7 +528,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ServiceTCPHandler::receiveRequ
     Coordination::OpNum opnum;
     Coordination::read(opnum, *in);
 
-    LOG_TRACE(log, "Receive request session {}, xid {}, length {}, opnum {}", session_id, xid, length, opnum);
+    LOG_TRACE(log, "Receive request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
