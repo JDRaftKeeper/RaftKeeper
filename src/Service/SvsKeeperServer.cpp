@@ -370,7 +370,9 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session
 {
     auto request = std::make_shared<Coordination::ZooKeeperHeartbeatRequest>();
     request->xid = Coordination::PING_XID;
+    LOG_TRACE(log, "Update session timeout for {}", session_id);
     auto entry = getZooKeeperLogEntry(session_id, request);
+    LOG_INFO(log, "Update session timeout session id {}, request {}", session_id, entry->get_ulong());
 
     auto result = raft_instance->append_entries({entry});
 
@@ -380,11 +382,20 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session
     if (result->get_result_code() != nuraft::cmd_result_code::OK)
         throw Exception(ErrorCodes::RAFT_ERROR, "Update session timeout failed to RAFT");
 
-    auto response = std::make_shared<Coordination::ZooKeeperHeartbeatResponse>();
-    auto buffer = ReadBufferFromNuraftBuffer(result->get());
-    response->readImpl(buffer);
+    if (result->get())
+        LOG_INFO(log, "Update session timeout response nuraft buffer is blank, size {}, pos {}", result->get()->size(), result->get()->pos());
+    else
+        LOG_INFO(log, "Update session timeout response nuraft buffer is blank");
 
-    return response->error == Coordination::Error::ZSESSIONEXPIRED;
+    auto buffer = ReadBufferFromNuraftBuffer(*result->get());
+
+    ///  Response protocol header: int32_t length; Coordination::XID xid; int64_t zxid; Coordination::Error err;
+    buffer.seek(16, SEEK_SET);
+
+    Coordination::Error err;
+    Coordination::read(err, buffer);
+
+    return err == Coordination::Error::ZSESSIONEXPIRED;
 }
 
 bool SvsKeeperServer::isLeader() const
