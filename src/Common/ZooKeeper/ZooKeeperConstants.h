@@ -31,7 +31,7 @@ enum class OpNum : int32_t
     Check = 13,
     Multi = 14,
     Auth = 100,
-    SetSeqNum = 101, /// Special internal request
+    SetSeqNum = 200, /// Special internal request
     SessionID = 997, /// Special internal request
     UpdateSession = 998, /// Triggered by keeper server itself, for update session timeout when client reconnecting
 };
