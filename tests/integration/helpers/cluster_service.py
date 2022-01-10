@@ -56,6 +56,27 @@ def subprocess_call(args):
     # print('run:', ' ' . join(args))
     subprocess.call(args)
 
+def run_and_check(args, env=None, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, nothrow=False, detach=False):
+    if detach:
+        subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, shell=shell)
+        return
+
+    logging.debug(f"Command:{args}")
+    res = subprocess.run(args, stdout=stdout, stderr=stderr, env=env, shell=shell, timeout=timeout)
+    out = res.stdout.decode('utf-8')
+    err = res.stderr.decode('utf-8')
+    # check_call(...) from subprocess does not print stderr, so we do it manually
+    for outline in out.splitlines():
+        logging.debug(f"Stdout:{outline}")
+    for errline in err.splitlines():
+        logging.debug(f"Stderr:{errline}")
+    if res.returncode != 0:
+        logging.debug(f"Exitcode:{res.returncode}")
+        if env:
+            logging.debug(f"Env:{env}")
+        if not nothrow:
+            raise Exception(f"Command {args} return non-zero code {res.returncode}: {res.stderr.decode('utf-8')}")
+    return out
 
 def get_odbc_bridge_path():
     path = os.environ.get('CLICKHOUSE_TESTS_ODBC_BRIDGE_BIN_PATH')
@@ -378,6 +399,11 @@ class ClickHouseServiceCluster:
         data = data.replace(what, to)
         with open(path, 'w') as p:
             p.write(data)
+
+    def copy_file_from_container_to_container(self, src_node, src_path, dst_node, dst_path):
+        fname = os.path.basename(src_path)
+        run_and_check([f"docker cp {src_node.docker_id}:{src_path} {self.instances_dir}"], shell=True)
+        run_and_check([f"docker cp {self.instances_dir}/{fname} {dst_node.docker_id}:{dst_path}"], shell=True)
 
     def restart_instance_with_ip_change(self, node, new_ip):
         if '::' in new_ip:
@@ -1064,7 +1090,21 @@ class ClickHouseInstance:
         # wait start
         # assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
 
-    def restart_clickhouse(self, stop_start_wait_sec=5, kill=False):
+    def stop_clickhouse(self, start_wait_sec=10, kill=False):
+        if not self.stay_alive:
+            raise Exception("clickhouse can be stopped only with stay_alive=True instance")
+
+        self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
+        time.sleep(start_wait_sec)
+
+    def start_clickhouse(self, stop_wait_sec=10):
+        if not self.stay_alive:
+            raise Exception("clickhouse can be started again only with stay_alive=True instance")
+
+        self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+        time.sleep(stop_wait_sec)
+
+    def restart_clickhouse(self, stop_start_wait_sec=10, kill=False):
         if not self.stay_alive:
             raise Exception("clickhouse can be restarted only with stay_alive=True instance")
 

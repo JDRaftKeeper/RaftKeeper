@@ -12,7 +12,7 @@ from kazoo.client import KazooClient, KazooState
 
 
 cluster = ClickHouseServiceCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True)
+node = cluster.add_instance('node', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True)
 
 def random_string(length):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
