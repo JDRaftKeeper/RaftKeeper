@@ -11,9 +11,9 @@ import os
 import time
 
 cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_service_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
-node3 = cluster1.add_instance('node3', main_configs=['configs/enable_service_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
+node3 = cluster1.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
 
 def start_zookeeper(node):
     node1.exec_in_container(['bash', '-c', '/opt/zookeeper/bin/zkServer.sh start'])
@@ -67,13 +67,26 @@ def started_cluster():
     finally:
         cluster1.shutdown()
 
-def get_fake_zk(node, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node.name) + ":9181", timeout=timeout)
+def get_fake_zk(node, timeout=60.0):
+    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(node.name) + ":5102", timeout=timeout)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
+# def get_fake_zk(node, timeout=60.0):
+#     print(node.name, cluster1.get_instance_ip("node"))
+#     _fake_zk_instance =  KazooClient(hosts=cluster1.get_instance_ip(node.name) + ":5102", timeout=60.0)
+#     def reset_last_zxid_listener(state):
+#         print("Fake zk callback called for state", state)
+#         nonlocal _fake_zk_instance
+#         if state != KazooState.CONNECTED:
+#             _fake_zk_instance._reset()
+#
+#     _fake_zk_instance.add_listener(reset_last_zxid_listener)
+#     _fake_zk_instance.start()
+#     return _fake_zk_instance
+
 def get_genuine_zk(node, timeout=30.0):
-    _genuine_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node.name) + ":2181", timeout=timeout)
+    _genuine_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(node.name) + ":2181", timeout=timeout)
     _genuine_zk_instance.start()
     return _genuine_zk_instance
 
@@ -100,7 +113,7 @@ def test_snapshot_and_load(started_cluster):
     print("Resulted path", resulted_path)
     for node in [node2, node3]:
         print("Copy snapshot from", node1.name, "to", node.name)
-        cluster.copy_file_from_container_to_container(node1, resulted_path, node, '/var/lib/clickhouse/coordination/raft_snapshot')
+        cluster1.copy_file_from_container_to_container(node1, '/var/lib/clickhouse/coordination/raft_snapshot', node, '/var/lib/clickhouse/coordination')
 
     print("Starting clickhouses")
 
