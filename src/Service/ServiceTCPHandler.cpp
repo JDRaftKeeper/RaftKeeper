@@ -385,8 +385,9 @@ void ServiceTCPHandler::runImpl()
                 else
                 {
                     /// update session timeout
-                    if (service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds()))
+                    if (!service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds()))
                     {
+                        /// update failed
                         /// session was expired when updating
                         session_timeout = -1;
                         throw Exception(
