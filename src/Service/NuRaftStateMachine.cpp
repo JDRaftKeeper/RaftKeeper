@@ -372,6 +372,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     {
         auto request_for_session = parseRequest(data);
         SvsKeeperStorage::ResponsesForSessions responses_for_sessions;
+        Coordination::ZooKeeperResponsePtr update_session_response;
         {
             LOG_TRACE(
                 log,
@@ -381,12 +382,21 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
                 request_for_session.request->xid);
             /// TODO atomic process request and add response to queue
             responses_for_sessions = storage.processRequest(request_for_session.request, request_for_session.session_id);
+
             for (auto & response_for_session : responses_for_sessions)
-                responses_queue.push(response_for_session);
+            {
+                if (auto * update_session_resp = dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response_for_session.response.get()))
+                    update_session_response = response_for_session.response;
+                else
+                    responses_queue.push(response_for_session);
+            }
         }
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
-        return nullptr;
+
+        WriteBufferFromNuraftBuffer out;
+        update_session_response->write(out);
+        return out.getBuffer();
     }
 }
 
