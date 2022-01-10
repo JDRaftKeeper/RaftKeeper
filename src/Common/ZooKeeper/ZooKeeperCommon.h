@@ -107,6 +107,29 @@ struct ZooKeeperHeartbeatResponse final : ZooKeeperResponse
     OpNum getOpNum() const override { return OpNum::Heartbeat; }
 };
 
+/** Internal request.
+ */
+struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
+{
+    String getPath() const override { return {}; }
+    OpNum getOpNum() const override { return OpNum::UpdateSession; }
+    void writeImpl(WriteBuffer &) const override {}
+    void readImpl(ReadBuffer &) override {}
+    ZooKeeperResponsePtr makeResponse() const override;
+    bool isReadRequest() const override { return false; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid);
+    }
+};
+
+struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
+{
+    void readImpl(ReadBuffer &) override {}
+    void writeImpl(WriteBuffer &) const override {}
+    OpNum getOpNum() const override { return OpNum::UpdateSession; }
+};
+
 struct ZooKeeperSyncRequest final : ZooKeeperRequest
 {
     String path;
