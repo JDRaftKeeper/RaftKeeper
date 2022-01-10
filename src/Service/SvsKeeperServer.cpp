@@ -368,8 +368,8 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 
 bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
 {
-    auto request = std::make_shared<Coordination::ZooKeeperHeartbeatRequest>();
-    request->xid = Coordination::PING_XID;
+    auto request = std::make_shared<Coordination::ZooKeeperUpdateSessionRequest>();
+    request->xid = Coordination::UPDATE_SESSION_XID;
     LOG_TRACE(log, "Update session timeout for {}", session_id);
     auto entry = getZooKeeperLogEntry(session_id, request);
     LOG_INFO(log, "Update session timeout session id {}, request {}", session_id, entry->get_ulong());
