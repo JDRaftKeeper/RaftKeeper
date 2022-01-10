@@ -456,6 +456,7 @@ void ZooKeeperSetSeqNumRequest::readImpl(ReadBuffer & in)
 
 
 ZooKeeperResponsePtr ZooKeeperHeartbeatRequest::makeResponse() const { return std::make_shared<ZooKeeperHeartbeatResponse>(); }
+ZooKeeperResponsePtr ZooKeeperUpdateSessionRequest::makeResponse() const { return std::make_shared<ZooKeeperUpdateSessionResponse>(); }
 ZooKeeperResponsePtr ZooKeeperSyncRequest::makeResponse() const { return std::make_shared<ZooKeeperSyncResponse>(); }
 ZooKeeperResponsePtr ZooKeeperAuthRequest::makeResponse() const { return std::make_shared<ZooKeeperAuthResponse>(); }
 ZooKeeperResponsePtr ZooKeeperCreateRequest::makeResponse() const { return std::make_shared<ZooKeeperCreateResponse>(); }
