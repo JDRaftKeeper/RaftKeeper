@@ -46,7 +46,7 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
         for (auto watcher_session : it->second)
         {
             result.push_back(SvsKeeperStorage::ResponseForSession{watcher_session, watch_response});
-            LOG_TRACE(log, "Watch triggered path {}, watcher session{}", path, watcher_session);
+            LOG_TRACE(log, "Watch triggered path {}, watcher session {}", path, watcher_session);
         }
         watches.erase(it);
     }
@@ -920,8 +920,6 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
 
     SvsKeeperStorage::ResponsesForSessions results;
 
-
-
     /// ZooKeeper update sessions expirity for each request, not only for heartbeats
     session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
 
@@ -988,14 +986,19 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             if (!session_and_timeout.contains(session_id))
             {
                 response->error = Coordination::Error::ZSESSIONEXPIRED;
-                response->xid = zk_request->xid;
-                response->zxid = zxid;
                 results.push_back(ResponseForSession{session_id, response});
                 return results;
             }
             else
                 response->error = Coordination::Error::ZOK;
         }
+        LOG_TRACE(
+            log,
+            "Process update session timeout request: session {}, xid {}, zxid {}, error {}",
+            session_id,
+            response->xid,
+            response->zxid,
+            Coordination::errorMessage(response->error));
         results.push_back(ResponseForSession{session_id, response});
     }
     else
