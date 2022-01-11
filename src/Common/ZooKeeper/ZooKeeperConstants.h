@@ -12,7 +12,6 @@ using XID = int32_t;
 static constexpr XID WATCH_XID = -1;
 static constexpr XID PING_XID  = -2;
 static constexpr XID AUTH_XID  = -4;
-static constexpr XID UPDATE_SESSION_XID  = -8;
 static constexpr XID CLOSE_XID = 0x7FFFFFFF;
 
 enum class OpNum : int32_t
@@ -31,9 +30,9 @@ enum class OpNum : int32_t
     Check = 13,
     Multi = 14,
     Auth = 100,
+    SetWatches = 101,
     SetSeqNum = 200, /// Special internal request
     SessionID = 997, /// Special internal request
-    UpdateSession = 998, /// Triggered by keeper server itself, for update session timeout when client reconnecting
 };
 
 std::string toString(OpNum op_num);

@@ -52,7 +52,8 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    storage.processRequest(request, 0);
+    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    storage.processRequest(responses_queue ,request, 0, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 
 int parseLine(char * line)

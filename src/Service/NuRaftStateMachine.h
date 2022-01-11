@@ -83,8 +83,6 @@ public:
     //NodeMap & getNodeMap() { return node_map; }
     SvsKeeperStorage & getStorage() { return storage; }
 
-    SvsKeeperStorage::ResponsesForSessions singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
-
     void processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
 
     std::vector<int64_t> getDeadSessions();
@@ -113,7 +111,11 @@ public:
 
 private:
     ptr<SvsKeeperStorage::RequestForSession> createRequestSession(ptr<log_entry> & entry);
+
+    /// Only contains session_id
     static bool isNewSessionRequest(nuraft::buffer & data);
+    /// Contains session_id and timeout
+    static bool isUpdateSessionRequest(nuraft::buffer & data);
 
     Poco::Logger * log;
     SvsKeeperSettingsPtr coordination_settings;
