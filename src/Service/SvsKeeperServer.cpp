@@ -270,11 +270,6 @@ namespace
 #endif
 }
 
-SvsKeeperStorage::ResponsesForSessions SvsKeeperServer::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
-{
-    return state_machine->singleProcessReadRequest(request_for_session);
-}
-
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
     auto [session_id, request] = request_for_session;
@@ -366,13 +361,15 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
     return sid;
 }
 
-bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
+bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
 {
-    auto request = std::make_shared<Coordination::ZooKeeperUpdateSessionRequest>();
-    request->xid = Coordination::UPDATE_SESSION_XID;
+    LOG_DEBUG(log, "Updating session timeout for {}", session_id);
 
-    LOG_TRACE(log, "Update session timeout for {}", session_id);
-    auto entry = getZooKeeperLogEntry(session_id, request);
+    auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
+    nuraft::buffer_serializer bs(entry);
+
+    bs.put_i64(session_id);
+    bs.put_i64(session_timeout_ms);
 
     auto result = raft_instance->append_entries({entry});
 
@@ -386,14 +383,10 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t /*session
         throw Exception(ErrorCodes::RAFT_ERROR, "Received nullptr when updating session timeout");
 
     auto buffer = ReadBufferFromNuraftBuffer(*result->get());
+    int8_t is_success;
+    Coordination::read(is_success, buffer);
 
-    ///  Response protocol header: int32_t length; Coordination::XID xid; int64_t zxid; Coordination::Error err;
-    buffer.seek(16, SEEK_SET);
-
-    Coordination::Error err;
-    Coordination::read(err, buffer);
-
-    return err != Coordination::Error::ZSESSIONEXPIRED;
+    return is_success;
 }
 
 bool SvsKeeperServer::isLeader() const

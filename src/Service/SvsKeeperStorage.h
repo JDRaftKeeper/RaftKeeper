@@ -6,6 +6,7 @@
 #include <Service/SvsKeeperSessionExpiryQueue.h>
 #include <Poco/Logger.h>
 #include <Common/ConcurrentBoundedQueue.h>
+#include <Service/SvsKeeperThreadSafeQueue.h>
 #include <Common/ThreadPool.h>
 #include <Common/ZooKeeper/IKeeper.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
@@ -144,6 +145,7 @@ public:
     };
 
     using ResponsesForSessions = std::vector<ResponseForSession>;
+    using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
 
     struct RequestForSession
     {
@@ -202,7 +204,15 @@ public:
         return result;
     }
 
-    ResponsesForSessions processRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id, std::optional<int64_t> new_last_zxid = {}, bool check_acl = true);
+    bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
+
+    void processRequest(
+        SvsKeeperThreadSafeQueue<ResponseForSession> & responses_queue,
+        const Coordination::ZooKeeperRequestPtr & request,
+        int64_t session_id,
+        std::optional<int64_t> new_last_zxid = {},
+        bool check_acl = true,
+        bool ignore_response = false);
 
     /// build path children after load data from snapshot
     void buildPathChildren(bool from_zk_snapshot = false);
