@@ -1,7 +1,6 @@
 #include <functional>
 #include <iomanip>
 #include <mutex>
-#include <sstream>
 #include <Service/SvsKeeperStorage.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/ZooKeeper/IKeeper.h>
@@ -13,6 +12,28 @@ namespace ErrorCodes
 {
     extern const int LOGICAL_ERROR;
     extern const int BAD_ARGUMENTS;
+}
+
+static inline void set_response(
+    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> & responses_queue,
+    const SvsKeeperStorage::ResponsesForSessions & responses,
+    bool ignore_response)
+{
+    if (!ignore_response)
+    {
+        for (const auto & response : responses)
+            responses_queue.push(response);
+    }
+}
+
+static inline void set_response(
+    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> & responses_queue,
+    const SvsKeeperStorage::ResponseForSession & response,
+    bool ignore_response)
+{
+    SvsKeeperStorage::ResponsesForSessions responses;
+    responses.push_back(response);
+    set_response(responses_queue, responses, ignore_response);
 }
 
 static String parentPath(const String & path)
@@ -94,6 +115,7 @@ static SvsKeeperStorage::ResponsesForSessions processWatchesImpl(
 static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_request)
 {
     return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+        || dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperCheckRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
@@ -144,7 +166,7 @@ struct SvsKeeperStorageHeartbeatRequest final : public SvsKeeperStorageRequest
     }
 };
 
-struct SvsKeeperStorageUpdateSessionRequest final : public SvsKeeperStorageRequest
+struct SvsKeeperStorageSetWatchesRequest final : public SvsKeeperStorageRequest
 {
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
@@ -155,6 +177,12 @@ struct SvsKeeperStorageUpdateSessionRequest final : public SvsKeeperStorageReque
         int64_t /* session_id */) const override
     {
         return {zk_request->makeResponse(), {}};
+    }
+
+    SvsKeeperStorage::ResponsesForSessions
+    processWatches(SvsKeeperStorage::Watches & /*watches*/, SvsKeeperStorage::Watches & /*list_watches*/) const override
+    {
+        return {};
     }
 };
 
@@ -890,7 +918,7 @@ void registerNuKeeperRequestWrapper(NuKeeperWrapperFactory & factory)
 NuKeeperWrapperFactory::NuKeeperWrapperFactory()
 {
     registerNuKeeperRequestWrapper<Coordination::OpNum::Heartbeat, SvsKeeperStorageHeartbeatRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::UpdateSession, SvsKeeperStorageUpdateSessionRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::SetWatches, SvsKeeperStorageSetWatchesRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Sync, SvsKeeperStorageSyncRequest>(*this);
     //registerNuKeeperRequestWrapper<Coordination::OpNum::Auth, SvsKeeperStorageAuthRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Close, SvsKeeperStorageCloseRequest>(*this);
@@ -907,10 +935,13 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
 }
 
 
-SvsKeeperStorage::ResponsesForSessions
-SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_request, int64_t session_id, std::optional<int64_t> new_last_zxid, bool check_acl [[maybe_unused]])
+void SvsKeeperStorage::processRequest(
+    SvsKeeperThreadSafeQueue<ResponseForSession> & responses_queue,
+    const Coordination::ZooKeeperRequestPtr & zk_request,
+    int64_t session_id,
+    std::optional<int64_t> new_last_zxid,
+    bool check_acl [[maybe_unused]], bool ignore_response)
 {
-
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
@@ -918,9 +949,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         zxid = *new_last_zxid;
     }
 
-    SvsKeeperStorage::ResponsesForSessions results;
-
-    /// ZooKeeper update sessions expirity for each request, not only for heartbeats
+    /// ZooKeeper update sessions expiry for each request, not only for heartbeats
     session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
 
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
@@ -945,8 +974,10 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
                         parent->children.erase(getBaseName(ephemeral_path));
                     }
                     container.erase(ephemeral_path);
+
+                    std::lock_guard watch_lock(watch_mutex);
                     auto responses = processWatchesImpl(ephemeral_path, watches, list_watches, Coordination::Event::DELETED);
-                    results.insert(results.end(), responses.begin(), responses.end());
+                    set_response(responses_queue, responses, ignore_response);
                 }
                 ephemerals.erase(it);
             }
@@ -962,7 +993,7 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
         }
-        results.push_back(ResponseForSession{session_id, response});
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
@@ -971,40 +1002,92 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
         response->xid = zk_request->xid;
         /// Heartbeat not increase zxid
         response->zxid = zxid;
-
-        results.push_back(ResponseForSession{session_id, response});
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
-    else if (zk_request->getOpNum() == Coordination::OpNum::UpdateSession)
+    else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
         auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
-        /// Update session timeout not increase zxid
-        response->zxid = zxid;
         response->xid = zk_request->xid;
+        /// SetWatches not increase zxid
+        response->zxid = zxid;
+
+        auto * request = dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get());
+
+        std::lock_guard lock(watch_mutex);
+        for (String & path : request->data_watches)
         {
-            std::lock_guard lock(session_mutex);
-            if (!session_and_timeout.contains(session_id))
+            LOG_TRACE(log, "Set data_watches for session {}, path {}", session_id, path);
+            /// register watches
+            watches[path].emplace_back(session_id);
+            sessions_and_watchers[session_id].emplace(path);
+
+            /// trigger watches
+            auto node = container.get(path);
+            if (node == nullptr)
             {
-                response->error = Coordination::Error::ZSESSIONEXPIRED;
-                results.push_back(ResponseForSession{session_id, response});
-                return results;
+                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
+                set_response(responses_queue, watch_responses, ignore_response);
             }
-            else
-                response->error = Coordination::Error::ZOK;
+            else if (node->stat.mzxid > request->relative_zxid)
+            {
+                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHANGED);
+                set_response(responses_queue, watch_responses, ignore_response);
+            }
         }
-        LOG_TRACE(
-            log,
-            "Process update session timeout request: session {}, xid {}, zxid {}, error {}",
-            session_id,
-            response->xid,
-            response->zxid,
-            Coordination::errorMessage(response->error));
-        results.push_back(ResponseForSession{session_id, response});
+
+        for (String & path : request->exist_watches)
+        {
+            LOG_TRACE(log, "Set exist_watches for session {}, path {}", session_id, path);
+            /// register watches
+            watches[path].emplace_back(session_id);
+            sessions_and_watchers[session_id].emplace(path);
+
+            /// trigger watches
+            auto node = container.get(path);
+            if (node != nullptr)
+            {
+                LOG_TRACE(log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CREATED);
+                set_response(responses_queue, watch_responses, ignore_response);
+            }
+        }
+
+        for (String & path : request->list_watches)
+        {
+            LOG_TRACE(log, "Set list_watches for session {}, path {}", session_id, path);
+            /// register watches
+            list_watches[path].emplace_back(session_id);
+            sessions_and_watchers[session_id].emplace(path);
+
+            /// trigger watches
+            auto node = container.get(path);
+            if (node == nullptr)
+            {
+                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
+                set_response(responses_queue, watch_responses, ignore_response);
+            }
+            else if (node->stat.pzxid > request->relative_zxid)
+            {
+                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHILD);
+                set_response(responses_queue, watch_responses, ignore_response);
+            }
+        }
+
+        /// no response for SetWatches request
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
     else
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
         auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
+
+        response->xid = zk_request->xid;
+        response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
 
         //2^19 = 524,288
         if (container.size() << 45 == 0)
@@ -1028,75 +1111,91 @@ SvsKeeperStorage::processRequest(const Coordination::ZooKeeperRequestPtr & zk_re
             }
         }
 
-        if (zk_request->has_watch)
+        if (zk_request->isReadRequest())
         {
-            std::lock_guard lock(watch_mutex);
-            if (response->error == Coordination::Error::ZOK)
+            if (zk_request->has_watch)
             {
-                auto & watches_type
+                std::lock_guard lock(watch_mutex);
+
+                /// handle watch register, below 1 and 2 must be atomic
+                if (response->error == Coordination::Error::ZOK
+                    || (response->error == Coordination::Error::ZNONODE && zk_request->getOpNum() == Coordination::OpNum::Exists))
+                {
+                    /// 1. register watch
+                    auto & watches_type
                     = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
-                    ? list_watches
-                    : watches;
+                        ? list_watches
+                        : watches;
+                    watches_type[zk_request->getPath()].emplace_back(session_id);
+                    sessions_and_watchers[session_id].emplace(zk_request->getPath());
 
-                watches_type[zk_request->getPath()].emplace_back(session_id);
-                sessions_and_watchers[session_id].emplace(zk_request->getPath());
-                LOG_TRACE(
-                    log,
-                    "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
-                    session_id,
-                    zk_request->getPath(),
-                    Coordination::toString(zk_request->getOpNum()),
-                    response->error,
-                    Coordination::errorMessage(response->error));
+                    LOG_TRACE(
+                        log,
+                        "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
+                        session_id,
+                        zk_request->getPath(),
+                        Coordination::toString(zk_request->getOpNum()),
+                        response->error,
+                        Coordination::errorMessage(response->error));
+                }
+                /// 2. push response to queue
+                set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
             }
-            else if (response->error == Coordination::Error::ZNONODE && zk_request->getOpNum() == Coordination::OpNum::Exists)
+            else
             {
-                watches[zk_request->getPath()].emplace_back(session_id);
-                sessions_and_watchers[session_id].emplace(zk_request->getPath());
-                LOG_TRACE(
-                    log,
-                    "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
-                    session_id,
-                    zk_request->getPath(),
-                    Coordination::toString(zk_request->getOpNum()),
-                    response->error,
-                    Coordination::errorMessage(response->error));
+                /// push response to queue
+                set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
             }
         }
-
-        if (response->error == Coordination::Error::ZOK)
+        else
         {
-            std::lock_guard lock(watch_mutex);
-            LOG_TRACE(
-                log,
-                "Process watch, session id {}, path {}, opnum {}, error no {}, msg {}",
-                session_id,
-                zk_request->getPath(),
-                Coordination::toString(zk_request->getOpNum()),
-                response->error,
-                Coordination::errorMessage(response->error));
-            auto watch_responses = storage_request->processWatches(watches, list_watches);
-            results.insert(results.end(), watch_responses.begin(), watch_responses.end());
-            for (auto & session_id_response : watch_responses)
             {
-                auto * watch_response = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
-                LOG_TRACE(
-                    log,
-                    "Processed watch, session id {}, path {}, type {}",
-                    session_id_response.session_id,
-                    watch_response->path,
-                    watch_response->type);
+                std::lock_guard lock(watch_mutex);
+
+                /// handle watch trigger, below 1 and 2 must be atomic
+                if (watches.contains(zk_request->getPath()) || list_watches.contains(zk_request->getPath()))
+                {
+                    if (response->error == Coordination::Error::ZOK)
+                    {
+                        /// 1. trigger watch
+                        auto watch_responses = storage_request->processWatches(watches, list_watches);
+
+                        /// 2. push watch response to queue
+                        set_response(responses_queue, watch_responses, ignore_response);
+
+                        for (auto & session_id_response : watch_responses)
+                        {
+                            auto * watch_response
+                                = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
+                            LOG_TRACE(
+                                log,
+                                "Processed watch, session id {}, path {}, type {}",
+                                session_id_response.session_id,
+                                watch_response->path,
+                                watch_response->type);
+                        }
+                    }
+                }
             }
+
+            /// push response to queue
+            set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+
         }
-
-        response->xid = zk_request->xid;
-        /// read request not increase zxid
-        response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
-
-        results.push_back(ResponseForSession{session_id, response});
     }
+}
 
-    return results;
+bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
+{
+    std::lock_guard lock(session_mutex);
+    if (!session_and_timeout.contains(session_id))
+    {
+        LOG_WARNING(log, "Updated session timeout for {}, but it is already expired.", session_id);
+        return false;
+    }
+    session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+    LOG_INFO(log, "Updated session timeout for {}", session_id);
+    return true;
 }
 
 void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
@@ -1144,7 +1243,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
             {
                 if (static_cast<size_t>(parent->stat.numChildren) != parent->children.size())
                 {
-                    for (auto & path : parent->children)
+                    for (const auto & path : parent->children)
                     {
                         LOG_ERROR(log, "path {}, children {}", parent_path, path);
                     }
@@ -1162,7 +1261,7 @@ void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
         log,
         "clearDeadWatches, session id {}",
         session_id);
-    std::lock_guard session_lock(session_mutex);
+//    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
     if (watches_it != sessions_and_watchers.end())
@@ -1205,7 +1304,7 @@ void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 
 void SvsKeeperStorage::dumpWatches(WriteBufferFromOwnString & buf) const
 {
-    std::lock_guard session_lock(session_mutex);
+//    std::lock_guard session_lock(session_mutex);
     std::lock_guard lock(watch_mutex);
     for (const auto & [session_id, watches_paths] : sessions_and_watchers)
     {

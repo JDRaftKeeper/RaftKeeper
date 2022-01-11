@@ -219,9 +219,9 @@ NuRaftStateMachine::NuRaftStateMachine(
                 LOG_DEBUG(log, "log vector is null");
                 break;
             }
-            for (auto request : *(batch.request_vec))
+            for (auto & request : *(batch.request_vec))
             {
-                storage.processRequest(request->request, request->session_id);
+                storage.processRequest(responses_queue, request->request, request->session_id, {}, true, true);
                 if (request->session_id > storage.session_id_counter)
                 {
                     LOG_WARNING(
@@ -363,57 +363,44 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         task_manager->afterCommitted(last_committed_idx);
         return response;
     }
+    else if (isUpdateSessionRequest(data))
+    {
+        nuraft::buffer_serializer data_serializer(data);
+        int64_t session_id = data_serializer.get_i64();
+        int64_t session_timeout_ms = data_serializer.get_i64();
+
+        auto response = nuraft::buffer::alloc(1);
+        nuraft::buffer_serializer bs(response);
+
+        int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
+        LOG_DEBUG(log, "Update session ID {} timeout {}, response {}", session_id, session_timeout_ms, is_success);
+
+        bs.put_i8(is_success);
+
+        last_committed_idx = log_idx;
+        task_manager->afterCommitted(last_committed_idx);
+        return response;
+    }
     else
     {
         auto request_for_session = parseRequest(data);
         SvsKeeperStorage::ResponsesForSessions responses_for_sessions;
-        Coordination::ZooKeeperResponsePtr update_session_response;
-        {
-            LOG_TRACE(
-                log,
-                "Commit log index {}, SessionID/XID #{}#{}",
-                log_idx,
-                request_for_session.session_id,
-                request_for_session.request->xid);
-            responses_for_sessions = storage.processRequest(request_for_session.request, request_for_session.session_id);
-
-            for (auto & response_for_session : responses_for_sessions)
-            {
-                if (dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response_for_session.response.get()))
-                    /// TODO multi update session requests
-                    update_session_response = response_for_session.response;
-                else
-                    responses_queue.push(response_for_session);
-            }
-        }
+        LOG_TRACE(
+            log,
+            "Commit log index {}, SessionID/XID #{}#{}",
+            log_idx,
+            request_for_session.session_id,
+            request_for_session.request->xid);
+        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id);
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
-
-        if (update_session_response)
-        {
-            WriteBufferFromNuraftBuffer out;
-            update_session_response->write(out);
-            return out.getBuffer();
-        }
-        else
-            return nullptr;
+        return nullptr;
     }
-}
-
-SvsKeeperStorage::ResponsesForSessions
-NuRaftStateMachine::singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
-{
-    return storage.processRequest(request_for_session.request, request_for_session.session_id);
 }
 
 void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    SvsKeeperStorage::ResponsesForSessions responses;
-    {
-        responses = storage.processRequest(request_for_session.request, request_for_session.session_id);
-    }
-    for (const auto & response : responses)
-        responses_queue.push(response);
+    storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id);
 }
 
 std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
@@ -653,9 +640,15 @@ KeeperNode & NuRaftStateMachine::getNode(const std::string & path)
     }
     return default_node;
 }
+
 bool NuRaftStateMachine::isNewSessionRequest(nuraft::buffer & data)
 {
     return data.size() == sizeof(int64);
+}
+
+bool NuRaftStateMachine::isUpdateSessionRequest(nuraft::buffer & data)
+{
+    return data.size() == sizeof(int64) + sizeof(int64);
 }
 
 }
