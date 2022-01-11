@@ -535,7 +535,8 @@ bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * 
             if (request->getOpNum() == Coordination::OpNum::Multi && hasErrorsInMultiRequest(request))
                 return true;
 
-            storage.processRequest(request, session_id, zxid, /* check_acl = */ false);
+            SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+            storage.processRequest(responses_queue ,request, session_id, zxid, /* check_acl = */ false, /*ignore_response*/true);
         }
     }
 
