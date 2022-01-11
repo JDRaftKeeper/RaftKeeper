@@ -69,8 +69,6 @@ public:
 
     void removeServer(const std::string & endpoint);
 
-    SvsKeeperStorage::ResponsesForSessions singleProcessReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
-
     void putRequest(const SvsKeeperStorage::RequestForSession & request);
 
     int64_t getSessionID(int64_t session_timeout_ms);
