@@ -12,9 +12,9 @@ from helpers.test_tools import assert_eq_with_retry
 from kazoo.client import KazooClient, KazooState
 
 cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_service_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
-node3 = cluster1.add_instance('node3', main_configs=['configs/enable_service_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
+node3 = cluster1.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
 
 
 def get_fake_zk(nodename, timeout=30.0):
@@ -34,7 +34,7 @@ def started_cluster():
         cluster1.shutdown()
 
 def start(node):
-       node.start_clickhouse()
+    node.start_clickhouse()
 
 
 def delete_with_retry(node_name, path):
