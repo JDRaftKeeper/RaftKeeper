@@ -38,10 +38,10 @@ def convert_zookeeper_data(node):
     return os.path.join('/var/lib/clickhouse/coordination/raft_snapshot', node.exec_in_container(['bash', '-c', 'ls /var/lib/clickhouse/coordination/raft_snapshot']).strip())
 
 def stop_clickhouse(node):
-    node.stop_clickhouse()
+    node.stop_clickhouse(kill=True)
 
 def start_clickhouse(node):
-    node.start_clickhouse()
+    node.start_clickhouse(25)
 
 def copy_zookeeper_data(make_zk_snapshots, node):
     stop_zookeeper(node)

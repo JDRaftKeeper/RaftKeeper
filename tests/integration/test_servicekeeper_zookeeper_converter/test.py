@@ -7,7 +7,7 @@ from kazoo.security import ACL, make_digest_acl, make_acl
 from kazoo.exceptions import AuthFailedError, InvalidACLError, NoAuthError, KazooException
 import os
 
-cluster = ClickHouseCluster(__file__)
+cluster = ClickHouseServiceCluster(__file__)
 
 node = cluster.add_instance('node', main_configs=['configs/keeper_config.xml', 'configs/logs_conf.xml'], stay_alive=True)
 

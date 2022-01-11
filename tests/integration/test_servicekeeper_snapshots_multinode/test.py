@@ -7,7 +7,7 @@ import string
 import os
 import time
 
-cluster = ClickHouseCluster(__file__)
+cluster = ClickHouseServiceCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml'], stay_alive=True)
 node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'], stay_alive=True)
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'], stay_alive=True)
@@ -25,7 +25,7 @@ def started_cluster():
         cluster.shutdown()
 
 def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(nodename) + ":9181", timeout=timeout)
+    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(nodename) + ":5102", timeout=timeout)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
@@ -70,6 +70,7 @@ def test_restart_multinode(started_cluster):
     node1.restart_clickhouse(kill=True)
     node2.restart_clickhouse(kill=True)
     node3.restart_clickhouse(kill=True)
+    time.sleep(2)
     for i in range(100):
         try:
             node1_zk = get_fake_zk("node1")
