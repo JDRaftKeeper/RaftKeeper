@@ -12,8 +12,8 @@ from helpers.network import PartitionManager
 from helpers.test_tools import assert_eq_with_retry
 
 cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_service_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
 
 from kazoo.client import KazooClient, KazooState
 

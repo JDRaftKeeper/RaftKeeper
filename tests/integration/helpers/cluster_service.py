@@ -1090,21 +1090,21 @@ class ClickHouseInstance:
         # wait start
         # assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
 
-    def stop_clickhouse(self, start_wait_sec=10, kill=False):
+    def stop_clickhouse(self, start_wait_sec=21, kill=False):
         if not self.stay_alive:
             raise Exception("clickhouse can be stopped only with stay_alive=True instance")
 
         self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
         time.sleep(start_wait_sec)
 
-    def start_clickhouse(self, stop_wait_sec=10):
+    def start_clickhouse(self, stop_wait_sec=21):
         if not self.stay_alive:
             raise Exception("clickhouse can be started again only with stay_alive=True instance")
 
         self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
         time.sleep(stop_wait_sec)
 
-    def restart_clickhouse(self, stop_start_wait_sec=10, kill=False):
+    def restart_clickhouse(self, stop_start_wait_sec=21, kill=False):
         if not self.stay_alive:
             raise Exception("clickhouse can be restarted only with stay_alive=True instance")
 
