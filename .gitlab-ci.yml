@@ -4,10 +4,10 @@
 # https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/C++.gitlab-ci.yml
 
 stages:
-  # - stylecheck
-  # - build with gcc
   - build with clang
   - test
+  - stylecheck
+  - build with gcc
 
 cache: &global_cache
   key: $CI_COMMIT_REF_SLUG
