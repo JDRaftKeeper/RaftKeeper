@@ -1018,7 +1018,7 @@ void SvsKeeperStorage::processRequest(
         std::lock_guard lock(watch_mutex);
         for (String & path : request->data_watches)
         {
-            LOG_TRACE(log, "Set data_watches for session {}, path {}", session_id, path);
+            LOG_TRACE(log, "Register data_watches for session {}, path {}, xid", session_id, path, request->xid);
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1041,7 +1041,7 @@ void SvsKeeperStorage::processRequest(
 
         for (String & path : request->exist_watches)
         {
-            LOG_TRACE(log, "Set exist_watches for session {}, path {}", session_id, path);
+            LOG_TRACE(log, "Register exist_watches for session {}, path {}, xid", session_id, path, request->xid);
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1058,7 +1058,7 @@ void SvsKeeperStorage::processRequest(
 
         for (String & path : request->list_watches)
         {
-            LOG_TRACE(log, "Set list_watches for session {}, path {}", session_id, path);
+            LOG_TRACE(log, "Register list_watches for session {}, path {}, xid", session_id, path, request->xid);
             /// register watches
             list_watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1103,10 +1103,11 @@ void SvsKeeperStorage::processRequest(
             {
                 LOG_TRACE(
                     log,
-                    "Zxid {}, session id {}, opnum {}, error no {}, msg {}",
+                    "Zxid {}, session id {}, opnum {}, xid {}, error no {}, msg {}",
                     zxid,
                     session_id,
                     Coordination::toString(zk_request->getOpNum()),
+                    zk_request->xid,
                     response->error,
                     Coordination::errorMessage(response->error));
             }
@@ -1132,10 +1133,11 @@ void SvsKeeperStorage::processRequest(
 
                     LOG_TRACE(
                         log,
-                        "Set watch, session id {}, path {}, opnum {}, error no {}, msg {}",
+                        "Register watch, session id {}, path {}, opnum {}, xid {}, error no {}, msg {}",
                         session_id,
                         zk_request->getPath(),
                         Coordination::toString(zk_request->getOpNum()),
+                        zk_request->xid,
                         response->error,
                         Coordination::errorMessage(response->error));
                 }
@@ -1170,10 +1172,13 @@ void SvsKeeperStorage::processRequest(
                                 = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
                             LOG_TRACE(
                                 log,
-                                "Processed watch, session id {}, path {}, type {}",
+                                "Processed watch, session id {}, path {}, type {}, opnum {}, xid {} zxid {}",
                                 session_id_response.session_id,
                                 watch_response->path,
-                                watch_response->type);
+                                watch_response->type,
+                                Coordination::toString(watch_response->getOpNum()),
+                                watch_response->xid,
+                                watch_response->zxid);
                         }
                     }
                 }
