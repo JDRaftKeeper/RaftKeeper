@@ -4,8 +4,8 @@
 # https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/C++.gitlab-ci.yml
 
 stages:
-  - stylecheck
-  - build with gcc
+  # - stylecheck
+  # - build with gcc
   - build with clang
   - test
 
@@ -77,7 +77,7 @@ tests:
     - "test"
   script:
     - cd build
-    - export cur_dir = `pwd`
+    - export cur_dir=`pwd`
     - echo "current dir is $cur_dir"
 
     - ./src/unit_tests_dbms --gtest_filter="Raft*"
