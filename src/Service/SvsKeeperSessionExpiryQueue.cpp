@@ -5,6 +5,7 @@ namespace DB
 
 bool SvsKeeperSessionExpiryQueue::remove(int64_t session_id)
 {
+    std::lock_guard lock(mutex);
     auto session_it = session_to_expiration_time.find(session_id);
     if (session_it != session_to_expiration_time.end())
     {
@@ -30,6 +31,7 @@ void SvsKeeperSessionExpiryQueue::addNewSessionOrUpdate(int64_t session_id, int6
     /// round up to next interval
     int64_t new_expiry_time = roundToNextInterval(now + timeout_ms);
 
+    std::lock_guard lock(mutex);
     auto session_it = session_to_expiration_time.find(session_id);
     /// We already registered this session
     if (session_it != session_to_expiration_time.end())
@@ -75,6 +77,7 @@ std::vector<int64_t> SvsKeeperSessionExpiryQueue::getExpiredSessions() const
     int64_t now = getNowMilliseconds();
     std::vector<int64_t> result;
 
+    std::lock_guard lock(mutex);
     /// Check all buckets
     for (const auto & [expire_time, expired_sessions] : expiry_to_sessions)
     {
