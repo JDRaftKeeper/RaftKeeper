@@ -23,7 +23,7 @@ import requests
 import xml.dom.minidom
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from dicttoxml import dicttoxml
-from kazoo.client import KazooClient
+from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
 from minio import Minio
 
@@ -769,7 +769,7 @@ class ClickHouseServiceCluster:
                 # instance.client = Client(instance.ip_address, command=self.client_bin_path)
 
             self.is_up = True
-
+            time.sleep(20) # wait cluster inited
         except BaseException as e:
             print("Failed to start cluster: ")
             print(str(e))
@@ -1090,30 +1090,107 @@ class ClickHouseInstance:
         # wait start
         # assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
 
-    def stop_clickhouse(self, start_wait_sec=21, kill=False):
+    def stop_clickhouse(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:
             raise Exception("clickhouse can be stopped only with stay_alive=True instance")
+        try:
+            ps_clickhouse = self.exec_in_container(["bash", "-c", "ps -C clickhouse"], nothrow=True, user='root')
+            if ps_clickhouse == "  PID TTY      STAT   TIME COMMAND" :
+                logging.warning("ClickHouse process already stopped")
+                return
 
-        self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
-        time.sleep(start_wait_sec)
+            self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
 
-    def start_clickhouse(self, stop_wait_sec=21):
+            start_time = time.time()
+            stopped = False
+            while time.time() <= start_time + stop_wait_sec:
+                pid = self.get_process_pid("clickhouse")
+                if pid is None:
+                    stopped = True
+                    break
+                else:
+                    time.sleep(1)
+
+            if not stopped:
+                pid = self.get_process_pid("clickhouse")
+                if pid is not None:
+                    logging.warning(f"Force kill clickhouse in stop_clickhouse. ps:{pid}")
+                    self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
+                    self.stop_clickhouse(kill=True)
+                else:
+                    ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
+                    logging.warning(f"We want force stop clickhouse, but no clickhouse-server is running\n{ps_all}")
+                    return
+        except Exception as e:
+            logging.warning(f"Stop ClickHouse raised an error {e}")
+
+    def start_clickhouse(self, start_wait_sec=60):
         if not self.stay_alive:
-            raise Exception("clickhouse can be started again only with stay_alive=True instance")
+            raise Exception("ClickHouse can be started again only with stay_alive=True instance")
+        start_time = time.time()
+        time_to_sleep = 0.5
 
-        self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
-        time.sleep(stop_wait_sec)
+        while start_time + start_wait_sec >= time.time():
+            # sometimes after SIGKILL (hard reset) server may refuse to start for some time
+            # for different reasons.
+            pid = self.get_process_pid("clickhouse")
+            if pid is None:
+                logging.debug("No clickhouse process running. Start new one.")
+                print("No clickhouse process running. Start new one.")
+                self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+                time.sleep(1)
+                continue
+            else:
+                logging.debug("Clickhouse process running.")
+                print("Clickhouse process running.")
+                try:
+                    self.wait_start(start_wait_sec)
+                    return
+                except Exception as e:
+                    logging.warning(f"Current start attempt failed. Will kill {pid} just in case.")
+                    self.exec_in_container(["bash", "-c", f"kill -9 {pid}"], user='root', nothrow=True)
+                    time.sleep(time_to_sleep)
 
-    def restart_clickhouse(self, stop_start_wait_sec=21, kill=False):
-        if not self.stay_alive:
-            raise Exception("clickhouse can be restarted only with stay_alive=True instance")
+        raise Exception("Cannot start ClickHouse, see additional info in logs")
 
-        self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
-        time.sleep(stop_start_wait_sec)
-        self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
-        # wait start
-        # from helpers.test_tools import assert_eq_with_retry
-        # assert_eq_with_retry(self, "select 1", "1", retry_count=int(stop_start_wait_sec / 0.5), sleep_time=0.5)
+    def wait_start(self, start_wait_sec):
+        for _ in range(100):
+            zk = None
+            try:
+                # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
+                zk = self.get_fake_zk(start_wait_sec)
+                zk.create("/testadfasfjkn")
+                print("node", self.name, "ready")
+                zk.delete("/testadfasfjkn")
+                break
+            except Exception as ex:
+                time.sleep(0.2)
+                print("Waiting until", self.name, "will be ready, exception", ex)
+            finally:
+                if zk:
+                    zk.stop()
+                    zk.close()
+        else:
+            raise Exception("Can't wait node", self.name, "to become ready")
+
+    def get_fake_zk(self, start_wait_sec):
+        _fake_zk_instance = KazooClient(hosts=self.ip_address + ":5102", timeout=start_wait_sec)
+        def reset_listener(state):
+            nonlocal _fake_zk_instance
+            # print("Fake zk callback called for state", state)
+            if state != KazooState.CONNECTED:
+                _fake_zk_instance._reset()
+
+        _fake_zk_instance.add_listener(reset_listener)
+        _fake_zk_instance.start()
+        return _fake_zk_instance
+
+    def restart_clickhouse(self, stop_start_wait_sec=60, kill=False):
+        self.stop_clickhouse(stop_start_wait_sec, kill)
+        self.start_clickhouse(stop_start_wait_sec)
+
+    def replace_in_config(self, path_to_config, replace, replacement):
+        self.exec_in_container(["bash", "-c", f"sed -i 's/{replace}/{replacement}/g' {path_to_config}"])
 
     def exec_in_container(self, cmd, detach=False, nothrow=False, **kwargs):
         container_id = self.get_docker_handle().id

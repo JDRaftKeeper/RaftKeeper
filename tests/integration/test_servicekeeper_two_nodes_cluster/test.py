@@ -54,7 +54,7 @@ def wait_nodes():
 
 
 def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":9181", timeout=timeout)
+    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":5102", timeout=timeout)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
