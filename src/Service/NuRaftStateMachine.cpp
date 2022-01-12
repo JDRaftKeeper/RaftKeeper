@@ -176,7 +176,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                                 int64_t session_id = data_serializer.get_i64();
                                 int64_t session_timeout_ms = data_serializer.get_i64();
 
-                                int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
+                                storage.updateSessionTimeout(session_id, session_timeout_ms);
                                 LOG_TRACE(
                                     log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
                             }
