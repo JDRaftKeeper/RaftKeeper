@@ -77,8 +77,8 @@ tests:
     - "test"
   script:
     - cd build
-    - export cur_dir=`pwd`
-    - echo "current dir is $cur_dir"
+    - export build_dir=`pwd`
+    - echo "current dir is $build_dir"
 
     - ./src/unit_tests_dbms --gtest_filter="Raft*"
     - echo "Unit test finished."
