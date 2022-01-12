@@ -44,6 +44,11 @@ public:
     void rollback(const ulong log_idx, buffer & data) override;
     ptr<buffer> commit(const ulong log_idx, buffer & data) override;
 
+    /// @ignore_response whether push response into queue
+    /// Just for unit test
+    ptr<buffer> commit(const ulong log_idx, buffer & data, bool ignore_response);
+
+
     bool chk_create_snapshot() override;
     //for unit test
     bool chk_create_snapshot(time_t curr_time);

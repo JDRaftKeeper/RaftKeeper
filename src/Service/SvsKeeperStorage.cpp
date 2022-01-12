@@ -940,7 +940,8 @@ void SvsKeeperStorage::processRequest(
     const Coordination::ZooKeeperRequestPtr & zk_request,
     int64_t session_id,
     std::optional<int64_t> new_last_zxid,
-    bool check_acl [[maybe_unused]], bool ignore_response)
+    bool check_acl [[maybe_unused]],
+    bool ignore_response)
 {
     if (new_last_zxid)
     {
