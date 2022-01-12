@@ -96,14 +96,15 @@ def test_reconnection(started_cluster):
         zk.create("/test_reconnection", b"hello")
         zk.create("/test_reconnection_ephemeral", b"I_am_ephemeral_node")
 
-        # @client.DataWatch(client=zk, path='/test_reconnection')
-        def data_watch(event_data, _):
+        print('Register a data watch to /test_reconnection')
+
+        @client.DataWatch(client=zk, path='/test_reconnection')
+        def data_watch(event_data, event_stat):
             global watch_triggered
             watch_triggered = True
             print("Watch for /test_reconnection triggered, value is %s" % event_data)
 
-        print('Register a data watch to /test_reconnection')
-        zk.get(path='/test_reconnection', watch=data_watch)
+        # zk.get(path='/test_reconnection', watch=data_watch)
 
         restart_cluster(zk, first_session_id)
 
