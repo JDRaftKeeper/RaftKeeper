@@ -163,13 +163,28 @@ NuRaftStateMachine::NuRaftStateMachine(
                                 /// replay session
                                 int64_t session_timeout_ms = entry->get_buf().get_ulong();
                                 int64_t session_id = storage.getSessionID(session_timeout_ms);
-                                LOG_DEBUG(log, "replay session_id {} with timeout {} from log", session_id, session_timeout_ms);
+                                LOG_TRACE(
+                                    log,
+                                    "Replay log create session, session_id {} with timeout {} from log",
+                                    session_id,
+                                    session_timeout_ms);
+                            }
+                            else if (isUpdateSessionRequest(entry->get_buf()))
+                            {
+                                /// replay update session
+                                nuraft::buffer_serializer data_serializer(entry->get_buf());
+                                int64_t session_id = data_serializer.get_i64();
+                                int64_t session_timeout_ms = data_serializer.get_i64();
+
+                                int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
+                                LOG_TRACE(
+                                    log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
                             }
                             else
                             {
                                 /// replay nodes
                                 ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
-                                LOG_DEBUG(log, "create request session {}", ptr_request->session_id);
+                                LOG_TRACE(log, "Replay log request, session {}", ptr_request->session_id);
 
                                 if (ptr_request != nullptr)
                                 {
