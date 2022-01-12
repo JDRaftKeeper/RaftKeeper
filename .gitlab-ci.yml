@@ -77,4 +77,3 @@ build and test:
     - mvn clean compile package
     - cd ../../tests/integration
     - ./runner 'test_servicekeeperperformance -ss'
-
