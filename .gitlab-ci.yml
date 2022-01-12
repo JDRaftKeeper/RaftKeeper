@@ -59,7 +59,8 @@ build with clang:
     - echo "Build success!"
   artifacts:
     paths:
-      - build/
+      - build/programs
+      - build/src
 
 tests:
   stage: test
