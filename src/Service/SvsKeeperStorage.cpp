@@ -1172,11 +1172,10 @@ void SvsKeeperStorage::processRequest(
                                 = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
                             LOG_TRACE(
                                 log,
-                                "Processed watch, session id {}, path {}, type {}, opnum {}, xid {} zxid {}",
+                                "Processed watch, session id {}, path {}, type {}, xid {} zxid {}",
                                 session_id_response.session_id,
                                 watch_response->path,
                                 watch_response->type,
-                                Coordination::toString(watch_response->getOpNum()),
                                 watch_response->xid,
                                 watch_response->zxid);
                         }
