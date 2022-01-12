@@ -17,7 +17,7 @@ node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'
                              stay_alive=True)
 
 from kazoo.client import KazooClient, KazooState
-from kazoo.exceptions import ZookeeperError
+from kazoo.exceptions import ZookeeperError, NoNodeError
 
 
 @pytest.fixture(scope="module")
@@ -94,7 +94,7 @@ def test_reconnection(started_cluster):
         print("Client session timeout", zk._session_timeout)
 
         zk.create("/test_reconnection", b"hello")
-        zk.create("/test_reconnection_ephemeral", b"I_am_ephemeral_node")
+        zk.create("/test_reconnection_ephemeral", b"I_am_ephemeral_node", ephemeral=True)
 
         print('Register a data watch to /test_reconnection')
 
@@ -134,6 +134,7 @@ def test_session_expired(started_cluster):
         print("Client session id", first_session_id)
         print("Client session timeout", zk._session_timeout)
         zk.create("/test_session_expired", b"hello")
+        zk.create("/test_session_expired_ephemeral", b"I_am_ephemeral_node", ephemeral=True)
 
         restart_cluster(zk, first_session_id)
 
@@ -147,8 +148,16 @@ def test_session_expired(started_cluster):
             assert False
 
         zk = get_fake_zk(node1.name, timeout=2)
-        data, stat = zk.get("/test_session_expired")
+        data, _ = zk.get("/test_session_expired")
         assert data == b"hello"
+
+        try:
+            data, _ = zk.get("/test_session_expired_ephemeral")
+        except NoNodeError:
+            assert True
+        else:
+            assert False
+
         assert zk._session_id > first_session_id
     finally:
         if zk is not None:
