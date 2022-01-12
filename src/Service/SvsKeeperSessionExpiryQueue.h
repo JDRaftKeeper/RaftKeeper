@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <map>
 #include <chrono>
+#include <mutex>
 
 namespace DB
 {
@@ -24,6 +25,8 @@ private:
 
     /// Expire time -> session expire near this time
     std::map<int64_t, std::unordered_set<int64_t>> expiry_to_sessions;
+
+    mutable std::mutex mutex;
 
     int64_t expiration_interval;
 
