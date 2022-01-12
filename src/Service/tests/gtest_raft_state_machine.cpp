@@ -49,7 +49,7 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
         store->append(entry_log);
     }
 
-    machine.commit(index, *(buf.get()));
+    machine.commit(index, *(buf.get()), true);
 }
 
 void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
