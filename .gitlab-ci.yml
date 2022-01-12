@@ -57,10 +57,8 @@ build with clang:
     - cmake ..
     - ninja
     - echo "Build success!"
-  artifacts:
-    paths:
-      - build/programs
-      - build/src
+  environment:
+    name: build
 
 tests:
   stage: test
@@ -90,5 +88,5 @@ tests:
     - mvn clean compile package
     - cd ../../tests/integration
     - ./runner 'test_servicekeeperperformance -ss'
-  dependencies:
-    - build with clang
+  environment:
+    name: build
