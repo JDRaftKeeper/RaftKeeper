@@ -1156,7 +1156,7 @@ void SvsKeeperStorage::processRequest(
                 std::lock_guard lock(watch_mutex);
 
                 /// handle watch trigger, below 1 and 2 must be atomic
-                if (watches.contains(zk_request->getPath()) || list_watches.contains(zk_request->getPath()))
+                if (watches.contains(zk_request->getPath()) || list_watches.contains(parentPath(zk_request->getPath())))
                 {
                     if (response->error == Coordination::Error::ZOK)
                     {
