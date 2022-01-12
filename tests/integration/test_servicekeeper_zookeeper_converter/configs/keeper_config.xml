@@ -1,7 +1,7 @@
 <yandex>
     <service>
         <my_id>1</my_id>
-        <host>node1</host>
+        <host>node</host>
         <log_dir>/var/lib/clickhouse/coordination/raft_log</log_dir>
         <snapshot_dir>/var/lib/clickhouse/coordination/raft_snapshot</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
@@ -18,11 +18,6 @@
         </coordination_settings>
 
         <remote_servers>
-            <server>
-                <server_id>1</server_id>
-                <host>node1</host>
-                <port>5103</port>
-            </server>
             <async_replication>false</async_replication>
         </remote_servers>
     </service>
