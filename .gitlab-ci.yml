@@ -9,6 +9,13 @@ stages:
   - stylecheck
   - build with gcc
 
+cache: &global_cache
+  key: $CI_COMMIT_REF_SLUG
+  paths:
+    - build/programs
+    - build/src
+  policy: pull-push
+
 style check:
   stage: stylecheck
   tags:
@@ -42,6 +49,9 @@ build with gcc:
 
 build with clang:
   stage: build with clang
+  cache:
+    <<: *global_cache
+    policy: push
   tags:
     - "test"
   script:
@@ -57,11 +67,12 @@ build with clang:
     - cmake ..
     - ninja
     - echo "Build success!"
-  environment:
-    name: build
 
 tests:
   stage: test
+  cache:
+    <<: *global_cache
+    policy: pull
   tags:
     - "test"
   script:
@@ -88,5 +99,3 @@ tests:
     - mvn clean compile package
     - cd ../../tests/integration
     - ./runner 'test_servicekeeperperformance -ss'
-  environment:
-    name: build
