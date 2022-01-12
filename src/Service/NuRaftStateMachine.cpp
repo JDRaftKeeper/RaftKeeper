@@ -339,7 +339,7 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
     LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
 }
 
-nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data)
+nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data, bool ignore_response)
 {
     //2^19 = 524,288
     if (log_idx << 45 == 0)
@@ -391,11 +391,16 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             log_idx,
             request_for_session.session_id,
             request_for_session.request->xid);
-        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id);
+        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
         return nullptr;
     }
+}
+
+nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buffer & data)
+{
+    return commit(log_idx, data, false);
 }
 
 void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
