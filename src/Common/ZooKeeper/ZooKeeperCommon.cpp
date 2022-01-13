@@ -458,6 +458,8 @@ void ZooKeeperSetWatchesRequest::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(relative_zxid, out);
     Coordination::write(data_watches, out);
+    Coordination::write(exist_watches, out);
+    Coordination::write(list_watches, out);
 }
 
 void ZooKeeperSetWatchesRequest::readImpl(ReadBuffer & in)
