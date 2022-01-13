@@ -951,7 +951,21 @@ void SvsKeeperStorage::processRequest(
     }
 
     /// ZooKeeper update sessions expiry for each request, not only for heartbeats
-    session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+    {
+        std::lock_guard lock(session_mutex);
+        if (!closing_sessions.contains(session_id))
+            session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+        else
+        {
+            LOG_WARNING(
+                log,
+                "Session 0x{} is closing, ignore op {} to path {}",
+                getHexUIntLowercase(session_id),
+                Coordination::toString(zk_request->getOpNum()),
+                zk_request->getPath());
+            return;
+        }
+    }
 
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
@@ -962,7 +976,7 @@ void SvsKeeperStorage::processRequest(
             {
                 for (const auto & ephemeral_path : it->second)
                 {
-                    LOG_TRACE(log, "disconnect session {}, deleting its ephemeral node {}", session_id, ephemeral_path);
+                    LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", session_id, ephemeral_path);
                     auto parent = container.at(parentPath(ephemeral_path));
                     if (!parent)
                     {
@@ -993,6 +1007,7 @@ void SvsKeeperStorage::processRequest(
             std::lock_guard lock(session_mutex);
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
+            closing_sessions.erase(session_id);
         }
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
@@ -1193,6 +1208,11 @@ void SvsKeeperStorage::processRequest(
 bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
 {
     std::lock_guard lock(session_mutex);
+    if (closing_sessions.contains(session_id))
+    {
+        LOG_WARNING(log, "Session 0x{} is closing, ignore session timeout updating.", getHexUIntLowercase(session_id));
+        return false;
+    }
     if (!session_and_timeout.contains(session_id))
     {
         LOG_WARNING(log, "Updated session timeout for {}, but it is already expired.", session_id);

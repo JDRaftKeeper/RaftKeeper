@@ -175,13 +175,18 @@ public:
     Ephemerals ephemerals;
     mutable std::mutex ephemerals_mutex;
 
-    SessionAndWatcher sessions_and_watchers;
     SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
+    /// pending close sessions
+    SessionAndTimeout closing_sessions;
     mutable std::mutex session_mutex;
 
+    /// Session id -> patch
+    SessionAndWatcher sessions_and_watchers;
+    /// Path -> session id. Watches for 'get' and 'exist' requests
     Watches watches;
-    Watches list_watches; /// Watches for 'list' request (watches on children).
+    /// Path -> session id. Watches for 'list' request (watches on children).
+    Watches list_watches;
 
     mutable std::mutex watch_mutex;
 
@@ -229,7 +234,11 @@ public:
 
     std::vector<int64_t> getDeadSessions()
     {
-        return session_expiry_queue.getExpiredSessions();
+        std::lock_guard lock(session_mutex);
+        auto ret = session_expiry_queue.getExpiredSessions();
+        for (auto session : ret)
+            closing_sessions.emplace(session);
+        return ret;
     }
 
     bool containsSession(int64_t session_id) const;
