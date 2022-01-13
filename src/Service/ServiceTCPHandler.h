@@ -88,7 +88,7 @@ private:
 
     void runImpl();
 
-    void sendHandshake(bool has_leader);
+    void sendHandshake(bool connect_success, bool session_expired);
     ConnectRequest receiveHandshake(int32_t handshake_length);
 
     static bool isHandShake(Int32 & handshake_length) ;
