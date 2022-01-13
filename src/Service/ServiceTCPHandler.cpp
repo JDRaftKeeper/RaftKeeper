@@ -418,7 +418,6 @@ void ServiceTCPHandler::runImpl()
         catch (const Exception & e)
         {
             LOG_WARNING(log, "Cannot receive session id {}", e.displayText());
-            session_timeout = -1;
             connect_success = false;
         }
     }
@@ -427,7 +426,7 @@ void ServiceTCPHandler::runImpl()
 
     sendHandshake(connect_success, session_expired);
 
-    if (connect_success)
+    if (!connect_success)
         return;
 
     auto response_fd = poll_wrapper->getResponseFD();
