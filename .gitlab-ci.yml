@@ -4,21 +4,12 @@
 # https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/C++.gitlab-ci.yml
 
 stages:
-  - build with clang
-  - test
   - stylecheck
   - build with gcc
-
-cache: &global_cache
-  key: $CI_COMMIT_REF_SLUG
-  paths:
-    - build/programs
-    - build/src
-  policy: pull-push
+  - build and test
 
 style check:
   stage: stylecheck
-  cache: {}
   tags:
     - "test"
   script:
@@ -31,7 +22,6 @@ style check:
 
 build with gcc:
   stage: build with gcc
-  cache: {}
   tags:
     - "test"
   script:
@@ -49,16 +39,14 @@ build with gcc:
     - ninja
     - echo "Build with gcc success!"
 
-build with clang:
-  stage: build with clang
-  cache:
-    <<: *global_cache
-    policy: push
+build and test:
+  stage: build and test
   tags:
     - "test"
   script:
     - git submodule sync
     - git submodule update --init --recursive
+
     - export CC=clang-11
     - export CXX=clang++-11
 
@@ -69,18 +57,6 @@ build with clang:
     - cmake ..
     - ninja
     - echo "Build success!"
-
-tests:
-  stage: test
-  cache:
-    <<: *global_cache
-    policy: pull
-  tags:
-    - "test"
-  script:
-    - cd build
-    - export build_dir=`pwd`
-    - echo "current dir is $build_dir"
 
     - ./src/unit_tests_dbms --gtest_filter="Raft*"
     - echo "Unit test finished."
