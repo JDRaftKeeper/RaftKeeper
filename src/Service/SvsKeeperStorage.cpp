@@ -1025,7 +1025,7 @@ void SvsKeeperStorage::processRequest(
 
             /// trigger watches
             auto node = container.get(path);
-            if (node == nullptr)
+            if (!node)
             {
                 LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", session_id, path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
@@ -1048,7 +1048,7 @@ void SvsKeeperStorage::processRequest(
 
             /// trigger watches
             auto node = container.get(path);
-            if (node != nullptr)
+            if (node)
             {
                 LOG_TRACE(log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", session_id, path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CREATED);
