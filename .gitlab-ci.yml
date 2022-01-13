@@ -4,7 +4,21 @@
 # https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/C++.gitlab-ci.yml
 
 stages:
+  - stylecheck
   - build and test
+
+style check:
+  stage: stylecheck
+  tags:
+    - "test"
+  script:
+    - export cur_dir=`pwd`
+    - echo "current dir is $cur_dir"
+    - cd tests/ci
+    - python3 code_style_check.py
+    - echo "code style check success!"
+  allow_failure: true
+
 
 build and test:
   stage: build and test
