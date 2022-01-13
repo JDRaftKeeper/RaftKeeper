@@ -204,15 +204,18 @@ ServiceTCPHandler::ServiceTCPHandler(IServer & server_, const Poco::Net::StreamS
     ServiceTCPHandler::registerConnection(this);
 }
 
-void ServiceTCPHandler::sendHandshake(bool has_leader)
+void ServiceTCPHandler::sendHandshake(bool connect_success, bool session_expired)
 {
     Coordination::write(Coordination::SERVER_HANDSHAKE_LENGTH, *out);
-    if (has_leader)
+    if (connect_success)
         Coordination::write(Coordination::ZOOKEEPER_PROTOCOL_VERSION, *out);
-    else /// Specially ignore connections if we are not leader, client will throw exception
+    else
         Coordination::write(42, *out);
 
-    Coordination::write(static_cast<int32_t>(session_timeout.totalMilliseconds()), *out);
+    /// Session timout -1 represent session expired in Zookeeper
+    int32_t negotiated_session_timeout = session_expired ? -1 : session_timeout.totalMilliseconds();
+    Coordination::write(negotiated_session_timeout, *out);
+
     Coordination::write(session_id, *out);
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
     Coordination::write(passwd, *out);
@@ -363,12 +366,16 @@ void ServiceTCPHandler::runImpl()
         return;
     }
 
-    if (service_keeper_storage_dispatcher->hasLeader())
+    bool session_expired = false;
+    bool connect_success = service_keeper_storage_dispatcher->hasLeader();
+
+    if (connect_success)
     {
         try
         {
             if (connect_req.previous_session_id != 0)
             {
+                LOG_INFO(log, "Requesting reconnecting with session {}", getHexUIntLowercase(connect_req.previous_session_id));
                 session_id = connect_req.previous_session_id;
                 /// existed session
                 if (!service_keeper_storage_dispatcher->getStateMachine().containsSession(connect_req.previous_session_id))
@@ -378,9 +385,8 @@ void ServiceTCPHandler::runImpl()
                         log,
                         "Client try to reconnects but session 0x{} is already expired",
                         getHexUIntLowercase(connect_req.previous_session_id));
-                    session_timeout = -1;
-                    sendHandshake(true);
-                    return;
+                    session_expired = true;
+                    connect_success = false;
                 }
                 else
                 {
@@ -389,11 +395,13 @@ void ServiceTCPHandler::runImpl()
                     {
                         /// update failed
                         /// session was expired when updating
-                        session_timeout = -1;
-                        throw Exception(
-                            ErrorCodes::RAFT_ERROR,
+                        /// session expired, set timeout <=0
+                        LOG_WARNING(
+                            log,
                             "Session 0x{} was expired when updating",
                             getHexUIntLowercase(connect_req.previous_session_id));
+                        session_expired = true;
+                        connect_success = false;
                     }
                     else
                         LOG_INFO(log, "Client reconnected with session 0x{}", getHexUIntLowercase(connect_req.previous_session_id));
@@ -410,18 +418,17 @@ void ServiceTCPHandler::runImpl()
         catch (const Exception & e)
         {
             LOG_WARNING(log, "Cannot receive session id {}", e.displayText());
-            sendHandshake(false);
-            return;
+            session_timeout = -1;
+            connect_success = false;
         }
-
-        sendHandshake(true);
     }
     else
-    {
         LOG_WARNING(log, "Ignoring user request, because no alive leader exist");
-        sendHandshake(false);
+
+    sendHandshake(connect_success, session_expired);
+
+    if (connect_success)
         return;
-    }
 
     auto response_fd = poll_wrapper->getResponseFD();
     auto response_callback = [this, response_fd](const Coordination::ZooKeeperResponsePtr & response) {
