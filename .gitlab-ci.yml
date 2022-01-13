@@ -18,7 +18,7 @@ cache: &global_cache
 
 style check:
   stage: stylecheck
-  cache: []
+  cache: {}
   tags:
     - "test"
   script:
@@ -31,7 +31,7 @@ style check:
 
 build with gcc:
   stage: build with gcc
-  cache: []
+  cache: {}
   tags:
     - "test"
   script:
