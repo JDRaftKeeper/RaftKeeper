@@ -950,23 +950,6 @@ void SvsKeeperStorage::processRequest(
         zxid = *new_last_zxid;
     }
 
-    /// ZooKeeper update sessions expiry for each request, not only for heartbeats
-    {
-        std::lock_guard lock(session_mutex);
-        if (!closing_sessions.contains(session_id))
-            session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-        else
-        {
-            LOG_WARNING(
-                log,
-                "Session 0x{} is closing, ignore op {} to path {}",
-                getHexUIntLowercase(session_id),
-                Coordination::toString(zk_request->getOpNum()),
-                zk_request->getPath());
-            return;
-        }
-    }
-
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
         {
@@ -1010,8 +993,27 @@ void SvsKeeperStorage::processRequest(
             closing_sessions.erase(session_id);
         }
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+        return;
     }
-    else if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
+
+    /// ZooKeeper update sessions expiry for each request, not only for heartbeats
+    {
+        std::lock_guard lock(session_mutex);
+        if (!closing_sessions.contains(session_id))
+            session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+        else
+        {
+            LOG_WARNING(
+                log,
+                "Session 0x{} is closing, ignore op {} to path {}",
+                getHexUIntLowercase(session_id),
+                Coordination::toString(zk_request->getOpNum()),
+                zk_request->getPath());
+            return;
+        }
+    }
+
+    if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
         auto [response, _] = storage_request->process(container, ephemerals, ephemerals_mutex, zxid, session_id);
