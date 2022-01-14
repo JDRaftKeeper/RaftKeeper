@@ -117,7 +117,6 @@ static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_requ
     return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
-        || dynamic_cast<Coordination::ZooKeeperCheckRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperHeartbeatRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperListRequest *>(zk_request.get())
