@@ -202,6 +202,10 @@ public:
 
     int64_t getSessionID(int64_t session_timeout_ms)
     {
+        /// Creating session should increase zxid
+        /// TODO handle new_last_zxid
+        getZXID();
+
         std::lock_guard lock(session_mutex);
         auto result = session_id_counter++;
         session_and_timeout.emplace(result, session_timeout_ms);
