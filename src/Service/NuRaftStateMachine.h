@@ -109,6 +109,21 @@ public:
     uint64_t getApproximateDataSize() const;
     bool containsSession(int64_t session_id) const;
 
+    uint64_t getSnapshotCount() const
+    {
+        return snap_count;
+    }
+
+    uint64_t getSnapshotTimeMs() const
+    {
+        return snap_time_ms;
+    }
+
+    bool getSnapshoting() const
+    {
+        return in_snapshot;
+    }
+
     void shutdown();
 
     static SvsKeeperStorage::RequestForSession parseRequest(nuraft::buffer & data);
@@ -116,6 +131,7 @@ public:
 
 private:
     ptr<SvsKeeperStorage::RequestForSession> createRequestSession(ptr<log_entry> & entry);
+    void snapThread();
 
     /// Only contains session_id
     static bool isNewSessionRequest(nuraft::buffer & data);
@@ -139,6 +155,22 @@ private:
     BackendTimer timer;
     ptr<KeeperSnapshotManager> snap_mgr;
     KeeperNode default_node;
+
+    std::atomic_int64_t snap_count{0};
+    std::atomic_int64_t snap_time_ms{0};
+    std::atomic_bool in_snapshot = false;
+
+    ThreadFromGlobalPool snap_thread;
+
+    struct SnapTask
+    {
+        ptr<snapshot> s;
+        async_result<bool>::handler_type when_done;
+        SnapTask(const ptr<snapshot> & s_, async_result<bool>::handler_type & when_done_) : s(s_), when_done(when_done_) { }
+    };
+    std::shared_ptr<SnapTask> snap_task;
+
+    std::atomic<bool> shutdown_called{false};
 };
 
 };
