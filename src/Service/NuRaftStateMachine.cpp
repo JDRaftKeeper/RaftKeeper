@@ -11,6 +11,7 @@
 #include <Service/proto/Log.pb.h>
 #include <Poco/File.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Common/Stopwatch.h>
 
 
 #ifdef __clang__
@@ -263,6 +264,9 @@ NuRaftStateMachine::NuRaftStateMachine(
     }
 
     LOG_INFO(log, "Replay last committed index {} in log store", last_committed_idx);
+
+    LOG_INFO(log, "Starting background creating snapshot thread.");
+    snap_thread = ThreadFromGlobalPool([this] { snapThread(); });
 }
 
 ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
@@ -303,6 +307,45 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
     request_for_session->request->xid = xid;
     request_for_session->request->readImpl(buffer);
     return request_for_session;
+}
+
+void NuRaftStateMachine::snapThread()
+{
+    while (!shutdown_called)
+    {
+        if (snap_task)
+        {
+            Stopwatch stopwatch;
+            in_snapshot = true;
+
+            LOG_WARNING(
+                log,
+                "Create snapshot last_log_term {}, last_log_idx {}",
+                snap_task->s->get_last_log_term(),
+                snap_task->s->get_last_log_idx());
+
+            create_snapshot(*snap_task->s);
+            ptr<std::exception> except(nullptr);
+            bool ret = true;
+
+            snap_task->when_done(ret, except);
+            snap_task = nullptr;
+
+            stopwatch.stop();
+            in_snapshot = false;
+
+            snap_count.fetch_add(1);
+            snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+
+            LOG_INFO(
+                log,
+                "Create snapshot time cost {} ms, last_log_term {}, last_log_idx {}",
+                stopwatch.elapsedMilliseconds(),
+                snap_task->s->get_last_log_term(),
+                snap_task->s->get_last_log_idx());
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
 }
 
 SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
@@ -490,9 +533,15 @@ bool NuRaftStateMachine::containsSession(int64_t session_id) const
 
 void NuRaftStateMachine::shutdown()
 {
+    if (shutdown_called)
+        return;
+
+    shutdown_called = true;
     LOG_INFO(log, "State machine shut down");
+
     storage.finalize();
     task_manager->shutDown();
+    snap_thread.join();
 }
 
 bool compareTime(const std::string & s1, const std::string & s2)
@@ -516,25 +565,22 @@ bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
 {
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     time_t prev_time = snap_mgr->getLastCreateTime();
-    return timer.isActionTime(prev_time, curr_time);
+    return !in_snapshot && timer.isActionTime(prev_time, curr_time);
 }
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
 {
-    create_snapshot(s);
-    ptr<std::exception> except(nullptr);
-    bool ret = true;
-    when_done(ret, except);
+    /// ptr maybe from stack or heap, so copy it here.
+    const ptr<cluster_config> conf_ptr_copy = s.get_last_config();
+    auto snap_copy = std::make_shared<snapshot>(s.get_last_log_idx(), s.get_last_log_term(), conf_ptr_copy);
+    snap_task = std::make_shared<SnapTask>(snap_copy, when_done);
 }
 
 void NuRaftStateMachine::create_snapshot(snapshot & s)
 {
-    LOG_WARNING(log, "Create snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
-    {
-        std::lock_guard<std::mutex> lock(snapshot_mutex);
-        snap_mgr->createSnapshot(s, storage);
-        snap_mgr->removeSnapshots();
-    }
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
+    snap_mgr->createSnapshot(s, storage);
+    snap_mgr->removeSnapshots();
 }
 
 void NuRaftStateMachine::save_snapshot_data(snapshot & s, const ulong offset, buffer & data)
