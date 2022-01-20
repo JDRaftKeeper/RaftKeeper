@@ -2,8 +2,8 @@
     <service>
         <my_id>2</my_id>
         <host>node2</host>
-        <log_dir>./raft_log</log_dir>
-        <snapshot_dir>./snapshot_log</snapshot_dir>
+        <log_dir>/var/lib/clickhouse/coordination/raft_log</log_dir>
+        <snapshot_dir>/var/lib/clickhouse/coordination/raft_snapshot</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
         <snapshot_create_interval>86400</snapshot_create_interval>
         <service_port>5102</service_port>
