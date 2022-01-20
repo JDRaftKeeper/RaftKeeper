@@ -58,6 +58,9 @@ private:
 
     ThreadFromGlobalPool session_cleaner_thread;
 
+    /// Apply or wait for configuration changes
+    ThreadFromGlobalPool update_configuration_thread;
+
     std::unique_ptr<SvsKeeperServer> server;
 
     mutable std::mutex keeper_stats_mutex;

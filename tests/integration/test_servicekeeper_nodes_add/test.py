@@ -16,8 +16,8 @@ cluster = ClickHouseServiceCluster(__file__)
 CONFIG_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'configs')
 
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml'], stay_alive=True)
-node2 = cluster.add_instance('node2', main_configs=[], stay_alive=True)
-node3 = cluster.add_instance('node3', main_configs=[], stay_alive=True)
+node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'], stay_alive=True)
+node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'], stay_alive=True)
 
 
 def get_fake_zk(node, timeout=30.0):
@@ -48,6 +48,7 @@ def test_nodes_add(started_cluster):
 
     p = Pool(3)
     node2.stop_clickhouse()
+    node2.exec_in_container(['bash', '-c', 'rm -fr /var/lib/clickhouse/coordination/raft_log/* /var/lib/clickhouse/coordination/raft_snapshot/*'])
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
     waiter = p.apply_async(start, (node2,))
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
