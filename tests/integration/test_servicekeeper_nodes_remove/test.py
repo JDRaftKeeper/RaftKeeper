@@ -2,7 +2,7 @@
 
 import pytest
 from helpers.cluster import ClickHouseCluster
-from helpers.cluster import ClickHouseServiceCluster
+from helpers.cluster_service import ClickHouseServiceCluster
 import os
 from kazoo.client import KazooClient, KazooState
 
