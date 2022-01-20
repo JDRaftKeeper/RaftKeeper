@@ -1677,6 +1677,15 @@ void Context::shutdownServiceKeeperStorageDispatcher() const
     }
 }
 
+void Context::updateServiceKeeperConfiguration([[maybe_unused]] const Poco::Util::AbstractConfiguration & config)
+{
+    std::lock_guard lock(shared->service_keeper_storage_dispatcher_mutex);
+    if (!shared->service_keeper_storage_dispatcher)
+        return;
+
+    shared->service_keeper_storage_dispatcher->updateConfiguration(config);
+}
+
 zkutil::ZooKeeperPtr Context::getAuxiliaryZooKeeper(const String & name) const
 {
     std::lock_guard lock(shared->auxiliary_zookeepers_mutex);

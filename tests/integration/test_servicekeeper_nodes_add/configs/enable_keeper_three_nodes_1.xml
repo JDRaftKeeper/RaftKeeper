@@ -1,7 +1,7 @@
 <yandex>
     <service>
-        <my_id>3</my_id>
-        <host>node3</host>
+        <my_id>1</my_id>
+        <host>node1</host>
         <log_dir>./raft_log</log_dir>
         <snapshot_dir>./snapshot_log</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>

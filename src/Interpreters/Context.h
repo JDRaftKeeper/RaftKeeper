@@ -600,6 +600,7 @@ public:
     std::shared_ptr<SvsKeeperDispatcher> & getSvsKeeperStorageDispatcher() const;
     void initializeServiceKeeperStorageDispatcher() const;
     void shutdownServiceKeeperStorageDispatcher() const;
+    void updateServiceKeeperConfiguration(const Poco::Util::AbstractConfiguration & config);
 
     /// Set auxiliary zookeepers configuration at server starting or configuration reloading.
     void reloadAuxiliaryZooKeepersConfigIfChanged(const ConfigurationPtr & config);
