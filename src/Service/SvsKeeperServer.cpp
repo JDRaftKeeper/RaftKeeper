@@ -24,21 +24,20 @@ namespace ErrorCodes
 
 SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
-    const Poco::Util::AbstractConfiguration & config,
+    const Poco::Util::AbstractConfiguration & config_,
     SvsKeeperResponsesQueue & responses_queue_)
     : server_id(coordination_settings_->server_id)
     , coordination_settings(coordination_settings_->coordination_settings)
+    , config(config_)
     , responses_queue(responses_queue_)
     , log(&(Poco::Logger::get("RaftKeeperServer")))
 {
-    min_server_id = INT32_MAX;
-    parseClusterConfig(config, "service.remote_servers");
 
     state_manager = cs_new<NuRaftStateManager>(
         server_id,
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
-        myself_cluster_config);
+        config);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
@@ -53,7 +52,7 @@ SvsKeeperServer::SvsKeeperServer(
 }
 
 
-void SvsKeeperServer::startup(const Poco::Util::AbstractConfiguration & config)
+void SvsKeeperServer::startup()
 {
     /*
     nuraft::nuraft_global_config g_config;
@@ -456,80 +455,175 @@ std::vector<int64_t> SvsKeeperServer::getDeadSessions()
     return state_machine->getDeadSessions();
 }
 
-void SvsKeeperServer::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
+ConfigUpdateActions SvsKeeperServer::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config_)
 {
-    Poco::Util::AbstractConfiguration::Keys keys;
-    config.keys(config_name, keys);
+    return state_manager->getConfigurationDiff(config_);
+}
 
-    specified_cluster_config = cs_new<cluster_config>();
-    myself_cluster_config = cs_new<cluster_config>();
-
-    for (const auto & key : keys)
+void SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
+{
+    size_t sleep_ms = 500;
+    if (task.action_type == ConfigUpdateActionType::AddServer)
     {
-        if (startsWith(key, "server"))
+        LOG_INFO(log, "Will try to add server with id {}", task.server->get_id());
+        bool added = false;
+        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
         {
-            int id_ = config.getInt(config_name + "." + key + ".server_id");
-            String host = config.getString(config_name + "." + key + ".host");
-            String port = config.getString(config_name + "." + key + ".port", "5103");
-            String endpoint_ = host + ":" + port;
-            bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
-            int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
-            auto server_config = cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_);
-            specified_cluster_config->get_servers().push_back(server_config);
-            min_server_id = std::min(id_, min_server_id);
-            if (id_ == server_id)
-                myself_cluster_config->get_servers().push_back(server_config);
+            if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
+            {
+                LOG_INFO(log, "Server with id {} was successfully added", task.server->get_id());
+                added = true;
+                break;
+            }
+
+            if (!isLeader())
+            {
+                LOG_INFO(log, "We are not leader anymore, will not try to add server {}", task.server->get_id());
+                break;
+            }
+
+            auto result = raft_instance->add_srv(*task.server);
+            if (!result->get_accepted())
+                LOG_INFO(log, "Command to add server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
-        else if (key == "async_replication")
-        {
-            specified_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
-        }
+        if (!added)
+            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to add server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_settings->configuration_change_tries_count);
     }
+    else if (task.action_type == ConfigUpdateActionType::RemoveServer)
+    {
+        LOG_INFO(log, "Will try to remove server with id {}", task.server->get_id());
 
-    std::string s;
-    std::for_each(specified_cluster_config->get_servers().cbegin(), specified_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
-        s += " ";
-        s += srv->get_endpoint();
-    });
+        bool removed = false;
+        if (task.server->get_id() == state_manager->server_id())
+        {
+            LOG_INFO(log, "Trying to remove leader node (ourself), so will yield leadership and some other node (new leader) will try remove us. "
+                          "Probably you will have to run SYSTEM RELOAD CONFIG on the new leader node");
 
-    LOG_INFO(log, "specified raft cluster config : {}", s);
+            raft_instance->yield_leadership();
+            return;
+        }
+
+        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        {
+            if (raft_instance->get_srv_config(task.server->get_id()) == nullptr)
+            {
+                LOG_INFO(log, "Server with id {} was successfully removed", task.server->get_id());
+                removed = true;
+                break;
+            }
+
+            if (!isLeader())
+            {
+                LOG_INFO(log, "We are not leader anymore, will not try to remove server {}", task.server->get_id());
+                break;
+            }
+
+            auto result = raft_instance->remove_srv(task.server->get_id());
+            if (!result->get_accepted())
+                LOG_INFO(log, "Command to remove server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
+        }
+        if (!removed)
+            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to remove server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_settings->configuration_change_tries_count);
+    }
+    else if (task.action_type == ConfigUpdateActionType::UpdatePriority)
+        raft_instance->set_priority(task.server->get_id(), task.server->get_priority());
+    else
+        LOG_WARNING(log, "Unknown configuration update type {}", static_cast<uint64_t>(task.action_type));
+}
+
+bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
+{
+
+    size_t sleep_ms = 500;
+    if (task.action_type == ConfigUpdateActionType::AddServer)
+    {
+        LOG_INFO(log, "Will try to wait server with id {} to be added", task.server->get_id());
+        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        {
+            if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
+            {
+                LOG_INFO(log, "Server with id {} was successfully added by leader", task.server->get_id());
+                return true;
+            }
+
+            if (isLeader())
+            {
+                LOG_INFO(log, "We are leader now, probably we will have to add server {}", task.server->get_id());
+                return false;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
+        }
+        return false;
+    }
+    else if (task.action_type == ConfigUpdateActionType::RemoveServer)
+    {
+        LOG_INFO(log, "Will try to wait remove of server with id {}", task.server->get_id());
+
+        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        {
+            if (raft_instance->get_srv_config(task.server->get_id()) == nullptr)
+            {
+                LOG_INFO(log, "Server with id {} was successfully removed by leader", task.server->get_id());
+                return true;
+            }
+
+            if (isLeader())
+            {
+                LOG_INFO(log, "We are leader now, probably we will have to remove server {}", task.server->get_id());
+                return false;
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
+        }
+        return false;
+    }
+    else if (task.action_type == ConfigUpdateActionType::UpdatePriority)
+        return true;
+    else
+        LOG_WARNING(log, "Unknown configuration update type {}", static_cast<uint64_t>(task.action_type));
+    return true;
 }
 
 void SvsKeeperServer::reConfigIfNeed()
 {
-    if (min_server_id != server_id)
-        return;
-    /// diff specified_cluster_config and state_manager->get_cluster_config()
-
-    auto cur_cluster_config = state_manager->get_cluster_config();
-
-    std::vector<String> srvs_removed;
-    std::vector<ptr<srv_config>> srvs_added;
-
-    std::list<ptr<srv_config>> & new_srvs(specified_cluster_config->get_servers());
-    std::list<ptr<srv_config>> & old_srvs(cur_cluster_config->get_servers());
-
-    for (auto it = new_srvs.begin(); it != new_srvs.end(); ++it)
-    {
-        if (!cur_cluster_config->get_server((*it)->get_id()))
-            srvs_added.push_back(*it);
-    }
-
-    for (auto it = old_srvs.begin(); it != old_srvs.end(); ++it)
-    {
-        if (!specified_cluster_config->get_server((*it)->get_id()))
-            srvs_removed.push_back((*it)->get_endpoint());
-    }
-
-    for (auto & end_point : srvs_removed)
-    {
-        removeServer(end_point);
-    }
-
-    for (auto srv_add : srvs_added)
-    {
-        addServer(srv_add);
-    }
+//    if (!isLeader())
+//        return;
+//
+//    auto cur_cluster_config = state_manager->load_config();
+//
+//    std::vector<String> srvs_removed;
+//    std::vector<ptr<srv_config>> srvs_added;
+//
+//    auto new_cluster_config = state_manager->parseClusterConfig(config, "service.remote_servers");
+//    std::list<ptr<srv_config>> & new_srvs(new_cluster_config->get_servers());
+//    std::list<ptr<srv_config>> & old_srvs(cur_cluster_config->get_servers());
+//
+//    for (auto it = new_srvs.begin(); it != new_srvs.end(); ++it)
+//    {
+//        if (!cur_cluster_config->get_server((*it)->get_id()))
+//            srvs_added.push_back(*it);
+//    }
+//
+//    for (auto it = old_srvs.begin(); it != old_srvs.end(); ++it)
+//    {
+//        if (!new_cluster_config->get_server((*it)->get_id()))
+//            srvs_removed.push_back((*it)->get_endpoint());
+//    }
+//
+//    for (auto & end_point : srvs_removed)
+//    {
+//        removeServer(end_point);
+//    }
+//
+//    for (auto srv_add : srvs_added)
+//    {
+//        addServer(srv_add);
+//    }
 
 }
 

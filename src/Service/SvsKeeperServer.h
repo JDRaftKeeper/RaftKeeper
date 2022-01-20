@@ -34,6 +34,8 @@ private:
 
     std::mutex append_entries_mutex;
 
+    const Poco::Util::AbstractConfiguration & config;
+
     SvsKeeperResponsesQueue & responses_queue;
 
     Poco::Logger * log;
@@ -43,25 +45,17 @@ private:
     std::condition_variable initialized_cv;
 //    std::atomic<bool> initial_batch_committed = false;
 
-    ptr<cluster_config> specified_cluster_config;
-
-    ptr<cluster_config> myself_cluster_config;
-
-    int min_server_id;
-
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
-
-    void parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name);
 
     void addServer(ptr<srv_config> srv_conf_to_add);
 
 public:
     SvsKeeperServer(
         const KeeperConfigurationAndSettingsPtr & coordination_settings_,
-        const Poco::Util::AbstractConfiguration & config,
+        const Poco::Util::AbstractConfiguration & config_,
         SvsKeeperResponsesQueue & responses_queue_);
 
-    void startup(const Poco::Util::AbstractConfiguration & config);
+    void startup();
 
     void addServer(const std::vector<std::string> & endpoint_list);
 
@@ -84,6 +78,12 @@ public:
 
     void waitInit();
 
+    /// Return true if KeeperServer initialized
+    bool checkInit() const
+    {
+        return initialized_flag;
+    }
+
     void reConfigIfNeed();
 
     void shutdown();
@@ -104,6 +104,17 @@ public:
     /// @return synced follower count if node is not leader return 0
     uint64_t getSyncedFollowerCount() const;
 
+    /// Get configuration diff between current configuration in RAFT and in XML file
+    ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config_);
+
+    /// Apply action for configuration update. Actually call raft_instance->remove_srv or raft_instance->add_srv.
+    /// Synchronously check for update results with retries.
+    void applyConfigurationUpdate(const ConfigUpdateAction & task);
+
+
+    /// Wait configuration update for action. Used by followers.
+    /// Return true if update was successfully received.
+    bool waitConfigurationUpdate(const ConfigUpdateAction & task);
 };
 
 }

@@ -225,13 +225,31 @@ int Service::main(const std::vector<std::string> & /*args*/)
         setTextLog(global_context->getTextLog(), level);
     }
 
+    zkutil::EventPtr unused_event = std::make_shared<Poco::Event>();
+    zkutil::ZooKeeperNodeCache unused_cache([] { return nullptr; });
+
+    auto main_config_reloader = std::make_unique<ConfigReloader>(
+        config_path,
+        "",
+        config().getString("path", ""),
+        std::move(unused_cache),
+        unused_event,
+        [&](ConfigurationPtr config, bool /* initial_loading */)
+        {
+            if (config->has("service"))
+                global_context->updateServiceKeeperConfiguration(*config);
+        },
+        /* already_loaded = */ false);  /// Reload it right now (initial loading)
+
     buildLoggers(config(), logger());
+    main_config_reloader->start();
     LOG_INFO(log, "Ready for connections.");
 
     SCOPE_EXIT({
         LOG_DEBUG(log, "Received termination signal.");
         LOG_DEBUG(log, "Waiting for current connections to close.");
 
+        main_config_reloader.reset();
         is_cancelled = true;
 
         int current_connections = 0;

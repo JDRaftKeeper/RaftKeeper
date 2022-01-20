@@ -44,6 +44,10 @@ private:
     std::mutex session_to_response_callback_mutex;
     SessionToResponseCallback session_to_response_callback;
 
+    using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
+    /// More than 1k updates is definitely misconfiguration.
+    UpdateConfigurationQueue update_configuration_queue{1000};
+
 #ifdef __THREAD_POOL_VEC__
     std::vector<ThreadFromGlobalPool> request_threads;
     std::vector<ThreadFromGlobalPool> response_threads;
@@ -90,6 +94,12 @@ public:
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback);
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
+
+    /// Thread apply or wait configuration changes from leader
+    void updateConfigurationThread();
+    /// Registered in ConfigReloader callback. Add new configuration changes to
+    /// update_configuration_queue. Keeper Dispatcher apply them asynchronously.
+    void updateConfiguration(const Poco::Util::AbstractConfiguration & config);
 
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);

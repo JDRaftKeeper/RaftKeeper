@@ -17,14 +17,15 @@ NuRaftStateManager::NuRaftStateManager(
     int id_,
     const std::string & endpoint_,
     const std::string & log_dir_,
-    ptr<cluster_config> myself_cluster_config_)
-    : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_), cur_cluster_config(myself_cluster_config_)
+    const Poco::Util::AbstractConfiguration & config)
+    : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_)
 {
     log = &(Poco::Logger::get("RaftStateManager"));
     curr_log_store = cs_new<NuRaftFileLogStore>(log_dir);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
+    cur_cluster_config = parseClusterConfig(config, "service.remote_servers");
 }
 
 ptr<cluster_config> NuRaftStateManager::load_config()
@@ -100,12 +101,12 @@ void NuRaftStateManager::system_exit(const int exit_code)
     LOG_ERROR(log, "Raft system exit with code {}", exit_code);
 }
 
-void NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
+ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
 
-    cur_cluster_config = cs_new<cluster_config>();
+    auto ret_cluster_config = cs_new<cluster_config>();
 
     for (const auto & key : keys)
     {
@@ -117,21 +118,72 @@ void NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfigurat
             String endpoint_ = host + ":" + port;
             bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
             int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
-            cur_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
+            ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
         }
         else if (key == "async_replication")
         {
-            cur_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
+            ret_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
         }
     }
 
     std::string s;
-    std::for_each(cur_cluster_config->get_servers().cbegin(), cur_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
+    std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
         s += " ";
         s += srv->get_endpoint();
     });
 
     LOG_INFO(log, "raft cluster config : {}", s);
+    return ret_cluster_config;
+}
+
+ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
+{
+    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers");
+
+    std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
+    for (const auto & new_server : new_cluster_config->get_servers())
+        new_ids[new_server->get_id()] = new_server;
+
+    {
+        for (const auto & old_server : cur_cluster_config->get_servers())
+            old_ids[old_server->get_id()] = old_server;
+    }
+
+    ConfigUpdateActions result;
+
+    /// First of all add new servers
+    for (auto [new_id, server_config] : new_ids)
+    {
+        if (!old_ids.count(new_id))
+            result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::AddServer, server_config});
+    }
+
+    /// After that remove old ones
+    for (auto [old_id, server_config] : old_ids)
+    {
+        if (!new_ids.count(old_id))
+            result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::RemoveServer, server_config});
+    }
+
+    {
+        /// And update priority if required
+        for (const auto & old_server : cur_cluster_config->get_servers())
+        {
+            for (const auto & new_server : new_cluster_config->get_servers())
+            {
+                if (old_server->get_id() == new_server->get_id())
+                {
+                    if (old_server->get_priority() != new_server->get_priority())
+                    {
+                        result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::UpdatePriority, new_server});
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 }
