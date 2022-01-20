@@ -157,6 +157,8 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 #endif
 
     session_cleaner_thread = ThreadFromGlobalPool([this] { sessionCleanerTask(); });
+    update_configuration_thread = ThreadFromGlobalPool([this] { updateConfigurationThread(); });
+    updateConfiguration(config);
 
     LOG_DEBUG(log, "Dispatcher initialized");
 }
