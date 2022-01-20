@@ -1,7 +1,7 @@
 <yandex>
     <service>
-        <my_id>3</my_id>
-        <host>node3</host>
+        <my_id>4</my_id>
+        <host>node4</host>
         <log_dir>./raft_log</log_dir>
         <snapshot_dir>./snapshot_log</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
@@ -28,8 +28,8 @@
                 <port>5103</port>
             </server>
             <server>
-                <server_id>3</server_id>
-                <host>node3</host>
+                <server_id>4</server_id>
+                <host>node4</host>
                 <port>5103</port>
             </server>
             <async_replication>false</async_replication>

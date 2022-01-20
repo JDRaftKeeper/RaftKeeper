@@ -10,6 +10,7 @@ namespace ErrorCodes
 {
     extern const int LOGICAL_ERROR;
     extern const int TIMEOUT_EXCEEDED;
+    extern const int SYSTEM_ERROR;
 }
 
 namespace fs = std::filesystem;
@@ -102,7 +103,10 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
 
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
-        requests_queue.push(std::move(request_info));
+    {
+        if (!requests_queue.push(std::move(request_info)))
+            throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
+    }
     else if (!requests_queue.tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
@@ -117,7 +121,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
-        server->startup(config);
+        server->startup();
         LOG_DEBUG(log, "Server initialized, waiting for quorum");
 
         server->waitInit();
@@ -241,7 +245,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     request_info.session_id = dead_session;
                     {
                         std::lock_guard lock(push_request_mutex);
-                        requests_queue.push(std::move(request_info));
+                        if (requests_queue.push(std::move(request_info)))
+                            throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
                     finishSession(dead_session);
                     LOG_INFO(log, "Dead session close request pushed");
@@ -257,6 +262,55 @@ void SvsKeeperDispatcher::sessionCleanerTask()
     }
 }
 
+
+void SvsKeeperDispatcher::updateConfigurationThread()
+{
+    while (true)
+    {
+        if (shutdown_called)
+            return;
+
+        try
+        {
+            if (!server->checkInit())
+            {
+                LOG_INFO(log, "Server still not initialized, will not apply configuration until initialization finished");
+                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                continue;
+            }
+
+            ConfigUpdateAction action;
+            if (!update_configuration_queue.pop(action))
+                break;
+
+
+            /// We must wait this update from leader or apply it ourself (if we are leader)
+            bool done = false;
+            while (!done)
+            {
+                if (shutdown_called)
+                    return;
+
+                if (isLeader())
+                {
+                    server->applyConfigurationUpdate(action);
+                    done = true;
+                }
+                else
+                {
+                    done = server->waitConfigurationUpdate(action);
+                    if (!done)
+                        LOG_INFO(log, "Cannot wait for configuration update, maybe we become leader, or maybe update is invalid, will try to wait one more time");
+                }
+            }
+        }
+        catch (...)
+        {
+            tryLogCurrentException(__PRETTY_FUNCTION__);
+        }
+    }
+}
+
 void SvsKeeperDispatcher::finishSession(int64_t session_id)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
@@ -264,6 +318,25 @@ void SvsKeeperDispatcher::finishSession(int64_t session_id)
     if (session_it != session_to_response_callback.end())
         session_to_response_callback.erase(session_it);
 }
+
+void SvsKeeperDispatcher::updateConfiguration(const Poco::Util::AbstractConfiguration & config)
+{
+    auto diff = server->getConfigurationDiff(config);
+    if (diff.empty())
+        LOG_TRACE(log, "Configuration update triggered, but nothing changed for RAFT");
+    else if (diff.size() > 1)
+        LOG_WARNING(log, "Configuration changed for more than one server ({}) from cluster, it's strictly not recommended", diff.size());
+    else
+        LOG_DEBUG(log, "Configuration change size ({})", diff.size());
+
+    for (auto & change : diff)
+    {
+        bool push_result = update_configuration_queue.push(change);
+        if (!push_result)
+            throw Exception(ErrorCodes::SYSTEM_ERROR, "Cannot push configuration update to queue");
+    }
+}
+
 
 void SvsKeeperDispatcher::updateKeeperStatLatency(uint64_t process_time_ms)
 {
