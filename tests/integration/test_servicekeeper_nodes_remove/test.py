@@ -3,6 +3,7 @@
 import pytest
 from helpers.cluster import ClickHouseCluster
 from helpers.cluster_service import ClickHouseServiceCluster
+import time
 import os
 from kazoo.client import KazooClient, KazooState
 
@@ -46,6 +47,8 @@ def test_nodes_remove(started_cluster):
         assert zk_conn2.exists("test_two_" + str(i)) is not None
         assert zk_conn3.exists("test_two_" + str(i)) is not None
 
+    node3.stop_clickhouse()
+
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
 
@@ -64,24 +67,22 @@ def test_nodes_remove(started_cluster):
         assert zk_conn.exists("test_two_" + str(i)) is not None
         assert zk_conn.exists("test_two_" + str(100 + i)) is not None
 
-    with pytest.raises(Exception):
-        zk_conn3 = get_fake_zk(node3)
-        zk_conn3.sync("/test_two_0")
+    # with pytest.raises(Exception):
+    #     zk_conn3 = get_fake_zk(node3)
+    #     zk_conn3.sync("/test_two_0")
 
-    node3.stop_clickhouse()
+    # node2.stop_clickhouse()
 
-    node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_single_keeper1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
+    # node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_single_keeper1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
+    #
+    # time.sleep(3)
+    # zk_conn = get_fake_zk(node1)
+    # zk_conn.sync("/test_two_0")
+    #
+    # for i in range(100):
+    #     assert zk_conn.exists("test_two_" + str(i)) is not None
+    #     assert zk_conn.exists("test_two_" + str(100 + i)) is not None
 
-    time.sleep(3)
-    zk_conn = get_fake_zk(node1)
-    zk_conn.sync("/test_two_0")
-
-    for i in range(100):
-        assert zk_conn.exists("test_two_" + str(i)) is not None
-        assert zk_conn.exists("test_two_" + str(100 + i)) is not None
-
-    with pytest.raises(Exception):
-        zk_conn2 = get_fake_zk(node2)
-        zk_conn2.sync("/test_two_0")
-
-    node2.stop_clickhouse()
+    # with pytest.raises(Exception):
+    #     zk_conn2 = get_fake_zk(node2)
+    #     zk_conn2.sync("/test_two_0")
