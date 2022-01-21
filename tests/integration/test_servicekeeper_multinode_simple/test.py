@@ -185,6 +185,7 @@ def test_session_expiration(started_cluster):
             pm.partition_instances(node3, node1)
             node3_zk.stop()
             node3_zk.close()
+            time.sleep(3)
             for _ in range(100):
                 if node1_zk.exists("/test_ephemeral_node") is None and node2_zk.exists("/test_ephemeral_node") is None:
                     break
