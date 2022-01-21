@@ -54,8 +54,9 @@ def test_recover_from_snapshot(started_cluster):
         assert node2_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
         assert node3_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
 
-        node3.stop_clickhouse(kill=True)
+        node3.stop_clickhouse()
 
+        time.sleep(3)
         # at least we will have 2 snapshots
         for i in range(435):
             node1_zk.create("/test_snapshot_multinode_recover" + str(i), ("somedata" + str(i)).encode())
@@ -70,7 +71,7 @@ def test_recover_from_snapshot(started_cluster):
 
     # stale node should recover from leader's snapshot
     # with some sanitizers can start longer than 5 seconds
-    node3.start_clickhouse(20)
+    node3.start_clickhouse()
     print("Restarted")
 
     try:
