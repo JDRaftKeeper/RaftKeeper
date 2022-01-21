@@ -21,7 +21,7 @@ CONFIG_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'configs'
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml'], stay_alive=True)
 node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'], stay_alive=True)
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'], stay_alive=True)
-node4 = cluster.add_instance('node4', stay_alive=True)
+node4 = cluster.add_instance('node4', main_configs=['configs/enable_keeper4.xml'], stay_alive=True)
 
 
 @pytest.fixture(scope="module")
