@@ -339,10 +339,8 @@ void NuRaftStateMachine::snapThread()
 
             LOG_INFO(
                 log,
-                "Create snapshot time cost {} ms, last_log_term {}, last_log_idx {}",
-                stopwatch.elapsedMilliseconds(),
-                snap_task->s->get_last_log_term(),
-                snap_task->s->get_last_log_idx());
+                "Create snapshot time cost {} ms",
+                stopwatch.elapsedMilliseconds());
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -570,9 +568,9 @@ bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
 {
-    /// ptr maybe from stack or heap, so copy it here.
-    const ptr<cluster_config> conf_ptr_copy = s.get_last_config();
-    auto snap_copy = std::make_shared<snapshot>(s.get_last_log_idx(), s.get_last_log_term(), conf_ptr_copy);
+    /// copy snapshot.
+    ptr<buffer> snp_buf = s.serialize();
+    auto snap_copy = snapshot::deserialize(*snp_buf);
     snap_task = std::make_shared<SnapTask>(snap_copy, when_done);
 }
 
