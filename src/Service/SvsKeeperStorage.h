@@ -12,6 +12,7 @@
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <IO/Operators.h>
 #include <IO/WriteBufferFromString.h>
+#include <functional>
 
 namespace DB
 {
@@ -64,6 +65,8 @@ class ConcurrentMap
 public:
     using SharedElement = std::shared_ptr<Element>;
     using ElementMap = std::unordered_map<std::string, SharedElement>;
+    using Action = std::function<void(const String &, const SharedElement &)>;
+
     class InnerMap
     {
     public:
@@ -93,7 +96,17 @@ public:
 
         size_t size() const { return map_.size(); }
 
+        void forEach(Action & fn)
+        {
+            std::shared_lock rlock(mut_);
+            for (auto [key, value] : map_)
+                fn(key, value);
+        }
+
         std::shared_mutex & getMutex() { return mut_; }
+
+        /// This method will destroy InnerMap thread safety property.
+        /// deprecated use forEach instead.
         ElementMap & getMap() { return map_; }
 
     private:
