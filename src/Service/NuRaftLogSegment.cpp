@@ -21,6 +21,14 @@
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+extern const int LOGICAL_ERROR;
+extern const int CANNOT_READ_FROM_FILE_DESCRIPTOR;
+extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
+}
+
 using namespace nuraft;
 
 int ftruncateUninterrupted(int fd, off_t length)
@@ -147,6 +155,29 @@ int NuRaftLogSegment::create()
     return 0;
 }
 
+void NuRaftLogSegment::writeFileHeader() const
+{
+    if (!is_open)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Log segment not open yet");
+
+    if (seg_fd < 0)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "File not open yet");
+
+    union
+    {
+        uint64_t magic_num;
+        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'S', 'v', 's'};
+    };
+
+    std::lock_guard write_lock(log_mutex);
+    auto version_uint8 = static_cast<uint8_t>(version);
+    if (write(seg_fd, &magic_num, 8) != 8)
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write to file descriptor");
+
+    if (write(seg_fd, &version_uint8, 1) != 1)
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write to file descriptor");
+}
+
 //load open/close segment
 int NuRaftLogSegment::load()
 {
@@ -169,7 +200,7 @@ int NuRaftLogSegment::load()
     // load entry index
     file_size = st_buf.st_size;
 
-    size_t entry_off = 0;
+    size_t entry_off = loadVersion();
     UInt64 actual_last_index = first_index - 1;
     for (size_t i = first_index; entry_off < file_size; i++)
     {
@@ -262,6 +293,42 @@ int NuRaftLogSegment::load()
         ::lseek(seg_fd, entry_off, SEEK_SET);
     }
     return ret;
+}
+
+off_t NuRaftLogSegment::loadVersion()
+{
+    if (seg_fd < 0)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "File not open yet");
+
+    /// "RaftSvs" + version. 9 bytes
+    ptr<buffer> buf = buffer::alloc(9);
+    buf->pos(0);
+    errno = 0;
+    ssize_t ret = pread(seg_fd, buf->data(), 9, 0);
+    if (ret < 0 || ret != 9)
+        throw Exception(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file descriptor");
+
+    buffer_serializer bs(buf);
+    bs.pos(0);
+    uint64_t magic = bs.get_u64();
+    union
+    {
+        uint64_t magic_num;
+        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'S', 'v', 's'};
+    };
+
+    if (magic == magic_num)
+    {
+        LOG_TRACE(log, "Magic num is {}", magic_num);
+        version = LogVersion(bs.get_u8());
+        return 9;
+    }
+    else
+    {
+        LOG_TRACE(log, "Not have magic num");
+        version = LogVersion::V0;
+        return 0;
+    }
 }
 
 //is_full=true, close full open log segment, rename to finish file name
@@ -690,7 +757,7 @@ int LogSegmentStore::openSegment()
 {
     {
         std::shared_lock read_lock(seg_mutex);
-        if (open_segment && open_segment->getFileSize() <= max_log_size)
+        if (open_segment && open_segment->getFileSize() <= max_log_size && open_segment->getVersion() >= CURRENT_LOG_VERSION)
         {
             return 0;
         }
@@ -714,6 +781,7 @@ int LogSegmentStore::openSegment()
         open_segment = nullptr;
         return -1;
     }
+    open_segment->writeFileHeader();
     return 0;
 }
 
