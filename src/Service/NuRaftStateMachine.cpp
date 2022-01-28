@@ -6,6 +6,7 @@
 #include <string>
 #include <math.h>
 #include <Service/NuRaftStateMachine.h>
+#include <Service/NuRaftLogSegment.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <Service/proto/Log.pb.h>
@@ -28,7 +29,7 @@ struct ReplayLogBatch
 {
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
-    ptr<std::vector<ptr<log_entry>>> log_vec;
+    ptr<std::vector<VersionLogEntry>> log_vec;
     ptr<std::vector<ptr<SvsKeeperStorage::RequestForSession>>> request_vec;
 };
 

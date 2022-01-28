@@ -16,6 +16,23 @@ namespace DB
 {
 using nuraft::int64;
 
+enum LogVersion : uint8_t
+{
+    V0 = 0,
+    V1 = 1, /// with ctime mtime
+};
+
+struct VersionLogEntry
+{
+    LogVersion version;
+    ptr<log_entry> log_entry;
+};
+
+static constexpr auto CURRENT_LOG_VERSION = LogVersion::V1;
+
+static constexpr auto LOG_MAGIC = "RaftSvs";
+
+
 class NuRaftLogSegment
 {
 public:
@@ -30,6 +47,7 @@ public:
         , file_size(0)
         , is_open(true)
         , log(&(Poco::Logger::get("LogSegment")))
+        , version(CURRENT_LOG_VERSION)
     {
     }
 
@@ -55,6 +73,12 @@ public:
     int close(bool is_full);
     // remove the segment
     int remove();
+
+    void writeFileHeader() const;
+
+    off_t loadVersion();
+
+    LogVersion getVersion() const { return version; }
 
     inline int flush() const;
 
@@ -130,6 +154,7 @@ private:
     mutable std::shared_mutex log_mutex;
     //file offset
     std::vector<std::pair<UInt64 /*offset*/, UInt64 /*term*/>> offset_term;
+    LogVersion version;
 };
 
 // LogSegmentStore use segmented append-only file, all data in disk, all index in memory.
