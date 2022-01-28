@@ -314,7 +314,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
         response->zxid = 0;
 
         response->error = result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                        : Coordination::Error::ZSYSTEMERROR;
+                                                                                        : Coordination::Error::ZCONNECTIONLOSS;
 
         responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{session_id, response});
         if (!result->get_accepted())
