@@ -37,6 +37,7 @@
             <snapshot_distance>10000000</snapshot_distance>
         </coordination_settings>
 
+        <!-- When adding new nodes and replacing nodes, only one server configuration can be modified at the same time -->
         <remote_servers>
             <server>
                 <server_id>1</server_id>
@@ -47,13 +48,11 @@
             <!--<server>
                 <server_id>2</server_id>
                 <host>localhost</host>
-                &lt;!&ndash; internal_port &ndash;&gt;
                 <port>5203</port>
             </server>
             <server>
                 <server_id>3</server_id>
                 <host>localhost</host>
-                &lt;!&ndash; internal_port &ndash;&gt;
                 <port>5303</port>
             </server>-->
             <async_replication>false</async_replication>
