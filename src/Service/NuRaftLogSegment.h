@@ -16,7 +16,7 @@ namespace DB
 {
 using nuraft::int64;
 
-enum LogVersion : uint8_t
+enum class LogVersion : uint8_t
 {
     V0 = 0,
     V1 = 1, /// with ctime mtime
@@ -29,8 +29,6 @@ struct VersionLogEntry
 };
 
 static constexpr auto CURRENT_LOG_VERSION = LogVersion::V1;
-
-static constexpr auto LOG_MAGIC = "RaftSvs";
 
 
 class NuRaftLogSegment
@@ -222,6 +220,8 @@ public:
 
     //closed segments, unclude open segment
     SegmentVector & getSegments() { return segments; }
+
+    LogVersion getVersion(UInt64 index);
 
     //void sync();
 public:

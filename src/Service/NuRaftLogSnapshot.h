@@ -17,6 +17,13 @@ using nuraft::snapshot;
 using nuraft::ulong;
 using StringVec = std::vector<std::string>;
 
+enum SnapshotVersion : uint8_t
+{
+    V0 = 0,
+    V1 = 1, /// with ACL map, and last_log_term for file name
+};
+
+static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V1;
 
 struct SnapshotBatchHeader
 {
@@ -100,6 +107,8 @@ public:
     static const UInt32 SAVE_BATCH_SIZE = 10000;
     static const int SNAPSHOT_THREAD_NUM = 8;
     static const int IO_BUFFER_SIZE = 16384; //16K
+
+    SnapshotVersion version = CURRENT_SNAPSHOT_VERSION;
 
 private:
     void getObjectPath(ulong object_id, std::string & path);
