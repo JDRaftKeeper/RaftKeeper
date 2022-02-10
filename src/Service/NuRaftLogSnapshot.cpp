@@ -19,6 +19,16 @@
 
 namespace DB
 {
+namespace ErrorCodes
+{
+extern const int LOGICAL_ERROR;
+extern const int CANNOT_READ_FROM_FILE_DESCRIPTOR;
+extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
+extern const int CANNOT_FSYNC;
+extern const int CANNOT_CLOSE_FILE;
+extern const int CHECKSUM_DOESNT_MATCH;
+}
+
 using nuraft::cs_new;
 
 //const int KeeperSnapshotStore::SNAPSHOT_THREAD_NUM = 4;
@@ -38,6 +48,73 @@ int openFileForWrite(std::string & obj_path)
     return snap_fd;
 }
 
+bool isFileHeader(UInt64 magic)
+{
+    union
+    {
+        uint64_t magic_num;
+        uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'H', 'e', 'a', 'd'};
+    };
+    return magic == magic_num;
+}
+
+bool isFileTail(UInt64 magic)
+{
+    union
+    {
+        uint64_t magic_num;
+        uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'T', 'a', 'i', 'l'};
+    };
+    return magic == magic_num;
+}
+
+int openFileAndWriteHeader(std::string & obj_path, const SnapshotVersion version)
+{
+    int snap_fd = openFileForWrite(obj_path);
+    if (snap_fd != -1) /// write header
+    {
+        union
+        {
+            uint64_t magic_num;
+            uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'H', 'e', 'a', 'd'};
+        };
+
+        auto version_uint8 = static_cast<uint8_t>(version);
+        if (write(snap_fd, &magic_num, 8) != 8)
+            throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write head magic to file descriptor");
+
+        if (write(snap_fd, &version_uint8, 1) != 1)
+            throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to file descriptor");
+    }
+    return snap_fd;
+}
+
+size_t writeTailAndClose(int snap_fd, UInt32 checksum)
+{
+    union
+    {
+        uint64_t magic_num;
+        uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'T', 'a', 'i', 'l'};
+    };
+
+    if (write(snap_fd, &magic_num, 8) != 8)
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write tail magic to file descriptor");
+
+    if (write(snap_fd, &checksum, 4) != 4)
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write file checksum to file descriptor");
+
+    if (::fsync(snap_fd) == -1)
+    {
+        throw Exception(ErrorCodes::CANNOT_FSYNC, "Cannot fsync");
+    }
+    if (::close(snap_fd) == -1)
+    {
+        throw Exception(ErrorCodes::CANNOT_CLOSE_FILE, "Cannot close file");
+    }
+
+    return sizeof(UInt32);
+}
+
 int openFileForRead(std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
@@ -51,7 +128,7 @@ int openFileForRead(std::string & obj_path)
     return snap_fd;
 }
 
-size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj_path)
+std::pair<size_t, UInt32> saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, const std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
 
@@ -74,10 +151,29 @@ size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj
     if (ret < 0 || ret != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
     {
         LOG_ERROR(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
-        return -1;
+        return {-1, 0};
     }
     LOG_DEBUG(log, "Save object batch, path {}, length {}, crc {}", obj_path, header.data_length, header.data_crc);
-    return SnapshotBatchHeader::HEADER_SIZE + header.data_length;
+    return { SnapshotBatchHeader::HEADER_SIZE + header.data_length, header.data_crc };
+}
+
+UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
+{
+    union
+    {
+        UInt64 data;
+        UInt32 crc[2];
+    };
+    crc[0] = checksum;
+    crc[1] = data_crc;
+    UInt32 new_checksum = DB::getCRC32(reinterpret_cast<const char *>(&data), 8);
+    return new_checksum;
+}
+
+std::pair<size_t, UInt32> saveBatchAndUpdateCheckSum(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, const std::string & obj_path, UInt32 checksum)
+{
+    auto [save_size, data_crc] = saveBatch(snap_fd, batch_pb, obj_path);
+    return { save_size, updateCheckSum(checksum, data_crc) };
 }
 
 //return end object index
@@ -98,6 +194,7 @@ void createObjectContainer(
     size_t file_size = 0;
     std::string obj_path;
     LOG_INFO(log, "Begin create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
+    UInt32 checksum = 0;
     while (node_index <= innerMap.size())
     {
         if (max_node_size == 1 || node_index % max_node_size == 1)
@@ -107,7 +204,7 @@ void createObjectContainer(
                 ::close(snap_fd);
             }
             obj_path = objects_path[obj_idx];
-            snap_fd = openFileForWrite(obj_path);
+            snap_fd = openFileAndWriteHeader(obj_path, CURRENT_SNAPSHOT_VERSION);
             if (snap_fd > 0)
             {
                 LOG_INFO(log, "Create snapshot object, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
@@ -144,10 +241,11 @@ void createObjectContainer(
         //last node, save to file
         if (node_index % save_batch_size == 0 || node_index % max_node_size == 0 || node_index == innerMap.size())
         {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(snap_fd, batch_pb, obj_path, checksum);
+            checksum = new_checksum;
+            if (save_size > 0)
             {
-                file_size += ret;
+                file_size += save_size;
             }
             else
             {
@@ -159,17 +257,17 @@ void createObjectContainer(
         node_index++;
     }
 
+    if (snap_fd > 0)
+    {
+        file_size += writeTailAndClose(snap_fd, checksum);
+    }
+
     LOG_INFO(
         log,
         "Finish create snapshot object for container, max node size {}, node index {}, file size {}",
         max_node_size,
         node_index,
         file_size);
-
-    if (snap_fd > 0)
-    {
-        ::close(snap_fd);
-    }
 }
 
 void createObjectEphemeral(
@@ -189,6 +287,7 @@ void createObjectEphemeral(
     int snap_fd = -1;
     size_t file_size = 0;
     LOG_INFO(log, "Begin create snapshot ephemeral object, max node size {}, node index {}", max_node_size, node_index);
+    UInt32 checksum = 0;
     while (node_index <= ephemerals.size())
     {
         if (max_node_size == 1 || node_index % max_node_size == 1)
@@ -198,7 +297,7 @@ void createObjectEphemeral(
                 ::close(snap_fd);
             }
             obj_path = objects_path[obj_idx];
-            snap_fd = openFileForWrite(obj_path);
+            snap_fd = openFileAndWriteHeader(obj_path, CURRENT_SNAPSHOT_VERSION);
             if (snap_fd > 0)
             {
                 LOG_INFO(
@@ -235,10 +334,11 @@ void createObjectEphemeral(
         //last node, save to file
         if (node_index % save_batch_size == 0 || node_index % max_node_size == 0 || node_index == ephemerals.size())
         {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(snap_fd, batch_pb, obj_path, checksum);
+            checksum = new_checksum;
+            if (save_size > 0)
             {
-                file_size += ret;
+                file_size += save_size;
             }
             else
             {
@@ -249,17 +349,17 @@ void createObjectEphemeral(
         node_index++;
     }
 
+    if (snap_fd > 0)
+    {
+        file_size += writeTailAndClose(snap_fd, checksum);
+    }
+
     LOG_INFO(
         log,
         "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}",
         max_node_size,
         node_index,
         file_size);
-
-    if (snap_fd > 0)
-    {
-        ::close(snap_fd);
-    }
 }
 
 //Create sessions
@@ -267,7 +367,7 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     ptr<SnapshotBatchPB> batch_pb;
-    int snap_fd = openFileForWrite(obj_path);
+    int snap_fd = openFileAndWriteHeader(obj_path, CURRENT_SNAPSHOT_VERSION);
     if (snap_fd > 0)
     {
         LOG_INFO(log, "Create sessions object, path {}", obj_path);
@@ -281,6 +381,7 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
     auto session_it = session_timeout.begin();
     UInt32 node_index = 1;
     size_t file_size = 0;
+    UInt32 checksum = 0;
     while (node_index <= session_timeout.size())
     {
         //first node
@@ -302,10 +403,11 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         //last node, save to file
         if (node_index % save_batch_size == 0 || node_index == session_timeout.size())
         {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(snap_fd, batch_pb, obj_path, checksum);
+            checksum = new_checksum;
+            if (save_size > 0)
             {
-                file_size += ret;
+                file_size += save_size;
             }
             else
             {
@@ -316,13 +418,13 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         node_index++;
     }
 
-    LOG_INFO(
-        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
-
     if (snap_fd > 0)
     {
-        ::close(snap_fd);
+        file_size += writeTailAndClose(snap_fd, checksum);
     }
+
+    LOG_INFO(
+        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
 }
 
 //Save map<string, string> or map<string, uint64>
@@ -331,7 +433,7 @@ void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     ptr<SnapshotBatchPB> batch_pb;
-    int snap_fd = openFileForWrite(obj_path);
+    int snap_fd = openFileAndWriteHeader(obj_path, CURRENT_SNAPSHOT_VERSION);
     if (snap_fd > 0)
     {
         LOG_INFO(log, "Create string map object, path {}", obj_path);
@@ -345,6 +447,7 @@ void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
     auto map_it = snap_map.begin();
     UInt32 node_index = 1;
     size_t file_size = 0;
+    UInt32 checksum = 0;
     while (node_index <= snap_map.size())
     {
         //first node
@@ -373,10 +476,11 @@ void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
         //last node, save to file
         if (node_index % save_batch_size == 0 || node_index == snap_map.size())
         {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(snap_fd, batch_pb, obj_path, checksum);
+            checksum = new_checksum;
+            if (save_size > 0)
             {
-                file_size += ret;
+                file_size += save_size;
             }
             else
             {
@@ -389,7 +493,7 @@ void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
 
     if (snap_fd > 0)
     {
-        ::close(snap_fd);
+        file_size += writeTailAndClose(snap_fd, checksum);
     }
 }
 
@@ -575,12 +679,32 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
 
     size_t read_size = 0;
     SnapshotBatchHeader header;
+    UInt32 checksum = 0;
+    SnapshotVersion version_ = CURRENT_SNAPSHOT_VERSION;
     while (!snap_fs->eof())
     {
+        UInt64 magic;
+        readUInt64(snap_fs, magic);
+        if (isFileHeader(magic))
+        {
+            char * buf = reinterpret_cast<char *>(&version_);
+            snap_fs->read(buf, sizeof(uint8_t));
+        }
+        else if (isFileTail(magic))
+        {
+            UInt32 file_checksum;
+            char * buf = reinterpret_cast<char *>(&file_checksum);
+            snap_fs->read(buf, sizeof(UInt32));
+
+            if (file_checksum != checksum)
+                throw Exception(ErrorCodes::CHECKSUM_DOESNT_MATCH, "snapshot {} checksum doesn't match", obj_path);
+            break;
+        }
         if (!loadHeader(snap_fs, header))
         {
             return false;
         }
+        checksum = updateCheckSum(checksum, header.data_crc);
         char * body_buf = new char[header.data_length];
         read_size += sizeof(SnapshotBatchHeader) + header.data_length;
         errno = 0;

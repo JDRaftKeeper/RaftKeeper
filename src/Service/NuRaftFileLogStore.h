@@ -61,6 +61,8 @@ public :
     ptr<std::vector<ptr<log_entry>>> log_entries(ulong start, ulong end) override;
     ptr<std::vector<ptr<log_entry>>> log_entries_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0) override;
 
+    ptr<std::vector<VersionLogEntry>> log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0);
+
     ptr<log_entry> entry_at(ulong index) override;
 
     ulong term_at(ulong index) override;
@@ -86,7 +88,7 @@ private:
     //std::atomic<UInt64> start_idx;
     //log's count in current segment
 
-    //std::shared_mutex index_mutex; 
+    //std::shared_mutex index_mutex;
 
 #ifdef _TEST_MEMORY_
     std::atomic<UInt64> last_log_index_;

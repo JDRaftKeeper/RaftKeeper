@@ -227,6 +227,28 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start
     return ret;
 }
 
+ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
+{
+    ptr<std::vector<VersionLogEntry>> ret = cs_new<std::vector<VersionLogEntry>>();
+    //segment_store->getEntriesExt(start, end, batch_size_hint_in_bytes, ret);
+    int64 get_size = 0;
+    int64 entry_size = 0;
+    for (auto i = start; i < end; i++)
+    {
+        auto entry_ptr = entry_at(i);
+        entry_size = entry_ptr->get_buf().size() + sizeof(ulong) + sizeof(char);
+        if (batch_size_hint_in_bytes > 0 && get_size + entry_size > batch_size_hint_in_bytes)
+        {
+            break;
+        }
+        ret->push_back({ segment_store->getVersion(i), entry_ptr });
+        get_size += entry_size;
+    }
+    LOG_DEBUG(log, "log entries ext, start {} end {}, real size {}, max size {}", start, end, get_size, batch_size_hint_in_bytes);
+    return ret;
+}
+
+
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
     ptr<nuraft::log_entry> src = nullptr;
