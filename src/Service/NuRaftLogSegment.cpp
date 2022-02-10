@@ -166,16 +166,16 @@ void NuRaftLogSegment::writeFileHeader() const
     union
     {
         uint64_t magic_num;
-        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'S', 'v', 's'};
+        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'L', 'o', 'g'};
     };
 
     std::lock_guard write_lock(log_mutex);
     auto version_uint8 = static_cast<uint8_t>(version);
     if (write(seg_fd, &magic_num, 8) != 8)
-        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write to file descriptor");
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write magic to file descriptor");
 
     if (write(seg_fd, &version_uint8, 1) != 1)
-        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write to file descriptor");
+        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to file descriptor");
 }
 
 //load open/close segment
@@ -827,6 +827,12 @@ int LogSegmentStore::getSegment(UInt64 index, ptr<NuRaftLogSegment> & seg)
     //std::lock_guard lock(seg_mutex);
 }
 
+LogVersion LogSegmentStore::getVersion(UInt64 index)
+{
+    ptr<NuRaftLogSegment> seg;
+    getSegment(index, seg);
+    return seg->getVersion();
+}
 
 UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
 {
