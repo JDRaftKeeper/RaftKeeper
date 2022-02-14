@@ -27,6 +27,7 @@ extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
 extern const int CANNOT_FSYNC;
 extern const int CANNOT_CLOSE_FILE;
 extern const int CHECKSUM_DOESNT_MATCH;
+extern const int CORRUPTED_DATA;
 }
 
 using nuraft::cs_new;
@@ -111,7 +112,8 @@ size_t writeTailAndClose(int snap_fd, UInt32 checksum)
     {
         throw Exception(ErrorCodes::CANNOT_CLOSE_FILE, "Cannot close file");
     }
-
+    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
+    LOG_INFO(log, "write checksum {}", checksum);
     return sizeof(UInt32);
 }
 
@@ -159,6 +161,7 @@ std::pair<size_t, UInt32> saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_
 
 UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
 {
+    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     union
     {
         UInt64 data;
@@ -167,6 +170,7 @@ UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
     crc[0] = checksum;
     crc[1] = data_crc;
     UInt32 new_checksum = DB::getCRC32(reinterpret_cast<const char *>(&data), 8);
+    LOG_INFO(log, "new_checksum {}, checksum {}, header.data_crc {}.", new_checksum, checksum, data_crc);
     return new_checksum;
 }
 
@@ -201,8 +205,9 @@ void createObjectContainer(
         {
             if (snap_fd > 0)
             {
-                ::close(snap_fd);
+                file_size += writeTailAndClose(snap_fd, checksum);
             }
+            checksum = 0;
             obj_path = objects_path[obj_idx];
             snap_fd = openFileAndWriteHeader(obj_path, CURRENT_SNAPSHOT_VERSION);
             if (snap_fd > 0)
@@ -396,6 +401,7 @@ void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, UInt3
         WriteBufferFromNuraftBuffer out;
         Coordination::write(session_it->first, out); //SessionID
         Coordination::write(session_it->second, out); //Timeout_ms
+        LOG_TRACE(log, "SessionID {}, Timeout_ms {}", session_it->first, session_it->second);
         ptr<buffer> buf = out.getBuffer();
         buf->pos(0);
         data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
@@ -683,30 +689,42 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
     SnapshotVersion version_ = CURRENT_SNAPSHOT_VERSION;
     while (!snap_fs->eof())
     {
+        size_t cur_read_size = read_size;
         UInt64 magic;
         readUInt64(snap_fs, magic);
+        read_size += 8;
         if (isFileHeader(magic))
         {
+            LOG_INFO(log, "obj_path {}, read file header", obj_path);
             char * buf = reinterpret_cast<char *>(&version_);
             snap_fs->read(buf, sizeof(uint8_t));
+            read_size += 1;
         }
         else if (isFileTail(magic))
         {
             UInt32 file_checksum;
             char * buf = reinterpret_cast<char *>(&file_checksum);
             snap_fs->read(buf, sizeof(UInt32));
-
+            read_size += 4;
+            LOG_INFO(log, "obj_path {}, file_checksum {}, checksum {}.", obj_path, file_checksum, checksum);
             if (file_checksum != checksum)
                 throw Exception(ErrorCodes::CHECKSUM_DOESNT_MATCH, "snapshot {} checksum doesn't match", obj_path);
             break;
         }
+        else
+        {
+            LOG_INFO(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
+            snap_fs->seekg(cur_read_size);
+            read_size = cur_read_size;
+        }
         if (!loadHeader(snap_fs, header))
         {
-            return false;
+            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load header error", obj_path);
         }
+
         checksum = updateCheckSum(checksum, header.data_crc);
         char * body_buf = new char[header.data_length];
-        read_size += sizeof(SnapshotBatchHeader) + header.data_length;
+        read_size += (SnapshotBatchHeader::HEADER_SIZE + header.data_length);
         errno = 0;
         if (!snap_fs->read(body_buf, header.data_length))
         {

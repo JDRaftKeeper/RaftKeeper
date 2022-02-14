@@ -1274,9 +1274,10 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
                         LOG_ERROR(log, "path {}, children {}", parent_path, path);
                     }
                     LOG_ERROR(log, "Logical error: Check : can not match children size: {}, stat numChildren: {}, children: {}", it.first, toString(parent->stat.numChildren), toString(parent->children.size()));
-                    parent->stat.numChildren = parent->children.size(); /// Fix
+                    parent->stat.numChildren = parent->children.size(); /// TODO Fix
                 }
             }
+            it.second->stat.numChildren = it.second->children.size(); /// TODO Fix
         }
     }
 }
