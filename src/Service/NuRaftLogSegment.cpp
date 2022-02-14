@@ -314,18 +314,18 @@ off_t NuRaftLogSegment::loadVersion()
     union
     {
         uint64_t magic_num;
-        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'S', 'v', 's'};
+        uint8_t magic_array[8] = {0, 'R', 'a', 'f', 't', 'L', 'o', 'g'};
     };
 
     if (magic == magic_num)
     {
-        LOG_TRACE(log, "Magic num is {}", magic_num);
         version = LogVersion(bs.get_u8());
+        LOG_INFO(log, "Magic num is {}, version {}", magic_num, version);
         return 9;
     }
     else
     {
-        LOG_TRACE(log, "Not have magic num");
+        LOG_INFO(log, "Not have magic num, set version V0");
         version = LogVersion::V0;
         return 0;
     }
@@ -781,7 +781,16 @@ int LogSegmentStore::openSegment()
         open_segment = nullptr;
         return -1;
     }
-    open_segment->writeFileHeader();
+    try
+    {
+        open_segment->writeFileHeader();
+    }
+    catch(...)
+    {
+        open_segment = nullptr;
+        return -1;
+    }
+
     return 0;
 }
 
