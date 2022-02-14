@@ -25,7 +25,7 @@ enum class LogVersion : uint8_t
 struct VersionLogEntry
 {
     LogVersion version;
-    ptr<log_entry> log_entry;
+    ptr<log_entry> entry;
 };
 
 static constexpr auto CURRENT_LOG_VERSION = LogVersion::V1;
