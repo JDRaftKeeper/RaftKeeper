@@ -154,16 +154,16 @@ NuRaftStateMachine::NuRaftStateMachine(
                         int idx = 0;
                         for (auto entry : *(batch.log_vec))
                         {
-                            if (entry.log_entry->get_val_type() != nuraft::log_val_type::app_log)
+                            if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
                             {
-                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry.log_entry->get_val_type());
+                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
                                 continue;
                             }
 
-                            if (isNewSessionRequest(entry.log_entry->get_buf()))
+                            if (isNewSessionRequest(entry.entry->get_buf()))
                             {
                                 /// replay session
-                                int64_t session_timeout_ms = entry.log_entry->get_buf().get_ulong();
+                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
                                 int64_t session_id = storage.getSessionID(session_timeout_ms);
                                 LOG_TRACE(
                                     log,
@@ -171,10 +171,10 @@ NuRaftStateMachine::NuRaftStateMachine(
                                     session_id,
                                     session_timeout_ms);
                             }
-                            else if (isUpdateSessionRequest(entry.log_entry->get_buf()))
+                            else if (isUpdateSessionRequest(entry.entry->get_buf()))
                             {
                                 /// replay update session
-                                nuraft::buffer_serializer data_serializer(entry.log_entry->get_buf());
+                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
                                 int64_t session_id = data_serializer.get_i64();
                                 int64_t session_timeout_ms = data_serializer.get_i64();
 
@@ -185,7 +185,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             else
                             {
                                 /// replay nodes
-                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.log_entry);
+                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
                                 LOG_TRACE(log, "Replay log request, session {}", ptr_request->session_id);
 
                                 if (ptr_request != nullptr)
