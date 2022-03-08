@@ -1295,7 +1295,7 @@ int LogSegmentStore::loadSegments()
         {
             LOG_WARNING(
                 log,
-                "open segment need discard, file {}, first_log_index {}, first_index {},  last_index {} ",
+                "open segment need discard, file {}, first_log_index {}, first_index {}, last_index {} ",
                 open_segment->getFileName(),
                 first_log_index.load(),
                 open_segment->firstIndex(),

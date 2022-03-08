@@ -17,18 +17,7 @@ using namespace Coordination;
 
 namespace DB
 {
-/*
-void setNode(NodeMap & node_map, const std::string key, const std::string value)
-{
-    ptr<DataNode> node = cs_new<DataNode>();
-    node->setData(value);
-    node_map[key] = node;
-}
-*/
-
-//const int SvsKeeperStorage::MAP_BLOCK_NUM = 16;
-
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value)
+void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral, int64_t session_id)
 {
     ACLs default_acls;
     ACL acl;
@@ -40,12 +29,12 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "/" + key;
     request->data = value;
-    request->is_ephemeral = false;
+    request->is_ephemeral = is_ephemeral;
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 0, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 
 }
@@ -78,7 +67,7 @@ TEST(RaftSnapshot, createSnapshot_1)
     setNode(storage, "1", "table_1");
     ASSERT_EQ(storage.container.size(), 2); /// it's has "/" and "/1"
     size_t object_size = snap_mgr.createSnapshot(snap_meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, 1 + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -102,7 +91,7 @@ TEST(RaftSnapshot, createSnapshot_2)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, 11 + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -131,7 +120,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr_read.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, 11 + 1 + 1);
 
     ulong obj_id = 0;
     snap_mgr_save.receiveSnapshot(meta);
@@ -173,24 +162,40 @@ TEST(RaftSnapshot, parseSnapshot)
     {
         std::string key = std::to_string(i + 1);
         std::string value = "table_" + key;
-        setNode(storage, key, value);
+        setNode(storage, key, value, true, i % 10 + 1);
     }
 
-    ASSERT_EQ(storage.container.size(),1025);
+    size_t ephemeral_nodes{};
+    for (auto & set : storage.ephemerals)
+    {
+        ephemeral_nodes += set.second.size();
+    }
+    ASSERT_EQ(storage.container.size(), last_index + 1);
+    ASSERT_EQ(storage.ephemerals.size(), 10);
+    ASSERT_EQ(ephemeral_nodes, last_index);
 
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, 11 + 1 + 1);
 
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
+    size_t new_ephemeral_nodes{};
+    for (auto & set : storage.ephemerals)
+    {
+        new_ephemeral_nodes += set.second.size();
+    }
+    ASSERT_EQ(new_storage.container.size(), last_index + 1);
+    ASSERT_EQ(storage.ephemerals.size(), 10);
+    ASSERT_EQ(new_ephemeral_nodes, last_index);
+
     for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
     {
         auto & inner_map = storage.container.getMap(i);
         for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
         {
-            auto new_node = storage.container.get(it->first);
+            auto new_node = new_storage.container.get(it->first);
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
         }
