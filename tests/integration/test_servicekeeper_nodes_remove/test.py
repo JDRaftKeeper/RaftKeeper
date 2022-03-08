@@ -49,8 +49,9 @@ def test_nodes_remove(started_cluster):
 
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
+    node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper3.xml")
 
-    time.sleep(3)
+    time.sleep(10)
 
     zk_conn2 = get_fake_zk(node2)
 
@@ -70,8 +71,9 @@ def test_nodes_remove(started_cluster):
         zk_conn3.sync("/test_two_0")
 
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_single_keeper1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
+    node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_single_keeper1.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
 
-    time.sleep(3)
+    time.sleep(10)
     zk_conn = get_fake_zk(node1)
     zk_conn.sync("/test_two_0")
 
