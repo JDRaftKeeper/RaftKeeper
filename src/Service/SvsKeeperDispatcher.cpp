@@ -295,8 +295,9 @@ void SvsKeeperDispatcher::updateConfigurationThread()
 
                 if (isLeader())
                 {
-                    server->applyConfigurationUpdate(action);
-                    done = true;
+                    done = server->applyConfigurationUpdate(action);
+                    if (!done)
+                        LOG_INFO(log, "Cannot apply configuration update, maybe trying to remove leader node (ourself), will retry");
                 }
                 else
                 {

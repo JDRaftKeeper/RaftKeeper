@@ -460,7 +460,7 @@ ConfigUpdateActions SvsKeeperServer::getConfigurationDiff(const Poco::Util::Abst
     return state_manager->getConfigurationDiff(config_);
 }
 
-void SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
+bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
 {
     size_t sleep_ms = 500;
     if (task.action_type == ConfigUpdateActionType::AddServer)
@@ -502,7 +502,8 @@ void SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
                           "Probably you will have to run SYSTEM RELOAD CONFIG on the new leader node");
 
             raft_instance->yield_leadership();
-            return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * 5));
+            return false;
         }
 
         for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
@@ -533,6 +534,8 @@ void SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
         raft_instance->set_priority(task.server->get_id(), task.server->get_priority());
     else
         LOG_WARNING(log, "Unknown configuration update type {}", static_cast<uint64_t>(task.action_type));
+
+    return true;
 }
 
 bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
