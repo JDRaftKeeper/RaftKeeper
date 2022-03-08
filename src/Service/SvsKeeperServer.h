@@ -109,7 +109,7 @@ public:
 
     /// Apply action for configuration update. Actually call raft_instance->remove_srv or raft_instance->add_srv.
     /// Synchronously check for update results with retries.
-    void applyConfigurationUpdate(const ConfigUpdateAction & task);
+    bool applyConfigurationUpdate(const ConfigUpdateAction & task);
 
 
     /// Wait configuration update for action. Used by followers.
