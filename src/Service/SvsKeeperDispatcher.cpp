@@ -297,13 +297,13 @@ void SvsKeeperDispatcher::updateConfigurationThread()
                 {
                     done = server->applyConfigurationUpdate(action);
                     if (!done)
-                        LOG_INFO(log, "Cannot apply configuration update, maybe trying to remove leader node (ourself), will retry");
+                        LOG_WARNING(log, "Cannot apply configuration update, maybe trying to remove leader node (ourself), will retry");
                 }
                 else
                 {
                     done = server->waitConfigurationUpdate(action);
                     if (!done)
-                        LOG_INFO(log, "Cannot wait for configuration update, maybe we become leader, or maybe update is invalid, will try to wait one more time");
+                        LOG_WARNING(log, "Cannot wait for configuration update, maybe we become leader, or maybe update is invalid, will try to wait one more time");
                 }
             }
         }
