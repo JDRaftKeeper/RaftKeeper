@@ -155,7 +155,7 @@ int NuRaftLogSegment::create()
     return 0;
 }
 
-void NuRaftLogSegment::writeFileHeader() const
+void NuRaftLogSegment::writeFileHeader()
 {
     if (!is_open)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Log segment not open yet");
@@ -176,6 +176,8 @@ void NuRaftLogSegment::writeFileHeader() const
 
     if (write(seg_fd, &version_uint8, 1) != 1)
         throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to file descriptor");
+
+    file_size.fetch_add(sizeof(uint64_t) + sizeof(uint8_t), std::memory_order_release);
 }
 
 //load open/close segment
