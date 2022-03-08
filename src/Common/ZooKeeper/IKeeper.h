@@ -49,6 +49,7 @@ struct Stat
     int32_t aversion;
     int64_t ephemeralOwner;
     int32_t dataLength;
+    /// TODO remove
     int32_t numChildren;
     int64_t pzxid;
 

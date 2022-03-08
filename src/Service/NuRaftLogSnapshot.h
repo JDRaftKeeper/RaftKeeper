@@ -8,6 +8,7 @@
 #include <Service/proto/Log.pb.h>
 #include <libnuraft/nuraft.hxx>
 #include <Common/ZooKeeper/IKeeper.h>
+#include <IO/WriteBufferFromFile.h>
 
 
 namespace DB
@@ -59,8 +60,11 @@ public:
     }
     ~KeeperSnapshotStore() { }
 
-    //create snapshot object, return the size of objects
-    size_t createObjects(SvsKeeperStorage & storage);
+    /** Create snapshot object, return the size of objects
+     *
+     * @param next_zxid zxid corresponding to snapshot begin log id
+     */
+    size_t createObjects(SvsKeeperStorage & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
     // init snapshot store for receive snapshot object
     void init(std::string create_time);
     void parseObject(SvsKeeperStorage & storage);
@@ -75,7 +79,7 @@ public:
 
     time_t & getCreateTimeT() { return curr_time_t; }
 
-    static void getFileTime(const std::string file_name, std::string & time);
+    static void getFileTime(const std::string& file_name, std::string & time);
 
 public:
 #ifdef __APPLE__
@@ -100,6 +104,23 @@ private:
     void getObjectPath(ulong object_id, std::string & path);
     bool parseOneObject(std::string obj_path, SvsKeeperStorage & storage);
     bool loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
+
+    size_t serializeDataTree(SvsKeeperStorage & storage);
+    /**
+     * Serialize data tree by deep traversal.
+     * @param out destination
+     * @param batch nodes packaged in batch
+     * @param storage data tree
+     * @param path current node path
+     * @param processed nodes processed
+     */
+    void serializeNode(
+        std::shared_ptr<WriteBufferFromFile> & out,
+        ptr<SnapshotBatchPB> & batch,
+        SvsKeeperStorage & storage,
+        const String & path,
+        uint64_t & processed);
+    inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
 private:
     std::string snap_dir;
@@ -129,7 +150,7 @@ public:
     {
     }
     ~KeeperSnapshotManager() { }
-    size_t createSnapshot(snapshot & meta, SvsKeeperStorage & storage);
+    size_t createSnapshot(snapshot & meta, SvsKeeperStorage & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
     bool receiveSnapshot(snapshot & meta);
     bool existSnapshot(const snapshot & meta);
     bool existSnapshotObject(const snapshot & meta, ulong obj_id);

@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <filesystem>
 #include <unordered_set>
 #include <fcntl.h>
 #include <stdio.h>
@@ -11,17 +13,25 @@
 #include <Poco/File.h>
 #include <Common/Exception.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Common/Stopwatch.h>
+#include <IO/WriteHelpers.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push
 #    pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
+
 namespace DB
 {
-using nuraft::cs_new;
+namespace ErrorCodes
+{
+extern const int CANNOT_CREATE_DIRECTORY;
+extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+}
 
-//const int KeeperSnapshotStore::SNAPSHOT_THREAD_NUM = 4;
+using nuraft::cs_new;
+namespace fs = std::filesystem;
 
 const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
 
@@ -49,6 +59,27 @@ int openFileForRead(std::string & obj_path)
         return -1;
     }
     return snap_fd;
+}
+
+size_t saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
+{
+    if (!batch)
+        return 0;
+
+    std::string str_buf;
+    batch->SerializeToString(&str_buf);
+
+    SnapshotBatchHeader header;
+    header.data_length = str_buf.size();
+    header.data_crc = DB::getCRC32(str_buf.c_str(), str_buf.size());
+
+    writeIntBinary(header.data_length, *out);
+    writeIntBinary(header.data_crc, *out);
+
+    out->write(str_buf.c_str(), header.data_length);
+    out->next();
+
+    return SnapshotBatchHeader::HEADER_SIZE + header.data_length;
 }
 
 size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj_path)
@@ -80,322 +111,166 @@ size_t saveBatch(int & snap_fd, ptr<SnapshotBatchPB> & batch_pb, std::string obj
     return SnapshotBatchHeader::HEADER_SIZE + header.data_length;
 }
 
-//return end object index
-void createObjectContainer(
-    SvsKeeperStorage::Container::InnerMap & innerMap,
-    UInt32 obj_idx,
-    UInt16 object_count,
-    UInt32 save_batch_size,
-    std::map<ulong, std::string> & objects_path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    UInt32 max_node_size = (innerMap.size() - 1) / object_count + 1;
-//    auto container_it = innerMap.getMap().begin();
-
-    ptr<SnapshotBatchPB> batch_pb;
-    UInt32 node_index = 1;
-    int snap_fd = -1;
-    size_t file_size = 0;
-    std::string obj_path;
-    LOG_INFO(log, "Begin create snapshot object for container, max node size {}, node index {}", max_node_size, node_index);
-
-    SvsKeeperStorage::Container::Action action = ([&, log, map_size=innerMap.size()](const String & key, const ptr<KeeperNode> & node) {
-
-        if (node_index <= map_size)
-        {
-            if (max_node_size == 1 || node_index % max_node_size == 1)
-            {
-                if (snap_fd > 0)
-                {
-                    ::close(snap_fd);
-                }
-                obj_path = objects_path[obj_idx];
-                snap_fd = openFileForWrite(obj_path);
-                if (snap_fd > 0)
-                {
-                    LOG_INFO(log, "Create snapshot object, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
-                    obj_idx++;
-                }
-                else
-                {
-                    return;
-                }
-            }
-
-            //first node
-            if (node_index % save_batch_size == 1 || node_index % max_node_size == 1 || node_index == map_size + 1)
-            {
-                batch_pb = cs_new<SnapshotBatchPB>();
-                batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_DATA);
-                LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
-            }
-
-            SnapshotItemPB * data = batch_pb->add_data();
-            WriteBufferFromNuraftBuffer out;
-            Coordination::write(key, out);
-            Coordination::write(node->data, out);
-            Coordination::write(node->acls, out);
-            Coordination::write(node->is_ephemeral, out);
-            Coordination::write(node->is_sequental, out);
-            Coordination::write(node->stat, out);
-
-            ptr<buffer> buf = out.getBuffer();
-            buf->pos(0);
-            data->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
-
-            //last node, save to file
-            if (node_index % save_batch_size == 0 || node_index % max_node_size == 0 || node_index == map_size)
-            {
-                auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-                if (ret > 0)
-                {
-                    file_size += ret;
-                }
-                else
-                {
-                    return;
-                }
-            }
-
-            node_index++;
-        }
-    });
-
-    innerMap.forEach(action);
-
-    LOG_INFO(
-        log,
-        "Finish create snapshot object for container, max node size {}, node index {}, file size {}",
-        max_node_size,
-        node_index,
-        file_size);
-
-    if (snap_fd > 0)
-        ::close(snap_fd);
-}
-
-void createObjectEphemeral(
+size_t serializeEphemerals(
     SvsKeeperStorage::Ephemerals & ephemerals,
-    std::mutex& mutex,
-    UInt32 obj_idx,
-    UInt16 object_count,
-    UInt32 save_batch_size,
-    std::map<ulong, std::string> & objects_path)
+    std::mutex & mutex,
+    String path,
+    UInt32 save_batch_size)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
+    LOG_INFO(log, "Begin create snapshot ephemeral object, node size {}, path {}", ephemerals.size(), path);
+
+    ptr<SnapshotBatchPB> batch;
+
     std::lock_guard lock(mutex);
-    UInt32 max_node_size = (ephemerals.size() - 1) / object_count + 1;
-    auto ephemeral_it = ephemerals.begin();
 
-    ptr<SnapshotBatchPB> batch_pb;
-    std::string obj_path;
-    UInt32 node_index = 1;
-    int snap_fd = -1;
-    size_t file_size = 0;
-    LOG_INFO(log, "Begin create snapshot ephemeral object, max node size {}, node index {}", max_node_size, node_index);
-    while (node_index <= ephemerals.size())
+    if(ephemerals.empty())
     {
-        if (max_node_size == 1 || node_index % max_node_size == 1)
-        {
-            if (snap_fd > 0)
-            {
-                ::close(snap_fd);
-            }
-            obj_path = objects_path[obj_idx];
-            snap_fd = openFileForWrite(obj_path);
-            if (snap_fd > 0)
-            {
-                LOG_INFO(
-                    log, "Create snapshot ephemeral object success, path {}, obj_idx {}, node index {}", obj_path, obj_idx, node_index);
-                obj_idx++;
-            }
-            else
-            {
-                return;
-            }
-        }
-
-        //first node
-        if (node_index % save_batch_size == 1 || node_index % max_node_size == 1 || node_index == ephemerals.size() + 1)
-        {
-            batch_pb = cs_new<SnapshotBatchPB>();
-            batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_DATA_EPHEMERAL);
-            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
-        }
-
-        SnapshotItemPB * data = batch_pb->add_data();
-        WriteBufferFromNuraftBuffer out;
-        Coordination::write(ephemeral_it->first, out);
-        Coordination::write(ephemeral_it->second.size(), out);
-        for (const auto & path : ephemeral_it->second)
-        {
-            Coordination::write(path, out);
-        }
-
-        ptr<buffer> buf = out.getBuffer();
-        buf->pos(0);
-        data->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
-
-        //last node, save to file
-        if (node_index % save_batch_size == 0 || node_index % max_node_size == 0 || node_index == ephemerals.size())
-        {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
-            {
-                file_size += ret;
-            }
-            else
-            {
-                break;
-            }
-        }
-        ephemeral_it++;
-        node_index++;
+        LOG_INFO(log, "Create snapshot ephemeral nodes size is 0");
+        return 0;
     }
 
-    LOG_INFO(
-        log,
-        "Finish create snapshot ephemeral object, max node size {}, node index {}, file size {}",
-        max_node_size,
-        node_index,
-        file_size);
-
-    if (snap_fd > 0)
+    auto out = cs_new<WriteBufferFromFile>(path);
+    uint64_t index = 0;
+    for (auto & ephemeral_it : ephemerals)
     {
-        ::close(snap_fd);
+        /// flush and rebuild batch
+        if(index % save_batch_size == 0)
+        {
+            /// skip flush the first batch
+            if (index != 0)
+            {
+                /// write data in batch to file
+                saveBatch(out, batch);
+            }
+            batch = cs_new<SnapshotBatchPB>();
+            batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_DATA_EPHEMERAL);
+        }
+
+        /// append to batch
+        SnapshotItemPB * entry = batch->add_data();
+        WriteBufferFromNuraftBuffer buf;
+        Coordination::write(ephemeral_it.first, buf);
+        Coordination::write(ephemeral_it.second.size(), buf);
+
+        for (const auto & node_path : ephemeral_it.second)
+        {
+            Coordination::write(node_path, buf);
+        }
+
+        ptr<buffer> data = buf.getBuffer();
+        data->pos(0);
+        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+
+        index++;
     }
+
+    /// flush the last batch
+    saveBatch(out, batch);
+    out->close();
+    return 1;
 }
 
-//Create sessions
-void createSessions(SvsKeeperStorage::SessionAndTimeout & session_timeout, std::mutex& mutex, UInt32 save_batch_size, std::string & obj_path)
+/** Serialize sessions and return the next_session_id before serialize
+ */
+int64_t serializeSessions(
+    SvsKeeperStorage & storage, UInt32 save_batch_size, std::string & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    ptr<SnapshotBatchPB> batch_pb;
-    int snap_fd = openFileForWrite(obj_path);
-    if (snap_fd > 0)
-    {
-        LOG_INFO(log, "Create sessions object, path {}", obj_path);
-    }
-    else
-    {
-        LOG_WARNING(log, "Create sessions object failed, path {}, fd {}", obj_path, snap_fd);
-        return;
-    }
 
-    std::lock_guard lock(mutex);
-    auto session_it = session_timeout.begin();
-    UInt32 node_index = 1;
-    size_t file_size = 0;
-    while (node_index <= session_timeout.size())
+    ptr<SnapshotBatchPB> batch;
+    auto out = cs_new<WriteBufferFromFile>(path);
+
+    std::lock_guard lock(storage.session_mutex);
+    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", storage.session_and_timeout.size(), path);
+
+    int64_t next_session_id = storage.session_id_counter;
+    uint64_t index = 0;
+
+    for (auto & session_it : storage.session_and_timeout)
     {
-        //first node
-        if (node_index % save_batch_size == 1)
+        /// flush and rebuild batch
+        if(index % save_batch_size == 0)
         {
-            batch_pb = cs_new<SnapshotBatchPB>();
-            batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_SESSION);
-            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
+            /// skip flush the first batch
+            if (index != 0)
+            {
+                /// write data in batch to file
+                saveBatch(out, batch);
+            }
+            batch = cs_new<SnapshotBatchPB>();
+            batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_SESSION);
         }
 
-        SnapshotItemPB * data_pb = batch_pb->add_data();
-        WriteBufferFromNuraftBuffer out;
-        Coordination::write(session_it->first, out); //SessionID
-        Coordination::write(session_it->second, out); //Timeout_ms
-        ptr<buffer> buf = out.getBuffer();
-        buf->pos(0);
-        data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
+        /// append to batch
+        SnapshotItemPB * entry = batch->add_data();
+        WriteBufferFromNuraftBuffer buf;
+        Coordination::write(session_it.first, buf); //SessionID
+        Coordination::write(session_it.second, buf); //Timeout_ms
 
-        //last node, save to file
-        if (node_index % save_batch_size == 0 || node_index == session_timeout.size())
-        {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
-            {
-                file_size += ret;
-            }
-            else
-            {
-                break;
-            }
-        }
-        session_it++;
-        node_index++;
+        ptr<buffer> data = buf.getBuffer();
+        data->pos(0);
+        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+
+        index++;
     }
 
-    LOG_INFO(
-        log, "Finish create sessions object, object path {}, sessions count {}, file size {}", obj_path, session_timeout.size(), file_size);
+    /// flush the last batch
+    saveBatch(out, batch);
+    out->close();
 
-    if (snap_fd > 0)
-    {
-        ::close(snap_fd);
-    }
+    return next_session_id;
 }
 
-//Save map<string, string> or map<string, uint64>
+/**Save map<string, string> or map<string, uint64>
+ */
 template <typename T>
-void createMap(T & snap_map, UInt32 save_batch_size, std::string & obj_path)
+void serializeMap(T & snap_map, UInt32 save_batch_size, std::string & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    ptr<SnapshotBatchPB> batch_pb;
-    int snap_fd = openFileForWrite(obj_path);
-    if (snap_fd > 0)
-    {
-        LOG_INFO(log, "Create string map object, path {}", obj_path);
-    }
-    else
-    {
-        LOG_WARNING(log, "Create string map object failed, path {}, fd {}", obj_path, snap_fd);
-        return;
-    }
+    LOG_INFO(log, "Begin create snapshot map object, map size {}, path {}", snap_map.size(), path);
 
-    auto map_it = snap_map.begin();
-    UInt32 node_index = 1;
-    size_t file_size = 0;
-    while (node_index <= snap_map.size())
+    ptr<SnapshotBatchPB> batch;
+    auto out = cs_new<WriteBufferFromFile>(path);
+
+    uint64_t index = 0;
+    for (auto & it : snap_map)
     {
-        //first node
-        if (node_index % save_batch_size == 1)
+        /// flush and rebuild batch
+        if(index % save_batch_size == 0)
         {
-            batch_pb = cs_new<SnapshotBatchPB>();
+            /// skip flush the first batch
+            if (index != 0)
+            {
+                /// write data in batch to file
+                saveBatch(out, batch);
+            }
+
+            batch = cs_new<SnapshotBatchPB>();
             if constexpr (std::is_same_v<T, KeeperSnapshotStore::StringMap>)
-            {
-                batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
-            }
+                batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
             else if constexpr (std::is_same_v<T, KeeperSnapshotStore::IntMap>)
-            {
-                batch_pb->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
-            }
-            LOG_DEBUG(log, "New node batch, index {}, snap type {}", node_index, batch_pb->batch_type());
-        }
-
-        SnapshotItemPB * data_pb = batch_pb->add_data();
-        WriteBufferFromNuraftBuffer out;
-        Coordination::write(map_it->first, out); //Key
-        Coordination::write(map_it->second, out); //Value
-        ptr<buffer> buf = out.getBuffer();
-        buf->pos(0);
-        data_pb->set_data(std::string(reinterpret_cast<char *>(buf->data_begin()), buf->size()));
-
-        //last node, save to file
-        if (node_index % save_batch_size == 0 || node_index == snap_map.size())
-        {
-            auto ret = saveBatch(snap_fd, batch_pb, obj_path);
-            if (ret > 0)
-            {
-                file_size += ret;
-            }
+                batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
             else
-            {
-                break;
-            }
+                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Only support string and int map.");
         }
-        map_it++;
-        node_index++;
+
+        /// append to batch
+        SnapshotItemPB * entry = batch->add_data();
+        WriteBufferFromNuraftBuffer buf;
+        Coordination::write(it.first, buf);
+        Coordination::write(it.second, buf);
+
+        ptr<buffer> data = buf.getBuffer();
+        data->pos(0);
+        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+
+        index++;
     }
 
-    if (snap_fd > 0)
-    {
-        ::close(snap_fd);
-    }
+    /// flush the last batch
+    saveBatch(out, batch);
+    out->close();
 }
 
 void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
@@ -406,123 +281,162 @@ void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
     obj_path = snap_dir + "/" + obj_path;
 }
 
-void KeeperSnapshotStore::getFileTime(const std::string file_name, std::string & time)
+void KeeperSnapshotStore::getFileTime(const std::string & file_name, std::string & time)
 {
-    auto it1 = file_name.find("_");
-    auto it2 = file_name.find("_", it1 + 1);
+    auto it1 = file_name.find('_');
+    auto it2 = file_name.find('_', it1 + 1);
     time = file_name.substr(it1 + 1, it2 - it1);
 }
 
-size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage)
+size_t KeeperSnapshotStore::serializeDataTree(SvsKeeperStorage & storage)
 {
-    if (snap_meta->size() == 0)
+    std::shared_ptr<WriteBufferFromFile> out;
+    ptr<SnapshotBatchPB> batch;
+
+    uint64_t processed = 0;
+    serializeNode(out, batch, storage, "/", processed);
+    saveBatch(out, batch);
+
+    out->close();
+    LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
+
+    String file = out->getFileName();
+    auto it1 = file.find_last_of('_');
+    return std::stoi(file.substr(it1 + 1, file.size() - it1));
+}
+
+void KeeperSnapshotStore::serializeNode(
+    std::shared_ptr<WriteBufferFromFile> & out,
+    ptr<SnapshotBatchPB> & batch,
+    SvsKeeperStorage & storage,
+    const String & path,
+    uint64_t & processed)
+{
+    auto node = storage.container.get(path);
+
+    /// In case of node is deleted
+    if (!node)
+        return;
+
+    std::shared_ptr<KeeperNode> node_copy;
     {
-        return 0;
+        std::shared_lock(node->mutex);
+        node_copy = node->clone();
     }
+
+    if (processed % max_object_node_size == 0)
+    {
+        /// time to create new snapshot object
+        uint64_t obj_id = processed / max_object_node_size;
+
+        if (obj_id != 0)
+        {
+            /// close current object file
+            out->close();
+        }
+        String new_obj_path;
+        /// for there are 3 objects before data bojects
+        getObjectPath(obj_id + 3, new_obj_path);
+
+        LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 3, new_obj_path);
+        out = cs_new<WriteBufferFromFile>(new_obj_path);
+    }
+
+    /// flush and rebuild batch
+    if(processed % save_batch_size == 0)
+    {
+        /// skip flush the first batch
+        if (processed != 0)
+        {
+            /// write data in accumulator to file
+            saveBatch(out, batch);
+        }
+        batch = cs_new<SnapshotBatchPB>();
+    }
+
+    appendNodeToBatch(batch, path, node_copy);
+    processed++;
+
+    String path_with_slash = path;
+    if (path != "/")
+        path_with_slash += '/';
+
+    for (const auto & child : node->children)
+        serializeNode(out, batch, storage, path_with_slash + child, processed);
+}
+
+void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node)
+{
+    SnapshotItemPB * entry = batch->add_data();
+    WriteBufferFromNuraftBuffer buf;
+    Coordination::write(path, buf);
+    Coordination::write(node->data, buf);
+    Coordination::write(node->acls, buf);
+    Coordination::write(node->is_ephemeral, buf);
+    Coordination::write(node->is_sequental, buf);
+    Coordination::write(node->stat, buf);
+
+    ptr<buffer> data = buf.getBuffer();
+    data->pos(0);
+    entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+}
+
+size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t next_zxid, int64_t next_session_id)
+{
     if (Directory::createDir(snap_dir) != 0)
     {
         LOG_ERROR(log, "Fail to create snapshot directory {}", snap_dir);
-        return 0;
+        throw Exception(ErrorCodes::CANNOT_CREATE_DIRECTORY, "Fail to create snapshot directory {}", snap_dir);
     }
-    //BackendTimer::getCurrentTime(curr_time);
 
-    size_t block_max_size = 0;
-
-    for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
+    size_t data_object_count = storage.container.size() / max_object_node_size;
+    if (storage.container.size() % max_object_node_size)
     {
-        block_max_size = std::max(block_max_size, storage.container.getMap(i).size());
-        LOG_DEBUG(log, "Block index {} size {} , block max size {}", i, storage.container.getMap(i).size(), block_max_size);
+        data_object_count += 1;
     }
 
-    size_t container_object_count = (block_max_size - 1) / max_object_node_size + 1;
+    //uint map、Sessions、Ephemeral nodes、Normal node objects
+    size_t total_obj_count = data_object_count + 1 + 1;
 
-    size_t ephemeral_object_count = 0;
-    if (storage.ephemerals.size() > 0)
-    {
-        ephemeral_object_count = (storage.ephemerals.size() - 1) / max_object_node_size + 1;
-    }
+    LOG_INFO(log, "Creating snapshot with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
+             data_object_count, total_obj_count, next_zxid, next_session_id);
 
-    //Normal node objects、Ephemeral node objects、Sessions、Others(int_map)
-    size_t obj_size = storage.container.getBlockNum() * container_object_count + ephemeral_object_count + 1 + 1;
-
-    LOG_DEBUG(
-        log,
-        "Block num {}, block max size {} , container_object_count {}, ephemeral_object_count {}",
-        storage.container.getBlockNum(),
-        block_max_size,
-        container_object_count,
-        ephemeral_object_count);
-
-    std::string obj_path;
-    std::map<ulong, std::string> objects;
-    //[1, obj_size]
-    for (size_t i = 1; i <= obj_size; i++)
-    {
-        getObjectPath(i, obj_path);
-        objects_path.emplace(i, obj_path);
-        objects.emplace(i, obj_path);
-        LOG_DEBUG(log, "Object index {}, path {}", i, obj_path);
-    }
-
-    UInt32 batch_size = save_batch_size;
-
-    ThreadPool container_thread_pool(SNAPSHOT_THREAD_NUM + 1);
-    for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
-    {
-        container_thread_pool.trySchedule([thread_idx, &storage, &objects, container_object_count, batch_size] {
-            Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.ContainerThread"));
-            int obj_idx = 0;
-            for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
-            {
-                if (i % SNAPSHOT_THREAD_NUM == thread_idx)
-                {
-                    obj_idx = i * container_object_count + 1;
-                    LOG_INFO(
-                        thread_log,
-                        "Create object container, thread_idx {}, block_num {}, obj_index {}, obj count {}, batch_size {}, total obj count "
-                        "{}",
-                        thread_idx,
-                        i,
-                        obj_idx,
-                        container_object_count,
-                        batch_size,
-                        objects.size());
-                    createObjectContainer(storage.container.getMap(i), obj_idx, container_object_count, batch_size, objects);
-                }
-            }
-        });
-    }
-
-    ThreadPool ephemeral_thread_pool(1);
-    if (storage.ephemerals.size() > 0)
-    {
-        int obj_idx = storage.container.getBlockNum() * container_object_count + 1;
-        ephemeral_thread_pool.trySchedule([&storage, &objects, obj_idx, ephemeral_object_count, batch_size] {
-            Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.EphemeralThread"));
-            LOG_DEBUG(
-                thread_log,
-                "Create object ephemeral, obj index {}, obj count {}, batch_size {}, total obj count {}",
-                obj_idx,
-                ephemeral_object_count,
-                batch_size,
-                objects.size());
-            createObjectEphemeral(storage.ephemerals, storage.ephemerals_mutex, obj_idx, ephemeral_object_count, batch_size, objects);
-        });
-    }
-    container_thread_pool.wait();
-    ephemeral_thread_pool.wait();
-
-    //Save sessions
-    createSessions(storage.session_and_timeout, storage.session_mutex, save_batch_size, objects[obj_size - 1]);
-
+    /// Save uint map before nodes
     IntMap int_map;
-    int_map["ZXID"] = storage.zxid;
-    int_map["SESSIONID"] = storage.session_id_counter;
+    /// Next transaction id
+    int_map["ZXID"] = next_zxid;
+    /// Next session id
+    int_map["SESSIONID"] = next_session_id;
 
-    //Save uint map
-    createMap(int_map, save_batch_size, objects[obj_size]);
+    /// Save sessions
+    String session_path;
+    /// object index should start from 1
+    getObjectPath(1, session_path);
+    int64_t serialized_next_session_id = serializeSessions(storage, save_batch_size, session_path);
+    LOG_INFO(log,
+             "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
+             getHexUIntLowercase(next_session_id),
+             getHexUIntLowercase(serialized_next_session_id));
 
-    return obj_size;
+    String map_path;
+    getObjectPath(2, map_path);
+    serializeMap(int_map, save_batch_size, map_path);
+
+    /// Save data tree
+    size_t last_id = serializeDataTree(storage);
+
+    total_obj_count = last_id;
+    LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 2, total_obj_count);
+
+    /// add all path to objects_path
+    for (size_t i=1; i<total_obj_count+1; i++)
+    {
+        String path;
+        getObjectPath(i, path);
+        addObjectPath(i, path);
+    }
+
+    return total_obj_count;
 }
 
 void KeeperSnapshotStore::init(std::string create_time = "")
@@ -630,8 +544,17 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
-                        LOG_TRACE(log, "Read key {}", key);
+                        auto ephemeral_owner = node->stat.ephemeralOwner;
+                        LOG_TRACE(log, "Load snapshot read key {}", key);
                         storage.container.emplace(key, std::move(node));
+
+                        if (ephemeral_owner != 0)
+                        {
+                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                            std::lock_guard l(storage.ephemerals_mutex);
+                            auto ephemeral_nodes = storage.ephemerals[ephemeral_owner];
+                            ephemeral_nodes.emplace(key);
+                        }
                     }
                     catch (Coordination::Exception & e)
                     {
@@ -644,59 +567,6 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             e.displayText());
                         break;
                     }
-                }
-            }
-            break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_DATA_EPHEMERAL: {
-                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-                {
-                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const std::string & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                    buf->put(data);
-                    buf->pos(0);
-                    ReadBufferFromNuraftBuffer in(buf);
-                    Int64 session_id;
-                    size_t path_size;
-                    try
-                    {
-                        Coordination::read(session_id, in);
-                        Coordination::read(path_size, in);
-                    }
-                    catch (Coordination::Exception & e)
-                    {
-                        LOG_WARNING(
-                            log,
-                            "Cant read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
-                            obj_path,
-                            data_idx,
-                            e.displayText());
-                        break;
-                    }
-
-                    std::unordered_set<std::string> set;
-                    for (size_t i = 0; i < path_size; i++)
-                    {
-                        std::string path;
-                        try
-                        {
-                            Coordination::read(path, in);
-                        }
-                        catch (Coordination::Exception & e)
-                        {
-                            LOG_WARNING(
-                                log,
-                                "Cant read ephemeral path from snapshot {}, session id {}, path index {}, excepiton {}",
-                                obj_path,
-                                session_id,
-                                data_idx,
-                                e.displayText());
-                            break;
-                        }
-                        LOG_TRACE(log, "Read session id {}, ephemerals {}", session_id, path);
-                        set.emplace(path);
-                    }
-                    storage.ephemerals[session_id] = set;
                 }
             }
             break;
@@ -787,7 +657,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
 void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
 {
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
-    for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
+for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
     {
         object_thread_pool.trySchedule([this, thread_idx, &storage] {
             Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.parseObjectThread"));
@@ -837,8 +707,7 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
         return;
     }
 
-    std::string obj_path;
-    getObjectPath(obj_id, obj_path);
+    std::string obj_path = objects_path.at(obj_id);
 
     int snap_fd = openFileForRead(obj_path);
     if (snap_fd < 0)
@@ -949,10 +818,8 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
     objects_path[obj_id] = path;
 }
 
-size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage)
+size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage, int64_t next_zxid, int64_t next_session_id)
 {
-    size_t store_size = storage.container.size() + storage.ephemerals.size();
-    meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
     snap_store->init();
     LOG_INFO(
@@ -963,8 +830,11 @@ size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage &
         meta.size(),
         storage.container.size(),
         storage.ephemerals.size());
-    size_t obj_size = snap_store->createObjects(storage);
+    Stopwatch timer;
+    size_t obj_size = snap_store->createObjects(storage, next_zxid, next_session_id);
     snapshots[meta.get_last_log_idx()] = snap_store;
+    meta.set_size(obj_size);
+    LOG_INFO(log, "Create snapshot done time cost {} ms, object size {}", timer.elapsedMilliseconds(), obj_size);
     return obj_size;
 }
 

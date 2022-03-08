@@ -54,7 +54,7 @@ public:
     bool chk_create_snapshot(time_t curr_time);
     void create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done) override;
     //sync create snapshot
-    void create_snapshot(snapshot & s);
+    void create_snapshot(snapshot & s, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
     //raw_binary(deprecated)
     int read_snapshot_data(snapshot & s, const ulong offset, buffer & data) override;
@@ -165,8 +165,13 @@ private:
     struct SnapTask
     {
         ptr<snapshot> s;
+        int64_t next_zxid;
+        int64_t next_session_id;
         async_result<bool>::handler_type when_done;
-        SnapTask(const ptr<snapshot> & s_, async_result<bool>::handler_type & when_done_) : s(s_), when_done(when_done_) { }
+        SnapTask(const ptr<snapshot> & s_, int64_t next_zxid_, int64_t next_session_id_, async_result<bool>::handler_type & when_done_)
+        : s(s_), next_zxid(next_zxid_), next_session_id(next_session_id_), when_done(when_done_)
+        {
+        }
     };
     std::shared_ptr<SnapTask> snap_task;
 
