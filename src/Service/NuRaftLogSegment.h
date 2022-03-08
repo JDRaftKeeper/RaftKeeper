@@ -72,7 +72,7 @@ public:
     // remove the segment
     int remove();
 
-    void writeFileHeader() const;
+    void writeFileHeader();
 
     off_t loadVersion();
 
