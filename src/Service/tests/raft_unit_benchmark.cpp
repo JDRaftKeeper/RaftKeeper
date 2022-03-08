@@ -36,7 +36,7 @@ namespace DB
 static const std::string LOG_DIR = "./test_raft_log";
 static const std::string SNAP_DIR = "./test_raft_snapshot";
 
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value)
+void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 0)
 {
     ACLs default_acls;
     ACL acl;
@@ -48,12 +48,12 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "/" + key;
     request->data = value;
-    request->is_ephemeral = false;
+    request->is_ephemeral = is_ephemeral;
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 0, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 
 int parseLine(char * line)

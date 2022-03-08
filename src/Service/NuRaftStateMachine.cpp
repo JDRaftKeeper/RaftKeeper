@@ -324,7 +324,7 @@ void NuRaftStateMachine::snapThread()
                 snap_task->s->get_last_log_term(),
                 snap_task->s->get_last_log_idx());
 
-            create_snapshot(*snap_task->s);
+            create_snapshot(*snap_task->s, snap_task->next_zxid, snap_task->next_session_id);
             ptr<std::exception> except(nullptr);
             bool ret = true;
 
@@ -568,16 +568,16 @@ bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
 {
-    /// copy snapshot.
+    /// Need make a copy of s
     ptr<buffer> snp_buf = s.serialize();
     auto snap_copy = snapshot::deserialize(*snp_buf);
-    snap_task = std::make_shared<SnapTask>(snap_copy, when_done);
+    snap_task = std::make_shared<SnapTask>(snap_copy, storage.zxid, storage.session_id_counter, when_done);
 }
 
-void NuRaftStateMachine::create_snapshot(snapshot & s)
+void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_t next_session_id)
 {
     std::lock_guard<std::mutex> lock(snapshot_mutex);
-    snap_mgr->createSnapshot(s, storage);
+    snap_mgr->createSnapshot(s, storage, next_zxid, next_session_id);
     snap_mgr->removeSnapshots();
 }
 

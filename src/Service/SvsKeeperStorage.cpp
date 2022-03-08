@@ -402,7 +402,7 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         {
             {
                 std::shared_lock r_lock(node->mutex);
-                response.stat = node->statView();
+                response.stat = node->statForResponse(node->children.size());
                 response.data = node->data;
             }
             response.error = Coordination::Error::ZOK;
@@ -436,7 +436,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         {
             response.error = Coordination::Error::ZBADVERSION;
         }
-        else if (node->stat.numChildren)
+        else if (node->children.size())
         {
             response.error = Coordination::Error::ZNOTEMPTY;
         }
@@ -516,7 +516,7 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         {
             {
                 std::shared_lock r_lock(node->mutex);
-                response.stat = node->statView();
+                response.stat = node->statForResponse(node->children.size());
             }
             response.error = Coordination::Error::ZOK;
         }
@@ -575,7 +575,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             }
 
             auto parent = container.at(parentPath(request.path));
-            response.stat = node->statView();
+            response.stat = node->statForResponse(node->children.size());
             response.error = Coordination::Error::ZOK;
 
             undo = [prev_node, &container, path = request.path] {
@@ -650,7 +650,7 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
             {
                 std::shared_lock r_lock(node->mutex);
                 response.names.insert(response.names.end(), node->children.begin(), node->children.end());
-                response.stat = node->statView();
+                response.stat = node->statForResponse(node->children.size());
             }
             std::sort(response.names.begin(), response.names.end());
             response.error = Coordination::Error::ZOK;
@@ -978,6 +978,10 @@ void SvsKeeperStorage::processRequest(
                 }
                 ephemerals.erase(it);
             }
+            else
+            {
+                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", getHexUIntLowercase(session_id));
+            }
             clearDeadWatches(session_id);
         }
 
@@ -1251,34 +1255,6 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
         }
     }
 
-    /// numChildren and children.size() is matched
-    for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
-    {
-        for (const auto& it : container.getMap(block_idx).getMap())
-        {
-            if (it.first == "/")
-                continue;
-
-            auto parent_path = parentPath(it.first);
-            auto parent = container.get(parent_path);
-            if (parent == nullptr)
-            {
-                throw DB::Exception("Logical error: Check : can not find parent node  " + it.first, ErrorCodes::LOGICAL_ERROR);
-            }
-            else
-            {
-                if (static_cast<size_t>(parent->stat.numChildren) != parent->children.size())
-                {
-                    for (const auto & path : parent->children)
-                    {
-                        LOG_ERROR(log, "path {}, children {}", parent_path, path);
-                    }
-                    LOG_ERROR(log, "Logical error: Check : can not match children size: {}, stat numChildren: {}, children: {}", it.first, toString(parent->stat.numChildren), toString(parent->children.size()));
-                    parent->stat.numChildren = parent->children.size(); /// Fix
-                }
-            }
-        }
-    }
 }
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
