@@ -100,7 +100,7 @@ TEST(RaftSnapshot, createSnapshot_1)
     setNode(storage, "1", "table_1");
     ASSERT_EQ(storage.container.size(), 2); /// it's has "/" and "/1"
     size_t object_size = snap_mgr.createSnapshot(snap_meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -124,7 +124,7 @@ TEST(RaftSnapshot, createSnapshot_2)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -153,7 +153,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr_read.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
 
     ulong obj_id = 0;
     snap_mgr_save.receiveSnapshot(meta);
