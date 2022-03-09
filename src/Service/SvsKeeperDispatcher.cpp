@@ -247,7 +247,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     request_info.session_id = dead_session;
                     {
                         std::lock_guard lock(push_request_mutex);
-                        if (requests_queue.push(std::move(request_info)))
+                        if (!requests_queue.push(std::move(request_info)))
                             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
                     finishSession(dead_session);

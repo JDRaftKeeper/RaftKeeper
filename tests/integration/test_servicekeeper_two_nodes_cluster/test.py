@@ -10,6 +10,7 @@ import time
 from multiprocessing.dummy import Pool
 from helpers.network import PartitionManager
 from helpers.test_tools import assert_eq_with_retry
+from kazoo.retry import KazooRetry
 
 cluster1 = ClickHouseServiceCluster(__file__)
 node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
@@ -54,7 +55,7 @@ def wait_nodes():
 
 
 def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":5102", timeout=timeout)
+    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":5102", timeout=timeout, connection_retry=KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1))
     _fake_zk_instance.start()
     return _fake_zk_instance
 
