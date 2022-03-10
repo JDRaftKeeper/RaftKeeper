@@ -151,18 +151,18 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
 
     ConfigUpdateActions result;
 
-    /// First of all add new servers
-    for (auto [new_id, server_config] : new_ids)
-    {
-        if (!old_ids.count(new_id))
-            result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::AddServer, server_config});
-    }
-
-    /// After that remove old ones
+    /// First that remove old ones
     for (auto [old_id, server_config] : old_ids)
     {
         if (!new_ids.count(old_id))
             result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::RemoveServer, server_config});
+    }
+
+    /// After of all add new servers
+    for (auto [new_id, server_config] : new_ids)
+    {
+        if (!old_ids.count(new_id))
+            result.emplace_back(ConfigUpdateAction{ConfigUpdateActionType::AddServer, server_config});
     }
 
     {
