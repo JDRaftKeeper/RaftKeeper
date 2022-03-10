@@ -61,15 +61,18 @@ def test_node_move(started_cluster):
         assert zk_conn3.exists("test_four_" + str(i)) is not None
 
     node4.stop_clickhouse()
+    node4.exec_in_container(['bash', '-c', 'rm -fr /var/lib/clickhouse/coordination/raft_log/* /var/lib/clickhouse/coordination/raft_snapshot/*'])
     node4.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_4.xml"), "/etc/clickhouse-server/config.d/enable_keeper4.xml")
     p = Pool(3)
     waiter = p.apply_async(start, (node4,))
+
+    waiter.wait(timeout=50)
+
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
+    node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper3.xml")
 
-    time.sleep(3)
-
-    waiter.wait()
+    time.sleep(8)
 
     zk_conn4 = get_fake_zk(node4)
     zk_conn4.sync("/test_four_0")
