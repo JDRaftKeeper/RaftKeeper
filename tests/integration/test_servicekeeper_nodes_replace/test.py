@@ -44,7 +44,7 @@ def get_fake_zk(node, timeout=30.0):
     return _fake_zk_instance
 
 
-def test_node_move(started_cluster):
+def test_node_replace(started_cluster):
     zk_conn = get_fake_zk(node1)
 
     for i in range(100):
@@ -70,6 +70,8 @@ def test_node_move(started_cluster):
 
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_1.xml"), "/etc/clickhouse-server/config.d/enable_keeper1.xml")
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper2.xml")
+
+    # The configuration update of 3 here is because 3 may be the leader at this time, and deletion of 3 requires leader participation, and then 3 triggers yield_leadership re-election. In the future, when the real online operation is performed, 3 may be the faulty node, and the leader should be 1 and 2. At this time, the configuration of 3 does not need to be replaced.
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/clickhouse-server/config.d/enable_keeper3.xml")
 
     time.sleep(8)
