@@ -176,6 +176,9 @@ void SvsKeeperDispatcher::shutdown()
             LOG_DEBUG(log, "Shutting down storage dispatcher");
             shutdown_called = true;
 
+            if (update_configuration_thread.joinable())
+                update_configuration_thread.join();
+
             if (session_cleaner_thread.joinable())
                 session_cleaner_thread.join();
 
