@@ -18,6 +18,15 @@ using namespace Coordination;
 
 namespace DB
 {
+void cleanAll() {
+    Poco::File log(LOG_DIR);
+    Poco::File snap(LOG_DIR);
+    if (log.exists())
+        log.remove(true);
+    if (snap.exists())
+        snap.remove(true);
+}
+
 void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
 {
     //Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
@@ -298,24 +307,16 @@ TEST(RaftStateMachine, syncSnapshot)
     cleanDirectory(snap_dir_2);
 }
 
-/*
-UInt64 appendEntry(ptr<NuRaftFileLogStore> store, UInt64 term, LogOpTypePB op, std::string & key, std::string & data)
-{
-    auto entry_pb = createEntryPB(term, 0, op, key, data);
-    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-    ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
-    return store->append(entry_log);
-}
-*/
-
 TEST(RaftStateMachine, initStateMachine)
 {
-    auto log = &(Poco::Logger::get("Test_RaftStateMachine"));
+    auto *log = &(Poco::Logger::get("Test_RaftStateMachine"));
     std::string snap_dir(SNAP_DIR + "/6");
     std::string log_dir(LOG_DIR + "/6");
 
-    cleanDirectory(snap_dir);
-    cleanDirectory(log_dir);
+    cleanDirectory(snap_dir, true);
+    cleanDirectory(log_dir, true);
+
+    cleanAll();
 
     //Create
     {
@@ -352,6 +353,16 @@ TEST(RaftStateMachine, initStateMachine)
         sleep(1);
         LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
 
+
+        for (uint32_t i=0; i< SvsKeeperStorage::MAP_BLOCK_NUM; i++)
+        {
+            auto & map = machine.getStorage().container.getMap(i);
+
+            map.forEach([](const auto & key, const auto & /*value*/){
+                std::cout << "aaaaaa " << key << std::endl;
+            });
+        }
+
         ASSERT_EQ(machine.getStorage().container.size(), 257);
         machine.shutdown();
     }
@@ -371,3 +382,4 @@ TEST(RaftStateMachine, initStateMachine)
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
 }
+
