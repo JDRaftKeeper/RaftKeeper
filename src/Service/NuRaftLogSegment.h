@@ -147,7 +147,7 @@ public:
     LogSegmentStore(const std::string & log_dir_)
         : log_dir(log_dir_), first_log_index(1), last_log_index(0), log(&(Poco::Logger::get("LogSegmentStore")))
     {
-        LOG_INFO(log, "Create LogSegmentStore.");        
+        LOG_INFO(log, "Create LogSegmentStore {}.", log_dir_);
     }
 
     virtual ~LogSegmentStore() { }

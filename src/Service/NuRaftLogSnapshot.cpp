@@ -22,6 +22,10 @@
 #endif
 
 
+#ifndef RAFT_SERVICE_TEST
+//#define RAFT_SERVICE_TEST
+#endif
+
 namespace DB
 {
 namespace ErrorCodes
@@ -288,6 +292,12 @@ void KeeperSnapshotStore::getFileTime(const std::string & file_name, std::string
     time = file_name.substr(it1 + 1, it2 - it1);
 }
 
+size_t KeeperSnapshotStore::getObjectIdx(const std::string & file_name)
+{
+    auto it1 = file_name.find_last_of('_');
+    return std::stoi(file_name.substr(it1 + 1, file_name.size() - it1));
+}
+
 size_t KeeperSnapshotStore::serializeDataTree(SvsKeeperStorage & storage)
 {
     std::shared_ptr<WriteBufferFromFile> out;
@@ -300,9 +310,7 @@ size_t KeeperSnapshotStore::serializeDataTree(SvsKeeperStorage & storage)
     out->close();
     LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
 
-    String file = out->getFileName();
-    auto it1 = file.find_last_of('_');
-    return std::stoi(file.substr(it1 + 1, file.size() - it1));
+    return getObjectIdx(out->getFileName());
 }
 
 void KeeperSnapshotStore::serializeNode(
@@ -367,6 +375,9 @@ void KeeperSnapshotStore::serializeNode(
 
 void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node)
 {
+# ifdef RAFT_SERVICE_TEST
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+#endif
     SnapshotItemPB * entry = batch->add_data();
     WriteBufferFromNuraftBuffer buf;
     Coordination::write(path, buf);
@@ -400,6 +411,11 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
 
     LOG_INFO(log, "Creating snapshot with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
              data_object_count, total_obj_count, next_zxid, next_session_id);
+
+# ifdef RAFT_SERVICE_TEST
+    LOG_INFO(log, "RAFT_SERVICE_TEST ON");
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+#endif
 
     /// Save uint map before nodes
     IntMap int_map;
@@ -552,7 +568,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         {
                             LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
                             std::lock_guard l(storage.ephemerals_mutex);
-                            auto ephemeral_nodes = storage.ephemerals[ephemeral_owner];
+                            auto & ephemeral_nodes = storage.ephemerals[ephemeral_owner];
                             ephemeral_nodes.emplace(key);
                         }
                     }

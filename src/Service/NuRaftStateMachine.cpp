@@ -82,7 +82,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     if (last_snapshot != nullptr)
     {
         last_committed_idx = last_snapshot->get_last_log_idx();
-        apply_snapshot(*(last_snapshot.get()));
+        apply_snapshot(*last_snapshot);
     }
     else
     {
@@ -350,6 +350,7 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
 {
     ReadBufferFromNuraftBuffer buffer(data);
     SvsKeeperStorage::RequestForSession request_for_session;
+    /// TODO unify digital encoding mode
     readIntBinary(request_for_session.session_id, buffer);
 
     int32_t length;
@@ -374,10 +375,9 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
 ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSession & session_request)
 {
     WriteBufferFromNuraftBuffer out;
-    Coordination::write(session_request.session_id, out);
+    /// TODO unify digital encoding mode, see parseRequest
+    writeIntBinary(session_request.session_id, out);
     session_request.request->write(out);
-    //auto log = &(Poco::Logger::get("KeeperStateMachine"));
-    //LOG_INFO(log, "Serialize size {}", out.getBuffer()->size());
     return out.getBuffer();
 }
 
