@@ -20,6 +20,7 @@ public:
 static const std::string LOG_DIR = "./test_raft_log";
 static const std::string SNAP_DIR = "./test_raft_snapshot";
 
+void cleanAll();
 void cleanDirectory(const std::string & log_dir, bool remove_dir = true);
 
 ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key, std::string & data);

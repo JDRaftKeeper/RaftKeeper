@@ -80,6 +80,7 @@ public:
     time_t & getCreateTimeT() { return curr_time_t; }
 
     static void getFileTime(const std::string& file_name, std::string & time);
+    static size_t getObjectIdx(const std::string & file_name);
 
 public:
 #ifdef __APPLE__

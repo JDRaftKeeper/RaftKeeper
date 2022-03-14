@@ -66,7 +66,7 @@ void cleanDirectory(const std::string & log_dir, bool remove_dir)
     {
         std::vector<std::string> files;
         dir_obj.list(files);
-        for (auto file : files)
+        for (auto & file : files)
         {
             Poco::File(log_dir + "/" + file).remove();
         }
@@ -427,7 +427,7 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("CREATE TABLE table1;", pb3->data(0).data());
 
     ASSERT_EQ(log_store->close(), 0);
-    //cleanDirectory(log_dir);
+    cleanDirectory(log_dir);
 }
 
 TEST(RaftLog, writeAt)

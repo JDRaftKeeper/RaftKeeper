@@ -103,7 +103,7 @@ public:
 
         size_t size() const { return map_.size(); }
 
-        void forEach(Action & fn)
+        void forEach(const Action & fn)
         {
             std::shared_lock rlock(mut_);
             for (auto [key, value] : map_)
