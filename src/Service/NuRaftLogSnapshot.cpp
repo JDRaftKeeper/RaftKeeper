@@ -1210,11 +1210,7 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
     size_t file_size = ::lseek(snap_fd, 0, SEEK_END);
     ::lseek(snap_fd, 0, SEEK_SET);
 
-    auto snap_version = static_cast<uint8_t>(version);
-
-    buffer = buffer::alloc(file_size + sizeof(uint8_t));
-    buffer->put(snap_version);
-
+    buffer = buffer::alloc(file_size);
     size_t offset = 0;
     char read_buf[IO_BUFFER_SIZE];
     while (offset < file_size)
