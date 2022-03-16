@@ -68,7 +68,7 @@ void LogEntryQueue::clear()
         entry_vec[i] = nullptr;
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new)
+NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, bool force_sync_): force_sync(force_sync_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
@@ -95,7 +95,9 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
     }
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_)
+NuRaftFileLogStore::NuRaftFileLogStore(
+    const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_)
+    : force_sync(force_sync_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
@@ -190,7 +192,13 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 
 void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 {
-    LOG_DEBUG(log, "end_of_append_batch, start:{}, cnt:{}", start, cnt);
+    LOG_TRACE(log, "fsync log store, start log idx {}, log count {}", start, cnt);
+    to_flush_count++;
+    if (force_sync && to_flush_count % 1000 == 0)
+    {
+        to_flush_count = 0;
+        flush();
+    }
 }
 
 ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries(ulong start, ulong end)
