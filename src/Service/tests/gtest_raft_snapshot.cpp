@@ -360,7 +360,9 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             ASSERT_EQ(new_node->data, it->second->data);
 
             if (create_version >= V1 && parse_version >= V1)
+            {
                 ASSERT_EQ(new_node->acl_id, it->second->acl_id);
+            }
 
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
             ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
@@ -396,7 +398,9 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 
     /// compare session_and_auth
     if (create_version >= V1 && parse_version >= V1)
+    {
         ASSERT_EQ(storage.session_and_auth,new_storage.session_and_auth);
+    }
 
     /// compare Others(int_map)
     ASSERT_EQ(storage.session_id_counter,4);
@@ -455,7 +459,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 
     sleep(1); /// snapshot_create_interval minest is 1
     snapshot meta2(2 * last_index, term, config);
-    object_size = snap_mgr.createSnapshot(meta2, storage);
+    snap_mgr.createSnapshot(meta2, storage);
 
     KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
     ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
