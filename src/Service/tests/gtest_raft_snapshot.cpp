@@ -348,7 +348,10 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
             if (create_version >= V1 && parse_version >= V1)
+            {
                 ASSERT_EQ(new_node->acl_id, it->second->acl_id);
+            }
+
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
             ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
             ASSERT_EQ(new_node->stat, it->second->stat);
