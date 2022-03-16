@@ -38,7 +38,8 @@ SvsKeeperServer::SvsKeeperServer(
         server_id,
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
-        myself_cluster_config);
+        myself_cluster_config,
+        coordination_settings->force_sync);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
