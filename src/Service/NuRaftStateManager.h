@@ -25,7 +25,8 @@ public:
         int id,
         const std::string & endpoint,
         const std::string & log_dir,
-        ptr<cluster_config> myself_cluster_config_);
+        ptr<cluster_config> myself_cluster_config_,
+        bool force_sync);
 
     ~NuRaftStateManager() override = default;
 

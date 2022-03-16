@@ -17,11 +17,12 @@ NuRaftStateManager::NuRaftStateManager(
     int id_,
     const std::string & endpoint_,
     const std::string & log_dir_,
-    ptr<cluster_config> myself_cluster_config_)
+    ptr<cluster_config> myself_cluster_config_,
+    bool force_sync)
     : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_), cur_cluster_config(myself_cluster_config_)
 {
     log = &(Poco::Logger::get("RaftStateManager"));
-    curr_log_store = cs_new<NuRaftFileLogStore>(log_dir);
+    curr_log_store = cs_new<NuRaftFileLogStore>(log_dir, false , force_sync);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
