@@ -47,7 +47,7 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, int32_t permissions, const std::string & scheme, const std::string & id)
@@ -71,7 +71,7 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->xid = 1;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, const ACLs & acls)
@@ -85,7 +85,7 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->xid = 1;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
@@ -99,7 +99,7 @@ void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string 
     request->data = id;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 ACLs getACL(SvsKeeperStorage & storage, const std::string key)
@@ -108,7 +108,7 @@ ACLs getACL(SvsKeeperStorage & storage, const std::string key)
     request->path = key;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/false);
 
     SvsKeeperStorage::ResponseForSession responses;
     responses_queue.tryPop(responses);
@@ -132,7 +132,7 @@ void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const s
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 }
@@ -324,31 +324,20 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         storage.getSessionID(6000);
     }
 
-    ASSERT_EQ(storage.container.size(),2052); /// Include "/" node
+    ASSERT_EQ(storage.container.size(),2050); /// Include "/" node
 
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
 
-    /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)
-    ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
+    /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
+    ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 +1);
 
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
 
     /// compare container
-    ASSERT_EQ(new_storage.container.size(),2052); /// Include "/" node, "/1020/test112"
-
-    ASSERT_EQ(storage.container.size(),2050); /// Include "/" node, "/1020/test112"
-
-    /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
-    ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 + 1);
-
-    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
-
-    /// compare container
     ASSERT_EQ(new_storage.container.size(),2050); /// Include "/" node, "/1020/test112"
-
     ASSERT_EQ(new_storage.container.size(), storage.container.size());
     for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
     {
@@ -358,12 +347,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             auto new_node = new_storage.container.get(it->first);
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
-
             if (create_version >= V1 && parse_version >= V1)
-            {
                 ASSERT_EQ(new_node->acl_id, it->second->acl_id);
-            }
-
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
             ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
             ASSERT_EQ(new_node->stat, it->second->stat);
@@ -371,6 +356,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         }
     }
     ASSERT_EQ(new_storage.container.get("/1020/test112")->data, "test211");
+
+    ASSERT_TRUE(true) << "compare container.";
 
     /// compare ephemeral
     ASSERT_EQ(new_storage.ephemerals.size(), storage.ephemerals.size());
@@ -381,31 +368,29 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         ASSERT_EQ(paths, new_storage.ephemerals.find(session_id)->second);
     }
 
-    /// compare sessions
+    ASSERT_TRUE(true) << "compare ephemeral.";
 
-    ASSERT_EQ(storage.session_and_timeout.size(),10004);
+    /// compare sessions
+    ASSERT_EQ(storage.session_and_timeout.size(),10003);
     ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
     ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
+
+    ASSERT_TRUE(true) << "compare sessions.";
 
     /// compare Others(int_map)
     ASSERT_EQ(storage.session_id_counter,10004);
     ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
     ASSERT_EQ(storage.zxid, new_storage.zxid);
 
-    ASSERT_EQ(storage.session_and_timeout.size(),3);
-    ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
-    ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
+    ASSERT_TRUE(true) << "compare Others(int_map).";
 
     /// compare session_and_auth
     if (create_version >= V1 && parse_version >= V1)
     {
-        ASSERT_EQ(storage.session_and_auth,new_storage.session_and_auth);
+        ASSERT_EQ(storage.session_and_auth, new_storage.session_and_auth);
     }
 
-    /// compare Others(int_map)
-    ASSERT_EQ(storage.session_id_counter,4);
-    ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
-    ASSERT_EQ(storage.zxid, new_storage.zxid);
+    ASSERT_TRUE(true) << "compare session_and_auth.";
 
     /// compare ACLs
     if (create_version >= V1 && parse_version >= V1)
@@ -435,16 +420,20 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
         auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
 
+        std::cout << "acl_usage_counter.size()" << acl_usage_counter.size() << std::endl;
+        std::cout << "new_acl_usage_counter.size()" << new_acl_usage_counter.size() << std::endl;
         acl_usage_counter.erase(0);
         new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
         ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
 
+
         const auto & acls_1020 = getACL(new_storage, "/1020");
         ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
         ASSERT_EQ(acls_1020[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-        /// end of compare
+        // end of compare
     }
 
+    ASSERT_TRUE(true) << "compare ACLs.";
 
     for (int i = last_index; i < 2 * last_index; i++)
     {
@@ -453,13 +442,10 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         setNode(storage, key, value);
     }
 
-    ASSERT_EQ(storage.container.size(),4100);
-
     ASSERT_EQ(storage.container.size(),4098);
-
     sleep(1); /// snapshot_create_interval minest is 1
     snapshot meta2(2 * last_index, term, config);
-    snap_mgr.createSnapshot(meta2, storage);
+    object_size = snap_mgr.createSnapshot(meta2, storage);
 
     KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
     ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
