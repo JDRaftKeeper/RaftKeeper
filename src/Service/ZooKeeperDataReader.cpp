@@ -58,7 +58,7 @@ int64_t deserializeSessionAndTimeout(SvsKeeperStorage & storage, ReadBuffer & in
     return max_session_id;
 }
 
-void deserializeACLMap(SvsKeeperStorage & /* storage */, ReadBuffer & in)
+void deserializeACLMap(SvsKeeperStorage & storage, ReadBuffer & in)
 {
     int32_t count;
     Coordination::read(count, in);
@@ -80,7 +80,7 @@ void deserializeACLMap(SvsKeeperStorage & /* storage */, ReadBuffer & in)
             acls.push_back(acl);
             acls_len--;
         }
-//        storage.acl_map.addMapping(map_index, acls);
+        storage.acl_map.addMapping(map_index, acls);
 
         count--;
     }
@@ -368,20 +368,16 @@ Coordination::ZooKeeperRequestPtr deserializeErrorTxn(ReadBuffer & in)
 
 Coordination::ZooKeeperRequestPtr deserializeSetACLTxn(ReadBuffer & in)
 {
-//    std::shared_ptr<Coordination::ZooKeeperSetACLRequest> result = std::make_shared<Coordination::ZooKeeperSetACLRequest>();
+    std::shared_ptr<Coordination::ZooKeeperSetACLRequest> result = std::make_shared<Coordination::ZooKeeperSetACLRequest>();
 
-    String path;
-    Coordination::ACLs acls;
-    int32_t version = -1;
-
-    Coordination::read(path, in);
-    Coordination::read(acls, in);
-    Coordination::read(version, in);
+    Coordination::read(result->path, in);
+    Coordination::read(result->acls, in);
+    Coordination::read(result->version, in);
     /// It stores version + 1 (which should be, not for request)
-//    result->version -= 1;
-//    result->restored_from_zookeeper_log = true;
+    result->version -= 1;
+    result->restored_from_zookeeper_log = true;
 
-    return nullptr;
+    return result;
 }
 
 Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in, Poco::Logger * log);

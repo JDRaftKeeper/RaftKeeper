@@ -4,7 +4,7 @@
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
 #include <Service/proto/Log.pb.h>
-//#include <Service/ACLMap.h>
+#include <Service/ACLMap.h>
 #include <unordered_map>
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
@@ -47,7 +47,72 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 0, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+}
+
+void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, int32_t permissions, const std::string & scheme, const std::string & id)
+{
+    ACLs default_acls;
+    ACL acl;
+//    acl.permissions = ACL::All;
+    acl.permissions = permissions;
+    acl.scheme = scheme;
+    acl.id = id;
+    default_acls.emplace_back(std::move(acl));
+
+//    'digest', 'user1:password1'
+
+    auto request = cs_new<ZooKeeperCreateRequest>();
+    request->path = "/" + key;
+    request->data = value;
+    request->is_ephemeral = false;
+    request->is_sequential = false;
+    request->acls = default_acls;
+    request->xid = 1;
+
+    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+}
+
+void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, const ACLs & acls)
+{
+    auto request = cs_new<ZooKeeperCreateRequest>();
+    request->path = "/" + key;
+    request->data = value;
+    request->is_ephemeral = false;
+    request->is_sequential = false;
+    request->acls = acls;
+    request->xid = 1;
+
+    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+}
+
+void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
+{
+//    'digest', 'user1:password1'
+//    String scheme = "digest";
+//    String data = "user1:password1";
+
+    auto request = cs_new<ZooKeeperAuthRequest>();
+    request->scheme = scheme;
+    request->data = id;
+
+    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
+}
+
+ACLs getACL(SvsKeeperStorage & storage, const std::string key)
+{
+    auto request = cs_new<ZooKeeperGetACLRequest>();
+    request->path = key;
+
+    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
+
+    SvsKeeperStorage::ResponseForSession responses;
+    responses_queue.tryPop(responses);
+    return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses.response).acl;
 }
 
 void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const std::string value)
@@ -67,7 +132,7 @@ void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const s
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 0, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 
 }
@@ -100,7 +165,7 @@ TEST(RaftSnapshot, createSnapshot_1)
     setNode(storage, "1", "table_1");
     ASSERT_EQ(storage.container.size(), 2); /// it's has "/" and "/1"
     size_t object_size = snap_mgr.createSnapshot(snap_meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -124,7 +189,7 @@ TEST(RaftSnapshot, createSnapshot_2)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
     cleanDirectory(snap_dir);
 }
 
@@ -153,7 +218,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     }
     snapshot meta(last_index, term, config);
     size_t object_size = snap_mgr_read.createSnapshot(meta, storage);
-    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1);
+    ASSERT_EQ(object_size, SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1);
 
     ulong obj_id = 0;
     snap_mgr_save.receiveSnapshot(meta);
@@ -179,7 +244,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     cleanDirectory(snap_save_dir);
 }
 
-TEST(RaftSnapshot, parseSnapshot)
+void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion parse_version)
 {
     std::string snap_dir(SNAP_DIR + "/5");
     cleanDirectory(snap_dir);
@@ -192,19 +257,52 @@ TEST(RaftSnapshot, parseSnapshot)
     /// session 1
     storage.getSessionID(3000);
 
+    addAuth(storage, 1, "digest", "user1:password1"); /// set acl to session
     UInt32 last_index = 2048;
     UInt32 term = 1;
-
     for (int i = 1; i <= 1024; i++)
     {
         std::string key = std::to_string(i);
         std::string value = "table_" + key;
-        setNode(storage, key, value);
+
+        if (i == 1020)
+        {
+            ACLs acls;
+            ACL acl1;
+            acl1.permissions = ACL::All;
+            acl1.scheme = "digest";
+            acl1.id = "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=";
+
+            ACL acl2;
+            acl2.permissions = ACL::All;
+            acl2.scheme = "digest";
+            acl2.id = "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=";
+            acls.emplace_back(std::move(acl1));
+            acls.emplace_back(std::move(acl2));
+
+            /// set vector acl to "/1020" node
+            setACLNode(storage, key, value, acls);
+        }
+        else if (i == 1022)
+        {
+            /// set read permission to "/1022" node
+            setACLNode(storage, key, value, ACL::Read, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        }
+        else if (i == 1024)
+        {
+            /// Set a password different from session 1
+            setACLNode(storage, key, value, ACL::All, "digest", "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        }
+        else if (i % 2)
+            setNode(storage, key, value);
+        else
+            setACLNode(storage, key, value, ACL::All, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI="); /// set acl to even number node
     }
 
     for (int i = 0; i < 1024; i++)
+
     {
-        std::string key = std::to_string(i + 1);
+        std::string key = std::to_string(i);
         std::string value = "table_" + key;
 
         /// create EphemeralNode to even number, session 1 auth is "digest", "user1:password1"
@@ -240,6 +338,17 @@ TEST(RaftSnapshot, parseSnapshot)
 
     /// compare container
     ASSERT_EQ(new_storage.container.size(),2052); /// Include "/" node, "/1020/test112"
+
+    ASSERT_EQ(storage.container.size(),2050); /// Include "/" node, "/1020/test112"
+
+    /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
+    ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 + 1);
+
+    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
+
+    /// compare container
+    ASSERT_EQ(new_storage.container.size(),2050); /// Include "/" node, "/1020/test112"
+
     ASSERT_EQ(new_storage.container.size(), storage.container.size());
     for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
     {
@@ -249,6 +358,9 @@ TEST(RaftSnapshot, parseSnapshot)
             auto new_node = new_storage.container.get(it->first);
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
+
+            if (create_version >= V1 && parse_version >= V1)
+                ASSERT_EQ(new_node->acl_id, it->second->acl_id);
 
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
             ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
@@ -268,6 +380,7 @@ TEST(RaftSnapshot, parseSnapshot)
     }
 
     /// compare sessions
+
     ASSERT_EQ(storage.session_and_timeout.size(),10004);
     ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
     ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
@@ -277,13 +390,69 @@ TEST(RaftSnapshot, parseSnapshot)
     ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
     ASSERT_EQ(storage.zxid, new_storage.zxid);
 
+    ASSERT_EQ(storage.session_and_timeout.size(),3);
+    ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
+    ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
+
+    /// compare session_and_auth
+    if (create_version >= V1 && parse_version >= V1)
+        ASSERT_EQ(storage.session_and_auth,new_storage.session_and_auth);
+
+    /// compare Others(int_map)
+    ASSERT_EQ(storage.session_id_counter,4);
+    ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
+    ASSERT_EQ(storage.zxid, new_storage.zxid);
+
+    /// compare ACLs
+    if (create_version >= V1 && parse_version >= V1)
+    {
+        /// include : vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
+        ASSERT_EQ(new_storage.acl_map.getMapping().size(), 4);
+        ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
+
+        const auto & acls = new_storage.acl_map.convertNumber(storage.container.get("/1020")->acl_id);
+        ASSERT_EQ(acls.size(), 2);
+        ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+
+        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1022")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::Read);
+        }
+
+        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1024")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::All);
+            ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        }
+
+        const auto & const_acl_usage_counter = storage.acl_map.getUsageCounter();
+        auto & acl_usage_counter = const_cast<decltype(storage.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
+        const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
+        auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
+
+        acl_usage_counter.erase(0);
+        new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
+        ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
+
+        const auto & acls_1020 = getACL(new_storage, "/1020");
+        ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls_1020[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        /// end of compare
+    }
+
+
     for (int i = last_index; i < 2 * last_index; i++)
     {
         std::string key = std::to_string(i + 1);
         std::string value = "table_" + key;
         setNode(storage, key, value);
     }
+
     ASSERT_EQ(storage.container.size(),4100);
+
+    ASSERT_EQ(storage.container.size(),4098);
+
     sleep(1); /// snapshot_create_interval minest is 1
     snapshot meta2(2 * last_index, term, config);
     object_size = snap_mgr.createSnapshot(meta2, storage);
@@ -295,4 +464,11 @@ TEST(RaftSnapshot, parseSnapshot)
     ASSERT_EQ(new_snap_mgr.removeSnapshots(), 1);
 
     cleanDirectory(snap_dir);
+}
+
+TEST(RaftSnapshot, parseSnapshot)
+{
+    parseSnapshot(V0, V0);
+    sleep(1); /// snapshot_create_interval minest is 1
+    parseSnapshot(V1, V1);
 }

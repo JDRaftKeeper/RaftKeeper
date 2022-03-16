@@ -91,6 +91,7 @@ enum SnapshotTypePB
     SNAPSHOT_TYPE_SESSION = 4;
     SNAPSHOT_TYPE_STRINGMAP = 5;
     SNAPSHOT_TYPE_UINTMAP = 6;
+    SNAPSHOT_TYPE_ACLMAP = 7;
 }
 
 message SnapshotItemPB 
