@@ -162,8 +162,12 @@ KeeperConfigurationAndSettings::loadFromConfig(const Poco::Util::AbstractConfigu
     ret->thread_count = config.getInt("service.thread_count", 16);
 
     ret->snapshot_create_interval = config.getInt("service.snapshot_create_interval", 3600);
+    ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1);
+
     ret->snapshot_start_time = config.getInt("service.snapshot_start_time", 7200);
     ret->snapshot_end_time = config.getInt("service.snapshot_end_time", 79200);
+
+    ret->super_digest = config.getString("service.superdigest", "");
 
     ret->four_letter_word_white_list = config.getString("service.four_letter_word_white_list", DEFAULT_FOUR_LETTER_WORD_CMD);
 

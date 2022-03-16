@@ -55,9 +55,10 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     ptr<log_store> logstore,
+    std::string superdigest,
     UInt32 object_node_size)
     : coordination_settings(coordination_settings_)
-    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds())
+    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
@@ -624,8 +625,8 @@ bool NuRaftStateMachine::exist_snapshot_object(snapshot & s, ulong obj_id)
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
     //TODO: double buffer load or multi thread load
-    std::lock_guard<std::mutex> lock(snapshot_mutex);
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
     return snap_mgr->parseSnapshot(s, storage);
 }
 

@@ -10,6 +10,7 @@
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <libnuraft/async.hxx>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <boost/algorithm/string.hpp>
 
 #ifndef TEST_TCPHANDLER
 //#define TEST_TCPHANDLER
@@ -20,14 +21,32 @@ namespace DB
 namespace ErrorCodes
 {
     extern const int RAFT_ERROR;
+    extern const int INVALID_CONFIG_PARAMETER;
 }
 
+namespace
+{
+std::string checkAndGetSuperdigest(const String & user_and_digest)
+{
+    if (user_and_digest.empty())
+        return "";
+
+    std::vector<std::string> scheme_and_id;
+    boost::split(scheme_and_id, user_and_digest, [](char c) { return c == ':'; });
+    if (scheme_and_id.size() != 2 || scheme_and_id[0] != "super")
+        throw Exception(
+            ErrorCodes::INVALID_CONFIG_PARAMETER, "Incorrect superdigest in keeper_server config. Must be 'super:base64string'");
+
+    return user_and_digest;
+}
+
+}
 SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config_,
     SvsKeeperResponsesQueue & responses_queue_)
     : server_id(coordination_settings_->server_id)
-    , coordination_settings(coordination_settings_->coordination_settings)
+    , coordination_and_settings(coordination_settings_)
     , config(config_)
     , responses_queue(responses_queue_)
     , log(&(Poco::Logger::get("RaftKeeperServer")))
@@ -35,20 +54,22 @@ SvsKeeperServer::SvsKeeperServer(
 
     state_manager = cs_new<NuRaftStateManager>(
         server_id,
+
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
         config);
 
+
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
-        coordination_settings,
-        coordination_settings_->snapshot_storage_path,
-        coordination_settings_->snapshot_start_time,
-        coordination_settings_->snapshot_end_time,
-        coordination_settings_->snapshot_create_interval,
-        coordination_settings->max_stored_snapshots,
-        state_manager->load_log_store());
-
+        coordination_and_settings->coordination_settings,
+        coordination_and_settings->snapshot_storage_path,
+        coordination_and_settings->snapshot_start_time,
+        coordination_and_settings->snapshot_end_time,
+        coordination_and_settings->snapshot_create_interval,
+        coordination_and_settings->coordination_settings->max_stored_snapshots,
+        state_manager->load_log_store(),
+        checkAndGetSuperdigest(coordination_and_settings->super_digest));
 }
 
 
@@ -60,7 +81,7 @@ void SvsKeeperServer::startup()
     g_config.num_append_threads_ = 2;
     nuraft::nuraft_global_mgr::init(g_config);
     */
-
+    auto coordination_settings = coordination_and_settings->coordination_settings;
     nuraft::raft_params params;
     params.heart_beat_interval_ = coordination_settings->heart_beat_interval_ms.totalMilliseconds();
     params.election_timeout_lower_bound_ = coordination_settings->election_timeout_lower_bound_ms.totalMilliseconds();
@@ -251,7 +272,7 @@ void SvsKeeperServer::shutdown()
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
     //    state_manager->flushLogStore();
-    if (!launcher.shutdown(coordination_settings->shutdown_timeout.totalSeconds()))
+    if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
 }
 
@@ -445,7 +466,7 @@ nuraft::cb_func::ReturnCode SvsKeeperServer::callbackFunc(nuraft::cb_func::Type 
 void SvsKeeperServer::waitInit()
 {
     std::unique_lock lock(initialized_mutex);
-    int64_t timeout = coordination_settings->startup_timeout.totalMilliseconds();
+    int64_t timeout = coordination_and_settings->coordination_settings->startup_timeout.totalMilliseconds();
     if (!initialized_cv.wait_for(lock, std::chrono::milliseconds(timeout), [&] { return initialized_flag.load(); }))
         throw Exception(ErrorCodes::RAFT_ERROR, "Failed to wait RAFT initialization");
 }
@@ -467,7 +488,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
     {
         LOG_INFO(log, "Will try to add server with id {}", task.server->get_id());
         bool added = false;
-        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
             if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
             {
@@ -489,7 +510,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!added)
-            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to add server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_settings->configuration_change_tries_count);
+            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to add server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_and_settings->coordination_settings->configuration_change_tries_count);
     }
     else if (task.action_type == ConfigUpdateActionType::RemoveServer)
     {
@@ -506,7 +527,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             return false;
         }
 
-        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
             if (raft_instance->get_srv_config(task.server->get_id()) == nullptr)
             {
@@ -528,7 +549,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!removed)
-            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to remove server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_settings->configuration_change_tries_count);
+            throw Exception(ErrorCodes::RAFT_ERROR, "Configuration change to remove server (id {}) was not accepted by RAFT after all {} retries", task.server->get_id(), coordination_and_settings->coordination_settings->configuration_change_tries_count);
     }
     else if (task.action_type == ConfigUpdateActionType::UpdatePriority)
         raft_instance->set_priority(task.server->get_id(), task.server->get_priority());
@@ -545,7 +566,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
     if (task.action_type == ConfigUpdateActionType::AddServer)
     {
         LOG_INFO(log, "Will try to wait server with id {} to be added", task.server->get_id());
-        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
             if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
             {
@@ -567,7 +588,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
     {
         LOG_INFO(log, "Will try to wait remove of server with id {}", task.server->get_id());
 
-        for (size_t i = 0; i < coordination_settings->configuration_change_tries_count; ++i)
+        for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
             if (raft_instance->get_srv_config(task.server->get_id()) == nullptr)
             {

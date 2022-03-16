@@ -69,6 +69,8 @@ struct KeeperConfigurationAndSettings
 
     String four_letter_word_white_list;
 
+    String super_digest;
+
     bool standalone_keeper;
     SvsKeeperSettingsPtr coordination_settings;
 

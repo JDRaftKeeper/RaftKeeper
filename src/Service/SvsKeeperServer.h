@@ -22,7 +22,7 @@ class SvsKeeperServer
 private:
     int server_id;
 
-    SvsKeeperSettingsPtr coordination_settings;
+    KeeperConfigurationAndSettingsPtr coordination_and_settings;
 
     nuraft::ptr<NuRaftStateMachine> state_machine;
 
