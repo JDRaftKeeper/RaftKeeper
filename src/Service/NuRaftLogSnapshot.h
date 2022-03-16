@@ -67,8 +67,6 @@ public:
     }
     ~KeeperSnapshotStore() { }
 
-    bool writeSnapshotVersion(const SnapshotVersion version_) const;
-
     //create snapshot object, return the size of objects
     size_t createObjects(SvsKeeperStorage & storage);
     // init snapshot store for receive snapshot object
@@ -146,13 +144,13 @@ public:
     {
     }
     ~KeeperSnapshotManager() { }
-    size_t createSnapshot(snapshot & meta, SvsKeeperStorage & storage, const SnapshotVersion version = SnapshotVersion::V1);
+    size_t createSnapshot(snapshot & meta, SvsKeeperStorage & storage);
     bool receiveSnapshot(snapshot & meta);
     bool existSnapshot(const snapshot & meta);
     bool existSnapshotObject(const snapshot & meta, ulong obj_id);
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
     bool saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer);
-    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage, const SnapshotVersion version = SnapshotVersion::V1);
+    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);
     ptr<snapshot> lastSnapshot();
     time_t getLastCreateTime();
     size_t loadSnapshotMetas();
