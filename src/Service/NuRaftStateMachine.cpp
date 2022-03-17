@@ -11,6 +11,7 @@
 #include <Service/proto/Log.pb.h>
 #include <Poco/File.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Service/NuRaftFileLogStore.h>
 #include <Common/Stopwatch.h>
 
 
@@ -29,7 +30,7 @@ struct ReplayLogBatch
 {
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
-    ptr<std::vector<ptr<log_entry>>> log_vec;
+    ptr<std::vector<VersionLogEntry>> log_vec;
     ptr<std::vector<ptr<SvsKeeperStorage::RequestForSession>>> request_vec;
 };
 
@@ -54,9 +55,10 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     ptr<log_store> logstore,
+    std::string superdigest,
     UInt32 object_node_size)
     : coordination_settings(coordination_settings_)
-    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds())
+    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
@@ -144,7 +146,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             batch_end_index);
 
                         ReplayLogBatch batch;
-                        batch.log_vec = logstore->log_entries_ext(batch_start_index, batch_end_index, 0);
+                        batch.log_vec = dynamic_cast<NuRaftFileLogStore *>(logstore.get())->log_entries_version_ext(batch_start_index, batch_end_index, 0);
 
                         batch.batch_start_index = batch_start_index;
                         batch.batch_end_index = batch_end_index;
@@ -153,16 +155,16 @@ NuRaftStateMachine::NuRaftStateMachine(
                         int idx = 0;
                         for (auto entry : *(batch.log_vec))
                         {
-                            if (entry->get_val_type() != nuraft::log_val_type::app_log)
+                            if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
                             {
-                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry->get_val_type());
+                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
                                 continue;
                             }
 
-                            if (isNewSessionRequest(entry->get_buf()))
+                            if (isNewSessionRequest(entry.entry->get_buf()))
                             {
                                 /// replay session
-                                int64_t session_timeout_ms = entry->get_buf().get_ulong();
+                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
                                 int64_t session_id = storage.getSessionID(session_timeout_ms);
                                 LOG_TRACE(
                                     log,
@@ -170,10 +172,10 @@ NuRaftStateMachine::NuRaftStateMachine(
                                     session_id,
                                     session_timeout_ms);
                             }
-                            else if (isUpdateSessionRequest(entry->get_buf()))
+                            else if (isUpdateSessionRequest(entry.entry->get_buf()))
                             {
                                 /// replay update session
-                                nuraft::buffer_serializer data_serializer(entry->get_buf());
+                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
                                 int64_t session_id = data_serializer.get_i64();
                                 int64_t session_timeout_ms = data_serializer.get_i64();
 
@@ -184,7 +186,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             else
                             {
                                 /// replay nodes
-                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry);
+                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
                                 LOG_TRACE(log, "Replay log request, session {}", ptr_request->session_id);
 
                                 if (ptr_request != nullptr)
@@ -666,8 +668,8 @@ bool NuRaftStateMachine::exist_snapshot_object(snapshot & s, ulong obj_id)
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
     //TODO: double buffer load or multi thread load
-    std::lock_guard<std::mutex> lock(snapshot_mutex);
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
     return snap_mgr->parseSnapshot(s, storage);
 }
 

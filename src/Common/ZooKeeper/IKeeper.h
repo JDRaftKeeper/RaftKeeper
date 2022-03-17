@@ -34,6 +34,12 @@ struct ACL
     int32_t permissions;
     String scheme;
     String id;
+
+    bool operator== (const ACL & other) const
+    {
+        return permissions == other.permissions && scheme == other.scheme && id == other.id;
+    }
+
 };
 
 using ACLs = std::vector<ACL>;
@@ -171,6 +177,36 @@ struct WatchResponse : virtual Response
 };
 
 using WatchCallback = std::function<void(const WatchResponse &)>;
+
+
+struct SetACLRequest : virtual Request
+{
+    String path;
+    ACLs acls;
+    int32_t version = -1;
+
+    void addRootPath(const String & root_path) override;
+    String getPath() const override { return path; }
+};
+
+struct SetACLResponse : virtual Response
+{
+    Stat stat;
+};
+
+struct GetACLRequest : virtual Request
+{
+    String path;
+
+    void addRootPath(const String & root_path) override;
+    String getPath() const override { return path; }
+};
+
+struct GetACLResponse : virtual Response
+{
+    ACLs acl;
+    Stat stat;
+};
 
 struct CreateRequest : virtual Request
 {

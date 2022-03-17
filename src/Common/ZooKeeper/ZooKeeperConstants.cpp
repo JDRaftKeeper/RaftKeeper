@@ -24,6 +24,8 @@ static const std::unordered_set<int32_t> VALID_OPERATIONS =
     static_cast<int32_t>(OpNum::SetSeqNum),
     static_cast<int32_t>(OpNum::SessionID),
     static_cast<int32_t>(OpNum::SetWatches),
+    static_cast<int32_t>(OpNum::SetACL),
+    static_cast<int32_t>(OpNum::GetACL),
 };
 
 std::string toString(OpNum op_num)
@@ -64,6 +66,10 @@ std::string toString(OpNum op_num)
             return "SessionID";
         case OpNum::SetWatches:
             return "SetWatches";
+        case OpNum::SetACL:
+            return "SetACL";
+        case OpNum::GetACL:
+            return "GetACL";
     }
     int32_t raw_op = static_cast<int32_t>(op_num);
     throw Exception("Operation " + std::to_string(raw_op) + " is unknown", Error::ZUNIMPLEMENTED);

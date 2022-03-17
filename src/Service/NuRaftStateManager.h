@@ -17,6 +17,25 @@ using nuraft::ptr;
 using nuraft::srv_config;
 using nuraft::srv_state;
 
+using KeeperServerConfigPtr = nuraft::ptr<nuraft::srv_config>;
+
+/// When our configuration changes the following action types
+/// can happen
+enum class ConfigUpdateActionType
+{
+    RemoveServer,
+    AddServer,
+    UpdatePriority,
+};
+
+/// Action to update configuration
+struct ConfigUpdateAction
+{
+    ConfigUpdateActionType action_type;
+    KeeperServerConfigPtr server;
+};
+
+using ConfigUpdateActions = std::vector<ConfigUpdateAction>;
 
 class NuRaftStateManager : public nuraft::state_mgr
 {
@@ -25,12 +44,12 @@ public:
         int id,
         const std::string & endpoint,
         const std::string & log_dir,
-        ptr<cluster_config> myself_cluster_config_,
+        const Poco::Util::AbstractConfiguration & config,
         bool force_sync);
 
     ~NuRaftStateManager() override = default;
 
-    void parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name);
+    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const;
 
     ptr<cluster_config> load_config() override;
 
@@ -51,6 +70,9 @@ public:
     //ptr<srv_config> get_srv_config() const { return curr_srv_config; }
 
     ptr<cluster_config> get_cluster_config() const { return cur_cluster_config; }
+
+    /// Get configuration diff between proposed XML and current state in RAFT
+    ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
 protected:
     NuRaftStateManager() { }
