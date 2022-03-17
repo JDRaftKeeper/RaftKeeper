@@ -6,7 +6,6 @@
         <snapshot_dir>./snapshot_log</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
         <snapshot_create_interval>86400</snapshot_create_interval>
-        <raft_grpc_port>5101</raft_grpc_port>
         <service_port>5102</service_port>
         <internal_port>5103</internal_port>
         <thread_count>16</thread_count>

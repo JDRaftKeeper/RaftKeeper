@@ -17,6 +17,13 @@ using nuraft::snapshot;
 using nuraft::ulong;
 using StringVec = std::vector<std::string>;
 
+enum SnapshotVersion : uint8_t
+{
+    V0 = 0,
+    V1 = 1, /// with ACL map, and last_log_term for file name
+};
+
+static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V1;
 
 struct SnapshotBatchHeader
 {
@@ -49,7 +56,8 @@ public:
         , log(&(Poco::Logger::get("KeeperSnapshotStore")))
     {
         //snap_header.entry_size = meta.size();
-        log_last_index = meta.get_last_log_idx();
+        last_log_index = meta.get_last_log_idx();
+        last_log_term = meta.get_last_log_term();
         ptr<buffer> snap_buf = meta.serialize();
         snap_meta = snapshot::deserialize(*(snap_buf.get()));
         if (max_object_node_size == 0)
@@ -86,9 +94,13 @@ public:
 #ifdef __APPLE__
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%llu_%llu";
+    //snapshot_createtime_lastlogindex_lastlogterm_objectid
+    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%llu_%llu_%llu";
 #else
     //snapshot_createtime_lastlogindex_objectid
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%lu_%lu";
+    //snapshot_createtime_lastlogindex_lastlogterm_objectid
+    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
 #endif
 
     using StringMap = std::unordered_map<std::string, std::string>;
@@ -100,6 +112,8 @@ public:
     static const UInt32 SAVE_BATCH_SIZE = 10000;
     static const int SNAPSHOT_THREAD_NUM = 8;
     static const int IO_BUFFER_SIZE = 16384; //16K
+
+    SnapshotVersion version = CURRENT_SNAPSHOT_VERSION;
 
 private:
     void getObjectPath(ulong object_id, std::string & path);
@@ -130,7 +144,8 @@ private:
     Poco::Logger * log;
     //SnapshotHeader snap_header;
     ptr<snapshot> snap_meta;
-    UInt64 log_last_index;
+    UInt64 last_log_index;
+    UInt64 last_log_term;
     std::map<ulong, std::string> objects_path;
     std::string curr_time;
     time_t curr_time_t;
@@ -157,7 +172,7 @@ public:
     bool existSnapshotObject(const snapshot & meta, ulong obj_id);
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
     bool saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer);
-    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);    
+    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);
     ptr<snapshot> lastSnapshot();
     time_t getLastCreateTime();
     size_t loadSnapshotMetas();

@@ -125,44 +125,44 @@ def test_reconnection(started_cluster):
             zk.close()
 
 
-def test_session_expired(started_cluster):
-    wait_nodes()
-    zk = None
-    try:
-        zk = get_fake_zk(node1.name, timeout=2)
-        first_session_id = zk._session_id
-        print("Client session id", first_session_id)
-        print("Client session timeout", zk._session_timeout)
-        zk.create("/test_session_expired", b"hello")
-        zk.create("/test_session_expired_ephemeral", b"I_am_ephemeral_node", ephemeral=True)
-
-        restart_cluster(zk, first_session_id)
-
-        try:
-            data, _ = zk.get("/test_session_expired")
-        except ZookeeperError as ex:
-            print("Session expired ", ex)
-            assert True
-        else:
-            print("data ", data)
-            assert False
-
-        zk = get_fake_zk(node1.name, timeout=2)
-        data, _ = zk.get("/test_session_expired")
-        assert data == b"hello"
-
-        try:
-            data, _ = zk.get("/test_session_expired_ephemeral")
-        except NoNodeError:
-            assert True
-        else:
-            assert False
-
-        assert zk._session_id > first_session_id
-    finally:
-        if zk is not None:
-            zk.stop()
-            zk.close()
+# def test_session_expired(started_cluster):
+#     wait_nodes()
+#     zk = None
+#     try:
+#         zk = get_fake_zk(node1.name, timeout=2)
+#         first_session_id = zk._session_id
+#         print("Client session id", first_session_id)
+#         print("Client session timeout", zk._session_timeout)
+#         zk.create("/test_session_expired", b"hello")
+#         zk.create("/test_session_expired_ephemeral", b"I_am_ephemeral_node", ephemeral=True)
+#
+#         restart_cluster(zk, first_session_id)
+#
+#         try:
+#             data, _ = zk.get("/test_session_expired")
+#         except ZookeeperError as ex:
+#             print("Session expired ", ex)
+#             assert True
+#         else:
+#             print("data ", data)
+#             assert False
+#
+#         zk = get_fake_zk(node1.name, timeout=2)
+#         data, _ = zk.get("/test_session_expired")
+#         assert data == b"hello"
+#
+#         try:
+#             data, _ = zk.get("/test_session_expired_ephemeral")
+#         except NoNodeError:
+#             assert True
+#         else:
+#             assert False
+#
+#         assert zk._session_id > first_session_id
+#     finally:
+#         if zk is not None:
+#             zk.stop()
+#             zk.close()
 
 # network partition does not work.
 # def test_reconnection_with_partition(started_cluster):

@@ -5,6 +5,7 @@
 
 stages:
   - stylecheck
+  - build with gcc
   - build and test
 
 style check:
@@ -19,6 +20,24 @@ style check:
     - echo "code style check success!"
   allow_failure: true
 
+build with gcc:
+  stage: build with gcc
+  tags:
+    - "test"
+  script:
+    - git submodule sync
+    - git submodule update --init --recursive
+
+    - export CC=gcc-10
+    - export CXX=g++-10
+
+    - mkdir build_gcc
+    - cd build_gcc
+    - export build_dir=`pwd`
+    - echo "build dir is $build_dir"
+    - cmake ..
+    - ninja
+    - echo "Build with gcc success!"
 
 build and test:
   stage: build and test

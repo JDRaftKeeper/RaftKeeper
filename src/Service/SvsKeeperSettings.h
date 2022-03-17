@@ -33,7 +33,8 @@ struct Settings;
     M(UInt64, rotate_log_storage_interval, 100000, "How many records will be stored in one log storage file", 0) \
     M(Bool, force_sync, true, " Call fsync on each change in RAFT changelog", 0) \
     M(UInt64, nuraft_thread_size, 32, "NuRaft thread pool size", 0) \
-    M(UInt64, fresh_log_gap, 200, "When node became fresh", 0)
+    M(UInt64, fresh_log_gap, 200, "When node became fresh", 0) \
+    M(UInt64, configuration_change_tries_count, 30, "How many times we will try to apply configuration change (add/remove server) to the cluster", 0)
 
 DECLARE_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
@@ -67,6 +68,8 @@ struct KeeperConfigurationAndSettings
     int snapshot_end_time;
 
     String four_letter_word_white_list;
+
+    String super_digest;
 
     bool standalone_keeper;
     SvsKeeperSettingsPtr coordination_settings;
