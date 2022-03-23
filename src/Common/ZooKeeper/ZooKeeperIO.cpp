@@ -3,7 +3,6 @@
 namespace Coordination
 {
 
-
 void write(size_t x, WriteBuffer & out)
 {
     x = __builtin_bswap64(x);
@@ -15,11 +14,13 @@ void write(int64_t x, WriteBuffer & out)
     x = __builtin_bswap64(x);
     writeBinary(x, out);
 }
+#ifdef __APPLE__
 void write(uint64_t x, WriteBuffer & out)
 {
     x = __builtin_bswap64(x);
     writeBinary(x, out);
 }
+#endif
 void write(int32_t x, WriteBuffer & out)
 {
     x = __builtin_bswap32(x);
@@ -99,11 +100,13 @@ void read(int64_t & x, ReadBuffer & in)
     readBinary(x, in);
     x = __builtin_bswap64(x);
 }
+#ifdef __APPLE__
 void read(uint64_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
     x = __builtin_bswap64(x);
 }
+#endif
 
 void read(int32_t & x, ReadBuffer & in)
 {
