@@ -31,7 +31,7 @@ private:
     ACLToNumMap acl_to_num;
     NumToACLMap num_to_acl;
     UsageCounter usage_counter;
-    mutable std::mutex acl_mutex;
+    mutable std::recursive_mutex acl_mutex;
     uint64_t max_acl_id{1};
 public:
 
@@ -59,8 +59,11 @@ public:
     void addMapping(uint64_t acls_id, const Coordination::ACLs & acls);
 
     /// Add/remove usage of some id. Used to remove unused ACLs.
-    void addUsage(uint64_t acl_id);
+    void addUsage(uint64_t acl_id, uint64_t count = 1);
     void removeUsage(uint64_t acl_id);
+
+    bool operator==(const ACLMap & rhs) const;
+    bool operator!=(const ACLMap & rhs) const;
 };
 
 }

@@ -54,11 +54,10 @@ SvsKeeperServer::SvsKeeperServer(
 
     state_manager = cs_new<NuRaftStateManager>(
         server_id,
-
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
         config,
-        coordination_settings_->force_sync);
+        coordination_settings_->coordination_settings->force_sync);
 
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(

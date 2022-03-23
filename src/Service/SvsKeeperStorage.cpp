@@ -100,7 +100,7 @@ static String toString(const Coordination::ACLs & acls)
     return ret.str();
 }
 
-static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, const std::vector<SvsKeeperStorage::AuthID> & session_auths)
+static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, const std::vector<Coordination::AuthID> & session_auths)
 {
     if (node_acls.empty())
         return true;
@@ -129,7 +129,7 @@ static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, c
 
 static bool fixupACL(
     const std::vector<Coordination::ACL> & request_acls,
-    const std::vector<SvsKeeperStorage::AuthID> & current_ids,
+    const std::vector<Coordination::AuthID> & current_ids,
     std::vector<Coordination::ACL> & result_acls)
 {
     if (request_acls.empty())
@@ -416,17 +416,23 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         }
         std::shared_ptr<KeeperNode> created_node = std::make_shared<KeeperNode>();
 
-        auto & session_auth_ids = storage.session_and_auth[session_id];
-
         Coordination::ACLs node_acls;
-        if (!fixupACL(request.acls, session_auth_ids, node_acls))
-        {
-            response.error = Coordination::Error::ZINVALIDACL;
-            return {response_ptr, {}};
-        }
+        uint64_t acl_id{};
 
-        uint64_t acl_id = storage.acl_map.convertACLs(node_acls);
-        storage.acl_map.addUsage(acl_id);
+        if (!request.acls.empty())
+        {
+            std::lock_guard lock(storage.auth_mutex);
+            auto & session_auth_ids = storage.session_and_auth[session_id];
+
+            if (!fixupACL(request.acls, session_auth_ids, node_acls))
+            {
+                response.error = Coordination::Error::ZINVALIDACL;
+                return {response_ptr, {}};
+            }
+
+            acl_id = storage.acl_map.convertACLs(node_acls);
+            storage.acl_map.addUsage(acl_id);
+        }
 
         created_node->acl_id = acl_id;
         LOG_TRACE(log, "path {}, acl_id {}, node_acls {}", zk_request->getPath(), created_node->acl_id, toString(node_acls));
@@ -561,7 +567,7 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
         {
             {
                 std::shared_lock r_lock(node->mutex);
-                response.stat = node->statForResponse(node->children.size());
+                response.stat = node->statForResponse();
                 response.data = node->data;
             }
             response.error = Coordination::Error::ZOK;
@@ -610,7 +616,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         {
             response.error = Coordination::Error::ZBADVERSION;
         }
-        else if (node->children.size())
+        else if (!node->children.empty())
         {
             response.error = Coordination::Error::ZNOTEMPTY;
         }
@@ -690,7 +696,7 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
         {
             {
                 std::shared_lock r_lock(node->mutex);
-                response.stat = node->statForResponse(node->children.size());
+                response.stat = node->statForResponse();
             }
             response.error = Coordination::Error::ZOK;
         }
@@ -763,7 +769,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             }
 
             auto parent = storage.container.at(parentPath(request.path));
-            response.stat = node->statForResponse(node->children.size());
+            response.stat = node->statForResponse();
             response.error = Coordination::Error::ZOK;
 
             undo = [prev_node, &storage, path = request.path] {
@@ -852,7 +858,7 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
             {
                 std::shared_lock r_lock(node->mutex);
                 response.names.insert(response.names.end(), node->children.begin(), node->children.end());
-                response.stat = node->statForResponse(node->children.size());
+                response.stat = node->statForResponse();
             }
             std::sort(response.names.begin(), response.names.end());
             response.error = Coordination::Error::ZOK;
@@ -979,13 +985,16 @@ struct SvsKeeperStorageSetACLRequest final : public SvsKeeperStorageRequest
         }
         else
         {
-            auto & session_auth_ids = storage.session_and_auth[session_id];
             Coordination::ACLs node_acls;
-
-            if (!fixupACL(request.acls, session_auth_ids, node_acls))
             {
-                response.error = Coordination::Error::ZINVALIDACL;
-                return {response_ptr, {}};
+                std::lock_guard lock(storage.auth_mutex);
+                auto & session_auth_ids = storage.session_and_auth[session_id];
+
+                if (!fixupACL(request.acls, session_auth_ids, node_acls))
+                {
+                    response.error = Coordination::Error::ZINVALIDACL;
+                    return {response_ptr, {}};
+                }
             }
 
             uint64_t acl_id = storage.acl_map.convertACLs(node_acls);
@@ -1066,14 +1075,14 @@ struct SvsKeeperStorageAuthRequest final : public SvsKeeperStorageRequest
             auto digest = generateDigest(auth_request.data);
             if (digest == storage.super_digest)
             {
-                SvsKeeperStorage::AuthID auth{"super", ""};
+                Coordination::AuthID auth{"super", ""};
 
                 std::lock_guard w_lock(storage.auth_mutex);
                 sessions_and_auth[session_id].emplace_back(auth);
             }
             else
             {
-                SvsKeeperStorage::AuthID auth{auth_request.scheme, digest};
+                Coordination::AuthID auth{auth_request.scheme, digest};
 
                 std::lock_guard w_lock(storage.auth_mutex);
                 auto & session_ids = sessions_and_auth[session_id];

@@ -53,14 +53,21 @@ struct KeeperNode
      *  This is for remove numChildren from persisted stat.
      *  TODO refine it
      */
-    Coordination::Stat statForResponse(int32_t numChildren)
+    Coordination::Stat statForResponse() const
     {
         Coordination::Stat stat_view;
         stat_view = stat;
-        stat.numChildren = numChildren;
+        stat_view.numChildren = children.size();
         stat_view.cversion = stat.cversion * 2 - stat.numChildren;
         return stat_view;
     }
+
+    bool operator==(const KeeperNode & rhs) const
+    {
+        return data == rhs.data && acl_id == rhs.acl_id
+            && is_ephemeral == rhs.is_ephemeral && is_sequental == rhs.is_sequental && children == rhs.children;
+    }
+    bool operator!=(const KeeperNode & rhs) const { return !(rhs == *this); }
 
     /// Object memory size
     uint64_t sizeInBytes() const;
@@ -174,19 +181,7 @@ public:
         Coordination::ZooKeeperRequestPtr request;
     };
 
-    struct AuthID
-    {
-        std::string scheme;
-        std::string id;
-
-        bool operator==(const AuthID & other) const
-        {
-            return scheme == other.scheme && id == other.id;
-        }
-    };
-
-    using AuthIDs = std::vector<AuthID>;
-    using SessionAndAuth = std::unordered_map<int64_t, AuthIDs>;
+    using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
 
     using RequestsForSessions = std::vector<RequestForSession>;
 
