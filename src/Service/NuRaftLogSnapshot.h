@@ -103,6 +103,8 @@ public:
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
 #endif
 
+    static const String MAGIC_SNAPSHOT_TAIL;
+    static const String MAGIC_SNAPSHOT_HEAD;
     using StringMap = std::unordered_map<std::string, std::string>;
     using IntMap = std::unordered_map<std::string, int64_t>;
 
@@ -110,7 +112,7 @@ public:
     static const UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
     // 100M Count / 10K = 10K
     static const UInt32 SAVE_BATCH_SIZE = 10000;
-    static const int SNAPSHOT_THREAD_NUM = 8;
+    static const int SNAPSHOT_THREAD_NUM = 1;
     static const int IO_BUFFER_SIZE = 16384; //16K
 
     SnapshotVersion version = CURRENT_SNAPSHOT_VERSION;
@@ -130,12 +132,14 @@ private:
      * @param processed nodes processed
      */
     void serializeNode(
-        std::shared_ptr<WriteBufferFromFile> & out,
+        ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchPB> & batch,
         SvsKeeperStorage & storage,
         const String & path,
-        uint64_t & processed);
-    inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
+        uint64_t & processed,
+        uint32_t & checksum);
+    inline static void appendNodeToBatch(
+        ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
 private:
     std::string snap_dir;

@@ -31,6 +31,6 @@ void createEntry(UInt64 term, LogOpTypePB op, std::string & key, std::string & d
 
 void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data);
 
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 0);
+void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 1);
 
 }

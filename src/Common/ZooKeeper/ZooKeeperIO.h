@@ -15,11 +15,16 @@ using namespace DB;
 
 void write(size_t x, WriteBuffer & out);
 void write(int64_t x, WriteBuffer & out);
+void write(uint64_t x, WriteBuffer & out);
 void write(int32_t x, WriteBuffer & out);
+void write(uint32_t x, WriteBuffer & out);
+void write(int8_t x, WriteBuffer & out);
+void write(uint8_t x, WriteBuffer & out);
 void write(OpNum x, WriteBuffer & out);
 void write(bool x, WriteBuffer & out);
 void write(const std::string & s, WriteBuffer & out);
 void write(const ACL & acl, WriteBuffer & out);
+void write(const AuthID & auth_id, WriteBuffer & out);
 void write(const Stat & stat, WriteBuffer & out);
 void write(const Error & x, WriteBuffer & out);
 
@@ -39,13 +44,16 @@ void write(const std::vector<T> & arr, WriteBuffer & out)
 }
 
 void read(size_t & x, ReadBuffer & in);
+void read(uint64_t & x, ReadBuffer & in);
 void read(int64_t & x, ReadBuffer & in);
+void read(uint32_t & x, ReadBuffer & in);
 void read(int32_t & x, ReadBuffer & in);
 void read(OpNum & x, ReadBuffer & in);
 void read(bool & x, ReadBuffer & in);
 void read(int8_t & x, ReadBuffer & in);
 void read(std::string & s, ReadBuffer & in);
 void read(ACL & acl, ReadBuffer & in);
+void read(AuthID & auth_id, ReadBuffer & in);
 void read(Stat & stat, ReadBuffer & in);
 void read(Error & x, ReadBuffer & in);
 

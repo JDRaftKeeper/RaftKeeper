@@ -44,6 +44,16 @@ struct ACL
 
 using ACLs = std::vector<ACL>;
 
+struct AuthID
+{
+    std::string scheme;
+    std::string id;
+
+    bool operator==(const AuthID & other) const { return scheme == other.scheme && id == other.id; }
+};
+
+using AuthIDs = std::vector<AuthID>;
+
 struct Stat
 {
     int64_t czxid;

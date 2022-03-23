@@ -231,6 +231,70 @@ void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const s
     storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
+void assertStateMachineEquals(SvsKeeperStorage & storage, SvsKeeperStorage & ano_storage)
+{
+    /// assert unit map
+    ASSERT_EQ(storage.zxid, ano_storage.zxid);
+    ASSERT_EQ(storage.session_id_counter, ano_storage.session_id_counter);
+
+    /// assert size
+    ASSERT_EQ(storage.container.size(), ano_storage.container.size());
+    ASSERT_EQ(storage.ephemerals.size(), ano_storage.ephemerals.size());
+    ASSERT_EQ(storage.session_and_timeout.size(), ano_storage.session_and_timeout.size());
+
+
+    /// assert container
+    for (uint32_t i=0; i< SvsKeeperStorage::MAP_BLOCK_NUM; i++)
+    {
+        auto & map = storage.container.getMap(i);
+        auto & ano_map = ano_storage.container.getMap(i);
+
+        map.forEach([&ano_map](const auto & key, const auto & value){
+            /// TODO only compare data
+            const auto * l = dynamic_cast<const KeeperNode *>(value.get());
+            const auto * r = dynamic_cast<const KeeperNode *>(ano_map.get(key).get());
+            ASSERT_EQ(l->data, r->data);
+//            ASSERT_EQ(*l, *r);
+        });
+    }
+
+    /// assert ephemeral nodes
+    for (const auto& it : storage.ephemerals)
+    {
+        ASSERT_TRUE(ano_storage.ephemerals.contains(it.first));
+        auto ano_paths = ano_storage.ephemerals.at(it.first);
+        ASSERT_EQ(it.second.size(), ano_paths.size());
+        for (const auto& path_it : it.second)
+        {
+            ASSERT_TRUE(ano_paths.contains(path_it));
+        }
+    }
+
+    /// assert session_and_timeout
+    for (auto it : storage.session_and_timeout)
+    {
+        ASSERT_TRUE(ano_storage.session_and_timeout.contains(it.first));
+        ASSERT_EQ(it.second, ano_storage.session_and_timeout.at(it.first));
+    }
+
+    auto filter_auth = [] (SvsKeeperStorage::SessionAndAuth & auth_ids) {
+        for (auto it = auth_ids.begin(); it != auth_ids.end(); it++)
+        {
+            if (it->second.empty())
+                auth_ids.erase(it);
+        }
+    };
+
+    filter_auth(storage.session_and_auth);
+    filter_auth(ano_storage.session_and_auth);
+
+    /// assert session_and_auth
+    ASSERT_EQ(storage.session_and_auth, ano_storage.session_and_auth);
+
+    /// assert acl
+    ASSERT_EQ(storage.acl_map, ano_storage.acl_map);
+}
+
 }
 
 TEST(RaftSnapshot, whenToSnapshot)
@@ -423,10 +487,10 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_EQ(storage.container.size(),2050); /// Include "/" node
 
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, storage);
+    size_t object_size = snap_mgr.createSnapshot(meta, storage, storage.zxid, storage.session_id_counter);
 
-    /// Normal node objects、Ephemeral node objects、Sessions、Others(int_map)、ACL_MAP
-    ASSERT_EQ(object_size, 2 * SvsKeeperStorage::MAP_BLOCK_NUM + 1 + 1 + 1 +1);
+    /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
+    ASSERT_EQ(object_size, 21 + 3);
 
     SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
 
@@ -470,7 +534,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_TRUE(true) << "compare ephemeral.";
 
     /// compare sessions
-    ASSERT_EQ(storage.session_and_timeout.size(),10003);
+    ASSERT_EQ(storage.session_and_timeout.size(), 10003);
     ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
     ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
 
@@ -482,6 +546,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_EQ(storage.zxid, new_storage.zxid);
 
     ASSERT_TRUE(true) << "compare Others(int_map).";
+
 
     /// compare session_and_auth
     if (create_version >= V1 && parse_version >= V1)
@@ -521,10 +586,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 
         std::cout << "acl_usage_counter.size()" << acl_usage_counter.size() << std::endl;
         std::cout << "new_acl_usage_counter.size()" << new_acl_usage_counter.size() << std::endl;
-        acl_usage_counter.erase(0);
-        new_acl_usage_counter.erase(0); /// "/" node acl_id is 0. When replaying the snapshot, addUsageCounter to the "/" node.
         ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
-
 
         const auto & acls_1020 = getACL(new_storage, "/1020");
         ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
@@ -660,48 +722,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
     NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, ano_store);
 
-    /// assert unit map
-    ASSERT_EQ(machine.getStorage().zxid, ano_machine.getStorage().zxid);
-    ASSERT_EQ(machine.getStorage().session_id_counter, ano_machine.getStorage().session_id_counter);
-
-    /// assert size
-    ASSERT_EQ(machine.getStorage().container.size(), ano_machine.getStorage().container.size());
-    ASSERT_EQ(machine.getStorage().ephemerals.size(), ano_machine.getStorage().ephemerals.size());
-    ASSERT_EQ(machine.getStorage().session_and_timeout.size(), ano_machine.getStorage().session_and_timeout.size());
-
-
-    /// assert container
-    for (uint32_t i=0; i< SvsKeeperStorage::MAP_BLOCK_NUM; i++)
-    {
-        auto & map = machine.getStorage().container.getMap(i);
-        auto & ano_map = ano_machine.getStorage().container.getMap(i);
-
-        map.forEach([&ano_map](const auto & key, const auto & value){
-            /// TODO only compare data
-            const auto * l = dynamic_cast<const KeeperNode *>(value.get());
-            const auto * r = dynamic_cast<const KeeperNode *>(ano_map.get(key).get());
-            ASSERT_EQ(l->data, r->data);
-        });
-    }
-
-    /// assert ephemeral nodes
-    for (const auto& it : machine.getStorage().ephemerals)
-    {
-        ASSERT_TRUE(ano_machine.getStorage().ephemerals.contains(it.first));
-        auto ano_paths = ano_machine.getStorage().ephemerals.at(it.first);
-        ASSERT_EQ(it.second.size(), ano_paths.size());
-        for (const auto& path_it : it.second)
-        {
-            ASSERT_TRUE(ano_paths.contains(path_it));
-        }
-    }
-
-    /// assert session_and_timeout
-    for (auto it : machine.getStorage().session_and_timeout)
-    {
-        ASSERT_TRUE(ano_machine.getStorage().session_and_timeout.contains(it.first));
-        ASSERT_EQ(it.second, ano_machine.getStorage().session_and_timeout.at(it.first));
-    }
+    assertStateMachineEquals(machine.getStorage(), ano_machine.getStorage());
 
     machine.shutdown();
     ano_machine.shutdown();

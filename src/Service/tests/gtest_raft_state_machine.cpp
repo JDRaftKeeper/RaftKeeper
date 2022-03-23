@@ -354,15 +354,6 @@ TEST(RaftStateMachine, initStateMachine)
         LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
 
 
-        for (uint32_t i=0; i< SvsKeeperStorage::MAP_BLOCK_NUM; i++)
-        {
-            auto & map = machine.getStorage().container.getMap(i);
-
-            map.forEach([](const auto & key, const auto & /*value*/){
-                std::cout << "aaaaaa " << key << std::endl;
-            });
-        }
-
         ASSERT_EQ(machine.getStorage().container.size(), 257);
         machine.shutdown();
     }
