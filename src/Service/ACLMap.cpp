@@ -4,6 +4,22 @@
 namespace DB
 {
 
+template<class Key, class Val>
+bool mapEquals(const std::unordered_map<Key, Val> & l, const std::unordered_map<Key, Val> & r)
+{
+    if (l.size() != r.size())
+        return false;
+
+    for(const auto & it : l)
+    {
+        if(!r.contains(it.first))
+            return false;
+        if(it.second != r.at(it.first))
+            return false;
+    }
+    return true;
+}
+
 namespace ErrorCodes
 {
     extern const int LOGICAL_ERROR;
@@ -80,10 +96,12 @@ void ACLMap::addMapping(uint64_t acls_id, const Coordination::ACLs & acls)
     max_acl_id = std::max(acls_id + 1, max_acl_id); /// max_acl_id pointer next slot
 }
 
-void ACLMap::addUsage(uint64_t acl_id)
+void ACLMap::addUsage(uint64_t acl_id, uint64_t count)
 {
     std::lock_guard lock(acl_mutex);
-    usage_counter[acl_id]++;
+    if (acl_id == 0)
+        return;
+    usage_counter[acl_id] += count;
 }
 
 void ACLMap::removeUsage(uint64_t acl_id)
@@ -101,6 +119,27 @@ void ACLMap::removeUsage(uint64_t acl_id)
         acl_to_num.erase(acls);
         usage_counter.erase(acl_id);
     }
+}
+bool ACLMap::operator==(const ACLMap & rhs) const
+{
+
+    if (acl_to_num.size() != rhs.acl_to_num.size())
+        return false;
+
+    for(const auto & it : acl_to_num)
+    {
+        if(!rhs.acl_to_num.contains(it.first))
+            return false;
+        if(it.second != rhs.acl_to_num.at(it.first))
+            return false;
+    }
+
+    return mapEquals(num_to_acl, rhs.num_to_acl) && mapEquals(usage_counter, rhs.usage_counter) && max_acl_id == rhs.max_acl_id;
+}
+
+bool ACLMap::operator!=(const ACLMap & rhs) const
+{
+    return !(rhs == *this);
 }
 
 }

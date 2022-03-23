@@ -15,9 +15,27 @@ void write(int64_t x, WriteBuffer & out)
     x = __builtin_bswap64(x);
     writeBinary(x, out);
 }
+void write(uint64_t x, WriteBuffer & out)
+{
+    x = __builtin_bswap64(x);
+    writeBinary(x, out);
+}
 void write(int32_t x, WriteBuffer & out)
 {
     x = __builtin_bswap32(x);
+    writeBinary(x, out);
+}
+void write(uint32_t x, WriteBuffer & out)
+{
+    x = __builtin_bswap32(x);
+    writeBinary(x, out);
+}
+void write(int8_t x, WriteBuffer & out)
+{
+    writeBinary(x, out);
+}
+void write(uint8_t x, WriteBuffer & out)
+{
     writeBinary(x, out);
 }
 
@@ -42,6 +60,12 @@ void write(const ACL & acl, WriteBuffer & out)
     write(acl.permissions, out);
     write(acl.scheme, out);
     write(acl.id, out);
+}
+
+void write(const AuthID & auth_id, WriteBuffer & out)
+{
+    write(auth_id.scheme, out);
+    write(auth_id.id, out);
 }
 
 void write(const Stat & stat, WriteBuffer & out)
@@ -75,8 +99,18 @@ void read(int64_t & x, ReadBuffer & in)
     readBinary(x, in);
     x = __builtin_bswap64(x);
 }
+void read(uint64_t & x, ReadBuffer & in)
+{
+    readBinary(x, in);
+    x = __builtin_bswap64(x);
+}
 
 void read(int32_t & x, ReadBuffer & in)
+{
+    readBinary(x, in);
+    x = __builtin_bswap32(x);
+}
+void read(uint32_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
     x = __builtin_bswap32(x);
@@ -126,6 +160,12 @@ void read(ACL & acl, ReadBuffer & in)
     read(acl.permissions, in);
     read(acl.scheme, in);
     read(acl.id, in);
+}
+
+void read(AuthID & auth_id, ReadBuffer & in)
+{
+    read(auth_id.scheme, in);
+    read(auth_id.id, in);
 }
 
 void read(Stat & stat, ReadBuffer & in)
