@@ -20,16 +20,16 @@ SvsKeeperDispatcher::SvsKeeperDispatcher()
 {
 }
 
-void SvsKeeperDispatcher::requestThread()
+void SvsKeeperDispatcher::requestThread(int thread_index)
 {
-    setThreadName("SerKeeperReqT");
+    setThreadName(("SerKeeperReqT - " + std::to_string(thread_index)).c_str());
     while (!shutdown_called)
     {
         SvsKeeperStorage::RequestForSession request;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
 
-        if (requests_queue.tryPop(request, max_wait))
+        if (requests_queue->tryPop(thread_index, request, max_wait))
         {
             if (shutdown_called)
                 break;
@@ -104,10 +104,10 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
     {
-        if (!requests_queue.push(std::move(request_info)))
+        if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
-    else if (!requests_queue.tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
@@ -137,6 +137,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     }
 
     int thread_count = configuration_and_settings->thread_count;
+    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
 #ifdef __THREAD_POOL_VEC__
     request_threads.reserve(thread_count);
@@ -151,7 +152,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     responses_thread = std::make_shared<ThreadPool>(1);
     for (int i = 0; i < thread_count; i++)
     {
-        request_thread->trySchedule([this] { requestThread(); });
+        request_thread->trySchedule([this, i] { requestThread(i); });
     }
     responses_thread->trySchedule([this] { responseThread(); });
 #endif
@@ -204,7 +205,7 @@ void SvsKeeperDispatcher::shutdown()
             server->shutdown();
 
         SvsKeeperStorage::RequestForSession request_for_session;
-        while (requests_queue.tryPop(request_for_session))
+        while (requests_queue->tryPopAny(request_for_session))
         {
             auto response = request_for_session.request->makeResponse();
             response->error = Coordination::Error::ZSESSIONEXPIRED;
@@ -250,7 +251,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     request_info.session_id = dead_session;
                     {
                         std::lock_guard lock(push_request_mutex);
-                        if (!requests_queue.push(std::move(request_info)))
+                        if (!requests_queue->push(std::move(request_info)))
                             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
                     finishSession(dead_session);
@@ -391,7 +392,7 @@ Keeper4LWInfo SvsKeeperDispatcher::getKeeper4LWInfo()
     result.has_leader = hasLeader();
     {
         std::lock_guard lock(push_request_mutex);
-        result.outstanding_requests_count = requests_queue.size();
+        result.outstanding_requests_count = requests_queue->size();
     }
     {
         std::lock_guard lock(session_to_response_callback_mutex);
