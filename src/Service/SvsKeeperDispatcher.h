@@ -31,11 +31,69 @@ using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeep
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 class SvsKeeperDispatcher
 {
-private:
-    std::mutex push_request_mutex;
 
-    using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
-    RequestsQueue requests_queue{20000};
+private:
+    struct RequestsQueue
+    {
+        using Queue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
+        std::vector<ptr<Queue>> queues;
+
+        explicit RequestsQueue(size_t child_queue_size, size_t capacity = 20000)
+        {
+            assert(child_queue_size > 0);
+            assert(capacity > 0);
+
+            queues.resize(child_queue_size);
+            for (size_t i=0; i< child_queue_size; i++)
+            {
+                queues[i] = std::make_shared<Queue>(std::max(1ul, capacity / child_queue_size));
+            }
+        }
+
+        bool push(const SvsKeeperStorage::RequestForSession & request)
+        {
+            return queues[request.session_id % queues.size()]->push(std::forward<const SvsKeeperStorage::RequestForSession>(request));
+        }
+
+        bool tryPush(const SvsKeeperStorage::RequestForSession & request, UInt64 wait_ms = 0)
+        {
+            return queues[request.session_id % queues.size()]->tryPush(
+                std::forward<const SvsKeeperStorage::RequestForSession>(request), wait_ms);
+        }
+
+        bool pop(size_t queue_id, SvsKeeperStorage::RequestForSession & request)
+        {
+            assert(queue_id != 0 && queue_id <= queues.size());
+            return queues[queue_id]->pop(request);
+        }
+
+        bool tryPop(size_t queue_id, SvsKeeperStorage::RequestForSession & request, UInt64 wait_ms = 0)
+        {
+            assert(queue_id != 0 && queue_id <= queues.size());
+            return queues[queue_id]->tryPop(request, wait_ms);
+        }
+
+        bool tryPopAny(SvsKeeperStorage::RequestForSession & request, UInt64 wait_ms = 0)
+        {
+            for (const auto & queue : queues)
+            {
+                if (queue->tryPop(request, wait_ms))
+                    return true;
+            }
+            return false;
+        }
+
+        size_t size() const
+        {
+            size_t size{};
+            for (const auto & queue : queues)
+                size += queue->size();
+            return size;
+        }
+    };
+
+    std::mutex push_request_mutex;
+    ptr<RequestsQueue> requests_queue;
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
 //    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
@@ -72,7 +130,7 @@ private:
 
 
 private:
-    void requestThread();
+    void requestThread(const int thread_index);
     void responseThread();
     void sessionCleanerTask();
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);

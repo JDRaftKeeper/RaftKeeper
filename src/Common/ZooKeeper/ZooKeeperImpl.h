@@ -197,6 +197,8 @@ private:
     int64_t session_id = 0;
 
     std::atomic<XID> next_xid {1};
+    /// last received response xid
+    std::atomic<XID> last_received_xid {0};
     std::atomic<bool> expired {false};
     /// Mark session finalization start. Used to avoid simultaneous
     /// finalization from different threads. One-shot flag.
