@@ -745,6 +745,13 @@ void ZooKeeper::receiveEvent()
     }
     else
     {
+        if (xid != last_received_xid + 1)
+            throw Exception(
+                "Xid out of order, received " + DB::toString(xid) + ", expected " + DB::toString(last_received_xid + 1),
+                Error::ZCONNECTIONLOSS);
+
+        last_received_xid++;
+
         {
             std::lock_guard lock(operations_mutex);
 
