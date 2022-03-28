@@ -392,8 +392,7 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSes
     /// TODO unify digital encoding mode, see parseRequest
     writeIntBinary(session_request.session_id, out);
     session_request.request->write(out);
-    Coordination::write(time, out);
-
+    Coordination::write(session_request.time, out);
     return out.getBuffer();
 }
 
