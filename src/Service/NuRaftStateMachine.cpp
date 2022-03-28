@@ -462,7 +462,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             log_idx,
             request_for_session.session_id,
             request_for_session.request->xid);
-        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
+        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.time, {}, true, ignore_response);
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
         return nullptr;
