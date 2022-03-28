@@ -282,11 +282,12 @@ namespace
 {
 #ifdef TEST_TCPHANDLER
 #else
-    nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, const Coordination::ZooKeeperRequestPtr & request)
+    nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request)
     {
         DB::WriteBufferFromNuraftBuffer buf;
         DB::writeIntBinary(session_id, buf);
         request->write(buf);
+        DB::writeIntBinary(time, buf);
         return buf.getBuffer();
     }
 #endif
@@ -294,7 +295,7 @@ namespace
 
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    auto [session_id, request] = request_for_session;
+    auto [session_id, request, time] = request_for_session;
 #ifdef TEST_TCPHANDLER
     if (Coordination::ZooKeeperCreateRequest * zk_request = dynamic_cast<Coordination::ZooKeeperCreateRequest *>(request.get()))
     {
@@ -314,7 +315,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
     else
     {
         std::vector<ptr<buffer>> entries;
-        entries.push_back(getZooKeeperLogEntry(session_id, request));
+        entries.push_back(getZooKeeperLogEntry(session_id, time, request));
 
         LOG_TRACE(
             log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());

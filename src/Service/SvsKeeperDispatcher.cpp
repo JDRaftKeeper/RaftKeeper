@@ -99,6 +99,8 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     SvsKeeperStorage::RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
+    using namespace std::chrono;
+    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
 
@@ -257,6 +259,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     SvsKeeperStorage::RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;
+                    using namespace std::chrono;
+                    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
                         std::lock_guard lock(push_request_mutex);
                         if (!requests_queue.push(std::move(request_info)))
