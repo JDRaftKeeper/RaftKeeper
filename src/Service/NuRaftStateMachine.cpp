@@ -239,7 +239,7 @@ NuRaftStateMachine::NuRaftStateMachine(
             }
             for (auto & request : *(batch.request_vec))
             {
-                storage.processRequest(responses_queue, request->request, request->session_id, {}, true, true);
+                storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
                 if (request->session_id > storage.session_id_counter)
                 {
                     LOG_WARNING(
