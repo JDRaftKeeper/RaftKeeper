@@ -532,7 +532,7 @@ bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * 
                 return true;
 
             SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-            storage.processRequest(responses_queue ,request, session_id, zxid, /* check_acl = */ false, /*ignore_response*/true);
+            storage.processRequest(responses_queue ,request, session_id, time, zxid, /* check_acl = */ false, /*ignore_response*/true);
         }
     }
 
