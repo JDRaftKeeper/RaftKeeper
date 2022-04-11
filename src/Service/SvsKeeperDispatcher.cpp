@@ -11,6 +11,7 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int TIMEOUT_EXCEEDED;
     extern const int SYSTEM_ERROR;
+    extern const int RAFT_ERROR;
 }
 
 namespace fs = std::filesystem;
@@ -20,29 +21,202 @@ SvsKeeperDispatcher::SvsKeeperDispatcher()
 {
 }
 
-void SvsKeeperDispatcher::requestThread(int thread_index)
+void SvsKeeperDispatcher::requestThread(size_t thread_index)
 {
-    setThreadName(("SerKeeperReqT - " + std::to_string(thread_index)).c_str());
+    setThreadName(("SerK - " + std::to_string(thread_index)).c_str());
+
+    /// Result of requests batch from previous iteration
+    nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
+    /// Requests from previous iteration. We store them to be able
+    /// to send errors to the client.
+    SvsKeeperStorage::RequestsForSessions prev_batch;
+
     while (!shutdown_called)
     {
-        SvsKeeperStorage::RequestForSession request;
+        SvsKeeperStorage::RequestForSession request_for_session;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
 
-        if (requests_queue->tryPop(thread_index, request, max_wait))
+        if (requests_queue->tryPop(thread_index, request_for_session, max_wait))
         {
+//            LOG_TRACE(log, "1 requests_queue tryPop session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
+
             if (shutdown_called)
                 break;
 
             try
             {
-                server->putRequest(request);
+                std::vector<SvsKeeperStorage::RequestForSession> request_batch;
+                bool has_read_request = request_for_session.request->isReadRequest();
+
+                if (!has_read_request)
+                {
+                    request_batch.emplace_back(request_for_session);
+
+                    /// async handle client request. Until prev_batch last request has notified.
+                    while (canAccumulateBatch(prev_result, prev_batch, request_batch.size()))
+                    {
+                        if (requests_queue->tryPop(thread_index, request_for_session, 1))
+                        {
+//                            LOG_TRACE(log, "2 requests_queue tryPop session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
+
+                            if (request_for_session.request->isReadRequest())
+                            {
+//                                LOG_TRACE(log, "tryPop batch read request succ");
+                                has_read_request = true;
+                                break;
+                            }
+                            else
+                            {
+                                request_batch.emplace_back(request_for_session);
+//                                LOG_TRACE(log, "tryPop batch write request succ, request_batch size {}", request_batch.size());
+                            }
+                        }
+
+                        if (shutdown_called)
+                            break;
+                    }
+                }
+
+                if (prev_result)
+                    waitResultAndHandleError(prev_result, prev_batch);
+
+                /// The first request in this loop is a read request. Wait prev write request
+                if (request_batch.empty() && has_read_request && !prev_batch.empty())
+                {
+                    requests_commit_event.waitForCommit(prev_batch.back().session_id, prev_batch.back().request->xid);
+                }
+
+                prev_result.reset();
+                prev_batch.clear();
+
+                if (shutdown_called)
+                    return;
+
+                /// 1. First process the batch request
+                if (!request_batch.empty())
+                {
+                    auto result = server->putRequestBatch(request_batch);
+
+                    prev_batch = request_batch;
+                    prev_result = result;
+
+                    request_batch.clear();
+                }
+
+                /// 2. Second, process the current request
+                if (has_read_request)
+                {
+
+                    /// wait prev write request
+                    if (prev_result)
+                        waitResultAndHandleError(prev_result, prev_batch);
+
+                    if (!prev_batch.empty())
+                    {
+                        requests_commit_event.waitForCommit(prev_batch.back().session_id, prev_batch.back().request->xid);
+//                        LOG_TRACE(log, "waitForCommit succ {}, {}", prev_batch.back().session_id, prev_batch.back().request->xid);
+                    }
+
+                    prev_result.reset();
+                    prev_batch.clear();
+
+//                    LOG_TRACE(log, "processReadRequest {}, {}", request_for_session.session_id, request_for_session.request->xid);
+                    server->processReadRequest(request_for_session);
+//                    LOG_TRACE(log, "processReadRequest succ {}, {}", request_for_session.session_id, request_for_session.request->xid);
+                }
             }
             catch (...)
             {
+                prev_result.reset();
+                prev_batch.clear();
                 tryLogCurrentException(__PRETTY_FUNCTION__);
             }
         }
+    }
+}
+
+
+/// The accumulate batch can only be saved when the result of the previous request is not received or is not committed.
+bool SvsKeeperDispatcher::canAccumulateBatch(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch, size_t request_batch_size)
+{
+    /// reach max batch size
+    if (request_batch_size >= 100)
+    {
+//        LOG_TRACE(log, "111");
+        return false;
+    }
+
+
+    /// not have prev_result, mabey first request or after read request
+    if (!prev_result)
+    {
+//        LOG_TRACE(log, "222");
+        return false;
+    }
+
+//    LOG_TRACE(log, "prev_result->has_result {}, prev_result->get_result_code {}", prev_result->has_result(), prev_result->get_result_code());
+    /// prev_result not have result return
+    if (!prev_result->has_result() && prev_result->get_result_code() == nuraft::cmd_result_code::RESULT_NOT_EXIST_YET)
+    {
+//        LOG_TRACE(log, "333");
+        return true;
+    }
+
+    /// prev_result have result return, but last request not commit
+    if (prev_result->has_result() && prev_result->get_result_code() == nuraft::cmd_result_code::OK)
+    {
+//        LOG_TRACE(log, "444");
+        if (!prev_batch.empty() && !requests_commit_event.hasNotified(prev_batch.back().session_id, prev_batch.back().request->xid))
+        {
+//            LOG_TRACE(log, "555");
+            return true;
+        }
+    }
+//    LOG_TRACE(log, "666");
+    /// prev_result has error result
+    return false;
+}
+
+bool SvsKeeperDispatcher::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch)
+{
+    /// Forcefully process all previous pending requests
+
+    if (!prev_result->has_result())
+        prev_result->get();
+
+    bool result_accepted = prev_result->get_accepted();
+
+    if (result_accepted && prev_result->get_result_code() == nuraft::cmd_result_code::OK)
+    {
+        return true;
+    }
+    else
+    {
+
+        for (auto & request_session : prev_batch)
+        {
+            requests_commit_event.erase(request_session.session_id, request_session.request->xid);
+
+            auto response = request_session.request->makeResponse();
+
+            response->xid = request_session.request->xid;
+            response->zxid = 0;
+
+            response->error = prev_result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                 : Coordination::Error::ZCONNECTIONLOSS;
+
+            responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_session.session_id, response});
+        }
+
+        if (!result_accepted)
+            throw Exception(ErrorCodes::RAFT_ERROR,
+                            "Request batch is not accepted.");
+        else
+            throw Exception(ErrorCodes::RAFT_ERROR,
+                            "Request batch error, nuraft code {} and message: '{}'",
+                            prev_result->get_result_code(),
+                            prev_result->get_result_str());
     }
 }
 
@@ -117,7 +291,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     LOG_DEBUG(log, "Initializing storage dispatcher");
     configuration_and_settings = KeeperConfigurationAndSettings::loadFromConfig(config, true);
 
-    server = std::make_unique<SvsKeeperServer>(configuration_and_settings, config, responses_queue);
+    server = std::make_unique<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event);
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
@@ -150,7 +324,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 #else
     request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
-    for (int i = 0; i < thread_count; i++)
+    for (int32_t i = 0; i < thread_count; i++)
     {
         request_thread->trySchedule([this, i] { requestThread(i); });
     }
@@ -194,6 +368,9 @@ void SvsKeeperDispatcher::shutdown()
 
             response_threads.clear();
 #else
+
+            requests_commit_event.notifiyAll();
+
             if (request_thread)
                 request_thread->wait();
             if (responses_thread)
