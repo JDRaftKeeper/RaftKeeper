@@ -30,6 +30,10 @@ public class ZooTask implements Runnable {
         this.id = id;
     }
 
+    public void setZooKeeperClient(ZooKeeper zookeeper){
+        this.zoo = zookeeper;
+    }
+
     public static ZooKeeper createClient() throws IOException {
         // init zookeeper client
         return new ZooKeeper(Main.client, 30000, null);
@@ -77,7 +81,7 @@ public class ZooTask implements Runnable {
 
     public void run() {//运行
         try {
-            zoo = createClient();
+//             zoo = createClient();
 
 
             // create root dir

@@ -7,6 +7,7 @@
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
 #include <libnuraft/nuraft.hxx>
+#include <Service/RequestsCommitEvent.h>
 
 namespace DB
 {
@@ -38,6 +39,8 @@ private:
 
     SvsKeeperResponsesQueue & responses_queue;
 
+    RequestsCommitEvent & requests_commit_event;
+
     Poco::Logger * log;
 
     std::mutex initialized_mutex;
@@ -53,7 +56,8 @@ public:
     SvsKeeperServer(
         const KeeperConfigurationAndSettingsPtr & coordination_settings_,
         const Poco::Util::AbstractConfiguration & config_,
-        SvsKeeperResponsesQueue & responses_queue_);
+        SvsKeeperResponsesQueue & responses_queue_,
+        RequestsCommitEvent & requests_commit_event_);
 
     void startup();
 
@@ -64,6 +68,10 @@ public:
     void removeServer(const std::string & endpoint);
 
     void putRequest(const SvsKeeperStorage::RequestForSession & request);
+
+    ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<SvsKeeperStorage::RequestForSession> & request_batch);
+
+    void processReadRequest(const SvsKeeperStorage::RequestForSession & request);
 
     int64_t getSessionID(int64_t session_timeout_ms);
     /// update session timeout

@@ -54,12 +54,14 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 snap_end_second,
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
+    RequestsCommitEvent & requests_commit_event_,
     ptr<log_store> logstore,
     std::string superdigest,
     UInt32 object_node_size)
     : coordination_settings(coordination_settings_)
     , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
+    , requests_commit_event(requests_commit_event_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
 
@@ -400,10 +402,10 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data, bool ignore_response)
 {
     //2^19 = 524,288
-    if (log_idx << 45 == 0)
-    {
+//    if (log_idx << 45 == 0)
+//    {
         LOG_TRACE(log, "Begin commit log index {}", log_idx);
-    }
+//    }
 
     if (isNewSessionRequest(data))
     {
@@ -452,6 +454,14 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
+
+        LOG_TRACE(
+            log, "wait commit set SessionID/xid #{}#{}", request_for_session.session_id, request_for_session.request->xid);
+
+        requests_commit_event.notifiy(request_for_session.session_id, request_for_session.request->xid);
+
+        LOG_TRACE(
+            log, "wait commit set done SessionID/xid #{}#{}", request_for_session.session_id, request_for_session.request->xid);
         return nullptr;
     }
 }

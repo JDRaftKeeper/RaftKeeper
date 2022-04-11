@@ -19,6 +19,7 @@
 #include <Service/KeeperConnectionStats.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/SvsKeeperSettings.h>
+#include <Service/RequestsCommitEvent.h>
 
 
 namespace DB
@@ -69,7 +70,7 @@ private:
 
         bool tryPop(size_t queue_id, SvsKeeperStorage::RequestForSession & request, UInt64 wait_ms = 0)
         {
-            assert(queue_id != 0 && queue_id <= queues.size());
+            assert(queue_id < queues.size());
             return queues[queue_id]->tryPop(request, wait_ms);
         }
 
@@ -126,11 +127,13 @@ private:
 
     KeeperConfigurationAndSettingsPtr configuration_and_settings;
 
+    RequestsCommitEvent requests_commit_event;
+
     Poco::Logger * log;
 
 
 private:
-    void requestThread(const int thread_index);
+    void requestThread(size_t thread_index);
     void responseThread();
     void sessionCleanerTask();
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
@@ -164,6 +167,10 @@ public:
 
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
+
+    bool canAccumulateBatch(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch, size_t request_batch_size);
+
+    bool waitResultAndHandleError(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch);
 
     /// Are we leader
     bool isLeader() const

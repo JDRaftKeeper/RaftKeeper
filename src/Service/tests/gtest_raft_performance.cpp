@@ -10,6 +10,7 @@
 #include <Poco/File.h>
 #include <Poco/Util/LayeredConfiguration.h>
 #include <common/argsToConfig.h>
+#include <Service/RequestsCommitEvent.h>
 
 using namespace nuraft;
 using namespace DB;
@@ -152,7 +153,8 @@ TEST(RaftPerformance, machineCreateThread)
     cleanDirectory(snap_dir);
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
+    RequestsCommitEvent wait_commits;
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits);
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
