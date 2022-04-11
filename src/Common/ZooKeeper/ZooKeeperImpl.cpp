@@ -747,7 +747,7 @@ void ZooKeeper::receiveEvent()
     {
         if (xid != last_received_xid + 1)
             throw Exception(
-                "Xid out of order, received " + DB::toString(xid) + ", expected " + DB::toString(last_received_xid + 1),
+                "SessionId " + DB::toString(session_id) + ", Xid out of order, received " + DB::toString(xid) + ", expected " + DB::toString(last_received_xid + 1),
                 Error::ZCONNECTIONLOSS);
 
         last_received_xid++;

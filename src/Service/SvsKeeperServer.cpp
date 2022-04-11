@@ -44,11 +44,13 @@ std::string checkAndGetSuperdigest(const String & user_and_digest)
 SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config_,
-    SvsKeeperResponsesQueue & responses_queue_)
+    SvsKeeperResponsesQueue & responses_queue_,
+    RequestsCommitEvent & requests_commit_event_)
     : server_id(coordination_settings_->server_id)
     , coordination_and_settings(coordination_settings_)
     , config(config_)
     , responses_queue(responses_queue_)
+    , requests_commit_event(requests_commit_event_)
     , log(&(Poco::Logger::get("RaftKeeperServer")))
 {
 
@@ -68,6 +70,7 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_and_settings->snapshot_end_time,
         coordination_and_settings->snapshot_create_interval,
         coordination_and_settings->coordination_settings->max_stored_snapshots,
+        requests_commit_event,
         state_manager->load_log_store(),
         checkAndGetSuperdigest(coordination_and_settings->super_digest));
 }
@@ -91,8 +94,8 @@ void SvsKeeperServer::startup()
     params.client_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
     params.auto_forwarding_ = coordination_settings->auto_forwarding;
     params.auto_forwarding_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
-
-    params.return_method_ = nuraft::raft_params::blocking;
+    params.auto_forwarding_max_connections_ = coordination_and_settings->thread_count;
+    params.return_method_ = nuraft::raft_params::async_handler;
 
     nuraft::asio_service::options asio_opts{};
     asio_opts.thread_pool_size_ = coordination_settings->nuraft_thread_size;
@@ -311,8 +314,11 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
     }
     else
     {
+
         std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, request));
+
+        requests_commit_event.addRequest(session_id, request->xid);
 
         LOG_TRACE(
             log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
@@ -323,12 +329,22 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
             result = raft_instance->append_entries(entries);
         }
 
+        if (!result->has_result())
+            result->get();
+
         if (result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
         {
-            /// response pushed into queue by state machine
+            /// wait commit
+            LOG_TRACE(
+                log, "wait commit SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
+
+            requests_commit_event.waitForCommit(session_id, request->xid);
+            LOG_TRACE(
+                log, "wait commit done SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
             return;
         }
 
+        requests_commit_event.erase(session_id, request->xid);
         auto response = request->makeResponse();
 
         response->xid = request->xid;
@@ -354,6 +370,31 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 #endif
 }
 
+ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std::vector<SvsKeeperStorage::RequestForSession> & request_batch)
+{
+    LOG_TRACE(log, "process the batch requests {}", request_batch.size());
+    std::vector<ptr<buffer>> entries;
+    for (auto & request_session : request_batch)
+    {
+//        LOG_TRACE(log, "push request to entries session_id {}, request xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
+        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.request));
+
+        requests_commit_event.addRequest(request_session.session_id, request_session.request->xid);
+    }
+    /// append_entries write reuqest
+    ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
+    return result;
+}
+
+void SvsKeeperServer::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
+{
+    auto [session_id, request] = request_for_session;
+    if (isLeaderAlive() && request->isReadRequest())
+    {
+        state_machine->processReadRequest(request_for_session);
+    }
+}
+
 int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 {
     auto entry = buffer::alloc(sizeof(int64_t));
@@ -364,6 +405,9 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
     std::lock_guard lock(append_entries_mutex);
 
     auto result = raft_instance->append_entries({entry});
+
+    if (!result->has_result())
+        result->get();
 
     if (!result->get_accepted())
         throw Exception(ErrorCodes::RAFT_ERROR, "Cannot send session_id request to RAFT, reason {}", result->get_result_str());
@@ -392,6 +436,9 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
     bs.put_i64(session_timeout_ms);
 
     auto result = raft_instance->append_entries({entry});
+
+    if (!result->has_result())
+        result->get();
 
     if (!result->get_accepted())
         throw Exception(ErrorCodes::RAFT_ERROR, "Cannot update session timeout, reason {}", result->get_result_str());

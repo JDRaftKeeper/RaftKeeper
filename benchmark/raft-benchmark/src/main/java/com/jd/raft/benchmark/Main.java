@@ -14,6 +14,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
+import org.apache.zookeeper.ZooKeeper;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Created by wujianchao on 2021/3/1.
@@ -226,10 +229,21 @@ public class Main {
 //         System.out.println("start running!!!!!!!!!!!!!!");
         runStartTime = System.nanoTime();
         Thread[] threadVec=new Thread[threads];
+        int clientNum = threads/10; // 10个客户端用一个client
+
+        List<ZooKeeper> clients = new ArrayList<ZooKeeper>();
+        for (int i = 0; i < clientNum; i++)
+        {
+            clients.add(ZooTask.createClient());
+        }
+
+
         if(target.equals("zookeeper") | target.equals("raft")){//如果等于zk和raft
 
             for (int i = 0; i < threads; i++) {
-                threadVec[i] = new Thread(new ZooTask(latch, i), "worker-" + i);
+                ZooTask zootask = new ZooTask(latch, i);
+                zootask.setZooKeeperClient(clients.get(i % clientNum));
+                threadVec[i] = new Thread(zootask, "worker-" + i);
                 threadVec[i].start();
             }
         } else if(target.equals("etcd")){
