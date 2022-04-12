@@ -95,7 +95,7 @@ def test_snapshot_and_load(started_cluster):
     restart_and_clear_zookeeper(node1)
     genuine_connection = get_genuine_zk(node1)
     for node in [node1, node2, node3]:
-        print("Stop and clear", node.name, "with dockerid", node.docker_id)
+        print("Stopping and clearing", node.name, "with dockerid", node.docker_id)
         stop_clickhouse(node)
         clear_clickhouse_data(node)
 
