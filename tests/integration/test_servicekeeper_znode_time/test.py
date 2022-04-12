@@ -78,7 +78,7 @@ def assert_eq_stats(stat1, stat2):
 
 def test_between_servers(started_cluster):
     try:
-        wait_nodes()
+        wait_nodes(started_cluster, node1, node2, node3)
         node1_zk = get_fake_zk("node1")
         node2_zk = get_fake_zk("node2")
         node3_zk = get_fake_zk("node3")
@@ -108,7 +108,7 @@ def test_between_servers(started_cluster):
 
 def test_server_restart(started_cluster):
     try:
-        wait_nodes()
+        wait_nodes(started_cluster, node1, node2, node3)
         node1_zk = get_fake_zk("node1")
 
         node1_zk.create("/test_server_restart")
