@@ -79,9 +79,9 @@ def assert_eq_stats(stat1, stat2):
 def test_between_servers(started_cluster):
     try:
         wait_nodes(started_cluster, node1, node2, node3)
-        node1_zk = get_fake_zk("node1")
-        node2_zk = get_fake_zk("node2")
-        node3_zk = get_fake_zk("node3")
+        node1_zk = get_fake_zk(started_cluster, "node1")
+        node2_zk = get_fake_zk(started_cluster, "node2")
+        node3_zk = get_fake_zk(started_cluster, "node3")
 
         node1_zk.create("/test_between_servers")
         for child_node in range(1000):
@@ -109,7 +109,7 @@ def test_between_servers(started_cluster):
 def test_server_restart(started_cluster):
     try:
         wait_nodes(started_cluster, node1, node2, node3)
-        node1_zk = get_fake_zk("node1")
+        node1_zk = get_fake_zk(started_cluster, "node1")
 
         node1_zk.create("/test_server_restart")
         for child_node in range(1000):
@@ -120,8 +120,8 @@ def test_server_restart(started_cluster):
 
         node3.restart_clickhouse(kill=True)
 
-        node2_zk = get_fake_zk("node2")
-        node3_zk = get_fake_zk("node3")
+        node2_zk = get_fake_zk(started_cluster, "node2")
+        node3_zk = get_fake_zk(started_cluster, "node3")
         for child_node in range(1000):
             stats1 = node1_zk.exists("/test_between_servers/" + str(child_node))
             stats2 = node2_zk.exists("/test_between_servers/" + str(child_node))
