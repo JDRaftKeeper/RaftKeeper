@@ -79,16 +79,11 @@ void SvsKeeperDispatcher::requestThread(size_t thread_index)
                 }
 
                 if (prev_result)
-                    waitResultAndHandleError(prev_result, prev_batch);
-
-                /// The first request in this loop is a read request. Wait prev write request
-                if (request_batch.empty() && has_read_request && !prev_batch.empty())
                 {
-                    requests_commit_event.waitForCommit(prev_batch.back().session_id, prev_batch.back().request->xid);
+                    waitResultAndHandleError(prev_result, prev_batch);
+                    prev_result.reset();
+                    prev_batch.clear();
                 }
-
-                prev_result.reset();
-                prev_batch.clear();
 
                 if (shutdown_called)
                     return;
@@ -107,19 +102,15 @@ void SvsKeeperDispatcher::requestThread(size_t thread_index)
                 /// 2. Second, process the current request
                 if (has_read_request)
                 {
-
-                    /// wait prev write request
+                    /// wait prev write request result
                     if (prev_result)
-                        waitResultAndHandleError(prev_result, prev_batch);
-
-                    if (!prev_batch.empty())
                     {
-                        requests_commit_event.waitForCommit(prev_batch.back().session_id, prev_batch.back().request->xid);
-//                        LOG_TRACE(log, "waitForCommit succ {}, {}", prev_batch.back().session_id, prev_batch.back().request->xid);
+                        waitResultAndHandleError(prev_result, prev_batch);
+                        prev_result.reset();
+                        prev_batch.clear();
                     }
 
-                    prev_result.reset();
-                    prev_batch.clear();
+                    requests_commit_event.waitForCommit(request_for_session.session_id);
 
 //                    LOG_TRACE(log, "processReadRequest {}, {}", request_for_session.session_id, request_for_session.request->xid);
                     server->processReadRequest(request_for_session);
