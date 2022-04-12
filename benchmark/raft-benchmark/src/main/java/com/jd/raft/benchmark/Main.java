@@ -229,7 +229,7 @@ public class Main {
 //         System.out.println("start running!!!!!!!!!!!!!!");
         runStartTime = System.nanoTime();
         Thread[] threadVec=new Thread[threads];
-        int clientNum = threads/10; // 10个客户端用一个client
+        int clientNum = threads/10; // 10个线程用一个client
 
         List<ZooKeeper> clients = new ArrayList<ZooKeeper>();
         for (int i = 0; i < clientNum; i++)
