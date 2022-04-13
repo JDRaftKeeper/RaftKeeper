@@ -268,12 +268,14 @@ void SvsKeeperServer::removeServer(const std::string & endpoint)
 
 void SvsKeeperServer::shutdown()
 {
+    LOG_INFO(log, "Shutting down keeper server.");
     state_machine->shutdown();
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
     //    state_manager->flushLogStore();
     if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
+    LOG_INFO(log, "Shut down keeper server done!");
 }
 
 namespace
@@ -568,6 +570,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
         LOG_INFO(log, "Will try to wait server with id {} to be added", task.server->get_id());
         for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
+            if (call)
             if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
             {
                 LOG_INFO(log, "Server with id {} was successfully added by leader", task.server->get_id());
@@ -580,6 +583,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
                 return false;
             }
 
+            LOG_DEBUG(log, "Wait for action AddServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         return false;
@@ -602,6 +606,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
                 return false;
             }
 
+            LOG_DEBUG(log, "Wait for action RemoveServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         return false;
