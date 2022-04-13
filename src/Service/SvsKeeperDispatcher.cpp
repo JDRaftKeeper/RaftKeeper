@@ -198,11 +198,11 @@ void SvsKeeperDispatcher::shutdown()
 
             response_threads.clear();
 #else
-            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
+            LOG_DEBUG(log, "Shutting down request_thread");
             if (request_thread)
                 request_thread->wait();
 
-            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
+            LOG_DEBUG(log, "Shutting down responses_thread");
             if (responses_thread)
                 responses_thread->wait();
 #endif
