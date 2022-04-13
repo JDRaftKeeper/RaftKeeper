@@ -1009,6 +1009,8 @@ void ZooKeeper::pushRequest(RequestInfo && info)
 {
     try
     {
+        std::lock_guard lock(push_request_mutex);
+
         info.time = clock::now();
 
         if (!info.request->xid)
@@ -1024,7 +1026,7 @@ void ZooKeeper::pushRequest(RequestInfo && info)
         ///  to avoid forgotten operations in the queue when session is expired.
         /// Invariant: when expired, no new operations will be pushed to the queue in 'pushRequest'
         ///  and the queue will be drained in 'finalize'.
-        std::lock_guard lock(push_request_mutex);
+
 
         if (expired)
             throw Exception("Session expired", Error::ZSESSIONEXPIRED);
