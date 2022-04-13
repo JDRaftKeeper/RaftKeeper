@@ -570,7 +570,6 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
         LOG_INFO(log, "Will try to wait server with id {} to be added", task.server->get_id());
         for (size_t i = 0; i < coordination_and_settings->coordination_settings->configuration_change_tries_count; ++i)
         {
-            if (call)
             if (raft_instance->get_srv_config(task.server->get_id()) != nullptr)
             {
                 LOG_INFO(log, "Server with id {} was successfully added by leader", task.server->get_id());
