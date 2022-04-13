@@ -289,14 +289,13 @@ void SvsKeeperDispatcher::updateConfigurationThread()
             if (!server->checkInit())
             {
                 LOG_INFO(log, "Server still not initialized, will not apply configuration until initialization finished");
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 continue;
             }
 
             ConfigUpdateAction action;
-            if (!update_configuration_queue.pop(action))
-                break;
-
+            if (!update_configuration_queue.tryPop(action, 1000))
+                continue;
 
             /// We must wait this update from leader or apply it ourself (if we are leader)
             bool done = false;
