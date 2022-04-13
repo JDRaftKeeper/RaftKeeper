@@ -509,6 +509,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             if (!result->get_accepted())
                 LOG_INFO(log, "Command to add server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
 
+            LOG_DEBUG(log, "Wait for apply action AddServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!added)
@@ -548,6 +549,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             if (!result->get_accepted())
                 LOG_INFO(log, "Command to remove server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
 
+            LOG_DEBUG(log, "Wait for apply action RemoveServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!removed)
