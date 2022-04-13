@@ -28,6 +28,7 @@ void SvsKeeperDispatcher::requestThread()
         SvsKeeperStorage::RequestForSession request;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+        max_wait = std::max(max_wait, 1000llu);
 
         if (requests_queue.tryPop(request, max_wait))
         {
@@ -54,6 +55,7 @@ void SvsKeeperDispatcher::responseThread()
         SvsKeeperStorage::ResponseForSession response_for_session;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+        max_wait = std::max(max_wait, 1000llu);
 
         if (responses_queue.tryPop(response_for_session, max_wait))
         {
@@ -176,9 +178,11 @@ void SvsKeeperDispatcher::shutdown()
             LOG_DEBUG(log, "Shutting down storage dispatcher");
             shutdown_called = true;
 
+            LOG_DEBUG(log, "Shutting down update_configuration_thread");
             if (update_configuration_thread.joinable())
                 update_configuration_thread.join();
 
+            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
             if (session_cleaner_thread.joinable())
                 session_cleaner_thread.join();
 
@@ -193,8 +197,11 @@ void SvsKeeperDispatcher::shutdown()
 
             response_threads.clear();
 #else
+            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
             if (request_thread)
                 request_thread->wait();
+
+            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
             if (responses_thread)
                 responses_thread->wait();
 #endif
@@ -203,6 +210,7 @@ void SvsKeeperDispatcher::shutdown()
         if (server)
             server->shutdown();
 
+        LOG_DEBUG(log, "Cleaning response");
         SvsKeeperStorage::RequestForSession request_for_session;
         while (requests_queue.tryPop(request_for_session))
         {

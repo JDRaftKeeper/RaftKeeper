@@ -537,11 +537,12 @@ void NuRaftStateMachine::shutdown()
         return;
 
     shutdown_called = true;
-    LOG_INFO(log, "State machine shut down");
+    LOG_INFO(log, "State machine shutting down");
 
     storage.finalize();
     task_manager->shutDown();
     snap_thread.join();
+    LOG_INFO(log, "State machine shut down done!");
 }
 
 bool compareTime(const std::string & s1, const std::string & s2)

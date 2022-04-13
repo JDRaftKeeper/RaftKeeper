@@ -1103,15 +1103,19 @@ class ClickHouseInstance:
 
             start_time = time.time()
             stopped = False
+            print("xxx start to wait", start_time)
             while time.time() <= start_time + stop_wait_sec:
                 pid = self.get_process_pid("clickhouse")
+                print("xxx pid", pid)
                 if pid is None:
                     stopped = True
                     break
                 else:
                     time.sleep(1)
 
+            print("xxx end to wait", start_time)
             if not stopped:
+                print(self.name, "stop failed")
                 pid = self.get_process_pid("clickhouse")
                 if pid is not None:
                     logging.warning(f"Force kill clickhouse in stop_clickhouse. ps:{pid}")
@@ -1121,6 +1125,8 @@ class ClickHouseInstance:
                     ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
                     logging.warning(f"We want force stop clickhouse, but no clickhouse-server is running\n{ps_all}")
                     return
+            else:
+                print(self.name, "stopped")
         except Exception as e:
             logging.warning(f"Stop ClickHouse raised an error {e}")
 
