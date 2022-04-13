@@ -28,7 +28,8 @@ void SvsKeeperDispatcher::requestThread()
         SvsKeeperStorage::RequestForSession request;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-        max_wait = std::max(max_wait, 1000llu);
+        /// TO prevent long time stopping
+        max_wait = std::max(max_wait, static_cast<UInt64>(1000));
 
         if (requests_queue.tryPop(request, max_wait))
         {
@@ -55,7 +56,7 @@ void SvsKeeperDispatcher::responseThread()
         SvsKeeperStorage::ResponseForSession response_for_session;
 
         UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-        max_wait = std::max(max_wait, 1000llu);
+        max_wait = std::max(max_wait, static_cast<UInt64>(1000));
 
         if (responses_queue.tryPop(response_for_session, max_wait))
         {
