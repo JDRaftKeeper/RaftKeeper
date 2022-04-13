@@ -228,6 +228,8 @@ public:
         std::lock_guard lock(keeper_stats_mutex);
         keeper_stats.reset();
     }
+    void requestThreadAtomicConsistency(size_t thread_index);
+    void requestThreadFakeZooKeeper(size_t thread_index);
 };
 
 }
