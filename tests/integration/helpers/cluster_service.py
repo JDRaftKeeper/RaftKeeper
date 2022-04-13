@@ -1103,23 +1103,20 @@ class ClickHouseInstance:
 
             start_time = time.time()
             stopped = False
-            print("xxx start to wait", start_time)
             while time.time() <= start_time + stop_wait_sec:
                 pid = self.get_process_pid("clickhouse")
-                print("xxx pid", pid)
                 if pid is None:
                     stopped = True
                     break
                 else:
                     time.sleep(1)
 
-            print("xxx end to wait", start_time)
             if not stopped:
                 print(self.name, "stop failed")
                 pid = self.get_process_pid("clickhouse")
                 if pid is not None:
                     logging.warning(f"Force kill clickhouse in stop_clickhouse. ps:{pid}")
-                    self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
+                    # self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
                     self.stop_clickhouse(kill=True)
                 else:
                     ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
@@ -1219,6 +1216,7 @@ class ClickHouseInstance:
         output = self.exec_in_container(["bash", "-c",
                                          "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | awk '{{print $1}}'".format(
                                              process_name)])
+
         if output:
             try:
                 pid = int(output.split('\n')[0].strip())
