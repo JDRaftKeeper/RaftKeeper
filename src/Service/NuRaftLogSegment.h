@@ -78,7 +78,7 @@ public:
 
     LogVersion getVersion() const { return version; }
 
-    inline int flush() const;
+    inline UInt64 flush() const;
 
     // serialize entry, and append to open segment,return new start index
     UInt64 appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index);
@@ -179,7 +179,7 @@ public:
     // init logstorage, check consistency and integrity
     int init(UInt32 max_log_size = MAX_LOG_SIZE, UInt32 max_segment_count = MAX_SEGMENT_COUNT);
     int close();
-    int flush();
+    UInt64 flush();
 
     // first log index in log
     UInt64 firstLogIndex() { return first_log_index.load(std::memory_order_acquire); }
