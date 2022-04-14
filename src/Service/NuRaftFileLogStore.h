@@ -6,6 +6,7 @@
 #include <Service/NuRaftLogSegment.h>
 #include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
+#include <Common/ThreadPool.h>
 
 namespace DB
 {
@@ -41,8 +42,8 @@ class NuRaftFileLogStore : public nuraft::log_store
     __nocopy__(NuRaftFileLogStore)
 
 public :
-    NuRaftFileLogStore(const std::string & log_dir, bool force_new = false, bool force_sync_ = true);
-    NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_ = true);
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new = false, bool force_sync_ = true, bool async_fsync_ = true);
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_ = true, bool async_fsync_ = true);
     ~NuRaftFileLogStore() override;
 
     ulong next_slot() const override;
@@ -75,10 +76,20 @@ public :
 
     bool flush() override;
 
+    ulong last_durable_index() override;
+
+    void shutdown();
+
+    void setRaftServer(nuraft::ptr<nuraft::raft_server> raft_instance_)
+    {
+        raft_instance = raft_instance_;
+    }
+
     const ptr<LogSegmentStore> segmentStore() const { return segment_store; }
 
 private:
     static ptr<log_entry> make_clone(const ptr<log_entry> & entry);
+    void fsyncThread();
     Poco::Logger * log;
     ptr<LogSegmentStore> segment_store;
     LogEntryQueue log_queue;
@@ -97,8 +108,14 @@ private:
 
     //last log entry
     ptr<log_entry> last_log_entry;
-    std::atomic<UInt32> to_flush_count {};
+//    std::atomic<UInt32> to_flush_count {};
     bool force_sync;
+    bool async_fsync;
+    ThreadFromGlobalPool fsync_thread;
+    std::atomic<bool> shutdown_called{false};
+    ulong disk_last_durable_index;
+    std::shared_ptr<Poco::Event> async_fsync_event;
+    nuraft::ptr<nuraft::raft_server> raft_instance;
 };
 
 }
