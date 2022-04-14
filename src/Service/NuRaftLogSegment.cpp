@@ -364,14 +364,19 @@ int NuRaftLogSegment::close(bool is_full)
     return 0;
 }
 
-int NuRaftLogSegment::flush() const
+UInt64 NuRaftLogSegment::flush() const
 {
-    int ret = -1;
     if (seg_fd >= 0)
     {
-        ret = ::fsync(seg_fd);
+        std::lock_guard write_lock(log_mutex);
+        int ret = ::fsync(seg_fd);
+        if (ret == -1)
+            LOG_ERROR(log, "log fsync error");
+
+        if (ret == 0)
+            return last_index; /// return last_index
     }
-    return ret;
+    return 0;
 }
 
 int NuRaftLogSegment::remove()
@@ -745,14 +750,14 @@ int LogSegmentStore::close()
     return 0;
 }
 
-int LogSegmentStore::flush()
+UInt64 LogSegmentStore::flush()
 {
     if (open_segment)
     {
         std::lock_guard write_lock(seg_mutex);
         return open_segment->flush();
     }
-    return -1;
+    return 0;
 }
 
 int LogSegmentStore::openSegment()

@@ -159,13 +159,12 @@ void NuRaftFileLogStore::fsyncThread()
 
         if (shutdown_called) break;
 
-        ulong before_last_durable_index = disk_last_durable_index;
-        UInt64 last_durable_index  = segment_store->lastLogIndex();
-
-        segment_store->flush();
-        disk_last_durable_index = last_durable_index;
-
-        raft_instance->notify_log_append_completion(true);
+        UInt64 last_flush_index = segment_store->flush();
+        if (last_flush_index)
+        {
+            disk_last_durable_index = last_flush_index;
+            raft_instance->notify_log_append_completion(true);
+        }
     }
 }
 
@@ -438,7 +437,7 @@ void FileLogStore::close()
 
 bool NuRaftFileLogStore::flush()
 {
-    return segment_store->flush() == 0;
+    return segment_store->flush() > 0;
 }
 
 ulong NuRaftFileLogStore::last_durable_index()
