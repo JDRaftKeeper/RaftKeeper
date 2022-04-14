@@ -520,7 +520,7 @@ TEST(RaftLog, compact)
 {
     std::string log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
-    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, 100, 3);
+    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, static_cast<UInt32>(100), static_cast<UInt32>(3));
 
     UInt64 term = 1;
     std::string key("/ck/table/table1");
