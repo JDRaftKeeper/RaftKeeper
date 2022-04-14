@@ -45,7 +45,8 @@ public:
         const std::string & endpoint,
         const std::string & log_dir,
         const Poco::Util::AbstractConfiguration & config,
-        bool force_sync);
+        bool force_sync,
+        bool async_fsync);
 
     ~NuRaftStateManager() override = default;
 

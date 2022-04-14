@@ -68,9 +68,14 @@ void LogEntryQueue::clear()
         entry_vec[i] = nullptr;
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, bool force_sync_): force_sync(force_sync_)
+NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, bool force_sync_, bool async_fsync_): force_sync(force_sync_), async_fsync(async_fsync_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
+
+    if (force_sync && async_fsync)
+    {
+        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
+    }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
 
@@ -93,13 +98,20 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
     {
         last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
     }
+
+    disk_last_durable_index = segment_store->lastLogIndex();
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
-    const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_)
-    : force_sync(force_sync_)
+    const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_, bool async_fsync_)
+    : force_sync(force_sync_), async_fsync(async_fsync_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
+
+    if (force_sync && async_fsync)
+    {
+        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
+    }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
 
@@ -114,10 +126,47 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     {
         last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
     }
+
+    disk_last_durable_index = segment_store->lastLogIndex();
+}
+
+void NuRaftFileLogStore::shutdown()
+{
+    if (shutdown_called)
+        return;
+
+    shutdown_called = true;
+
+    if (force_sync && async_fsync)
+    {
+        async_fsync_event->set(); /// notify?
+
+        if (fsync_thread.joinable())
+            fsync_thread.join();
+    }
 }
 
 NuRaftFileLogStore::~NuRaftFileLogStore()
 {
+}
+
+void NuRaftFileLogStore::fsyncThread()
+{
+    async_fsync_event = std::make_shared<Poco::Event>();
+
+    while (!shutdown_called) {
+        async_fsync_event->wait();
+
+        if (shutdown_called) break;
+
+        ulong before_last_durable_index = disk_last_durable_index;
+        UInt64 last_durable_index  = segment_store->lastLogIndex();
+
+        segment_store->flush();
+        disk_last_durable_index = last_durable_index;
+
+        raft_instance->notify_log_append_completion(true);
+    }
 }
 
 ptr<log_entry> NuRaftFileLogStore::make_clone(const ptr<log_entry> & entry)
@@ -193,11 +242,15 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 {
     LOG_TRACE(log, "fsync log store, start log idx {}, log count {}", start, cnt);
-    to_flush_count++;
-    if (force_sync && to_flush_count % 1000 == 0)
+
+    if (force_sync && !async_fsync)
     {
-        to_flush_count = 0;
         flush();
+    }
+
+    if (force_sync && async_fsync)
+    {
+        async_fsync_event->set();
     }
 }
 
@@ -387,4 +440,15 @@ bool NuRaftFileLogStore::flush()
 {
     return segment_store->flush() == 0;
 }
+
+ulong NuRaftFileLogStore::last_durable_index()
+{
+    uint64_t last_log = next_slot() - 1;
+    if (!(force_sync && async_fsync)) {
+        return last_log;
+    }
+
+    return disk_last_durable_index;
+}
+
 }

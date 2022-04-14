@@ -59,7 +59,8 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
         config,
-        coordination_settings_->coordination_settings->force_sync);
+        coordination_settings_->coordination_settings->force_sync,
+        coordination_settings_->coordination_settings->async_fsync);
 
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
@@ -96,6 +97,7 @@ void SvsKeeperServer::startup()
     params.auto_forwarding_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
     params.auto_forwarding_max_connections_ = coordination_and_settings->thread_count;
     params.return_method_ = nuraft::raft_params::async_handler;
+    params.parallel_log_appending_ = coordination_settings->async_fsync;
 
     nuraft::asio_service::options asio_opts{};
     asio_opts.thread_pool_size_ = coordination_settings->nuraft_thread_size;
@@ -116,6 +118,10 @@ void SvsKeeperServer::startup()
 
     if (!raft_instance)
         throw Exception(ErrorCodes::RAFT_ERROR, "Cannot allocate RAFT instance");
+
+    /// used raft_instance notify_log_append_completion
+    if (coordination_settings->async_fsync)
+        dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
 
 void SvsKeeperServer::addServer(const std::vector<std::string> & tokens)
@@ -275,6 +281,9 @@ void SvsKeeperServer::shutdown()
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
     //    state_manager->flushLogStore();
+
+    dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
+
     if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
 }

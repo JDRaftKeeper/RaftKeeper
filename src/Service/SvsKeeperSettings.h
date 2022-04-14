@@ -34,7 +34,8 @@ struct Settings;
     M(Bool, force_sync, true, " Call fsync on each change in RAFT changelog", 0) \
     M(UInt64, nuraft_thread_size, 32, "NuRaft thread pool size", 0) \
     M(UInt64, fresh_log_gap, 200, "When node became fresh", 0) \
-    M(UInt64, configuration_change_tries_count, 30, "How many times we will try to apply configuration change (add/remove server) to the cluster", 0)
+    M(UInt64, configuration_change_tries_count, 30, "How many times we will try to apply configuration change (add/remove server) to the cluster", 0) \
+    M(Bool, async_fsync, true, "async fsync", 0)
 
 DECLARE_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
