@@ -182,4 +182,29 @@ void RequestsCommitEvent::erase(int64_t session_id, int64_t xid)
     }
 }
 
+void RequestsCommitEvent::addError(int64_t session_id, int64_t xid, bool accepted, nuraft::cmd_result_code error_code)
+{
+    std::lock_guard lock(errors_mutex);
+    std::pair<bool, nuraft::cmd_result_code> v{ accepted, error_code };
+    errors.emplace(UInt128(session_id, xid), v);
+}
+
+void RequestsCommitEvent::eraseError(int64_t session_id, int64_t xid)
+{
+    std::lock_guard lock(errors_mutex);
+    errors.erase(UInt128(session_id, xid));
+}
+
+bool RequestsCommitEvent::isError(int64_t session_id, int64_t xid)
+{
+    std::lock_guard lock(errors_mutex);
+    return errors.find(UInt128(session_id, xid)) != errors.end();
+}
+
+std::pair<bool, nuraft::cmd_result_code> RequestsCommitEvent::getError(int64_t session_id, int64_t xid)
+{
+    std::lock_guard lock(errors_mutex);
+    return errors.find(UInt128(session_id, xid))->second;
+}
+
 }

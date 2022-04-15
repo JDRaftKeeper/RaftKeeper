@@ -219,6 +219,10 @@ ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 #endif
 
     last_log_entry = clone;
+
+    if (force_sync && async_fsync && entry->get_val_type() != log_val_type::app_log)
+        async_fsync_event->set();
+
     return log_index;
 }
 
@@ -235,6 +239,10 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
     last_log_entry = entry;
+
+    if (force_sync && async_fsync && entry->get_val_type() != log_val_type::app_log)
+        async_fsync_event->set();
+
     LOG_DEBUG(log, "write entry at {}", index);
 }
 
@@ -414,6 +422,8 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
             segment_store->writeAt(cur_idx, le);
         }
     }
+    if (force_sync && async_fsync)
+        async_fsync_event->set();
     LOG_DEBUG(log, "apply pack {}", index);
 }
 
