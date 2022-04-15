@@ -18,7 +18,45 @@ namespace fs = std::filesystem;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
+    , svskeeper_sync_processor(requests_commit_event), svskeeper_commit_processor(requests_commit_event, responses_queue)
 {
+}
+
+void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
+{
+    setThreadName(("SerK - " + std::to_string(thread_index)).c_str());
+
+    /// Result of requests batch from previous iteration
+    nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
+    /// Requests from previous iteration. We store them to be able
+    /// to send errors to the client.
+    SvsKeeperStorage::RequestsForSessions prev_batch;
+
+    while (!shutdown_called)
+    {
+        SvsKeeperStorage::RequestForSession request_for_session;
+
+        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+
+        if (requests_queue->tryPop(thread_index, request_for_session, max_wait))
+        {
+            //            LOG_TRACE(log, "1 requests_queue tryPop session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
+
+            if (shutdown_called)
+                break;
+
+            try
+            {
+                svskeeper_sync_processor.processRequest(request_for_session);
+                svskeeper_commit_processor.processRequest(request_for_session);
+            }
+            catch (...)
+            {
+
+                tryLogCurrentException(__PRETTY_FUNCTION__);
+            }
+        }
+    }
 }
 
 void SvsKeeperDispatcher::requestThread(size_t thread_index)
@@ -471,7 +509,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     LOG_DEBUG(log, "Initializing storage dispatcher");
     configuration_and_settings = KeeperConfigurationAndSettings::loadFromConfig(config, true);
 
-    server = std::make_unique<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event);
+    server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event);
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
@@ -483,6 +521,9 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
         server->reConfigIfNeed();
         LOG_DEBUG(log, "Server reconfiged");
+
+        svskeeper_sync_processor.setRaftServer(server);
+        svskeeper_commit_processor.setRaftServer(server);
     }
     catch (...)
     {
@@ -506,7 +547,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     responses_thread = std::make_shared<ThreadPool>(1);
     for (int32_t i = 0; i < thread_count; i++)
     {
-        request_thread->trySchedule([this, i] { requestThreadFakeZooKeeper(i); });
+        request_thread->trySchedule([this, i] { requestThreadFakeZk(i); });
     }
     responses_thread->trySchedule([this] { responseThread(); });
 #endif
@@ -557,6 +598,9 @@ void SvsKeeperDispatcher::shutdown()
                 responses_thread->wait();
 #endif
         }
+
+        svskeeper_sync_processor.shutdown();
+        svskeeper_commit_processor.shutdown();
 
         if (server)
             server->shutdown();
