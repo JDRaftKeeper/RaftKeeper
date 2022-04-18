@@ -18,7 +18,7 @@ using Request = SvsKeeperStorage::RequestForSession;
 public:
     SvsKeeperCommitProcessor(
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_)
+        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
     {
         main_thread = ThreadFromGlobalPool([this] { run(); });
     }
@@ -45,31 +45,33 @@ public:
 
                 if (!request_for_session.request->isReadRequest())
                 {
+                    LOG_TRACE(log, "wait commit session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
                     requests_commit_event.waitForCommit(request_for_session.session_id, request_for_session.request->xid);
-                }
+                    LOG_TRACE(log, "wait commit done session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
 
-                if (requests_commit_event.isError(request_for_session.session_id, request_for_session.request->xid))
-                {
-                    auto response = request_for_session.request->makeResponse();
+                    if (requests_commit_event.isError(request_for_session.session_id, request_for_session.request->xid))
+                    {
+                        auto response = request_for_session.request->makeResponse();
 
-                    response->xid = request_for_session.request->xid;
-                    response->zxid = 0;
+                        response->xid = request_for_session.request->xid;
+                        response->zxid = 0;
 
-                    auto [accepted, error_code] = requests_commit_event.getError(request_for_session.session_id, request_for_session.request->xid);
-                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
+                        auto [accepted, error_code] = requests_commit_event.getError(request_for_session.session_id, request_for_session.request->xid);
+                        response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
 
-                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
+                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
 
-                    requests_commit_event.eraseError(request_for_session.session_id, request_for_session.request->xid);
+                        requests_commit_event.eraseError(request_for_session.session_id, request_for_session.request->xid);
 
-                    if (!accepted)
-                        throw Exception(ErrorCodes::RAFT_ERROR,
-                                        "Request batch is not accepted.");
-                    else
-                        throw Exception(ErrorCodes::RAFT_ERROR,
-                                        "Request batch error, nuraft code {}", error_code);
+                        if (!accepted)
+                            throw Exception(ErrorCodes::RAFT_ERROR,
+                                            "Request batch is not accepted.");
+                        else
+                            throw Exception(ErrorCodes::RAFT_ERROR,
+                                            "Request batch error, nuraft code {}", error_code);
 
+                    }
                 }
                 else /// TODO leader alive
                 {
@@ -123,5 +125,7 @@ private:
     std::shared_ptr<SvsKeeperServer> server;
 
     SvsKeeperResponsesQueue & responses_queue;
+
+    Poco::Logger * log;
 };
 }

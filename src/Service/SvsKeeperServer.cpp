@@ -387,8 +387,6 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
     {
 //        LOG_TRACE(log, "push request to entries session_id {}, request xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
         entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.request));
-
-        requests_commit_event.addRequest(request_session.session_id, request_session.request->xid);
     }
     /// append_entries write reuqest
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
