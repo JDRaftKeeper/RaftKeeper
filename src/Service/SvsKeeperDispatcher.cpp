@@ -47,6 +47,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
             try
             {
+                requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
                 svskeeper_sync_processor.processRequest(request_for_session);
                 svskeeper_commit_processor.processRequest(request_for_session);
             }
