@@ -34,6 +34,8 @@ public:
 
     bool hasNotified(int64_t session_id) const;
 
+    bool exist(int64_t session_id, int64_t xid) const;
+
     void erase(int64_t session_id, int64_t xid);
 
     void addError(int64_t session_id, int64_t xid, bool accepted, nuraft::cmd_result_code error_code);

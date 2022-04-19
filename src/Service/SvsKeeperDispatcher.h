@@ -78,7 +78,7 @@ private:
 
     SvsKeeperSyncProcessor svskeeper_sync_processor;
 
-    SvsKeeperCommitProcessor svskeeper_commit_processor;
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
 private:
     void requestThread(size_t thread_index);

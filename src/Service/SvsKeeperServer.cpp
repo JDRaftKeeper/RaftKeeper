@@ -45,7 +45,8 @@ SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config_,
     SvsKeeperResponsesQueue & responses_queue_,
-    RequestsCommitEvent & requests_commit_event_)
+    RequestsCommitEvent & requests_commit_event_,
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
     : server_id(coordination_settings_->server_id)
     , coordination_and_settings(coordination_settings_)
     , config(config_)
@@ -73,7 +74,9 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_and_settings->coordination_settings->max_stored_snapshots,
         requests_commit_event,
         state_manager->load_log_store(),
-        checkAndGetSuperdigest(coordination_and_settings->super_digest));
+        checkAndGetSuperdigest(coordination_and_settings->super_digest),
+        KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
+        svskeeper_commit_processor_);
 }
 
 

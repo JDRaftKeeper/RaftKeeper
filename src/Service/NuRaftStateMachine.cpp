@@ -13,6 +13,7 @@
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Common/Stopwatch.h>
+#include <Service/SvsKeeperCommitProcessor.h>
 
 
 #ifdef __clang__
@@ -57,11 +58,13 @@ NuRaftStateMachine::NuRaftStateMachine(
     RequestsCommitEvent & requests_commit_event_,
     ptr<log_store> logstore,
     std::string superdigest,
-    UInt32 object_node_size)
+    UInt32 object_node_size,
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
     : coordination_settings(coordination_settings_)
     , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
     , requests_commit_event(requests_commit_event_)
+    , svskeeper_commit_processor(svskeeper_commit_processor_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
 
@@ -451,7 +454,16 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             log_idx,
             request_for_session.session_id,
             request_for_session.request->xid);
-        storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
+
+        if (svskeeper_commit_processor)
+        {
+            svskeeper_commit_processor->commit(request_for_session);
+        }
+        else
+        {
+            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
+        }
+
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
 

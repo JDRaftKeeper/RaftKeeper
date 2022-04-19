@@ -57,7 +57,8 @@ public:
         const KeeperConfigurationAndSettingsPtr & coordination_settings_,
         const Poco::Util::AbstractConfiguration & config_,
         SvsKeeperResponsesQueue & responses_queue_,
-        RequestsCommitEvent & requests_commit_event_);
+        RequestsCommitEvent & requests_commit_event_,
+        std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_ = nullptr);
 
     void startup();
 
