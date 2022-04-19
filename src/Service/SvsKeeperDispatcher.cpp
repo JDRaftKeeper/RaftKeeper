@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
-    , svskeeper_sync_processor(requests_commit_event), svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(requests_commit_event, responses_queue))
+    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(requests_commit_event, responses_queue)), svskeeper_sync_processor(requests_commit_event)
 {
 }
 
