@@ -76,9 +76,9 @@ private:
 
     Poco::Logger * log;
 
-    SvsKeeperSyncProcessor svskeeper_sync_processor;
-
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
+
+    SvsKeeperSyncProcessor svskeeper_sync_processor;
 
 private:
     void requestThread(size_t thread_index);

@@ -2,6 +2,7 @@
 
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperServer.h>
+#include <Service/SvsKeeperCommitProcessor.h>
 
 namespace DB
 {
@@ -12,8 +13,8 @@ using Request = SvsKeeperStorage::RequestForSession;
 
 public:
 
-    SvsKeeperSyncProcessor(RequestsCommitEvent & requests_commit_event_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_)
+    SvsKeeperSyncProcessor(RequestsCommitEvent & requests_commit_event_, std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
+        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), svskeeper_commit_processor(svskeeper_commit_processor_)
     {
         main_thread = ThreadFromGlobalPool([this] { run(); });
     }
@@ -43,7 +44,7 @@ public:
             {
                 requests_commit_event.addError(request_session.session_id, request_session.request->xid, result_accepted, prev_result->get_result_code());
                 requests_commit_event.notifiy(request_session.session_id, request_session.request->xid);
-
+                svskeeper_commit_processor->notifyOnError();
 //                auto response = request_session.request->makeResponse();
 //
 //                response->xid = request_session.request->xid;
@@ -152,6 +153,8 @@ private:
     RequestsCommitEvent & requests_commit_event;
 
     std::shared_ptr<SvsKeeperServer> server;
+
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
 //    SvsKeeperResponsesQueue & responses_queue;
 };
