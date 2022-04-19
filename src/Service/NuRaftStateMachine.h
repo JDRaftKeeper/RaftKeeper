@@ -25,6 +25,8 @@ using nuraft::ptr;
 
 using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
 
+class SvsKeeperCommitProcessor;
+
 class NuRaftStateMachine : public nuraft::state_machine
 {
 public:
@@ -39,7 +41,8 @@ public:
         RequestsCommitEvent & requests_commit_event_,
         ptr<nuraft::log_store> logstore = nullptr,
         std::string superdigest = "",
-        UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
+        UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
+        std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_ = nullptr);
 
     ~NuRaftStateMachine() override { }
 
@@ -148,6 +151,8 @@ private:
     SvsKeeperStorage storage;
     SvsKeeperResponsesQueue & responses_queue;
     RequestsCommitEvent & requests_commit_event;
+
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
     // Last committed Raft log number.
     std::atomic<uint64_t> last_committed_idx;

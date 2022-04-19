@@ -182,6 +182,26 @@ void RequestsCommitEvent::erase(int64_t session_id, int64_t xid)
     }
 }
 
+
+bool RequestsCommitEvent::exist(int64_t session_id, int64_t xid) const
+{
+    std::lock_guard lock(mutex);
+    //    auto it = wait_commits.find(UInt128(session_id, xid));
+    //    return it == wait_commits.end();
+    auto session_it = session_xid_events.find(session_id);
+    if (session_it == session_xid_events.end())
+        return false;
+
+    auto & xid_events = session_it->second;
+
+    auto xid_it = xid_events.find(xid);
+
+    if (xid_it == xid_events.end())
+        return false;
+
+    return true;
+}
+
 void RequestsCommitEvent::addError(int64_t session_id, int64_t xid, bool accepted, nuraft::cmd_result_code error_code)
 {
     std::lock_guard lock(errors_mutex);
