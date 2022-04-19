@@ -388,7 +388,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
     std::vector<ptr<buffer>> entries;
     for (auto & request_session : request_batch)
     {
-//        LOG_TRACE(log, "push request to entries session_id {}, request xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
+        LOG_TRACE(log, "push request to entries session {}, xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
         entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.request));
     }
     /// append_entries write reuqest
