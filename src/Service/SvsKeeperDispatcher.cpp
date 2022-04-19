@@ -18,7 +18,7 @@ namespace fs = std::filesystem;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
-    , svskeeper_sync_processor(requests_commit_event), svskeeper_commit_processor(requests_commit_event, responses_queue)
+    , svskeeper_sync_processor(requests_commit_event), svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(requests_commit_event, responses_queue))
 {
 }
 
@@ -49,7 +49,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
             {
                 requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
                 svskeeper_sync_processor.processRequest(request_for_session);
-                svskeeper_commit_processor.processRequest(request_for_session);
+                svskeeper_commit_processor->processRequest(request_for_session);
             }
             catch (...)
             {
@@ -524,7 +524,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         LOG_DEBUG(log, "Server reconfiged");
 
         svskeeper_sync_processor.setRaftServer(server);
-        svskeeper_commit_processor.setRaftServer(server);
+        svskeeper_commit_processor->setRaftServer(server);
     }
     catch (...)
     {

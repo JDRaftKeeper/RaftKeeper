@@ -18,14 +18,17 @@ using Request = SvsKeeperStorage::RequestForSession;
 public:
     SvsKeeperCommitProcessor(
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
+        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_)
     {
-        main_thread = ThreadFromGlobalPool([this] { run(); });
+        main_thread = ThreadFromGlobalPool([this] { run1(); });
     }
 
     void processRequest(Request request_for_session)
     {
-        requests_queue->push(request_for_session);
+        if (!shutdown_called) {
+            requests_queue->push(request_for_session);
+            cv.notify_all();
+        }
     }
 
     void run()
@@ -48,34 +51,119 @@ public:
                     LOG_TRACE(log, "wait commit session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
                     requests_commit_event.waitForCommit(request_for_session.session_id, request_for_session.request->xid);
                     LOG_TRACE(log, "wait commit done session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
+                }
 
-                    if (requests_commit_event.isError(request_for_session.session_id, request_for_session.request->xid))
-                    {
-                        auto response = request_for_session.request->makeResponse();
+                if (requests_commit_event.isError(request_for_session.session_id, request_for_session.request->xid))
+                {
+                    auto response = request_for_session.request->makeResponse();
 
-                        response->xid = request_for_session.request->xid;
-                        response->zxid = 0;
+                    response->xid = request_for_session.request->xid;
+                    response->zxid = 0;
 
-                        auto [accepted, error_code] = requests_commit_event.getError(request_for_session.session_id, request_for_session.request->xid);
-                        response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
+                    auto [accepted, error_code] = requests_commit_event.getError(request_for_session.session_id, request_for_session.request->xid);
+                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                     : Coordination::Error::ZCONNECTIONLOSS;
 
-                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
+                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
 
-                        requests_commit_event.eraseError(request_for_session.session_id, request_for_session.request->xid);
+                    requests_commit_event.eraseError(request_for_session.session_id, request_for_session.request->xid);
 
-                        if (!accepted)
-                            throw Exception(ErrorCodes::RAFT_ERROR,
-                                            "Request batch is not accepted.");
-                        else
-                            throw Exception(ErrorCodes::RAFT_ERROR,
-                                            "Request batch error, nuraft code {}", error_code);
+                    if (!accepted)
+                        throw Exception(ErrorCodes::RAFT_ERROR,
+                                        "Request batch is not accepted.");
+                    else
+                        throw Exception(ErrorCodes::RAFT_ERROR,
+                                        "Request batch error, nuraft code {}", error_code);
 
-                    }
                 }
                 else /// TODO leader alive
                 {
                     server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, false);
+                }
+            }
+            catch (...)
+            {
+                tryLogCurrentException(__PRETTY_FUNCTION__);
+            }
+        }
+    }
+
+    void run1()
+    {
+        while (!shutdown_called)
+        {
+            //            UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+            std::optional<Request> nextPending;
+            SvsKeeperStorage::RequestsForSessions toProcess;
+            try
+            {
+                int len = toProcess.size();
+                for (int i = 0; i < len; i++)
+                {
+                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, toProcess[i].request, toProcess[i].session_id, {}, true, false);
+                }
+                toProcess.clear();
+
+                {
+                    std::unique_lock lk(mutex);
+
+                    cv.wait(lk, [&]{return !((requests_queue->size() == 0 || nextPending)
+                                               && committed_queue.size() == 0);});
+
+                    // First check and see if the commit came in for the pending
+                    // request
+                    if ((requests_queue->size() == 0 || nextPending)
+                        && committed_queue.size() > 0) {
+                        Request r;
+                        committed_queue.tryPop(r);
+                        /*
+                     * We match with nextPending so that we can move to the
+                     * next request when it is committed. We also want to
+                     * use nextPending because it has the cnxn member set
+                     * properly.
+                     */
+                        if (nextPending
+                            && nextPending->session_id == r.session_id
+                            && nextPending->request->xid == r.request->xid) {
+                            // we want to send our version of the request.
+                            // the pointer to the connection in the request
+                            //                            nextPending.hdr = r.hdr;
+                            //                            nextPending.txn = r.txn;
+                            //                            nextPending.zxid = r.zxid;
+                            toProcess.push_back(*nextPending);
+                            nextPending.reset();
+                        } else {
+                            // this request came from someone else so just
+                            // send the commit packet
+                            toProcess.push_back(r);
+                        }
+                    }
+                }
+
+
+                // We haven't matched the pending requests, so go back to
+                // waiting
+                if (nextPending) {
+                    continue;
+                }
+
+                {
+                    std::unique_lock lk(mutex);
+                    // Process the next requests in the queuedRequests
+                    while (!nextPending && requests_queue->size() > 0)
+                    {
+                        //                        Request request = queuedRequests.remove();
+                        Request request;
+                        requests_queue->tryPop(0, request);
+                        if (!request.request->isReadRequest())
+                        {
+                            nextPending = request;
+                        }
+                        else
+                        {
+                            toProcess.push_back(request);
+                        }
+                    }
                 }
             }
             catch (...)
@@ -111,6 +199,13 @@ public:
         server = server_;
     }
 
+    void commit(Request request) {
+        if (!shutdown_called) {
+            committed_queue.push(request);
+            cv.notify_all();
+        }
+    }
+
 private:
     ptr<RequestsQueue> requests_queue;
 
@@ -126,6 +221,13 @@ private:
 
     SvsKeeperResponsesQueue & responses_queue;
 
+    SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
+
+    std::mutex mutex;
+
+    std::condition_variable cv;
+
     Poco::Logger * log;
 };
+
 }
