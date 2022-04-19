@@ -63,6 +63,11 @@ struct RequestsQueue
             size += queue->size();
         return size;
     }
+
+    bool empty() const
+    {
+        return size() == 0;
+    }
 };
 
 }

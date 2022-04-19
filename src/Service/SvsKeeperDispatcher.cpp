@@ -601,7 +601,7 @@ void SvsKeeperDispatcher::shutdown()
         }
 
         svskeeper_sync_processor.shutdown();
-        svskeeper_commit_processor.shutdown();
+        svskeeper_commit_processor->shutdown();
 
         if (server)
             server->shutdown();

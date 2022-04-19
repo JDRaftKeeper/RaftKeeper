@@ -20,7 +20,7 @@ public:
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
         : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_)
     {
-        main_thread = ThreadFromGlobalPool([this] { run1(); });
+        main_thread = ThreadFromGlobalPool([this] { run2(); });
     }
 
     void processRequest(Request request_for_session)
@@ -173,12 +173,101 @@ public:
         }
     }
 
+    /// for each requests_queue and committed_queue, if requests_queue pop a write request need wait it appear in the committed_queue.
+    /// So for each requests_queue pop a read request process it, wait write request commit, for each committed_queue find current wait write request and process other request.
+    void run2()
+    {
+        while (!shutdown_called)
+        {
+            //            UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+            std::optional<Request> pending_write_request;
+
+            try
+            {
+                auto need_wait = [&]()-> bool
+                {
+                    bool wait = false;
+                    if (pending_write_request)
+                    {
+                        if (committed_queue.empty())
+                        {
+                            wait = true;
+                        }
+                    }
+                    else
+                    {
+                        if (requests_queue->empty() || committed_queue.empty())
+                            wait = true;
+                    }
+                    return wait;
+                };
+
+                {
+                    std::unique_lock lk(mutex);
+
+                    cv.wait(lk, [&]{ return !need_wait() || shutdown_called; });
+                }
+
+                if (shutdown_called)
+                    return;
+
+                size_t committed_request_size = committed_queue.size();
+                size_t request_size = requests_queue->size();
+
+                Request request;
+                if (!pending_write_request)
+                {
+                    for (size_t i = 0; i < request_size; ++i)
+                    {
+                        if (requests_queue->tryPop(0, request))
+                        {
+                            if (request.request->isReadRequest())
+                            {
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
+                            }
+                            else
+                            {
+                                pending_write_request = request;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                Request committed_request;
+                for (size_t i = 0; i < committed_request_size; ++i)
+                {
+                    if (committed_queue.tryPop(committed_request))
+                    {
+                        if (pending_write_request && committed_request.request->xid == request.request->xid
+                            && committed_request.session_id == request.session_id)
+                        {
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
+                            pending_write_request.reset();
+                            break;
+                        }
+                        else
+                        {
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
+                        }
+                    }
+                }
+
+            }
+            catch (...)
+            {
+                tryLogCurrentException(__PRETTY_FUNCTION__);
+            }
+        }
+    }
+
     void shutdown()
     {
         if (shutdown_called)
             return;
 
         shutdown_called = true;
+        cv.notify_all();
 
         if (main_thread.joinable())
             main_thread.join();

@@ -40,6 +40,11 @@ public:
         std::lock_guard lock(queue_mutex);
         return queue.size();
     }
+
+    bool empty() const
+    {
+        return size() == 0;
+    }
 };
 
 }
