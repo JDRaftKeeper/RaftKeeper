@@ -189,6 +189,9 @@ public:
                     bool wait = false;
                     if (pending_write_request)
                     {
+                        if (requests_commit_event.isError(pending_write_request->session_id, pending_write_request->request->xid))
+                            wait = false;
+
                         if (committed_queue.empty())
                         {
                             wait = true;
@@ -210,6 +213,34 @@ public:
 
                 if (shutdown_called)
                     return;
+
+                if (pending_write_request)
+                {
+                    if (requests_commit_event.isError(pending_write_request->session_id, pending_write_request->request->xid))
+                    {
+                        auto response = pending_write_request->request->makeResponse();
+
+                        response->xid = pending_write_request->request->xid;
+                        response->zxid = 0;
+
+                        auto [accepted, error_code] = requests_commit_event.getError(pending_write_request->session_id, pending_write_request->request->xid);
+                        response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
+
+                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{pending_write_request->session_id, response});
+
+                        requests_commit_event.eraseError(pending_write_request->session_id, pending_write_request->request->xid);
+
+                        if (!accepted)
+                            throw Exception(ErrorCodes::RAFT_ERROR,
+                                            "Request batch is not accepted.");
+                        else
+                            throw Exception(ErrorCodes::RAFT_ERROR,
+                                            "Request batch error, nuraft code {}", error_code);
+
+                    }
+                }
+
 
                 size_t committed_request_size = committed_queue.size();
                 size_t request_size = requests_queue->size();
@@ -291,6 +322,12 @@ public:
     void commit(Request request) {
         if (!shutdown_called) {
             committed_queue.push(request);
+            cv.notify_all();
+        }
+    }
+
+    void notifyOnError() {
+        if (!shutdown_called) {
             cv.notify_all();
         }
     }
