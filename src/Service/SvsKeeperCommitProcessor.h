@@ -18,7 +18,7 @@ using Request = SvsKeeperStorage::RequestForSession;
 public:
     SvsKeeperCommitProcessor(
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_)
+        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
     {
         main_thread = ThreadFromGlobalPool([this] { run2(); });
     }
@@ -177,11 +177,10 @@ public:
     /// So for each requests_queue pop a read request process it, wait write request commit, for each committed_queue find current wait write request and process other request.
     void run2()
     {
+        std::optional<Request> pending_write_request;
         while (!shutdown_called)
         {
             //            UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-            std::optional<Request> pending_write_request;
-
             try
             {
                 auto need_wait = [&]()-> bool
@@ -199,7 +198,7 @@ public:
                     }
                     else
                     {
-                        if (requests_queue->empty() || committed_queue.empty())
+                        if (requests_queue->empty() && committed_queue.empty())
                             wait = true;
                     }
                     return wait;
@@ -207,8 +206,25 @@ public:
 
                 {
                     std::unique_lock lk(mutex);
+                    if (pending_write_request)
+                    {
+                        LOG_TRACE(log, "wait pending_write_request has value {}, {}", pending_write_request->session_id, pending_write_request->request->xid);
+                    }
+                    else
+                    {
+                        LOG_TRACE(log, "wait pending_write_request not has value, requests_queue->size {}, committed_queue.size {}", requests_queue->size(), committed_queue.size());
+                    }
 
                     cv.wait(lk, [&]{ return !need_wait() || shutdown_called; });
+
+                    if (pending_write_request)
+                    {
+                        LOG_TRACE(log, "wait done pending_write_request has value {}, {}", pending_write_request->session_id, pending_write_request->request->xid);
+                    }
+                    else
+                    {
+                        LOG_TRACE(log, "wait done pending_write_request not has value, requests_queue->size {}, committed_queue.size {}", requests_queue->size(), committed_queue.size());
+                    }
                 }
 
                 if (shutdown_called)
@@ -254,32 +270,37 @@ public:
                         {
                             if (request.request->isReadRequest())
                             {
+                                LOG_TRACE(log, "ReadRequest i {}, session {}, xid {}", i, request.session_id, request.request->xid);
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
                             }
                             else
                             {
                                 pending_write_request = request;
+                                LOG_TRACE(log, "pending_write_request i {}, session {}, xid {}", i, pending_write_request->session_id, pending_write_request->request->xid);
                                 break;
                             }
                         }
                     }
                 }
 
+                LOG_TRACE(log, "committed_request_size {}", committed_request_size);
                 Request committed_request;
                 for (size_t i = 0; i < committed_request_size; ++i)
                 {
                     if (committed_queue.tryPop(committed_request))
                     {
-                        if (pending_write_request && committed_request.request->xid == request.request->xid
-                            && committed_request.session_id == request.session_id)
+                        if (pending_write_request && committed_request.request->xid == pending_write_request->request->xid
+                            && committed_request.session_id == pending_write_request->session_id)
                         {
-                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
+                            LOG_TRACE(log, "match committed_request and pending_write_request i {}, session {}, xid {}", i, pending_write_request->session_id, pending_write_request->request->xid);
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
                             pending_write_request.reset();
                             break;
                         }
                         else
                         {
-                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, request.request, request.session_id, {}, true, false);
+                            LOG_TRACE(log, "not match committed_request and pending_write_request i {}, session {}, xid {}", i, committed_request.session_id, committed_request.request->xid);
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
                         }
                     }
                 }

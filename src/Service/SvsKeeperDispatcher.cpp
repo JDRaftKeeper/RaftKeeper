@@ -48,8 +48,13 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
             try
             {
                 requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
-                svskeeper_sync_processor.processRequest(request_for_session);
+
+                if (!request_for_session.request->isReadRequest())
+                    svskeeper_sync_processor.processRequest(request_for_session);
+
                 svskeeper_commit_processor->processRequest(request_for_session);
+
+                LOG_TRACE(log, "requestThreadFakeZk put request_for_session session_id {}, xid {}, opnum {}", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
             }
             catch (...)
             {
@@ -510,7 +515,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     LOG_DEBUG(log, "Initializing storage dispatcher");
     configuration_and_settings = KeeperConfigurationAndSettings::loadFromConfig(config, true);
 
-    server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event);
+    server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event, svskeeper_commit_processor);
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
@@ -532,7 +537,8 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-    int thread_count = configuration_and_settings->thread_count;
+//    int thread_count = configuration_and_settings->thread_count;
+    int thread_count = 1; // TODO
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
 #ifdef __THREAD_POOL_VEC__
