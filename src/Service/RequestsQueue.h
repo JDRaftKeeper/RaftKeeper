@@ -46,6 +46,13 @@ struct RequestsQueue
         return queues[queue_id]->tryPop(request, wait_ms);
     }
 
+    bool tryPopMicro(size_t queue_id, SvsKeeperStorage::RequestForSession & request, UInt64 wait_micro = 0)
+    {
+        assert(queue_id < queues.size());
+        return queues[queue_id]->tryPopMicro(request, wait_micro);
+    }
+
+
     bool tryPopAny(SvsKeeperStorage::RequestForSession & request, UInt64 wait_ms = 0)
     {
         for (const auto & queue : queues)
