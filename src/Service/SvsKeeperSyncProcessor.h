@@ -91,7 +91,7 @@ public:
             }
             else
             {
-                if (!requests_queue->tryPop(0, request_for_session))
+                if (!requests_queue->tryPopMicro(0, request_for_session, 100))
                 {
                     result = server->putRequestBatch(to_append_batch);
                     waitResultAndHandleError(result, to_append_batch);
