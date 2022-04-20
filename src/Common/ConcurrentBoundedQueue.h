@@ -121,6 +121,36 @@ private:
         return true;
     }
 
+    bool popImplMicro(T & x, std::optional<UInt64> timeout_microseconds)
+    {
+        {
+            std::unique_lock<std::mutex> queue_lock(queue_mutex);
+
+            auto predicate = [&]() { return is_finished || !queue.empty(); };
+
+            if (timeout_microseconds.has_value())
+            {
+                bool wait_result = pop_condition.wait_for(queue_lock, std::chrono::microseconds(timeout_microseconds.value()), predicate);
+
+                if (!wait_result)
+                    return false;
+            }
+            else
+            {
+                pop_condition.wait(queue_lock, predicate);
+            }
+
+            if (is_finished && queue.empty())
+                return false;
+
+            detail::moveOrCopyIfThrow(std::move(queue.front()), x);
+            queue.pop();
+        }
+
+        push_condition.notify_one();
+        return true;
+    }
+
 public:
 
     explicit ConcurrentBoundedQueue(size_t max_fill_)
@@ -164,6 +194,12 @@ public:
     bool tryPop(T & x, UInt64 milliseconds = 0)
     {
         return popImpl(x, milliseconds);
+    }
+
+    /// Returns false if queue is (finished and empty) or (object was not popped during timeout microseconds)
+    bool tryPopMicro(T & x, UInt64 microseconds = 0)
+    {
+        return popImplMicro(x, microseconds);
     }
 
     /// Returns size of queue
