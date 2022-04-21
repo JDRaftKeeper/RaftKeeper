@@ -18,31 +18,11 @@
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
 #include <Common/MultiVersion.h>
+#include <Service/ConnCommon.h>
 
 
 namespace DB
 {
-
-struct ConnectRequest
-{
-    int32_t protocol_version;
-    int64_t last_zxid_seen;
-    int32_t timeout_ms;
-    int64_t previous_session_id = 0;
-    std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
-    bool readonly;
-};
-
-struct SocketInterruptablePollWrapper;
-using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
-
-using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
-
-using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
-
-struct LastOp;
-using LastOpMultiVersion = MultiVersion<LastOp>;
-using LastOpPtr = LastOpMultiVersion::Version;
 
 class ServiceTCPHandler : public Poco::Net::TCPServerConnection
 {

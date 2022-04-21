@@ -1,6 +1,6 @@
 #pragma once
 
-#include <queue>
+#include <deque>
 #include <mutex>
 
 namespace DB
@@ -13,13 +13,16 @@ class SvsKeeperThreadSafeQueue
 private:
     mutable std::mutex queue_mutex;
     std::condition_variable cv;
-    std::queue<T> queue;
+    std::deque<T> queue;
 public:
+
+
+    using Func = std::function<bool(const T & e)>;
 
     void push(const T & response)
     {
         std::lock_guard lock(queue_mutex);
-        queue.push(response);
+        queue.push_back(response);
         cv.notify_one();
     }
 
@@ -48,8 +51,37 @@ public:
             return false;
 
         response = queue.front();
-        queue.pop();
+        queue.pop_front();
         return true;
+    }
+
+    bool peek(T & response)
+    {
+        std::unique_lock lock(queue_mutex);
+        if (queue.empty())
+            return false;
+        response = queue.front();
+        return true;
+    }
+
+    bool remove()
+    {
+        std::unique_lock lock(queue_mutex);
+        if (queue.empty())
+            return false;
+        queue.pop_front();
+        return true;
+    }
+
+    void forEach(Func func)
+    {
+        std::unique_lock lock(queue_mutex);
+
+        for (const auto & e : queue)
+        {
+            if (!func(e))
+                break;
+        }
     }
 
     size_t size() const
