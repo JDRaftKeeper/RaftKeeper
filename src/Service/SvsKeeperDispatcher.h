@@ -19,7 +19,9 @@
 #include <Service/KeeperConnectionStats.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/SvsKeeperSettings.h>
+#include <Poco/FIFOBuffer.h>
 
+#define USE_NIO_FOR_KEEPER
 
 namespace DB
 {
@@ -27,7 +29,13 @@ namespace DB
 //#    define __THREAD_POOL_VEC__
 #endif
 
+#ifdef USE_NIO_FOR_KEEPER
+using ZooKeeperResponseCallback = std::function<void(const ptr<Poco::FIFOBuffer> & response)>;
+#else
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
+#endif
+
+
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 class SvsKeeperDispatcher
 {
@@ -75,7 +83,11 @@ private:
     void requestThread();
     void responseThread();
     void sessionCleanerTask();
+#ifdef USE_NIO_FOR_KEEPER
+    void setResponse(int64_t session_id, const ptr<Poco::FIFOBuffer> & response);
+#else
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
+#endif
 
 public:
     SvsKeeperDispatcher();

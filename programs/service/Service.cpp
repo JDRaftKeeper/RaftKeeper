@@ -1,41 +1,18 @@
 #include "Service.h"
 #include <memory>
-#include <errno.h>
-#include <pwd.h>
-#include <unistd.h>
 #include <Access/AccessControlManager.h>
-#include <AggregateFunctions/registerAggregateFunctions.h>
-#include <Dictionaries/registerDictionaries.h>
-#include <Disks/registerDisks.h>
-#include <Formats/registerFormats.h>
-#include <Functions/registerFunctions.h>
-#include <IO/HTTPCommon.h>
 #include <IO/UseSSL.h>
 #include <Interpreters/ProcessList.h>
-#include <Server/HTTP/HTTPServer.h>
-#include <Server/HTTPHandlerFactory.h>
 #include <Server/ProtocolServerAdapter.h>
 #include <Service/FourLetterCommand.h>
-#include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include "Poco/Timestamp.h"
-#include <Poco/DirectoryIterator.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/HelpFormatter.h>
 #include <Poco/Version.h>
-#include <Common/ClickHouseRevision.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/DNSResolver.h>
 #include <Common/Macros.h>
 #include <Common/SensitiveDataMasker.h>
-#include <Common/StatusFile.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/TLDListsHolder.h>
-#include <Common/ThreadFuzzer.h>
 #include <Common/ThreadProfileEvents.h>
 #include <Common/ThreadStatus.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
@@ -43,19 +20,15 @@
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getMappedArea.h>
-#include <Common/getMultipleKeysFromConfig.h>
-#include <Common/getNumberOfPhysicalCPUCores.h>
-#include <Common/remapExecutable.h>
-#include <common/ErrorHandlers.h>
 #include <common/coverage.h>
-#include <common/errnoToString.h>
-#include <common/getFQDNOrHostName.h>
-#include <common/getMemoryAmount.h>
 #include <common/logger_useful.h>
-#include <common/phdr_cache.h>
 #include <ext/scope_guard.h>
 #include <Service/ServiceTCPHandlerFactory.h>
-#include <Service/FourLetterCommand.h>
+#include <Service/SvsSocketReactor.h>
+#include <Service/SvsSocketAcceptor.h>
+#include <Service/SvsConnectionHandler.h>
+
+#define USE_NIO_FOR_KEEPER
 
 namespace DB
 {
@@ -134,7 +107,6 @@ int Service::run()
         return 0;
     }
 
-
     if (config().hasOption("version"))
     {
         std::cout << DBMS_NAME << " server version " << VERSION_STRING << VERSION_OFFICIAL << "." << std::endl;
@@ -174,56 +146,57 @@ int Service::main(const std::vector<std::string> & /*args*/)
 
     auto shared_context = Context::createShared();
     auto global_context = std::make_unique<Context>(Context::createGlobal(shared_context.get()));
-    const Settings & settings = global_context->getSettingsRef();
+    [[maybe_unused]]const Settings & settings = global_context->getSettingsRef();
     global_context_ptr = global_context.get();
 
-    // 1. Bind a ServerSocket with an address
-    //Poco::Net::ServerSocket serverSocket(port);
-    //1 ProtocolServerAdapter
-    //ProtocolServerAdapterPtr server = std::make_shared<ProtocolServerAdapter>();
     auto servers = std::make_shared<std::vector<ProtocolServerAdapter>>();
-
-    Poco::Timespan keep_alive_timeout(config().getUInt("keep_alive_timeout", 10), 0);
+    ptr<ParallelSocketReactor<SocketReactor>> nio_server;
 
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
-    Poco::Net::HTTPServerParams::Ptr http_params = new Poco::Net::HTTPServerParams;
-    http_params->setTimeout(settings.http_receive_timeout);
-    http_params->setKeepAliveTimeout(keep_alive_timeout);
 
     //get port from config
     std::string listen_host = config().getString("service.host", "0.0.0.0");
-    //unsigned short listen_port = config().getInt("frontend_port", ServerPort);
     bool listen_try = config().getBool("listen_try", false);
 
     //Init global thread pool
     GlobalThreadPool::initialize(config().getUInt("max_thread_pool_size", 10000));
-
     const char * port_name = "service.service_port";
+
     global_context->initializeServiceKeeperStorageDispatcher();
-    createServer(listen_host, port_name, listen_try, [&](UInt16 port) {
-        Poco::Net::ServerSocket socket;
-        auto address = socketBindListen(socket, listen_host, port);
-        socket.setReceiveTimeout(settings.receive_timeout);
-        socket.setSendTimeout(settings.send_timeout);
-        servers->emplace_back(
-            port_name,
-            std::make_unique<Poco::Net::TCPServer>(
-                new ServiceTCPHandlerFactory(*this, false, true), server_pool, socket, new Poco::Net::TCPServerParams));
-
-        LOG_INFO(log, "Listening for connections to fake zookeeper (tcp): {}", address.toString());
-    });
-    //    }
-
     FourLetterCommandFactory::registerCommands(*global_context->getSvsKeeperStorageDispatcher());
 
-    /// 3. Start the TCPServer
-    for (auto & server : *servers)
-        server.start();
-    {
-        String level_str = config().getString("text_log.level", "");
-        int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
-        setTextLog(global_context->getTextLog(), level);
-    }
+    createServer(listen_host, port_name, listen_try, [&](UInt16 port) {
+#ifdef USE_NIO_FOR_KEEPER
+        using Poco::Net::ServerSocket;
+        // set-up a server socket
+        ServerSocket svs(port);
+        /// TODO timeout
+        nio_server = std::make_shared<ParallelSocketReactor<SocketReactor>>();
+        ParallelSocketAcceptor<SvsConnectionHandler, SocketReactor> acceptor(*global_context, svs, *nio_server);
+#else
+            Poco::Net::ServerSocket socket;
+            auto address = socketBindListen(socket, listen_host, port);
+            socket.setReceiveTimeout(settings.receive_timeout);
+            socket.setSendTimeout(settings.send_timeout);
+            servers->emplace_back(
+                port_name,
+                std::make_unique<Poco::Net::TCPServer>(
+                    new ServiceTCPHandlerFactory(*this, false, true), server_pool, socket, new Poco::Net::TCPServerParams));
+
+            LOG_INFO(log, "Listening for connections to fake zookeeper (tcp): {}", address.toString());
+
+            /// 3. Start the TCPServer
+            for (auto & server : *servers)
+                server.start();
+
+            {
+                String level_str = config().getString("text_log.level", "");
+                int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
+                setTextLog(global_context->getTextLog(), level);
+            }
+#endif
+    });
+
 
     zkutil::EventPtr unused_event = std::make_shared<Poco::Event>();
     zkutil::ZooKeeperNodeCache unused_cache([] { return nullptr; });
@@ -245,6 +218,15 @@ int Service::main(const std::vector<std::string> & /*args*/)
     main_config_reloader->start();
     LOG_INFO(log, "Ready for connections.");
 
+#ifdef USE_NIO_FOR_KEEPER
+    LOG_DEBUG(log, "Received termination signal.");
+    LOG_DEBUG(log, "Waiting for current connections to close.");
+
+    main_config_reloader.reset();
+    is_cancelled = true;
+
+    nio_server->stop();
+#else
     SCOPE_EXIT({
         LOG_DEBUG(log, "Received termination signal.");
         LOG_DEBUG(log, "Waiting for current connections to close.");
@@ -292,7 +274,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
             _exit(Application::EXIT_OK);
         }
     });
-
+#endif
 
     // 4. Wait for termination
     waitForTerminationRequest();

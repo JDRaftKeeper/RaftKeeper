@@ -3,6 +3,7 @@
 #include <Common/isLocalAddress.h>
 #include <Common/setThreadName.h>
 #include <Common/checkStackSize.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
 
 namespace DB
 {
@@ -65,7 +66,17 @@ void SvsKeeperDispatcher::responseThread()
 
             try
             {
+#ifdef USE_NIO_FOR_KEEPER
+                WriteBufferFromFiFoBuffer buf;
+                response_for_session.response->write(buf);
+                buf.getBuffer();
+                setResponse(response_for_session.session_id, buf.getBuffer());
+                /// Session closed, no more writes
+                if (response_for_session.response->xid != Coordination::WATCH_XID && response_for_session.response->getOpNum() == Coordination::OpNum::Close)
+                    session_to_response_callback.erase(response_for_session.session_id);
+#else
                 setResponse(response_for_session.session_id, response_for_session.response);
+#endif
             }
             catch (...)
             {
@@ -75,6 +86,17 @@ void SvsKeeperDispatcher::responseThread()
     }
 }
 
+#ifdef USE_NIO_FOR_KEEPER
+void SvsKeeperDispatcher::setResponse(int64_t session_id, const ptr<Poco::FIFOBuffer> & response)
+{
+    std::lock_guard lock(session_to_response_callback_mutex);
+    auto session_writer = session_to_response_callback.find(session_id);
+    if (session_writer == session_to_response_callback.end())
+        return;
+
+    session_writer->second(response);
+}
+#else
 void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
@@ -87,7 +109,7 @@ void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::Zo
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
         session_to_response_callback.erase(session_writer);
 }
-
+#endif
 bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
 {
     {
@@ -217,7 +239,17 @@ void SvsKeeperDispatcher::shutdown()
         {
             auto response = request_for_session.request->makeResponse();
             response->error = Coordination::Error::ZSESSIONEXPIRED;
+#ifdef USE_NIO_FOR_KEEPER
+            WriteBufferFromFiFoBuffer buf;
+            response->write(buf);
+            buf.getBuffer();
+            setResponse(request_for_session.session_id, buf.getBuffer());
+            /// Session closed, no more writes
+            if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
+                session_to_response_callback.erase(request_for_session.session_id);
+#else
             setResponse(request_for_session.session_id, response);
+#endif
         }
         session_to_response_callback.clear();
     }
