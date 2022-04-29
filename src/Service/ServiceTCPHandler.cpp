@@ -224,7 +224,14 @@ void ServiceTCPHandler::sendHandshake(bool connect_success, bool session_expired
 
 void ServiceTCPHandler::run()
 {
-    runImpl();
+    try
+    {
+        runImpl();
+    }
+    catch (const Poco::Exception & e)
+    {
+        LOG_ERROR(log, "Got exception {}", e.displayText());
+    }
 }
 
 ConnectRequest ServiceTCPHandler::receiveHandshake(int32_t handshake_length)
