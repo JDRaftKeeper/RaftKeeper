@@ -21,9 +21,7 @@ private:
     void nextImpl() override;
 
 public:
-    WriteBufferFromFiFoBuffer();
-
-    WriteBufferFromFiFoBuffer(size_t size);
+    explicit WriteBufferFromFiFoBuffer(size_t size = initial_size);
 
     void finalize() override final;
     ptr<FIFOBuffer> getBuffer();

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Poco/Net/ParallelSocketReactor.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/Environment.h>
@@ -9,10 +8,10 @@
 #include <vector>
 
 #include <Interpreters/Context.h>
+#include <Service/SvsSocketReactor.h>
 
 
 using Poco::Net::Socket;
-using Poco::Net::SocketReactor;
 using Poco::Net::ServerSocket;
 using Poco::Net::StreamSocket;
 using Poco::NObserver;
@@ -22,8 +21,8 @@ using Poco::AutoPtr;
 namespace DB {
 
     template <class ServiceHandler, class SR>
-    class ParallelSocketAcceptor
-    /// This class implements the Acceptor part of the Acceptor-Connector design pattern.
+    class SvsSocketAcceptor
+/// This class implements the Acceptor part of the Acceptor-Connector design pattern.
     /// Only the difference from single-threaded version is documented here, For full 
     /// description see Poco::Net::SocketAcceptor documentation.
     /// 
@@ -35,42 +34,50 @@ namespace DB {
     /// details.
     {
     public:
-        using ParallelReactor = Poco::Net::ParallelSocketReactor<SR>;
-        using Observer = Poco::Observer<ParallelSocketAcceptor, ReadableNotification>;
+        using ParallelReactor = SvsSocketReactor<SR>;
+        using Observer = Poco::Observer<SvsSocketAcceptor, ReadableNotification>;
 
-        explicit ParallelSocketAcceptor(Context & keeper_context_,
-                                        ServerSocket& socket,
-                                        unsigned threads = Poco::Environment::processorCount()):
-            keeper_context(keeper_context_), socket_(socket), reactor_(nullptr), threads_(threads),
-            next_(0)
-        /// Creates a ParallelSocketAcceptor using the given ServerSocket, 
+        explicit SvsSocketAcceptor(
+            const String& name, Context & keeper_context_, ServerSocket & socket, unsigned threads = Poco::Environment::processorCount())
+            : name_(name), keeper_context(keeper_context_), socket_(socket), reactor_(nullptr), threads_(threads), next_(0)
+        /// Creates a ParallelSocketAcceptor using the given ServerSocket,
         /// sets number of threads and populates the reactors vector.
         {
             init();
         }
 
-        ParallelSocketAcceptor(Context & keeper_context_,
-                               ServerSocket& socket,
-                               SocketReactor& reactor,
-                               unsigned threads = Poco::Environment::processorCount()):
-            socket_(socket), reactor_(&reactor), threads_(threads), keeper_context(keeper_context_),
-            next_(0)
-        /// Creates a ParallelSocketAcceptor using the given ServerSocket, sets the 
+        SvsSocketAcceptor(
+            const String& name,
+            Context & keeper_context_,
+            ServerSocket & socket,
+            SocketReactor & reactor,
+            const Poco::Timespan & timeout,
+            unsigned threads = Poco::Environment::processorCount())
+            : name_(name)
+            , socket_(socket)
+            , reactor_(&reactor)
+            , threads_(threads)
+            , next_(0)
+            , keeper_context(keeper_context_)
+            , timeout_(timeout)
+        /// Creates a ParallelSocketAcceptor using the given ServerSocket, sets the
         /// number of threads, populates the reactors vector and registers itself 
         /// with the given SocketReactor.
         {
             init();
-            reactor_->addEventHandler(socket_, Observer(*this, &ParallelSocketAcceptor::onAccept));
+            reactor_->addEventHandler(socket_, Observer(*this, &SvsSocketAcceptor::onAccept));
+            /// It is necessary to wake up the reactor.
+            reactor_->wakeUp();
         }
 
-        virtual ~ParallelSocketAcceptor()
+        virtual ~SvsSocketAcceptor()
         /// Destroys the ParallelSocketAcceptor.
         {
             try
             {
                 if (reactor_)
                 {
-                    reactor_->removeEventHandler(socket_, Observer(*this, &ParallelSocketAcceptor::onAccept));
+                    reactor_->removeEventHandler(socket_, Observer(*this, &SvsSocketAcceptor::onAccept));
                 }
             }
             catch (...)
@@ -94,9 +101,10 @@ namespace DB {
         /// implementation or register the accept handler on its own.
         {
             reactor_ = &reactor;
-            if (!reactor_->hasEventHandler(socket_, Observer(*this, &ParallelSocketAcceptor::onAccept)))
+            if (!reactor_->hasEventHandler(socket_, Observer(*this, &SvsSocketAcceptor::onAccept)))
             {
-                reactor_->addEventHandler(socket_, Observer(*this, &ParallelSocketAcceptor::onAccept));
+                reactor_->addEventHandler(socket_, Observer(*this, &SvsSocketAcceptor::onAccept));
+                reactor_->wakeUp();
             }
         }
 	
@@ -111,16 +119,17 @@ namespace DB {
         {
             if (reactor_)
             {
-                reactor_->removeEventHandler(socket_, Observer(*this, &ParallelSocketAcceptor::onAccept));
+                reactor_->removeEventHandler(socket_, Observer(*this, &SvsSocketAcceptor::onAccept));
             }
         }
 	
         void onAccept(ReadableNotification* pNotification)
         /// Accepts connection and creates event handler.
+        /// TODO why wait a moment?  For when adding EventHandler it does not wake up register.
+        /// and need register event? no
         {
             pNotification->release();
             StreamSocket sock = socket_.acceptConnection();
-            reactor_->wakeUp();
             createServiceHandler(sock);
         }
 
@@ -136,6 +145,7 @@ namespace DB {
         ///
         /// Subclasses can override this method.
         {
+            socket.setBlocking(false);
             SocketReactor* pReactor = reactor(socket);
             if (!pReactor)
             {
@@ -143,8 +153,9 @@ namespace DB {
                 if (next_ == reactors_.size()) next_ = 0;
                 pReactor = reactors_[next];
             }
+            ServiceHandler* handler = new ServiceHandler(keeper_context, socket, *pReactor);
             pReactor->wakeUp();
-            return new ServiceHandler(keeper_context, socket, *pReactor);
+            return handler;
         }
 
         SocketReactor* reactor(const Socket& socket)
@@ -181,7 +192,7 @@ namespace DB {
             poco_assert (threads_ > 0);
 
             for (unsigned i = 0; i < threads_; ++i)
-                reactors_.push_back(new ParallelReactor);
+                reactors_.push_back(new ParallelReactor(timeout_, name_ + "#" + std::to_string(i)));
         }
 
         ReactorVec& reactors()
@@ -203,9 +214,11 @@ namespace DB {
         }
 
     private:
-        ParallelSocketAcceptor() = delete;
-        ParallelSocketAcceptor(const ParallelSocketAcceptor&) = delete;
-        ParallelSocketAcceptor& operator = (const ParallelSocketAcceptor&) = delete;
+        SvsSocketAcceptor() = delete;
+        SvsSocketAcceptor(const SvsSocketAcceptor &) = delete;
+        SvsSocketAcceptor & operator = (const SvsSocketAcceptor &) = delete;
+
+        String name_;
 
         ServerSocket socket_;
         SocketReactor* reactor_;
@@ -214,6 +227,7 @@ namespace DB {
         std::size_t    next_;
 
         Context & keeper_context;
+        Poco::Timespan timeout_;
     };
 
 

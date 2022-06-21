@@ -309,6 +309,12 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 #else
     if (isLeaderAlive() && request->isReadRequest())
     {
+        LOG_TRACE(
+            log,
+            "[put read request]SessionID/xid #{}#{}, opnum {}",
+            session_id,
+            request->xid,
+            Coordination::toString(request->getOpNum()));
         state_machine->processReadRequest(request_for_session);
     }
     else
@@ -317,7 +323,12 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
         entries.push_back(getZooKeeperLogEntry(session_id, request));
 
         LOG_TRACE(
-            log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
+            log,
+            "[put write request]SessionID/xid #{}#{}, opnum {}, entries {}",
+            session_id,
+            request->xid,
+            Coordination::toString(request->getOpNum()),
+            entries.size());
 
         ptr<nuraft::cmd_result<ptr<buffer>>> result;
         {

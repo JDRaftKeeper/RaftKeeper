@@ -22,10 +22,19 @@ static inline void set_response(
     const SvsKeeperStorage::ResponsesForSessions & responses,
     bool ignore_response)
 {
+    static auto * log = &(Poco::Logger::get("SvsKeeperStorage"));
     if (!ignore_response)
     {
         for (const auto & response : responses)
+        {
+            LOG_TRACE(
+                log,
+                "[push response to dispatcher]SessionID/xid #{}#{}, opnum {}",
+                response.session_id,
+                response.response->xid,
+                Coordination::toString(response.response->getOpNum()));
             responses_queue.push(response);
+        }
     }
 }
 
@@ -1326,6 +1335,12 @@ void SvsKeeperStorage::processRequest(
     bool check_acl [[maybe_unused]],
     bool ignore_response)
 {
+    LOG_TRACE(
+        log,
+        "[process request]SessionID/xid #{}#{}, opnum {}",
+        session_id,
+        zk_request->xid,
+        Coordination::toString(zk_request->getOpNum()));
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
@@ -1364,7 +1379,7 @@ void SvsKeeperStorage::processRequest(
             }
             else
             {
-                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", getHexUIntLowercase(session_id));
+                LOG_DEBUG(log, "Session 0x{} already closed, must applying a fuzzy log.", getHexUIntLowercase(session_id));
             }
             clearDeadWatches(session_id);
         }
@@ -1660,11 +1675,8 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
-    LOG_INFO(
-        log,
-        "clearDeadWatches, session id {}",
-        session_id);
-//    std::lock_guard session_lock(session_mutex);
+    LOG_INFO(log, "clearDeadWatches, session id {}", session_id);
+    //    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
     if (watches_it != sessions_and_watchers.end())

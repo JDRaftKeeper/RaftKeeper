@@ -328,7 +328,6 @@ void ServiceTCPHandler::runImpl()
             while (result.responses_count != 0)
             {
                 Coordination::ZooKeeperResponsePtr response;
-
                 if (!responses->tryPop(response))
                     throw Exception(ErrorCodes::LOGICAL_ERROR, "We must have ready response, but queue is empty. It's a bug.");
 

@@ -20,25 +20,25 @@ void WriteBufferFromFiFoBuffer::nextImpl()
     if (pos_offset == old_size)
     {
         /// Buffer need to expand
-        size_t real_size = pos - reinterpret_cast<Position>(buffer->begin());
-        auto new_buffer = std::make_shared<FIFOBuffer>(real_size);
-        memcpy(new_buffer->begin(), buffer->begin(), real_size);
+        auto new_buffer = std::make_shared<FIFOBuffer>(old_size * size_multiplier);
+        memcpy(new_buffer->begin(), buffer->begin(), old_size);
         buffer = new_buffer;
     }
-    internal_buffer
-        = Buffer(reinterpret_cast<Position>(buffer->begin() + pos_offset), reinterpret_cast<Position>(buffer->begin() + buffer->size()));
+    internal_buffer = Buffer(
+        reinterpret_cast<Position>(buffer->begin() + pos_offset),
+        reinterpret_cast<Position>(buffer->begin() + buffer->size()));
     working_buffer = internal_buffer;
 }
 
-WriteBufferFromFiFoBuffer::WriteBufferFromFiFoBuffer() : WriteBuffer(nullptr, 0)
-{
-    buffer = std::make_shared<FIFOBuffer>(initial_size, true);
-    set(reinterpret_cast<Position>(buffer->begin()), buffer->size());
-}
+//WriteBufferFromFiFoBuffer::WriteBufferFromFiFoBuffer() : WriteBuffer(nullptr, 0)
+//{
+//    buffer = std::make_shared<FIFOBuffer>(initial_size);
+//    set(reinterpret_cast<Position>(buffer->begin()), buffer->size());
+//}
 
 WriteBufferFromFiFoBuffer::WriteBufferFromFiFoBuffer(size_t size) : WriteBuffer(nullptr, 0)
 {
-    buffer = std::make_shared<FIFOBuffer>(size, true);
+    buffer = std::make_shared<FIFOBuffer>(size);
     set(reinterpret_cast<Position>(buffer->begin()), buffer->size());
 }
 
@@ -51,7 +51,8 @@ void WriteBufferFromFiFoBuffer::finalize()
     size_t real_size = pos - reinterpret_cast<Position>(buffer->begin());
     auto new_buffer = std::make_shared<FIFOBuffer>(real_size);
     memcpy(new_buffer->begin(), buffer->begin(), real_size);
-    new_buffer->advance(real_size);
+    if (real_size > 0)
+        new_buffer->advance(real_size);
     buffer = new_buffer;
     set(nullptr, 0);
 }
