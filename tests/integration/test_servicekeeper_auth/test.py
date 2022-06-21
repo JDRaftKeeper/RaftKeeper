@@ -67,6 +67,7 @@ def started_cluster():
     ]
 )
 def test_digest_auth_basic(started_cluster, get_zk):
+    print("start test_digest_auth_basic")
     auth_connection = get_zk()
 
     auth_connection.add_auth('digest', 'user1:password1')
@@ -125,8 +126,11 @@ def test_digest_auth_basic(started_cluster, get_zk):
         no_auth_connection.set(path, b"auth_added")
         assert no_auth_connection.get(path)[0] == b"auth_added"
 
+    print("end test_digest_auth_basic")
+
 
 def test_super_auth(started_cluster):
+    print("start test_super_auth")
     auth_connection = get_fake_zk()
 
     auth_connection.add_auth('digest', 'user1:password1')
@@ -141,6 +145,7 @@ def test_super_auth(started_cluster):
         super_connection.set(path, b"value")
         assert super_connection.get(path)[0] == b"value"
 
+    print("end test_super_auth")
 
 @pytest.mark.parametrize(
     ('get_zk'),
@@ -150,6 +155,7 @@ def test_super_auth(started_cluster):
     ]
 )
 def test_digest_auth_multiple(started_cluster, get_zk):
+    print("start test_digest_auth_multiple")
     auth_connection = get_zk()
     auth_connection.add_auth('digest', 'user1:password1')
     auth_connection.add_auth('digest', 'user2:password2')
@@ -170,6 +176,8 @@ def test_digest_auth_multiple(started_cluster, get_zk):
 
     assert other_auth_connection.get("/test_multi_all_acl")[0] == b"Y"
 
+    print("end test_digest_auth_multiple")
+
 @pytest.mark.parametrize(
     ('get_zk'),
     [
@@ -178,6 +186,7 @@ def test_digest_auth_multiple(started_cluster, get_zk):
     ]
 )
 def test_partial_auth(started_cluster, get_zk):
+    print("start test_partial_auth")
     auth_connection = get_zk()
     auth_connection.add_auth('digest', 'user1:password1')
 
@@ -209,8 +218,11 @@ def test_partial_auth(started_cluster, get_zk):
     with pytest.raises(NoAuthError):
         auth_connection.delete("/test_partial_acl_delete/subnode")
 
+    print("end test_partial_auth")
+
 
 def test_bad_auth(started_cluster):
+    print("start test_bad_auth")
     auth_connection = get_fake_zk()
 
     with pytest.raises(AuthFailedError):
@@ -276,7 +288,10 @@ def test_bad_auth(started_cluster):
         print("Sending 12")
         auth_connection.create("/test_bad_acl", b"data", acl=[make_acl("digest", "dsad:DSAa:d", read=True, write=False, create=True, delete=True, admin=True)])
 
+        print("end test_bad_auth")
+
 def test_auth_snapshot(started_cluster):
+    print("start test_auth_snapshot")
     connection = get_fake_zk()
     connection.add_auth('digest', 'user1:password1')
 
@@ -331,6 +346,8 @@ def test_auth_snapshot(started_cluster):
     with pytest.raises(NoAuthError):
         connection2.get("/test_snapshot_acl1")
 
+    print("end test_auth_snapshot")
+
 
 @pytest.mark.parametrize(
     ('get_zk'),
@@ -340,6 +357,7 @@ def test_auth_snapshot(started_cluster):
     ]
 )
 def test_get_set_acl(started_cluster, get_zk):
+    print("start test_get_set_acl")
     auth_connection = get_zk()
     auth_connection.add_auth('digest', 'username1:secret1')
     auth_connection.add_auth('digest', 'username2:secret2')
@@ -374,3 +392,5 @@ def test_get_set_acl(started_cluster, get_zk):
 
     with pytest.raises(KazooException):
         other_auth_connection.set_acls("/test_set_get_acl", acls=[make_acl("auth", "", all=True)], version=0)
+
+    print("end test_get_set_acl")

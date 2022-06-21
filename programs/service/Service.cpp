@@ -150,7 +150,8 @@ int Service::main(const std::vector<std::string> & /*args*/)
     global_context_ptr = global_context.get();
 
     auto servers = std::make_shared<std::vector<ProtocolServerAdapter>>();
-    ptr<ParallelSocketReactor<SocketReactor>> nio_server;
+    ptr<SvsSocketReactor<SocketReactor>> nio_server;
+    ptr<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>> nio_server_acceptor;
 
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
 
@@ -167,12 +168,15 @@ int Service::main(const std::vector<std::string> & /*args*/)
 
     createServer(listen_host, port_name, listen_try, [&](UInt16 port) {
 #ifdef USE_NIO_FOR_KEEPER
-        using Poco::Net::ServerSocket;
-        // set-up a server socket
-        ServerSocket svs(port);
-        /// TODO timeout
-        nio_server = std::make_shared<ParallelSocketReactor<SocketReactor>>();
-        ParallelSocketAcceptor<SvsConnectionHandler, SocketReactor> acceptor(*global_context, svs, *nio_server);
+        Poco::Net::ServerSocket socket(port);
+        socket.setBlocking(false);
+
+        Poco::Timespan timeout(global_context->getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000) * 1000);
+        nio_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
+        /// TODO add io thread count to config
+        nio_server_acceptor = std::make_shared<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>>(
+            "NIO-HANDLER", *global_context, socket, *nio_server, timeout);
+        LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
 #else
             Poco::Net::ServerSocket socket;
             auto address = socketBindListen(socket, listen_host, port);
@@ -183,7 +187,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
                 std::make_unique<Poco::Net::TCPServer>(
                     new ServiceTCPHandlerFactory(*this, false, true), server_pool, socket, new Poco::Net::TCPServerParams));
 
-            LOG_INFO(log, "Listening for connections to fake zookeeper (tcp): {}", address.toString());
+            LOG_INFO(log, "Listening for connections on : {}", address.toString());
 
             /// 3. Start the TCPServer
             for (auto & server : *servers)
@@ -219,13 +223,21 @@ int Service::main(const std::vector<std::string> & /*args*/)
     LOG_INFO(log, "Ready for connections.");
 
 #ifdef USE_NIO_FOR_KEEPER
-    LOG_DEBUG(log, "Received termination signal.");
-    LOG_DEBUG(log, "Waiting for current connections to close.");
+    SCOPE_EXIT({
+        LOG_DEBUG(log, "Received termination signal.");
+        LOG_DEBUG(log, "Waiting for current connections to close.");
 
-    main_config_reloader.reset();
-    is_cancelled = true;
+        main_config_reloader.reset();
+        is_cancelled = true;
 
-    nio_server->stop();
+        /// shutdown storage dispatcher
+        global_context->shutdownServiceKeeperStorageDispatcher();
+
+        nio_server->stop();
+
+        LOG_INFO(log, "Will shutdown forcefully.");
+        _exit(Application::EXIT_OK);
+    });
 #else
     SCOPE_EXIT({
         LOG_DEBUG(log, "Received termination signal.");

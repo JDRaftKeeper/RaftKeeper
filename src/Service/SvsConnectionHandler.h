@@ -4,8 +4,8 @@
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
 #include <Poco/NObserver.h>
-#include <Poco/Net/SocketNotification.h>
-#include <Poco/Net/SocketReactor.h>
+#include <Service/SocketNotification.h>
+#include <Service/SocketReactor.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
 #include <Poco/ThreadPool.h>
@@ -22,10 +22,6 @@
 
 namespace DB
 {
-using Poco::Net::SocketReactor;
-using Poco::Net::ReadableNotification;
-using Poco::Net::WritableNotification;
-using Poco::Net::ShutdownNotification;
 using Poco::Net::StreamSocket;
 
 using Poco::AutoPtr;
@@ -52,7 +48,7 @@ public:
 
     void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
     void onSocketWritable(const AutoPtr<WritableNotification> & pNf);
-    void onSocketShutdown(const AutoPtr<ShutdownNotification> &) { delete this; }
+    void onSocketShutdown(const AutoPtr<ShutdownNotification> & pNf);
 
     KeeperConnectionStats getConnectionStats() const;
     void dumpStats(WriteBufferFromOwnString & buf, bool brief);
@@ -72,22 +68,20 @@ private:
     static bool isHandShake(Int32 & handshake_length) ;
     bool tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
 
-    std::pair<Coordination::OpNum, Coordination::XID> receiveRequest();
+    std::pair<Coordination::OpNum, Coordination::XID> receiveRequest(int32_t length);
 
-    void sendResponse(const ptr<FIFOBuffer> resp);
+    void sendResponse(const Coordination::ZooKeeperResponsePtr& resp);
 
     void packageSent();
     void packageReceived();
 
-    void updateStats(Coordination::ZooKeeperResponsePtr & response);
+    void updateStats(const Coordination::ZooKeeperResponsePtr & response);
 
-    enum
-    {
-        BUFFER_SIZE = 1024
-    };
+    /// destroy connection
+    void destroyMe();
 
     static constexpr size_t SENT_BUFFER_SIZE = 1024;
-//    WriteBufferFromFiFoBuffer send_buf(SENT_BUFFER_SIZE);
+    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
     Logger * log;
 

@@ -2,6 +2,7 @@
 
 #include <Service/SvsKeeperDispatcher.h>
 #include <Service/ServiceTCPHandler.h>
+#include <Service/SvsConnectionHandler.h>
 #include <common/logger_useful.h>
 #include <Poco/Environment.h>
 #include <Poco/Path.h>
@@ -231,7 +232,6 @@ String MonitorCommand::run()
     print(ret, "watch_count", state_machine.getTotalWatchesCount());
     print(ret, "ephemerals_count", state_machine.getTotalEphemeralNodesCount());
     print(ret, "approximate_data_size", state_machine.getApproximateDataSize());
-    print(ret, "approximate_data_size", state_machine.getApproximateDataSize());
     print(ret, "snap_count", state_machine.getSnapshotCount());
     print(ret, "snap_time_ms", state_machine.getSnapshotTimeMs());
     print(ret, "in_snapshot", state_machine.getSnapshoting());
@@ -271,13 +271,13 @@ String ConfCommand::run()
 String ConsCommand::run()
 {
     StringBuffer buf;
-    ServiceTCPHandler::dumpConnections(buf, false);
+    SvsConnectionHandler::dumpConnections(buf, false);
     return buf.str();
 }
 
 String RestConnStatsCommand::run()
 {
-    ServiceTCPHandler::resetConnsStats();
+    SvsConnectionHandler::resetConnsStats();
     return "Connection stats reset.\n";
 }
 
@@ -325,7 +325,7 @@ String StatCommand::run()
     write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
 
     buf << "Clients:\n";
-    ServiceTCPHandler::dumpConnections(buf, true);
+    SvsConnectionHandler::dumpConnections(buf, true);
     buf << '\n';
 
     StringBuffer latency;
