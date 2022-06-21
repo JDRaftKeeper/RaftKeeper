@@ -16,10 +16,27 @@
 #include <Common/PipeFDs.h>
 #include <Core/Types.h>
 #include <IO/ReadBufferFromFileDescriptor.h>
+
+#if defined(POCO_HAVE_FD_EPOLL)
+#include <sys/epoll.h>
+#else
 #include <poll.h>
+#endif
+
+#define USE_NIO_FOR_KEEPER
 
 namespace DB
 {
+
+namespace ErrorCodes
+{
+    extern const int SYSTEM_ERROR;
+    extern const int LOGICAL_ERROR;
+    extern const int UNEXPECTED_PACKET_FROM_CLIENT;
+    extern const int TIMEOUT_EXCEEDED;
+    extern const int READONLY;
+    extern const int RAFT_ERROR;
+}
 
 struct ConnectRequest
 {
@@ -34,8 +51,11 @@ struct ConnectRequest
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-//using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
+#ifdef USE_NIO_FOR_KEEPER
 using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<ptr<FIFOBuffer>>;
+#else
+using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
+#endif
 
 using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
 
@@ -53,6 +73,7 @@ struct LastOp
 
 static const LastOp EMPTY_LAST_OP{"NA", -1, -1, 0};
 
+#ifndef USE_NIO_FOR_KEEPER
 struct PollResult
 {
     size_t responses_count{0};
@@ -193,5 +214,7 @@ struct SocketInterruptablePollWrapper
     ~SocketInterruptablePollWrapper() { ::close(epollfd); }
 #endif
 };
+
+#endif
 
 }

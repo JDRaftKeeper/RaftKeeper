@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Poco/Net/SocketReactor.h>
-#include <Poco/Net/SocketNotification.h>
+#include <Service/SocketReactor.h>
+#include <Service/SocketNotification.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/NObserver.h>
@@ -10,46 +10,31 @@
 #include <Common/setThreadName.h>
 
 
-using Poco::Net::Socket;
-using Poco::Net::SocketReactor;
-using Poco::Net::ReadableNotification;
-using Poco::Net::ShutdownNotification;
-using Poco::Net::ServerSocket;
-using Poco::Net::StreamSocket;
-using Poco::NObserver;
-using Poco::AutoPtr;
-using Poco::Thread;
-
 
 namespace DB {
 
-
     template <class SR>
-    class ParallelSocketReactor: public SR
+    class SvsSocketReactor : public SR
     {
     public:
-        using Ptr = Poco::SharedPtr<ParallelSocketReactor>;
+        using Ptr = Poco::SharedPtr<SvsSocketReactor>;
 
-        ParallelSocketReactor()
+        SvsSocketReactor(const std::string& name = "")
         {
             _thread.start(*this);
+            if (!name.empty())
+                _thread.setName(name);
         }
-	
-        explicit ParallelSocketReactor(const Poco::Timespan& timeout):
+
+        SvsSocketReactor(const Poco::Timespan& timeout, const std::string& name = ""):
             SR(timeout)
         {
             _thread.start(*this);
+            if (!name.empty())
+                _thread.setName(name);
         }
 
-        void run() override
-        {
-            static int thread_id = 0;
-            static String THREAD_NAME_PREFIX = "NIO-Handler-";
-            setThreadName((THREAD_NAME_PREFIX + std::to_string(thread_id++)).data());
-            SR::run();
-        }
-	
-        ~ParallelSocketReactor() override
+        ~SvsSocketReactor() override
         {
             try
             {

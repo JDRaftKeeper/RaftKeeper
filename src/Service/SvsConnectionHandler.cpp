@@ -26,6 +26,7 @@ using Poco::NObserver;
 std::mutex SvsConnectionHandler::conns_mutex;
 std::unordered_set<SvsConnectionHandler *> SvsConnectionHandler::connections;
 
+
 void SvsConnectionHandler::registerConnection(SvsConnectionHandler * conn)
 {
     std::lock_guard lock(conns_mutex);
@@ -57,7 +58,7 @@ void SvsConnectionHandler::resetConnsStats()
 }
 
 SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor)
-    : log(&Logger::get("SvsNIOTCPHandler")), socket_(socket), reactor_(reactor)
+    : log(&Logger::get("SvsConnectionHandler")), socket_(socket), reactor_(reactor)
     , global_context(global_context_)
     , service_keeper_storage_dispatcher(global_context.getSvsKeeperStorageDispatcher())
     , operation_timeout(
@@ -68,17 +69,17 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
     LOG_INFO(log, "Connection from " + socket_.peerAddress().toString());
+    registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onSocketShutdown));
-
 }
 SvsConnectionHandler::~SvsConnectionHandler()
 {
     unregisterConnection(this);
     try
     {
-        LOG_INFO(log, "Disconnecting " + socket_.peerAddress().toString());
+        LOG_INFO(log, "Disconnecting {}", socket_.peerAddress().toString());
     }
     catch (...)
     {
@@ -90,8 +91,16 @@ SvsConnectionHandler::~SvsConnectionHandler()
 
 void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /*pNf*/)
 {
+    LOG_TRACE(log, "socket readable {}", socket_.peerAddress().toString());
     try
     {
+        if (!socket_.available())
+        {
+            LOG_TRACE(log, "Client {} close connection!", socket_.peerAddress().toString());
+            destroyMe();
+            return;
+        }
+
         while(socket_.available())
         {
             /// request body length
@@ -103,7 +112,8 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 if (!req_header_buf.isFull())
                 {
                     socket_.receiveBytes(req_header_buf);
-                    continue;
+                    if (!req_header_buf.isFull())
+                        continue;
                 }
 
                 /// header read completed
@@ -114,9 +124,9 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 /// All four letter word command code is larger than 2^24 or lower than 0.
                 /// Hand shake package length must be lower than 2^24 and larger than 0.
                 /// So collision never happens.
-                int32_t four_letter_cmd = header;
-                if (!isHandShake(four_letter_cmd))
+                if (!isHandShake(header) && !handshake_done)
                 {
+                    int32_t four_letter_cmd = header;
                     tryExecuteFourLetterWordCmd(four_letter_cmd);
                     /// Handler need to delete self
                     /// As to four letter command just close connection.
@@ -125,7 +135,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
 
                 body_len = header;
-                LOG_DEBUG(log, "read request length : {}", body_len);
+                LOG_TRACE(log, "read request length : {}", body_len);
 
                 /// clear len_buf
                 req_header_buf.drain(req_header_buf.used());
@@ -138,140 +148,143 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 /// create a buffer
                 req_body_buf = std::make_shared<FIFOBuffer>(body_len);
 
+            socket_.receiveBytes(*req_body_buf);
+
             if (!req_body_buf->isFull())
+                continue;
+
+            /// Request reading done, set flags
+            next_req_header_read_done = false;
+            previous_req_body_read_done = true;
+
+            packageReceived();
+
+            LOG_TRACE(log, "Read request done, body length : {}", body_len);
+            poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
+
+            /// 3. handshake
+            if (!handshake_done)
             {
-                socket_.receiveBytes(*req_body_buf);
+                HandShakeResult handshake_result;
+                ConnectRequest connect_req;
+                try
+                {
+                    int32_t handshake_req_len = body_len;
+                    connect_req = receiveHandshake(handshake_req_len);
+
+                    handshake_result = handleHandshake(connect_req);
+                    sendHandshake(handshake_result);
+                }
+                catch (...)
+                {
+                    /// Typical for an incorrect username, password
+                    /// and bad protocol version, bad las zxid, rw connection to a read only server
+                    /// Close the connection directly.
+                    tryLogCurrentException(log, "Cannot receive handshake");
+                    destroyMe();
+                    return;
+                }
+
+                if (!handshake_result.connect_success)
+                {
+                    destroyMe();
+                    return;
+                }
+
+                /// register session response callback
+                auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) {
+                    sendResponse(response);
+                };
+                service_keeper_storage_dispatcher->registerSession(session_id, response_callback);
+
+                /// start session timeout timer
+                session_stopwatch.start();
+                handshake_done = true;
             }
+            /// 4. handle request
             else
             {
-                /// Request reading done, set flags
-                next_req_header_read_done = false;
-                previous_req_body_read_done = true;
+                session_stopwatch.start();
 
-                packageReceived();
-
-                LOG_DEBUG(log, "Read request done, body length : {}", body_len);
-                poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
-
-                /// 3. handshake
-                if (!handshake_done)
+                try
                 {
-                    HandShakeResult handshake_result;
-                    ConnectRequest connect_req;
-                    try
+                    auto [received_op, received_xid] = receiveRequest(body_len);
+
+                    if (received_op == Coordination::OpNum::Close)
                     {
-                        int32_t handshake_req_len = body_len;
-                        connect_req = receiveHandshake(handshake_req_len);
-
-                        handshake_result = handleHandshake(connect_req);
-                        sendHandshake(handshake_result);
+                        LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
+                        close_xid = received_xid;
                     }
-                    catch (...)
+                    else if (received_op == Coordination::OpNum::Heartbeat)
                     {
-                        /// Typical for an incorrect username, password
-                        /// and bad protocol version, bad las zxid, rw connection to a read only server
-                        /// Close the connection directly.
-                        tryLogCurrentException(log, "Cannot receive handshake");
-                        delete this;
-                        return;
+                        LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
                     }
+                    else
+                        operations[received_xid] = Poco::Timestamp();
 
-                    if (!handshake_result.connect_success)
-                    {
-                        delete this;
-                        return;
-                    }
-
-                    /// register session response callback
-                    auto response_callback = [this](const ptr<FIFOBuffer>& response) {
-                        sendResponse(response);
-                    };
-                    service_keeper_storage_dispatcher->registerSession(session_id, response_callback);
-
-                    /// start session timeout timer
-                    session_stopwatch.start();
-                    handshake_done = true;
+                    /// Each request restarts session stopwatch
+                    session_stopwatch.restart();
                 }
-                /// 4. handle request
-                else
+                catch (const Exception & e)
                 {
-                    session_stopwatch.start();
+                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", session_id));
 
-                    try
+                    if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
                     {
-                        auto [received_op, received_xid] = receiveRequest();
-
-                        if (received_op == Coordination::OpNum::Close)
-                        {
-                            LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
-                            close_xid = received_xid;
-                        }
-                        else if (received_op == Coordination::OpNum::Heartbeat)
-                        {
-                            LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
-                        }
-                        else
-                            operations[received_xid] = Poco::Timestamp();
-
-                        /// Each request restarts session stopwatch
-                        session_stopwatch.restart();
-                    }
-                    catch (const Exception & e)
-                    {
-                        tryLogCurrentException(log, Poco::format("Error processing session {} request.", session_id));
-
-                        if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
-                        {
-                            delete this;
-                            return;
-                        }
+                        destroyMe();
+                        return;
                     }
                 }
             }
-
         }
     }
     catch (Poco::Net::NetException &)
     {
         tryLogCurrentException(log, "Network error when receiving request, will close connection.");
-        delete this;
+        destroyMe();
     }
     catch (...)
     {
         tryLogCurrentException(log, "Fatal error when handling request, will close connection.");
-        delete this;
+        destroyMe();
     }
 }
 
 void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
+    LOG_TRACE(log, "socket writable {}", socket_.peerAddress().toString());
     try
     {
+        if (responses->size() == 0 && send_buf.used() == 0)
+            return;
+
         /// TODO use zero copy buffer
-        WriteBufferFromFiFoBuffer tmp_buf(SENT_BUFFER_SIZE);
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&tmp_buf, &size_to_sent] (const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this] (const auto & resp) -> bool {
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
-                tmp_buf.write(resp->begin(), resp->used());
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
                 size_to_sent += resp->used();
             }
             else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
             {
-                tmp_buf.write(resp->begin(), resp->used());
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
                 size_to_sent += resp->used();
             }
             else
             {
-                tmp_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
+                /// add part of resp to send_buf
+                send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
             }
             return size_to_sent < SENT_BUFFER_SIZE;
         });
 
         /// 2. send data
-        size_t sent = socket_.sendBytes(*tmp_buf.getBuffer());
+        size_t sent = socket_.sendBytes(send_buf);
 
         /// 3. remove sent responses
 
@@ -284,6 +297,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
                 responses->remove();
                 /// package sent
                 packageSent();
+                LOG_TRACE(log, "sent response to {}", socket_.peerAddress().toString());
             }
             else
             {
@@ -294,14 +308,25 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
             }
         }
 
-        /// Trigger socket readable event
-        reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
+        /// If all sent unregister writable event.
+        if (responses->size() == 0 && send_buf.used() == 0)
+        {
+            LOG_TRACE(log, "Remove socket writable event handler - socket {}", socket_.peerAddress().toString());
+            reactor_.removeEventHandler(
+                socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+        }
     }
     catch (...)
     {
         tryLogCurrentException(log, "Fatal error when sending data to client, will close connection.");
-        delete this;
+        destroyMe();
     }
+}
+
+void SvsConnectionHandler::onSocketShutdown(const AutoPtr<ShutdownNotification> & pNf)
+{
+    LOG_INFO(log, "Socket {} shutdown!", pNf->socket().peerAddress().toString());
+    destroyMe();
 }
 
 KeeperConnectionStats SvsConnectionHandler::getConnectionStats() const
@@ -488,7 +513,10 @@ void SvsConnectionHandler::sendHandshake(HandShakeResult & result)
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
     Coordination::write(passwd, out);
 
-    sendResponse(out.getBuffer());
+    /// Set socket to blocking mode to simplify sending.
+    socket_.setBlocking(true);
+    socket_.sendBytes(*out.getBuffer());
+    socket_.setBlocking(false);
 }
 
 bool SvsConnectionHandler::isHandShake(Int32 & handshake_length)
@@ -517,10 +545,12 @@ bool SvsConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
         try
         {
             String res = command_ptr->run();
-
             WriteBufferFromFiFoBuffer buf(res.size());
             buf.write(res.data(), res.size());
-            sendResponse(buf.getBuffer());
+
+            /// Set socket to blocking mode to simplify sending.
+            socket_.setBlocking(true);
+            socket_.sendBytes(*buf.getBuffer());
         }
         catch (...)
         {
@@ -530,36 +560,43 @@ bool SvsConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
     }
 }
 
-std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveRequest()
+std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveRequest(int32_t length)
 {
-    ReadBufferFromMemory in(req_body_buf->begin(), req_body_buf->used());
-
-    int32_t length;
-    Coordination::read(length, in);
-
+    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
     int32_t xid;
-    Coordination::read(xid, in);
+    Coordination::read(xid, body);
 
     Coordination::OpNum opnum;
-    Coordination::read(opnum, in);
+    Coordination::read(opnum, body);
 
     LOG_TRACE(log, "Receive request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
-    request->readImpl(in);
+    request->readImpl(body);
 
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
     return std::make_pair(opnum, xid);
 }
 
-void SvsConnectionHandler::sendResponse(const ptr<FIFOBuffer> resp)
+void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
 {
+    WriteBufferFromFiFoBuffer buf;
+    response->write(buf);
+
+    /// TODO should invoked after response sent to client.
+    updateStats(response);
+
     /// TODO handle timeout
-    responses->push(resp);
+    responses->push(buf.getBuffer());
+
+    LOG_TRACE(log, "Add socket writable event handler - socket {}", socket_.peerAddress().toString());
     /// Trigger socket writable event
-    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+    reactor_.addEventHandler(
+        socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+    /// We must wake up reactor to interrupt it's sleeping.
+    reactor_.wakeUp();
 }
 
 void SvsConnectionHandler::packageSent()
@@ -580,7 +617,7 @@ void SvsConnectionHandler::packageReceived()
     service_keeper_storage_dispatcher->incrementPacketsReceived();
 }
 
-void SvsConnectionHandler::updateStats(Coordination::ZooKeeperResponsePtr & response)
+void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & response)
 {
     /// update statistics ignoring watch response and heartbeat.
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat)
@@ -600,6 +637,12 @@ void SvsConnectionHandler::updateStats(Coordination::ZooKeeperResponsePtr & resp
             .last_response_time = Poco::Timestamp().epochMicroseconds() / 1000,
         }));
     }
+}
+
+void SvsConnectionHandler::destroyMe()
+{
+    service_keeper_storage_dispatcher->finishSession(session_id);
+    delete this;
 }
 
 }

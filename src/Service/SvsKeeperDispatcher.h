@@ -29,11 +29,7 @@ namespace DB
 //#    define __THREAD_POOL_VEC__
 #endif
 
-#ifdef USE_NIO_FOR_KEEPER
-using ZooKeeperResponseCallback = std::function<void(const ptr<Poco::FIFOBuffer> & response)>;
-#else
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
-#endif
 
 
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
@@ -45,7 +41,6 @@ private:
     using RequestsQueue = ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession>;
     RequestsQueue requests_queue{20000};
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
-//    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
     using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
 
@@ -83,11 +78,7 @@ private:
     void requestThread();
     void responseThread();
     void sessionCleanerTask();
-#ifdef USE_NIO_FOR_KEEPER
-    void setResponse(int64_t session_id, const ptr<Poco::FIFOBuffer> & response);
-#else
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
-#endif
 
 public:
     SvsKeeperDispatcher();

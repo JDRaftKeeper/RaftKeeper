@@ -24,21 +24,26 @@ SvsKeeperDispatcher::SvsKeeperDispatcher()
 void SvsKeeperDispatcher::requestThread()
 {
     setThreadName("SerKeeperReqT");
+
+    SvsKeeperStorage::RequestForSession request;
+    UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+
     while (!shutdown_called)
     {
-        SvsKeeperStorage::RequestForSession request;
-
-        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-        /// TO prevent long time stopping
-        max_wait = std::max(max_wait, static_cast<UInt64>(1000));
-
-        if (requests_queue.tryPop(request, max_wait))
+        /// TO prevent long time shutdown
+        if (requests_queue.tryPop(request, std::min(max_wait, static_cast<UInt64>(1000))))
         {
             if (shutdown_called)
                 break;
 
             try
             {
+                LOG_TRACE(
+                    log,
+                    "Push request to keeper server : session {}, xid {}, opnum {}",
+                    request.session_id,
+                    request.request->xid,
+                    Coordination::toString(request.request->getOpNum()));
                 server->putRequest(request);
             }
             catch (...)
@@ -52,31 +57,20 @@ void SvsKeeperDispatcher::requestThread()
 void SvsKeeperDispatcher::responseThread()
 {
     setThreadName("SerKeeperRspT");
+
+    SvsKeeperStorage::ResponseForSession response_for_session;
+    UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+
     while (!shutdown_called)
     {
-        SvsKeeperStorage::ResponseForSession response_for_session;
-
-        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-        max_wait = std::max(max_wait, static_cast<UInt64>(1000));
-
-        if (responses_queue.tryPop(response_for_session, max_wait))
+        if (responses_queue.tryPop(response_for_session, std::min(max_wait, static_cast<UInt64>(1000))))
         {
             if (shutdown_called)
                 break;
 
             try
             {
-#ifdef USE_NIO_FOR_KEEPER
-                WriteBufferFromFiFoBuffer buf;
-                response_for_session.response->write(buf);
-                buf.getBuffer();
-                setResponse(response_for_session.session_id, buf.getBuffer());
-                /// Session closed, no more writes
-                if (response_for_session.response->xid != Coordination::WATCH_XID && response_for_session.response->getOpNum() == Coordination::OpNum::Close)
-                    session_to_response_callback.erase(response_for_session.session_id);
-#else
                 setResponse(response_for_session.session_id, response_for_session.response);
-#endif
             }
             catch (...)
             {
@@ -86,17 +80,6 @@ void SvsKeeperDispatcher::responseThread()
     }
 }
 
-#ifdef USE_NIO_FOR_KEEPER
-void SvsKeeperDispatcher::setResponse(int64_t session_id, const ptr<Poco::FIFOBuffer> & response)
-{
-    std::lock_guard lock(session_to_response_callback_mutex);
-    auto session_writer = session_to_response_callback.find(session_id);
-    if (session_writer == session_to_response_callback.end())
-        return;
-
-    session_writer->second(response);
-}
-#else
 void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
@@ -109,7 +92,7 @@ void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::Zo
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
         session_to_response_callback.erase(session_writer);
 }
-#endif
+
 bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
 {
     {
@@ -122,13 +105,14 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     request_info.request = request;
     request_info.session_id = session_id;
 
-    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
+    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
 
-//    std::lock_guard lock(push_request_mutex);
+    //    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
     {
+        LOG_TRACE(log, "receive close request 0x{}", getHexUIntLowercase(session_id));
         if (!requests_queue.push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
@@ -233,23 +217,13 @@ void SvsKeeperDispatcher::shutdown()
         if (server)
             server->shutdown();
 
-        LOG_DEBUG(log, "Cleaning response");
+        LOG_DEBUG(log, "for unhandled requests sending session expired error to client.");
         SvsKeeperStorage::RequestForSession request_for_session;
         while (requests_queue.tryPop(request_for_session))
         {
             auto response = request_for_session.request->makeResponse();
             response->error = Coordination::Error::ZSESSIONEXPIRED;
-#ifdef USE_NIO_FOR_KEEPER
-            WriteBufferFromFiFoBuffer buf;
-            response->write(buf);
-            buf.getBuffer();
-            setResponse(request_for_session.session_id, buf.getBuffer());
-            /// Session closed, no more writes
-            if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
-                session_to_response_callback.erase(request_for_session.session_id);
-#else
             setResponse(request_for_session.session_id, response);
-#endif
         }
         session_to_response_callback.clear();
     }
@@ -359,6 +333,7 @@ void SvsKeeperDispatcher::updateConfigurationThread()
 
 void SvsKeeperDispatcher::finishSession(int64_t session_id)
 {
+    LOG_TRACE(log, "finish session 0x{}", getHexUIntLowercase(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     if (session_it != session_to_response_callback.end())
