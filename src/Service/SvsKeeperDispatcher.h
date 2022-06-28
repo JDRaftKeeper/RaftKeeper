@@ -97,7 +97,7 @@ public:
         return server->updateSessionTimeout(session_id, session_timeout_ms);
     }
 
-    void registerSession(int64_t session_id, ZooKeeperResponseCallback callback);
+    void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
 

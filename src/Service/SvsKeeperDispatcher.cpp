@@ -4,6 +4,7 @@
 #include <Common/setThreadName.h>
 #include <Common/checkStackSize.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
+#include <Poco/NumberFormatter.h>
 
 namespace DB
 {
@@ -15,6 +16,7 @@ namespace ErrorCodes
 }
 
 namespace fs = std::filesystem;
+using Poco::NumberFormatter;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
@@ -114,7 +116,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
     {
-        LOG_TRACE(log, "receive close request 0x{}", getHexUIntLowercase(session_id));
+        LOG_TRACE(log, "receive close request {}", NumberFormatter::formatHex(session_id, true));
         if (!requests_queue.push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
@@ -237,10 +239,10 @@ void SvsKeeperDispatcher::shutdown()
     LOG_DEBUG(log, "Dispatcher shut down");
 }
 
-void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback)
+void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
-    if (!session_to_response_callback.try_emplace(session_id, callback).second)
+    if (!session_to_response_callback.try_emplace(session_id, callback).second && !is_reconnected)
         throw Exception(DB::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", session_id);
 }
 
@@ -337,7 +339,7 @@ void SvsKeeperDispatcher::updateConfigurationThread()
 
 void SvsKeeperDispatcher::finishSession(int64_t session_id)
 {
-    LOG_TRACE(log, "finish session 0x{}", getHexUIntLowercase(session_id));
+    LOG_TRACE(log, "finish session {}", NumberFormatter::formatHex(session_id, true));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     if (session_it != session_to_response_callback.end())

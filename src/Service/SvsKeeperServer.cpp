@@ -11,6 +11,7 @@
 #include <libnuraft/async.hxx>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <boost/algorithm/string.hpp>
+#include <Poco/NumberFormatter.h>
 
 #ifndef TEST_TCPHANDLER
 //#define TEST_TCPHANDLER
@@ -23,6 +24,8 @@ namespace ErrorCodes
     extern const int RAFT_ERROR;
     extern const int INVALID_CONFIG_PARAMETER;
 }
+
+using Poco::NumberFormatter;
 
 namespace
 {
@@ -397,7 +400,7 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 
 bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
 {
-    LOG_DEBUG(log, "Updating session timeout for {}", session_id);
+    LOG_DEBUG(log, "Updating session timeout for {}", NumberFormatter::formatHex(session_id, true));
 
     auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
     nuraft::buffer_serializer bs(entry);

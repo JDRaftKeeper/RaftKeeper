@@ -8,6 +8,7 @@
 #include <Poco/SHA1Engine.h>
 #include <Poco/Base64Encoder.h>
 #include <boost/algorithm/string.hpp>
+#include <Poco/NumberFormatter.h>
 
 namespace DB
 {
@@ -17,24 +18,17 @@ namespace ErrorCodes
     extern const int BAD_ARGUMENTS;
 }
 
+using Poco::NumberFormatter;
+
 static inline void set_response(
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> & responses_queue,
     const SvsKeeperStorage::ResponsesForSessions & responses,
     bool ignore_response)
 {
-    static auto * log = &(Poco::Logger::get("SvsKeeperStorage"));
     if (!ignore_response)
     {
         for (const auto & response : responses)
-        {
-            LOG_TRACE(
-                log,
-                "[push response to dispatcher]SessionID/xid #{}#{}, opnum {}",
-                response.session_id,
-                response.response->xid,
-                Coordination::toString(response.response->getOpNum()));
             responses_queue.push(response);
-        }
     }
 }
 
@@ -1397,7 +1391,7 @@ void SvsKeeperStorage::processRequest(
             }
             else
             {
-                LOG_DEBUG(log, "Session 0x{} already closed, must applying a fuzzy log.", getHexUIntLowercase(session_id));
+                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", NumberFormatter::formatHex(session_id, true));
             }
             clearDeadWatches(session_id);
         }
@@ -1431,8 +1425,8 @@ void SvsKeeperStorage::processRequest(
         {
             LOG_WARNING(
                 log,
-                "Session 0x{} is closing, ignore op {} to path {}",
-                getHexUIntLowercase(session_id),
+                "Session {} is closing, ignore op {} to path {}",
+                NumberFormatter::formatHex(session_id, true),
                 Coordination::toString(zk_request->getOpNum()),
                 zk_request->getPath());
             return;
@@ -1540,6 +1534,8 @@ void SvsKeeperStorage::processRequest(
         {
             response = storage_request->process(*this, zxid, session_id, time).first;
         }
+
+        response->request_created_time_us = zk_request->request_created_time_us;
 
         response->xid = zk_request->xid;
         response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
@@ -1649,7 +1645,7 @@ bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*sessio
     std::lock_guard lock(session_mutex);
     if (closing_sessions.contains(session_id))
     {
-        LOG_WARNING(log, "Session 0x{} is closing, ignore session timeout updating.", getHexUIntLowercase(session_id));
+        LOG_WARNING(log, "Session {} is closing, ignore session timeout updating.", NumberFormatter::formatHex(session_id, true));
         return false;
     }
     if (!session_and_timeout.contains(session_id))
@@ -1741,7 +1737,7 @@ void SvsKeeperStorage::dumpWatches(WriteBufferFromOwnString & buf) const
     std::lock_guard lock(watch_mutex);
     for (const auto & [session_id, watches_paths] : sessions_and_watchers)
     {
-        buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+        buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
         for (const String & path : watches_paths)
             buf << "\t" << path << "\n";
     }
@@ -1753,7 +1749,7 @@ void SvsKeeperStorage::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
     {
         for (int64_t session_id : session_ids)
         {
-            buf << "\t0x" << getHexUIntLowercase(session_id) << "\n";
+            buf << "\t0x" << NumberFormatter::formatHex(session_id) << "\n";
         }
     };
 
@@ -1787,7 +1783,7 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
         std::lock_guard lock(session_mutex);
         for (const auto & [session_id, _] : session_and_timeout)
         {
-            buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+            buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
         }
     }
 
@@ -1795,7 +1791,7 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
     buf << "Sessions with Ephemerals (" << getSessionWithEphemeralNodesCount() << "):\n";
     for (const auto & [session_id, ephemeral_paths] : ephemerals)
     {
-        buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+        buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
         write_str_set(ephemeral_paths);
     }
 }

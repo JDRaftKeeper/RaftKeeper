@@ -15,14 +15,15 @@
 #include <IO/WriteBufferFromString.h>
 #include <functional>
 #include <common/logger_useful.h>
+#include <Poco/NumberFormatter.h>
 
 namespace DB
 {
-using namespace DB;
 struct SvsKeeperStorageRequest;
 using SvsKeeperStorageRequestPtr = std::shared_ptr<SvsKeeperStorageRequest>;
 using ResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr &)>;
 using ChildrenSet = std::unordered_set<std::string>;
+using Poco::NumberFormatter;
 
 #ifndef USE_CONCURRENTMAP
 #    define USE_CONCURRENTMAP
@@ -249,7 +250,7 @@ public:
         auto it = session_and_timeout.emplace(result, session_timeout_ms);
         if (!it.second)
         {
-            LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", getHexUIntLowercase(result));
+            LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", NumberFormatter::formatHex(result, true));
         }
         session_expiry_queue.addNewSessionOrUpdate(result, session_timeout_ms);
         return result;
