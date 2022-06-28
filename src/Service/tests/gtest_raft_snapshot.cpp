@@ -37,7 +37,8 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue, request, session_id, {}, /* check_acl = */ false, /*ignore_response*/ true);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 ptr<buffer> createSessionLog(int64_t session_timeout_ms)
@@ -65,6 +66,8 @@ ptr<buffer> closeSessionLog(int64_t session_id)
     SvsKeeperStorage::RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    request_info.time = time;
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(request_info);
     return buf;
 }
@@ -89,6 +92,9 @@ ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::st
     request->acls = default_acls;
     request->xid = 1;
 
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    session_request->time = time;
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;
 }
@@ -111,6 +117,10 @@ setLog(int64_t session_id, const std::string & key, const std::string value, con
     request->data = value;
     request->version = version;
     request->xid = 1;
+
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    session_request->time = time;
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;
 }
@@ -131,6 +141,10 @@ removeLog(int64_t session_id, const std::string & key)
     session_request->session_id = session_id;
     request->path = key;
     request->xid = 1;
+
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    session_request->time = time;
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;
 }
@@ -167,7 +181,8 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->xid = 1;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, const ACLs & acls)
@@ -181,7 +196,8 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->xid = 1;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
@@ -195,7 +211,8 @@ void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string 
     request->data = id;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ true, /*ignore_response*/true);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 ACLs getACL(SvsKeeperStorage & storage, const std::string key)
@@ -204,7 +221,8 @@ ACLs getACL(SvsKeeperStorage & storage, const std::string key)
     request->path = key;
 
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/false);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/false);
 
     SvsKeeperStorage::ResponseForSession responses;
     responses_queue.tryPop(responses);
@@ -228,7 +246,8 @@ void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const s
     request->acls = default_acls;
     request->xid = 1;
     SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, 1, {}, /* check_acl = */ true, /*ignore_response*/true);
+    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
 void assertStateMachineEquals(SvsKeeperStorage & storage, SvsKeeperStorage & ano_storage)

@@ -179,6 +179,7 @@ public:
     {
         int64_t session_id;
         Coordination::ZooKeeperRequestPtr request;
+        int64_t time;
     };
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
@@ -260,6 +261,7 @@ public:
         SvsKeeperThreadSafeQueue<ResponseForSession> & responses_queue,
         const Coordination::ZooKeeperRequestPtr & request,
         int64_t session_id,
+        int64_t time,
         std::optional<int64_t> new_last_zxid = {},
         bool check_acl = true,
         bool ignore_response = false);

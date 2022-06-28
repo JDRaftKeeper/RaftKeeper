@@ -48,6 +48,9 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
     request->acls = default_acls;
     request->xid = 1;
 
+    using namespace std::chrono;
+    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     //LOG_INFO(log, "index {}", index);
     if (store != nullptr)
@@ -83,6 +86,10 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
     //request->is_ephemeral = false;
     //request->is_sequential = false;
     //request->acls = default_acls;
+
+    using namespace std::chrono;
+    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     machine.commit(index, *(buf.get()));
 }
@@ -101,6 +108,10 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request.request = request;
     request->path = key;
+
+    using namespace std::chrono;
+    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     machine.commit(index, *(buf.get()));
 }
@@ -159,6 +170,9 @@ TEST(RaftStateMachine, serializeAndParse)
     request->is_sequential = false;
     request->acls = default_acls;
     session_request.request = request;
+
+    using namespace std::chrono;
+    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     SvsKeeperStorage::RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
