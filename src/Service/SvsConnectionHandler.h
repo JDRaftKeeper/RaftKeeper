@@ -59,6 +59,7 @@ private:
     {
         bool connect_success{};
         bool session_expired{};
+        bool is_reconnected{};
     };
 
     ConnectRequest receiveHandshake(int32_t handshake_length);
@@ -107,9 +108,6 @@ private:
 
     Coordination::XID close_xid = Coordination::CLOSE_XID;
     Poco::Timestamp established;
-
-    using Operations = std::unordered_map<Coordination::XID, Poco::Timestamp>;
-    Operations operations;
 
     LastOpMultiVersion last_op;
 

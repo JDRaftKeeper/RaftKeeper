@@ -2,11 +2,12 @@
 #ifdef USE_NIO_FOR_KEEPER
 #include "SvsConnectionHandler.h"
 
-#include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Poco/Net/NetException.h>
-#include <Service/FourLetterCommand.h>
+#    include <Service/FourLetterCommand.h>
+#    include <Service/formatHex.h>
+#    include <Poco/Net/NetException.h>
+#    include <Common/Stopwatch.h>
+#    include <Common/ZooKeeper/ZooKeeperCommon.h>
+#    include <Common/ZooKeeper/ZooKeeperIO.h>
 
 namespace DB
 {
@@ -22,6 +23,7 @@ namespace ErrorCodes
 }
 
 using Poco::NObserver;
+using Poco::NumberFormatter;
 
 std::mutex SvsConnectionHandler::conns_mutex;
 std::unordered_set<SvsConnectionHandler *> SvsConnectionHandler::connections;
@@ -68,7 +70,7 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_INFO(log, "Connection from " + socket_.peerAddress().toString());
+    LOG_INFO(log, "New connection from " + socket_.peerAddress().toString());
     registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
@@ -163,7 +165,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
             poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
 
             /// 3. handshake
-            if (!handshake_done)
+            if (unlikely(!handshake_done))
             {
                 HandShakeResult handshake_result;
                 ConnectRequest connect_req;
@@ -195,7 +197,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) {
                     sendResponse(response);
                 };
-                service_keeper_storage_dispatcher->registerSession(session_id, response_callback);
+                service_keeper_storage_dispatcher->registerSession(session_id, response_callback, handshake_result.is_reconnected);
 
                 /// start session timeout timer
                 session_stopwatch.start();
@@ -219,8 +221,6 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                     {
                         LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
                     }
-                    else
-                        operations[received_xid] = Poco::Timestamp();
 
                     /// Each request restarts session stopwatch
                     session_stopwatch.restart();
@@ -349,8 +349,8 @@ void SvsConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
     {
         if (session_id != 0)
         {
-            writeText(",sid=0x", buf);
-            writeText(getHexUIntLowercase(session_id), buf);
+            writeText(",sid=", buf);
+            writeText(formatHex(session_id), buf);
 
             writeText(",lop=", buf);
             LastOpPtr op = last_op.get();
@@ -362,11 +362,11 @@ void SvsConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
             int64_t last_cxid = op->last_cxid;
             if (last_cxid >= 0)
             {
-                writeText(",lcxid=0x", buf);
-                writeText(getHexUIntLowercase(last_cxid), buf);
+                writeText(",lcxid=", buf);
+                writeText(formatHex(last_cxid), buf);
             }
-            writeText(",lzxid=0x", buf);
-            writeText(getHexUIntLowercase(op->last_zxid), buf);
+            writeText(",lzxid=", buf);
+            writeText(formatHex(op->last_zxid), buf);
             writeText(",lresp=", buf);
             writeIntText(op->last_response_time, buf);
 
@@ -416,8 +416,8 @@ ConnectRequest SvsConnectionHandler::receiveHandshake(int32_t handshake_req_len)
     int64_t last_zxid = service_keeper_storage_dispatcher->getStateMachine().getLastProcessedZxid();
     if (last_zxid_seen > last_zxid)
     {
-        String msg = "Refusing session request  as it has seen zxid 0x" + getHexUIntLowercase(last_zxid_seen) + " our last zxid is 0x"
-            + getHexUIntLowercase(last_zxid) + " client must try another server";
+        String msg = "Refusing session request  as it has seen zxid " + formatHex(last_zxid_seen) + " our last zxid is "
+            + formatHex(last_zxid) + " client must try another server";
 
         throw Exception(msg, ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
     }
@@ -440,60 +440,67 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
 
     LOG_TRACE(log, "Negotiated session_timeout : {}", session_timeout.totalMilliseconds());
 
+    bool is_reconnected = false;
     bool session_expired = false;
     bool connect_success = service_keeper_storage_dispatcher->hasLeader();
 
-    if (connect_success)
+    if (!connect_success)
     {
-        try
+        LOG_WARNING(log, "Has no leader!");
+        return {connect_success, true, is_reconnected};
+    }
+
+    try
+    {
+        if (connect_req.previous_session_id != 0)
         {
-            if (connect_req.previous_session_id != 0)
+            LOG_INFO(log, "Requesting reconnecting with session {}", formatHex(connect_req.previous_session_id));
+            session_id = connect_req.previous_session_id;
+            /// existed session
+            if (!service_keeper_storage_dispatcher->getStateMachine().containsSession(connect_req.previous_session_id))
             {
-                LOG_INFO(log, "Requesting reconnecting with session {}", getHexUIntLowercase(connect_req.previous_session_id));
-                session_id = connect_req.previous_session_id;
-                /// existed session
-                if (!service_keeper_storage_dispatcher->getStateMachine().containsSession(connect_req.previous_session_id))
+                /// session expired, set timeout <=0
+                LOG_WARNING(
+                    log,
+                    "Client try to reconnects but session {} is already expired",
+                    formatHex(connect_req.previous_session_id));
+                session_expired = true;
+                connect_success = false;
+            }
+            else
+            {
+                /// update session timeout
+                if (!service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds()))
                 {
+                    /// update failed
+                    /// session was expired when updating
                     /// session expired, set timeout <=0
-                    LOG_WARNING(
-                        log,
-                        "Client try to reconnects but session 0x{} is already expired",
-                        getHexUIntLowercase(connect_req.previous_session_id));
+                    LOG_WARNING(log, "Session {} was expired when updating", formatHex(connect_req.previous_session_id));
                     session_expired = true;
                     connect_success = false;
                 }
                 else
                 {
-                    /// update session timeout
-                    if (!service_keeper_storage_dispatcher->updateSessionTimeout(session_id, session_timeout.totalMilliseconds()))
-                    {
-                        /// update failed
-                        /// session was expired when updating
-                        /// session expired, set timeout <=0
-                        LOG_WARNING(log, "Session 0x{} was expired when updating", getHexUIntLowercase(connect_req.previous_session_id));
-                        session_expired = true;
-                        connect_success = false;
-                    }
-                    else
-                        LOG_INFO(log, "Client reconnected with session 0x{}", getHexUIntLowercase(connect_req.previous_session_id));
+                    is_reconnected = true;
+                    LOG_INFO(log, "Client reconnected with session {}", formatHex(connect_req.previous_session_id));
                 }
             }
-            else
-            {
-                /// new session
-                LOG_INFO(log, "Requesting session ID for new client");
-                session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-                LOG_INFO(log, "Received session ID {}", session_id);
-            }
         }
-        catch (const Exception & e)
+        else
         {
-            LOG_WARNING(log, "Cannot receive session id {}", e.displayText());
-            connect_success = false;
+            /// new session
+            LOG_INFO(log, "Requesting session ID for new client");
+            session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
+            LOG_INFO(log, "Received session ID {}", session_id);
         }
     }
+    catch (const Exception & e)
+    {
+        LOG_WARNING(log, "Cannot receive session id {}", e.displayText());
+        connect_success = false;
+    }
 
-    return {connect_success, session_expired};
+    return {connect_success, session_expired, is_reconnected};
 }
 
 void SvsConnectionHandler::sendHandshake(HandShakeResult & result)
@@ -575,6 +582,8 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     request->xid = xid;
     request->readImpl(body);
 
+    request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
+
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
     return std::make_pair(opnum, xid);
@@ -582,11 +591,13 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
 
 void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
 {
-    WriteBufferFromFiFoBuffer buf;
-    response->write(buf);
+    LOG_TRACE(log, "Dispatch response to conn handler with socket {}", socket_.peerAddress().toString());
 
     /// TODO should invoked after response sent to client.
     updateStats(response);
+
+    WriteBufferFromFiFoBuffer buf;
+    response->write(buf);
 
     /// TODO handle timeout
     responses->push(buf.getBuffer());
@@ -620,14 +631,14 @@ void SvsConnectionHandler::packageReceived()
 void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & response)
 {
     /// update statistics ignoring watch response and heartbeat.
-    if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat)
+    if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
+        && response->getOpNum() != Coordination::OpNum::SetWatches)
     {
-        Int64 elapsed = (Poco::Timestamp() - operations[response->xid]) / 1000;
+        Int64 elapsed = (Poco::Timestamp().epochMicroseconds() - response->request_created_time_us) / 1000;
         {
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
         }
-        operations.erase(response->xid);
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 
         last_op.set(std::make_unique<LastOp>(LastOp{
