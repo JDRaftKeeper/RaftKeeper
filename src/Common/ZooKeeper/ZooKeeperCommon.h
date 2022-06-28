@@ -27,7 +27,7 @@ struct ZooKeeperResponse : virtual Response
     XID xid = 0;
     int64_t zxid;
 
-    UInt64 response_created_time_ns = 0;
+    UInt64 request_created_time_us = 0;
 
     virtual ~ZooKeeperResponse() override = default;
     virtual void readImpl(ReadBuffer &) = 0;
@@ -68,7 +68,7 @@ struct ZooKeeperRequest : virtual Request
 
     bool restored_from_zookeeper_log = false;
 
-    UInt64 request_created_time_ns = 0;
+    UInt64 request_created_time_us = 0;
 
     ZooKeeperRequest() = default;
     ZooKeeperRequest(const ZooKeeperRequest &) = default;

@@ -153,7 +153,9 @@ int Service::main(const std::vector<std::string> & /*args*/)
     ptr<SvsSocketReactor<SocketReactor>> nio_server;
     ptr<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>> nio_server_acceptor;
 
+#ifndef USE_NIO_FOR_KEEPER
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
+#endif
 
     //get port from config
     std::string listen_host = config().getString("service.host", "0.0.0.0");
@@ -161,11 +163,11 @@ int Service::main(const std::vector<std::string> & /*args*/)
 
     //Init global thread pool
     GlobalThreadPool::initialize(config().getUInt("max_thread_pool_size", 10000));
-    const char * port_name = "service.service_port";
 
     global_context->initializeServiceKeeperStorageDispatcher();
     FourLetterCommandFactory::registerCommands(*global_context->getSvsKeeperStorageDispatcher());
 
+    const char * port_name = "service.service_port";
     createServer(listen_host, port_name, listen_try, [&](UInt16 port) {
 #ifdef USE_NIO_FOR_KEEPER
         Poco::Net::ServerSocket socket(port);
