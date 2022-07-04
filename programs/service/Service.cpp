@@ -20,6 +20,7 @@
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getMappedArea.h>
+#include <Common/ThreadFuzzer.h>
 #include <common/coverage.h>
 #include <common/logger_useful.h>
 #include <ext/scope_guard.h>
@@ -27,6 +28,7 @@
 #include <Service/SvsSocketReactor.h>
 #include <Service/SvsSocketAcceptor.h>
 #include <Service/SvsConnectionHandler.h>
+#include <common/ErrorHandlers.h>
 
 #define USE_NIO_FOR_KEEPER
 
@@ -142,7 +144,43 @@ int waitServersToFinish(std::vector<DB::ProtocolServerAdapter> & servers, size_t
 
 int Service::main(const std::vector<std::string> & /*args*/)
 {
+
+    static ServerErrorHandler error_handler;
+    Poco::ErrorHandler::set(&error_handler);
     Poco::Logger * log = &logger();
+
+    if (ThreadFuzzer::instance().isEffective())
+        LOG_WARNING(log, "ThreadFuzzer is enabled. Application will run slowly and unstable.");
+
+#if !defined(NDEBUG) || !defined(__OPTIMIZE__)
+    LOG_WARNING(log, "Server was built in debug mode. It will work slowly.");
+#endif
+
+#if defined(SANITIZER)
+    LOG_WARNING(log, "Server was built with sanitizer. It will work slowly.");
+#endif
+
+    /// Try to increase limit on number of open files.
+    {
+        rlimit rlim;
+        if (getrlimit(RLIMIT_NOFILE, &rlim))
+            throw Poco::Exception("Cannot getrlimit");
+
+        if (rlim.rlim_cur == rlim.rlim_max)
+        {
+            LOG_DEBUG(log, "rlimit on number of file descriptors is {}", rlim.rlim_cur);
+        }
+        else
+        {
+            rlim_t old = rlim.rlim_cur;
+            rlim.rlim_cur = config().getUInt("max_open_files", rlim.rlim_max);
+            int rc = setrlimit(RLIMIT_NOFILE, &rlim);
+            if (rc != 0)
+                LOG_WARNING(log, "Cannot set max number of file descriptors to {}. Try to specify max_open_files according to your system limits. error: {}", rlim.rlim_cur, strerror(errno));
+            else
+                LOG_DEBUG(log, "Set max number of file descriptors to {} (was {}).", rlim.rlim_cur, old);
+        }
+    }
 
     auto shared_context = Context::createShared();
     auto global_context = std::make_unique<Context>(Context::createGlobal(shared_context.get()));
