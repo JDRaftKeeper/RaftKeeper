@@ -448,7 +448,7 @@ def test_cmd_cons(started_cluster):
         assert result['lop'] == 'Create'
         assert 'est' in result
         assert result['to'] == '30000'
-        assert result['lcxid'] == '0x000000000000000a'
+        assert result['lcxid'] == '0xa'
         assert 'lzxid' in result
         assert 'lresp' in result
         assert int(result['llat']) >= 0
