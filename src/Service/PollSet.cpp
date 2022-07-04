@@ -3,6 +3,9 @@
 #include <Service/PollSet.h>
 #include <Poco/Mutex.h>
 #include <Poco/Net/SocketImpl.h>
+#include <Poco/Thread.h>
+#include <iostream>
+
 
 
 #if defined(POCO_HAVE_FD_EPOLL)
@@ -128,6 +131,7 @@ public:
 		{
 			Poco::Timestamp start;
 			rc = epoll_wait(_epollfd, &_events[0], _events.size(), remainingTime.totalMilliseconds());
+            std::cout<<Poco::Thread::current()->name() + " " + std::to_string(_events.size())+ " " + std::to_string(rc) + " Time " + std::to_string(remainingTime.totalMilliseconds()) + "\n";
 			if (rc == 0) return result;
 			if (rc < 0 && errno == POCO_EINTR)
 			{
@@ -136,7 +140,7 @@ public:
 				if (waited < remainingTime)
 					remainingTime -= waited;
 				else
-					break;
+                    remainingTime = 0;
 			}
 		}
 		while (rc < 0 && errno == POCO_EINTR);
@@ -146,7 +150,7 @@ public:
 
 		for (int i = 0; i < rc; i++)
 		{
-			if (_events[i].data.ptr) // skip eventfd
+			if (_events[i].data.ptr)
 			{
 				std::map<void *, Socket>::iterator it = _socketMap.find(_events[i].data.ptr);
 				if (it != _socketMap.end())
@@ -159,6 +163,12 @@ public:
 						result[it->second] |= PollSet::POLL_ERROR;
 				}
 			}
+            else
+            {
+                /// read char eventfd
+                uint64_t val;
+                ::read(_eventfd, &val, 8);
+            }
 		}
 
 		return result;
