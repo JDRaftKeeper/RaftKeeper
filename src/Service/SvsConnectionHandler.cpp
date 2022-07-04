@@ -70,7 +70,7 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_INFO(log, "New connection from " + socket_.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from " + socket_.peerAddress().toString());
     registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
@@ -81,7 +81,7 @@ SvsConnectionHandler::~SvsConnectionHandler()
     unregisterConnection(this);
     try
     {
-        LOG_INFO(log, "Disconnecting {}", socket_.peerAddress().toString());
+        LOG_DEBUG(log, "Disconnecting {}", socket_.peerAddress().toString());
     }
     catch (...)
     {
@@ -325,7 +325,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
 
 void SvsConnectionHandler::onSocketShutdown(const AutoPtr<ShutdownNotification> & pNf)
 {
-    LOG_INFO(log, "Socket {} shutdown!", pNf->socket().peerAddress().toString());
+    LOG_DEBUG(log, "Socket {} shutdown!", pNf->socket().peerAddress().toString());
     destroyMe();
 }
 
@@ -489,9 +489,8 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
         else
         {
             /// new session
-            LOG_INFO(log, "Requesting session ID for new client");
             session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-            LOG_INFO(log, "Received session ID {}", session_id);
+            LOG_INFO(log, "New session with ID {}", session_id);
         }
     }
     catch (const Exception & e)
