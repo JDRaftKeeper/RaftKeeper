@@ -136,7 +136,7 @@ public:
 				if (waited < remainingTime)
 					remainingTime -= waited;
 				else
-					remainingTime = 0;
+					break;
 			}
 		}
 		while (rc < 0 && errno == POCO_EINTR);
