@@ -20,7 +20,7 @@ public:
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
         : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
     {
-        main_thread = ThreadFromGlobalPool([this] { run2(); });
+        main_thread = ThreadFromGlobalPool([this] { run3(); });
     }
 
     void processRequest(Request request_for_session)
@@ -313,6 +313,187 @@ public:
         }
     }
 
+    void run3()
+    {
+        while (!shutdown_called)
+        {
+            //            UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+            try
+            {
+                auto need_wait = [&]()-> bool
+                {
+                    if (errors.empty() && pending_requests.empty() && requests_queue->empty() && committed_queue.empty())
+                        return true;
+
+                    return false;
+                };
+
+                {
+                    std::unique_lock lk(mutex);
+
+                    cv.wait(lk, [&]{ return !need_wait() || shutdown_called; });
+                }
+
+                if (shutdown_called)
+                    return;
+
+                std::lock_guard lock(errors_mutex);
+                {
+                    if (!errors.empty())
+                    {
+
+                        for (auto it = errors.begin(); it != errors.end();)
+                        {
+                            auto & [ session_id, xid ] = it->first;
+
+                            auto & requests = pending_requests.find(session_id)->second;
+
+                            std::optional<Request> request;
+                            for (auto request_it = requests.begin(); request_it != requests.end();)
+                            {
+                                if (uint64_t(request_it->request->xid) == xid)
+                                {
+                                    request = *request_it;
+                                    request_it = requests.erase(request_it);
+                                    break;
+                                }
+                                else
+                                {
+                                    ++request_it;
+                                }
+                            }
+
+                            auto & w_requests = pending_write_requests.find(session_id)->second;
+                            for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
+                            {
+                                if (uint64_t(w_request_it->request->xid) == xid)
+                                {
+                                    w_request_it = w_requests.erase(w_request_it);
+                                    break;
+                                }
+                                else
+                                {
+                                    ++w_request_it;
+                                }
+                            }
+
+                            if (request)
+                            {
+                                auto response = request->request->makeResponse();
+
+                                response->xid = request->request->xid;
+                                response->zxid = 0;
+
+                                auto [accepted, error_code] = it->second;
+                                response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                 : Coordination::Error::ZCONNECTIONLOSS;
+
+                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
+
+                                it = errors.erase(it);
+
+                                if (!accepted)
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
+                                else
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
+
+                            }
+                            else
+                            {
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
+                            }
+                        }
+                    }
+                }
+
+                size_t committed_request_size = committed_queue.size();
+                size_t request_size = requests_queue->size();
+
+                for (size_t i = 0; i < request_size; ++i)
+                {
+                    Request request;
+                    if (requests_queue->tryPop(0, request))
+                    {
+                        pending_requests[request.session_id].push_back(request);
+                        if (!request.request->isReadRequest())
+                        {
+                            pending_write_requests[request.session_id].push_back(request);
+                        }
+                    }
+                }
+
+                /// process every session
+                for (auto it = pending_requests.begin(); it != pending_requests.end();)
+                {
+                    auto current_session_id = it->first;
+
+                    auto & requests = it->second;
+                    for (auto requets_it = requests.begin(); requets_it != requests.end();)
+                    {
+                        if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
+                        {
+                            /// read request
+                            if (!requets_it->request->isReadRequest())
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
+
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
+                            requets_it = requests.erase(requets_it);
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+
+                    if (requests.empty())
+                        it = pending_requests.erase(it);
+                    else
+                        ++it;
+                }
+
+
+                LOG_TRACE(log, "committed_request_size {}", committed_request_size);
+                Request committed_request;
+                for (size_t i = 0; i < committed_request_size; ++i)
+                {
+                    if (committed_queue.tryPop(committed_request))
+                    {
+                        auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
+                        if (current_session_pending_w_requests.empty()) /// another server session request
+                        {
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                        }
+                        else
+                        {
+                            if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session pending head write request xid not same committed request xid");
+
+                            auto & current_session_pending_requests = pending_requests[committed_request.session_id];
+                            if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session pending head request xid not same committed request xid");
+
+                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+
+                            current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
+                            current_session_pending_requests.erase(current_session_pending_requests.begin());
+
+                            if (current_session_pending_w_requests.empty())
+                                pending_write_requests.erase(committed_request.session_id);
+
+                            if (current_session_pending_requests.empty())
+                                pending_requests.erase(committed_request.session_id);
+                        }
+                    }
+                }
+
+            }
+            catch (...)
+            {
+                tryLogCurrentException(__PRETTY_FUNCTION__);
+            }
+        }
+    }
+
     void shutdown()
     {
         if (shutdown_called)
@@ -347,6 +528,16 @@ public:
         }
     }
 
+
+    void onError(int64_t session_id, int64_t xid, bool accepted, nuraft::cmd_result_code error_code) {
+        if (!shutdown_called) {
+            std::lock_guard lock(errors_mutex);
+            std::pair<bool, nuraft::cmd_result_code> v{ accepted, error_code };
+            errors.emplace(UInt128(session_id, xid), v);
+            cv.notify_all();
+        }
+    }
+
     void notifyOnError() {
         if (!shutdown_called) {
             cv.notify_all();
@@ -369,6 +560,15 @@ private:
     SvsKeeperResponsesQueue & responses_queue;
 
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
+
+    using RequestForSessions = std::vector<SvsKeeperStorage::RequestForSession>;
+    std::unordered_map<int64_t, RequestForSessions> pending_write_requests;
+
+    std::unordered_map<int64_t, RequestForSessions> pending_requests;
+
+    mutable std::mutex errors_mutex;
+    /// key : session_id xid
+    std::unordered_map<UInt128, std::pair<bool, nuraft::cmd_result_code>> errors;
 
     std::mutex mutex;
 
