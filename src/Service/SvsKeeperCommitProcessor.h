@@ -346,6 +346,8 @@ public:
                         {
                             auto & [ session_id, xid ] = it->first;
 
+                            LOG_TRACE(log, "error session {}, xid {}", session_id, xid);
+
                             auto & requests = pending_requests.find(session_id)->second;
 
                             std::optional<Request> request;
@@ -467,11 +469,11 @@ public:
                         else
                         {
                             if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session pending head write request xid not same committed request xid");
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
 
                             auto & current_session_pending_requests = pending_requests[committed_request.session_id];
                             if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session pending head request xid not same committed request xid");
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_requests.begin()->request->xid, committed_request.request->xid);
 
                             server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
 
