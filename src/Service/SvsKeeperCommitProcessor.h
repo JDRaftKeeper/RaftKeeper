@@ -442,8 +442,10 @@ public:
                             if (!requets_it->request->isReadRequest())
                                 throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
 
+                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
                             server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
                             requets_it = requests.erase(requets_it);
+                            LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
                         }
                         else
                         {
