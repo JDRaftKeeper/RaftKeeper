@@ -337,8 +337,8 @@ public:
                 if (shutdown_called)
                     return;
 
-                std::lock_guard lock(errors_mutex);
                 {
+                    std::lock_guard lock(errors_mutex);
                     if (!errors.empty())
                     {
 
@@ -409,6 +409,7 @@ public:
                 size_t committed_request_size = committed_queue.size();
                 size_t request_size = requests_queue->size();
 
+                LOG_TRACE(log, "request_size {}", request_size);
                 for (size_t i = 0; i < request_size; ++i)
                 {
                     Request request;
@@ -422,7 +423,7 @@ public:
                     }
                 }
 
-                /// process every session
+                /// process every session, until encountered write request
                 for (auto it = pending_requests.begin(); it != pending_requests.end();)
                 {
                     auto current_session_id = it->first;
