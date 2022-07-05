@@ -436,11 +436,11 @@ public:
                         LOG_TRACE(log, "requests.size() {}", requests.size());
                         LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
                         LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
+                        if (!pending_write_requests[current_session_id].empty())
+                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
                         if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
                         {
                             /// read request
-                            if (!pending_write_requests[current_session_id].empty())
-                                LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
                             if (!requets_it->request->isReadRequest())
                                 throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
 
