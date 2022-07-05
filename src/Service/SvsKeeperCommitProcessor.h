@@ -433,9 +433,11 @@ public:
                     auto & requests = it->second;
                     for (auto requets_it = requests.begin(); requets_it != requests.end();)
                     {
+                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
                         if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
                         {
                             /// read request
+                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
                             if (!requets_it->request->isReadRequest())
                                 throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
 
