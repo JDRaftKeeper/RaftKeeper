@@ -322,7 +322,7 @@ public:
             {
                 auto need_wait = [&]()-> bool
                 {
-                    if (errors.empty() && pending_requests.empty() && requests_queue->empty() && committed_queue.empty())
+                    if (errors.empty() /*&& pending_requests.empty()*/ && requests_queue->empty() && committed_queue.empty())
                         return true;
 
                     return false;
