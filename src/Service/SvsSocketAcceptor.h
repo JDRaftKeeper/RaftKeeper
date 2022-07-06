@@ -153,9 +153,9 @@ namespace DB {
                 if (next_ == reactors_.size()) next_ = 0;
                 pReactor = reactors_[next];
             }
-            ServiceHandler* handler = new ServiceHandler(keeper_context, socket, *pReactor);
+            auto* ret = new ServiceHandler(keeper_context, socket, *pReactor);
             pReactor->wakeUp();
-            return handler;
+            return ret;
         }
 
         SocketReactor* reactor(const Socket& socket)

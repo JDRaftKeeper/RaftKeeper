@@ -2,12 +2,13 @@
 #ifdef USE_NIO_FOR_KEEPER
 #include "SvsConnectionHandler.h"
 
-#    include <Service/FourLetterCommand.h>
-#    include <Service/formatHex.h>
-#    include <Poco/Net/NetException.h>
-#    include <Common/Stopwatch.h>
-#    include <Common/ZooKeeper/ZooKeeperCommon.h>
-#    include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Service/FourLetterCommand.h>
+#include <Service/formatHex.h>
+#include <Poco/Net/NetException.h>
+#include <Common/Stopwatch.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Common/setThreadName.h>
 
 namespace DB
 {
@@ -74,11 +75,12 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
-    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onSocketShutdown));
+    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
+    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
 }
+
 SvsConnectionHandler::~SvsConnectionHandler()
 {
-    unregisterConnection(this);
     try
     {
         LOG_DEBUG(log, "Disconnecting {}", socket_.peerAddress().toString());
@@ -86,16 +88,20 @@ SvsConnectionHandler::~SvsConnectionHandler()
     catch (...)
     {
     }
+
+    unregisterConnection(this);
+
     reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
     reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
-    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onSocketShutdown));
+    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
+    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
 }
 
 void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /*pNf*/)
 {
-    LOG_TRACE(log, "socket readable {}", socket_.peerAddress().toString());
     try
     {
+        LOG_TRACE(log, "socket readable {}", socket_.peerAddress().toString());
         if (!socket_.available())
         {
             LOG_TRACE(log, "Client {} close connection!", socket_.peerAddress().toString());
@@ -323,9 +329,15 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
     }
 }
 
-void SvsConnectionHandler::onSocketShutdown(const AutoPtr<ShutdownNotification> & pNf)
+void SvsConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf)
 {
-    LOG_DEBUG(log, "Socket {} shutdown!", pNf->socket().peerAddress().toString());
+    LOG_DEBUG(log, "Socket reactor {} shutdown!", pNf->socket().peerAddress().toString());
+    destroyMe();
+}
+
+void SvsConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & pNf)
+{
+    LOG_DEBUG(log, "Socket {} error!", pNf->socket().peerAddress().toString());
     destroyMe();
 }
 
@@ -606,6 +618,8 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
     reactor_.addEventHandler(
         socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
+    LOG_WARNING(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
+
     reactor_.wakeUp();
 }
 

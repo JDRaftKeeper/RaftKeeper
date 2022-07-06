@@ -48,7 +48,8 @@ public:
 
     void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
     void onSocketWritable(const AutoPtr<WritableNotification> & pNf);
-    void onSocketShutdown(const AutoPtr<ShutdownNotification> & pNf);
+    void onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf);
+    void onSocketError(const AutoPtr<ErrorNotification> & pNf);
 
     KeeperConnectionStats getConnectionStats() const;
     void dumpStats(WriteBufferFromOwnString & buf, bool brief);
