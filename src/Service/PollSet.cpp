@@ -5,6 +5,8 @@
 #include <Poco/Net/SocketImpl.h>
 #include <Poco/Thread.h>
 #include <iostream>
+#include <Poco/Logger.h>
+#include <common/logger_useful.h>
 
 
 
@@ -27,12 +29,15 @@ namespace DB {
 //
 class PollSetImpl
 {
+private:
+    Poco::Logger * log;
 public:
 	PollSetImpl(): _epollfd(epoll_create(1)),
 		_events(1024),
-		_eventfd(eventfd(0, 0))
+		_eventfd(eventfd(0, EFD_NONBLOCK))
 	{
-		int err = addImpl(_eventfd, PollSet::POLL_READ, nullptr);
+        log = &Poco::Logger::get("PollSet");
+		int err = addImpl(_eventfd, PollSet::POLL_READ, log);
 		if ((err) || (_epollfd < 0))
 		{
 			errno;
@@ -131,7 +136,8 @@ public:
 		{
 			Poco::Timestamp start;
 			rc = epoll_wait(_epollfd, &_events[0], _events.size(), remainingTime.totalMilliseconds());
-            std::cout<<Poco::Thread::current()->name() + " " + std::to_string(_events.size())+ " " + std::to_string(rc) + " Time " + std::to_string(remainingTime.totalMilliseconds()) + "\n";
+            Poco::Timestamp end1;
+            LOG_TRACE(log, "Poll wait done {} {} {} {}us {}ms", Poco::Thread::current()->name(), _eventfd, rc, end1 - start, remainingTime.totalMilliseconds());
 			if (rc == 0) return result;
 			if (rc < 0 && errno == POCO_EINTR)
 			{
@@ -141,6 +147,7 @@ public:
 					remainingTime -= waited;
 				else
                     remainingTime = 0;
+                LOG_TRACE(log, "Poll wait encounter error EINTR {}ms", remainingTime.totalMilliseconds());
 			}
 		}
 		while (rc < 0 && errno == POCO_EINTR);
@@ -150,24 +157,30 @@ public:
 
 		for (int i = 0; i < rc; i++)
 		{
-			if (_events[i].data.ptr)
-			{
-				std::map<void *, Socket>::iterator it = _socketMap.find(_events[i].data.ptr);
-				if (it != _socketMap.end())
-				{
-					if (_events[i].events & EPOLLIN)
-						result[it->second] |= PollSet::POLL_READ;
-					if (_events[i].events & EPOLLOUT)
-						result[it->second] |= PollSet::POLL_WRITE;
-					if (_events[i].events & EPOLLERR)
-						result[it->second] |= PollSet::POLL_ERROR;
-				}
-			}
-            else
+            if (_events[i].data.ptr == log)
             {
                 /// read char eventfd
                 uint64_t val;
-                ::read(_eventfd, &val, 8);
+                auto n = ::read(_eventfd, &val, sizeof(val));
+                LOG_TRACE(log, "Poll wakeup {} {} {} {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", _eventfd, n, errno);
+                if (n < 0) errno;
+            }
+            else if (_events[i].data.ptr)
+            {
+                std::map<void *, Socket>::iterator it = _socketMap.find(_events[i].data.ptr);
+                if (it != _socketMap.end())
+                {
+                    if (_events[i].events & EPOLLIN)
+                        result[it->second] |= PollSet::POLL_READ;
+                    if (_events[i].events & EPOLLOUT)
+                        result[it->second] |= PollSet::POLL_WRITE;
+                    if (_events[i].events & EPOLLERR)
+                        result[it->second] |= PollSet::POLL_ERROR;
+                }
+            }
+            else
+            {
+                LOG_ERROR(log, "Poll receive null data socket event {}", _events[i].events);
             }
 		}
 
@@ -178,6 +191,7 @@ public:
 	{
 		uint64_t val = 1;
 		int n = ::write(_eventfd, &val, sizeof(val));
+        LOG_TRACE(log, "Poll trigger wakeup {} {} {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", _eventfd, n);
 		if (n < 0) errno;
 	}
 
