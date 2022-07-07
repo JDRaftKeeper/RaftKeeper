@@ -131,7 +131,7 @@ public:
             main_thread.join();
 
         SvsKeeperStorage::RequestForSession request_for_session;
-        while (requests_queue->tryPop(0,request_for_session))
+        while (requests_queue->tryPopAny(request_for_session))
         {
 //            requests_commit_event.addError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
 //            requests_commit_event.notifiy(request_for_session.session_id, request_for_session.request->xid);
