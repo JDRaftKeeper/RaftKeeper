@@ -531,7 +531,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
         thread_count = configuration_and_settings->thread_count;
 
-        svskeeper_sync_processor.initialize(thread_count, server);
+        svskeeper_sync_processor.initialize(1, server);
         svskeeper_commit_processor->initialize(thread_count,server);
     }
     catch (...)
