@@ -24,7 +24,6 @@ namespace ErrorCodes
 }
 
 using Poco::NObserver;
-using Poco::NumberFormatter;
 
 std::mutex SvsConnectionHandler::conns_mutex;
 std::unordered_set<SvsConnectionHandler *> SvsConnectionHandler::connections;
@@ -71,7 +70,7 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_DEBUG(log, "New connection from " + socket_.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from {}" + socket_.peerAddress().toString());
     registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
@@ -83,7 +82,7 @@ SvsConnectionHandler::~SvsConnectionHandler()
 {
     try
     {
-        LOG_DEBUG(log, "Disconnecting {}", socket_.peerAddress().toString());
+        LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
     }
     catch (...)
     {
@@ -101,10 +100,10 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 {
     try
     {
-        LOG_TRACE(log, "socket readable {}", socket_.peerAddress().toString());
+        LOG_TRACE(log, "session {} socket readable", toHexString(session_id));
         if (!socket_.available())
         {
-            LOG_TRACE(log, "Client {} close connection!", socket_.peerAddress().toString());
+            LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
             destroyMe();
             return;
         }
@@ -258,9 +257,10 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
 void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
-    LOG_TRACE(log, "socket writable {}", socket_.peerAddress().toString());
     try
     {
+        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
+
         if (responses->size() == 0 && send_buf.used() == 0)
             return;
 
@@ -303,7 +303,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_TRACE(log, "sent response to {}", socket_.peerAddress().toString());
+                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -317,7 +317,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
         /// If all sent unregister writable event.
         if (responses->size() == 0 && send_buf.used() == 0)
         {
-            LOG_TRACE(log, "Remove socket writable event handler - socket {}", socket_.peerAddress().toString());
+            LOG_TRACE(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
             reactor_.removeEventHandler(
                 socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
         }
@@ -329,15 +329,15 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
     }
 }
 
-void SvsConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf)
+void SvsConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & /*pNf*/)
 {
-    LOG_DEBUG(log, "Socket reactor {} shutdown!", pNf->socket().peerAddress().toString());
+    LOG_INFO(log, "reactor shutdown!");
     destroyMe();
 }
 
-void SvsConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & pNf)
+void SvsConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-    LOG_DEBUG(log, "Socket {} error!", pNf->socket().peerAddress().toString());
+    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
     destroyMe();
 }
 
@@ -362,7 +362,7 @@ void SvsConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
         if (session_id != 0)
         {
             writeText(",sid=", buf);
-            writeText(formatHex(session_id), buf);
+            writeText(toHexString(session_id), buf);
 
             writeText(",lop=", buf);
             LastOpPtr op = last_op.get();
@@ -375,10 +375,10 @@ void SvsConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
             if (last_cxid >= 0)
             {
                 writeText(",lcxid=", buf);
-                writeText(formatHex(last_cxid), buf);
+                writeText(toHexString(last_cxid), buf);
             }
             writeText(",lzxid=", buf);
-            writeText(formatHex(op->last_zxid), buf);
+            writeText(toHexString(op->last_zxid), buf);
             writeText(",lresp=", buf);
             writeIntText(op->last_response_time, buf);
 
@@ -428,8 +428,8 @@ ConnectRequest SvsConnectionHandler::receiveHandshake(int32_t handshake_req_len)
     int64_t last_zxid = service_keeper_storage_dispatcher->getStateMachine().getLastProcessedZxid();
     if (last_zxid_seen > last_zxid)
     {
-        String msg = "Refusing session request  as it has seen zxid " + formatHex(last_zxid_seen) + " our last zxid is "
-            + formatHex(last_zxid) + " client must try another server";
+        String msg = "Refusing session request  as it has seen zxid " + toHexString(last_zxid_seen) + " our last zxid is "
+            + toHexString(last_zxid) + " client must try another server";
 
         throw Exception(msg, ErrorCodes::UNEXPECTED_PACKET_FROM_CLIENT);
     }
@@ -466,7 +466,7 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
     {
         if (connect_req.previous_session_id != 0)
         {
-            LOG_INFO(log, "Requesting reconnecting with session {}", formatHex(connect_req.previous_session_id));
+            LOG_INFO(log, "Requesting reconnecting with session {}", toHexString(connect_req.previous_session_id));
             session_id = connect_req.previous_session_id;
             /// existed session
             if (!service_keeper_storage_dispatcher->getStateMachine().containsSession(connect_req.previous_session_id))
@@ -474,8 +474,7 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
                 /// session expired, set timeout <=0
                 LOG_WARNING(
                     log,
-                    "Client try to reconnects but session {} is already expired",
-                    formatHex(connect_req.previous_session_id));
+                    "Client try to reconnects but session {} is already expired", toHexString(connect_req.previous_session_id));
                 session_expired = true;
                 connect_success = false;
             }
@@ -487,14 +486,14 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
                     /// update failed
                     /// session was expired when updating
                     /// session expired, set timeout <=0
-                    LOG_WARNING(log, "Session {} was expired when updating", formatHex(connect_req.previous_session_id));
+                    LOG_WARNING(log, "Session {} was expired when updating", toHexString(connect_req.previous_session_id));
                     session_expired = true;
                     connect_success = false;
                 }
                 else
                 {
                     is_reconnected = true;
-                    LOG_INFO(log, "Client reconnected with session {}", formatHex(connect_req.previous_session_id));
+                    LOG_INFO(log, "Client reconnected with session {}", toHexString(connect_req.previous_session_id));
                 }
             }
         }
@@ -502,12 +501,12 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
         {
             /// new session
             session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-            LOG_INFO(log, "New session with ID {}", session_id);
+            LOG_INFO(log, "New session with ID {}", toHexString(session_id));
         }
     }
     catch (const Exception & e)
     {
-        LOG_WARNING(log, "Cannot receive session id {}", e.displayText());
+        LOG_WARNING(log, "Cannot receive session {}", e.displayText());
         connect_success = false;
     }
 
@@ -587,7 +586,8 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     Coordination::OpNum opnum;
     Coordination::read(opnum, body);
 
-    LOG_TRACE(log, "Receive request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
+    if (opnum != Coordination::OpNum::Heartbeat)
+        LOG_DEBUG(log, "Receive request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
@@ -602,7 +602,7 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
 
 void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
 {
-    LOG_TRACE(log, "Dispatch response to conn handler with socket {}", socket_.peerAddress().toString());
+    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
     /// TODO should invoked after response sent to client.
     updateStats(response);
@@ -613,12 +613,12 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
     /// TODO handle timeout
     responses->push(buf.getBuffer());
 
-    LOG_TRACE(log, "Add socket writable event handler - socket {}", socket_.peerAddress().toString());
+    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
     reactor_.addEventHandler(
         socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_WARNING(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
+    LOG_TRACE(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
 
     reactor_.wakeUp();
 }
