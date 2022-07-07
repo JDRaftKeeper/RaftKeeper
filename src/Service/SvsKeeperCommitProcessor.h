@@ -492,7 +492,7 @@ public:
                             auto & pending_write_requests = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
 
                             auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
-                            if (current_session_pending_w_requests.empty()) /// another server session request
+                            if (current_session_pending_w_requests.empty() && !server->getKeeperStateMachine()->getStorage().containsSession(committed_request.session_id)) /// another server session request
                             {
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
                                 committed_queue.pop();
