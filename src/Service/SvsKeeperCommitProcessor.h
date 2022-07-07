@@ -418,11 +418,11 @@ public:
                     }
                 }
 
+                size_t committed_request_size = committed_queue.size();
                 {
                     auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
                     auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
 
-                    size_t committed_request_size = committed_queue.size();
                     size_t request_size = requests_queue->size(thread_idx);
 
                     LOG_TRACE(log, "thread_idx {} request_size {}", thread_idx, request_size);
@@ -527,6 +527,10 @@ public:
                             {
                                 break;
                             }
+                        }
+                        else
+                        {
+                            break;
                         }
                     }
                 }
