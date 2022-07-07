@@ -422,6 +422,7 @@ public:
                     auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
                     auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
 
+                    size_t committed_request_size = committed_queue.size();
                     size_t request_size = requests_queue->size(thread_idx);
 
                     LOG_TRACE(log, "thread_idx {} request_size {}", thread_idx, request_size);
@@ -481,7 +482,6 @@ public:
                     /// process committed request, single thread
                     std::lock_guard lock(committed_mutex);
 
-                    size_t committed_request_size = committed_queue.size();
                     LOG_TRACE(log, "committed_request_size {}", committed_request_size);
                     Request committed_request;
                     for (size_t i = 0; i < committed_request_size; ++i)
