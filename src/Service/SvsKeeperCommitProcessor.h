@@ -409,6 +409,10 @@ public:
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
                                 }
                             }
+                            else
+                            {
+                                ++it;
+                            }
                         }
                     }
                 }
