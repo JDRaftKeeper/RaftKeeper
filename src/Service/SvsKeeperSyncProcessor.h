@@ -10,13 +10,14 @@ namespace DB
 class SvsKeeperSyncProcessor
 {
 using Request = SvsKeeperStorage::RequestForSession;
+using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
 public:
 
     SvsKeeperSyncProcessor(/*RequestsCommitEvent & requests_commit_event_,*/ std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), /*requests_commit_event(requests_commit_event_),*/ svskeeper_commit_processor(svskeeper_commit_processor_)
+        : /*requests_commit_event(requests_commit_event_),*/ svskeeper_commit_processor(svskeeper_commit_processor_)
     {
-        main_thread = ThreadFromGlobalPool([this] { run(); });
+//        main_thread = ThreadFromGlobalPool([this] { run(); });
     }
 
     void processRequest(Request request_for_session)
@@ -68,7 +69,7 @@ public:
         }
     }
 
-    void run()
+    void run(size_t thread_idx)
     {
         nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> result = nullptr;
         /// Requests from previous iteration. We store them to be able
@@ -87,11 +88,11 @@ public:
             bool pop_succ = false;
             if (to_append_batch.empty())
             {
-                pop_succ = requests_queue->tryPop(0, request_for_session, max_wait);
+                pop_succ = requests_queue->tryPop(thread_idx, request_for_session, max_wait);
             }
             else
             {
-                if (!requests_queue->tryPopMicro(0, request_for_session, 100))
+                if (!requests_queue->tryPopMicro(thread_idx, request_for_session, 100))
                 {
                     result = server->putRequestBatch(to_append_batch);
                     waitResultAndHandleError(result, to_append_batch);
@@ -144,8 +145,22 @@ public:
     }
 
 
+    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_)
+    {
+        server = server_;
+        requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+        request_thread = std::make_shared<ThreadPool>(thread_count);
+        for (size_t i = 0; i < thread_count; i++)
+        {
+            request_thread->trySchedule([this, i] { run(i); });
+        }
+    }
+
+
 private:
     ptr<RequestsQueue> requests_queue;
+
+    ThreadPoolPtr request_thread;
 
     ThreadFromGlobalPool main_thread;
 

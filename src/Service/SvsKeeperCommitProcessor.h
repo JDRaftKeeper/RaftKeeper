@@ -14,13 +14,14 @@ namespace ErrorCodes
 class SvsKeeperCommitProcessor
 {
 using Request = SvsKeeperStorage::RequestForSession;
+using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
 public:
     SvsKeeperCommitProcessor(
         RequestsCommitEvent & requests_commit_event_, SvsKeeperResponsesQueue & responses_queue_)
-        : requests_queue(std::make_shared<RequestsQueue>(1, 20000)), requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
+        : requests_commit_event(requests_commit_event_), responses_queue(responses_queue_), log(&Poco::Logger::get("SvsKeeperCommitProcessor"))
     {
-        main_thread = ThreadFromGlobalPool([this] { run3(); });
+
     }
 
     void processRequest(Request request_for_session)
@@ -313,7 +314,7 @@ public:
         }
     }
 
-    void run3()
+    void run3(size_t thread_idx)
     {
         while (!shutdown_called)
         {
@@ -341,163 +342,186 @@ public:
                     std::lock_guard lock(errors_mutex);
                     if (!errors.empty())
                     {
-
                         for (auto it = errors.begin(); it != errors.end();)
                         {
                             auto & [ session_id, xid ] = it->first;
 
                             LOG_TRACE(log, "error session {}, xid {}", session_id, xid);
 
-                            auto & requests = pending_requests.find(session_id)->second;
-
-                            std::optional<Request> request;
-                            for (auto request_it = requests.begin(); request_it != requests.end();)
+                            if (session_id % thread_count == thread_idx) /// is myself
                             {
-                                if (uint64_t(request_it->request->xid) == xid)
+                                auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
+                                auto & requests = pending_requests.find(session_id)->second;
+
+                                std::optional<Request> request;
+                                for (auto request_it = requests.begin(); request_it != requests.end();)
                                 {
-                                    request = *request_it;
-                                    request_it = requests.erase(request_it);
-                                    break;
+                                    if (uint64_t(request_it->request->xid) == xid)
+                                    {
+                                        request = *request_it;
+                                        request_it = requests.erase(request_it);
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        ++request_it;
+                                    }
+                                }
+
+                                auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
+                                auto & w_requests = pending_write_requests.find(session_id)->second;
+                                for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
+                                {
+                                    if (uint64_t(w_request_it->request->xid) == xid)
+                                    {
+                                        w_request_it = w_requests.erase(w_request_it);
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        ++w_request_it;
+                                    }
+                                }
+
+                                if (request)
+                                {
+                                    auto response = request->request->makeResponse();
+
+                                    response->xid = request->request->xid;
+                                    response->zxid = 0;
+
+                                    auto [accepted, error_code] = it->second;
+                                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                     : Coordination::Error::ZCONNECTIONLOSS;
+
+                                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
+
+                                    it = errors.erase(it);
+
+                                    if (!accepted)
+                                        throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
+                                    else
+                                        throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
+
                                 }
                                 else
                                 {
-                                    ++request_it;
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
                                 }
                             }
+                        }
+                    }
+                }
 
-                            auto & w_requests = pending_write_requests.find(session_id)->second;
-                            for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
+                {
+                    auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
+                    auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
+
+                    size_t request_size = requests_queue->size(thread_idx);
+
+                    LOG_TRACE(log, "thread_idx {} request_size {}", thread_idx, request_size);
+                    for (size_t i = 0; i < request_size; ++i)
+                    {
+                        Request request;
+                        if (requests_queue->tryPop(thread_idx, request))
+                        {
+                            pending_requests[request.session_id].push_back(request);
+                            if (!request.request->isReadRequest())
                             {
-                                if (uint64_t(w_request_it->request->xid) == xid)
-                                {
-                                    w_request_it = w_requests.erase(w_request_it);
-                                    break;
-                                }
-                                else
-                                {
-                                    ++w_request_it;
-                                }
+                                pending_write_requests[request.session_id].push_back(request);
                             }
+                        }
+                    }
 
-                            if (request)
+                    /// process every session, until encountered write request
+                    for (auto it = pending_requests.begin(); it != pending_requests.end();)
+                    {
+                        auto current_session_id = it->first;
+
+                        auto & requests = it->second;
+                        for (auto requets_it = requests.begin(); requets_it != requests.end();)
+                        {
+                            //                        LOG_TRACE(log, "requests.size() {}", requests.size());
+                            //                        LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
+                            //                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
+                            //                        if (!pending_write_requests[current_session_id].empty())
+                            //                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
+                            if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
                             {
-                                auto response = request->request->makeResponse();
+                                /// read request
+                                if (!requets_it->request->isReadRequest())
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
 
-                                response->xid = request->request->xid;
-                                response->zxid = 0;
-
-                                auto [accepted, error_code] = it->second;
-                                response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                                 : Coordination::Error::ZCONNECTIONLOSS;
-
-                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
-
-                                it = errors.erase(it);
-
-                                if (!accepted)
-                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
-                                else
-                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
-
+                                //                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, requets_it->request->xid);
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
+                                requets_it = requests.erase(requets_it);
+                                //                            if (requets_it != requests.end())
+                                //                                LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
                             }
                             else
                             {
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
+                                break;
                             }
                         }
-                    }
-                }
 
-                size_t committed_request_size = committed_queue.size();
-                size_t request_size = requests_queue->size();
-
-                LOG_TRACE(log, "request_size {}", request_size);
-                for (size_t i = 0; i < request_size; ++i)
-                {
-                    Request request;
-                    if (requests_queue->tryPop(0, request))
-                    {
-                        pending_requests[request.session_id].push_back(request);
-                        if (!request.request->isReadRequest())
-                        {
-                            pending_write_requests[request.session_id].push_back(request);
-                        }
-                    }
-                }
-
-                /// process every session, until encountered write request
-                for (auto it = pending_requests.begin(); it != pending_requests.end();)
-                {
-                    auto current_session_id = it->first;
-
-                    auto & requests = it->second;
-                    for (auto requets_it = requests.begin(); requets_it != requests.end();)
-                    {
-                        LOG_TRACE(log, "requests.size() {}", requests.size());
-                        LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
-                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
-                        if (!pending_write_requests[current_session_id].empty())
-                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
-                        if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
-                        {
-                            /// read request
-                            if (!requets_it->request->isReadRequest())
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
-
-                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, requets_it->request->xid);
-                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
-                            requets_it = requests.erase(requets_it);
-                            if (requets_it != requests.end())
-                                LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
-                        }
+                        if (requests.empty())
+                            it = pending_requests.erase(it);
                         else
-                        {
-                            break;
-                        }
+                            ++it;
                     }
-
-                    if (requests.empty())
-                        it = pending_requests.erase(it);
-                    else
-                        ++it;
                 }
 
 
-                LOG_TRACE(log, "committed_request_size {}", committed_request_size);
-                Request committed_request;
-                for (size_t i = 0; i < committed_request_size; ++i)
                 {
-                    if (committed_queue.tryPop(committed_request))
-                    {
-                        auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
-                        if (current_session_pending_w_requests.empty()) /// another server session request
-                        {
-                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
-                        }
-                        else
-                        {
-                            if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
+                    /// process committed request, single thread
+                    std::lock_guard lock(committed_mutex);
 
-                            auto & current_session_pending_requests = pending_requests[committed_request.session_id];
-                            while (current_session_pending_requests.begin()->request->xid < committed_request.request->xid)
+                    size_t committed_request_size = committed_queue.size();
+                    LOG_TRACE(log, "committed_request_size {}", committed_request_size);
+                    Request committed_request;
+                    for (size_t i = 0; i < committed_request_size; ++i)
+                    {
+                        if (committed_queue.peek(committed_request))
+                        {
+                            auto & pending_requests = thread_pending_requests.find(committed_request.session_id % thread_count)->second;
+                            auto & pending_write_requests = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
+
+                            auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
+                            if (current_session_pending_w_requests.empty()) /// another server session request
                             {
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
-                                current_session_pending_requests.erase(current_session_pending_requests.begin());
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                                committed_queue.pop();
                             }
-//                            if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
-//                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_requests.begin()->request->xid, committed_request.request->xid);
+                            else if (committed_request.session_id % thread_count == thread_idx) /// is myself
+                            {
+                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
 
-                            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                                auto & current_session_pending_requests = pending_requests[committed_request.session_id];
+//                                while (current_session_pending_requests.begin()->request->xid < committed_request.request->xid)
+//                                {
+//                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
+//                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
+//                                }
+                                if (current_session_pending_requests.begin()->request->xid < committed_request.request->xid) /// read request
+                                    break;
 
-                            current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
-                            current_session_pending_requests.erase(current_session_pending_requests.begin());
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                                committed_queue.pop();
 
-                            if (current_session_pending_w_requests.empty())
-                                pending_write_requests.erase(committed_request.session_id);
+                                current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
+                                current_session_pending_requests.erase(current_session_pending_requests.begin());
 
-                            if (current_session_pending_requests.empty())
-                                pending_requests.erase(committed_request.session_id);
+                                if (current_session_pending_w_requests.empty())
+                                    pending_write_requests.erase(committed_request.session_id);
+
+                                if (current_session_pending_requests.empty())
+                                    pending_requests.erase(committed_request.session_id);
+                            }
+                            else
+                            {
+                                break;
+                            }
                         }
                     }
                 }
@@ -554,6 +578,21 @@ public:
         }
     }
 
+    void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_)
+    {
+        thread_count = thread_count_;
+        server = server_;
+        requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+        request_thread = std::make_shared<ThreadPool>(thread_count_);
+        for (size_t i = 0; i < thread_count; i++)
+        {
+//            thread_pending_write_requests.emplace(i, std::unordered_map<int64_t, RequestForSessions>());
+            thread_pending_write_requests[i];
+            thread_pending_requests[i];
+            request_thread->trySchedule([this, i] { run3(i); });
+        }
+    }
+
     void notifyOnError() {
         if (!shutdown_called) {
             cv.notify_all();
@@ -575,12 +614,18 @@ private:
 
     SvsKeeperResponsesQueue & responses_queue;
 
+    size_t thread_count;
+
+    ThreadPoolPtr request_thread;
+
+    std::mutex committed_mutex;
+
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
 
     using RequestForSessions = std::vector<SvsKeeperStorage::RequestForSession>;
-    std::unordered_map<int64_t, RequestForSessions> pending_write_requests;
+    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> thread_pending_write_requests;
 
-    std::unordered_map<int64_t, RequestForSessions> pending_requests;
+    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> thread_pending_requests;
 
     mutable std::mutex errors_mutex;
     /// key : session_id xid

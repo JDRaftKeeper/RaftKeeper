@@ -23,6 +23,23 @@ public:
         cv.notify_one();
     }
 
+    bool peek(T & response, int64_t timeout_ms = 0)
+    {
+        std::unique_lock lock(queue_mutex);
+        if (!cv.wait_for(lock,
+                         std::chrono::milliseconds(timeout_ms), [this] { return !queue.empty(); }))
+            return false;
+
+        response = queue.front();
+        return true;
+    }
+
+    void pop()
+    {
+        std::unique_lock lock(queue_mutex);
+        queue.pop();
+    }
+
     bool tryPop(T & response, int64_t timeout_ms = 0)
     {
         std::unique_lock lock(queue_mutex);
