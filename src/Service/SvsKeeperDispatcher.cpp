@@ -47,7 +47,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
             try
             {
-                requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
+//                requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
 
                 if (!request_for_session.request->isReadRequest())
                     svskeeper_sync_processor.processRequest(request_for_session);
@@ -516,6 +516,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     configuration_and_settings = KeeperConfigurationAndSettings::loadFromConfig(config, true);
 
     server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue, requests_commit_event, svskeeper_commit_processor);
+    size_t thread_count = 1;
     try
     {
         LOG_DEBUG(log, "Waiting server to initialize");
@@ -528,8 +529,10 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         server->reConfigIfNeed();
         LOG_DEBUG(log, "Server reconfiged");
 
-        svskeeper_sync_processor.setRaftServer(server);
-        svskeeper_commit_processor->setRaftServer(server);
+        thread_count = configuration_and_settings->thread_count;
+
+        svskeeper_sync_processor.initialize(thread_count, server);
+        svskeeper_commit_processor->initialize(thread_count,server);
     }
     catch (...)
     {
@@ -537,8 +540,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-//    int thread_count = configuration_and_settings->thread_count;
-    int thread_count = 1; // TODO
+//    int thread_count = 1; // TODO
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
 #ifdef __THREAD_POOL_VEC__
@@ -552,7 +554,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 #else
     request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
-    for (int32_t i = 0; i < thread_count; i++)
+    for (size_t i = 0; i < thread_count; i++)
     {
         request_thread->trySchedule([this, i] { requestThreadFakeZk(i); });
     }

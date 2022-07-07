@@ -71,6 +71,12 @@ struct RequestsQueue
         return size;
     }
 
+    size_t size(size_t queue_id) const
+    {
+        assert(queue_id < queues.size());
+        return queues[queue_id]->size();
+    }
+
     bool empty() const
     {
         return size() == 0;
