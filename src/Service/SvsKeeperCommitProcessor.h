@@ -2,6 +2,7 @@
 
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperServer.h>
+#include <Common/ZooKeeper/ZooKeeperConstants.h>
 
 namespace DB
 {
@@ -498,7 +499,7 @@ public:
                             }
                             else if (committed_request.session_id % thread_count == thread_idx) /// is myself
                             {
-                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
+                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID)
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
 
                                 auto & current_session_pending_requests = pending_requests[committed_request.session_id];
@@ -550,7 +551,7 @@ public:
             main_thread.join();
 
         SvsKeeperStorage::RequestForSession request_for_session;
-        while (requests_queue->tryPop(0,request_for_session))
+        while (requests_queue->tryPopAny(request_for_session))
         {
             auto response = request_for_session.request->makeResponse();
             response->xid = request_for_session.request->xid;
