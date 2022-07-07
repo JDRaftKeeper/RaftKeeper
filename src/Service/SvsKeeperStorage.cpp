@@ -8,7 +8,7 @@
 #include <Poco/SHA1Engine.h>
 #include <Poco/Base64Encoder.h>
 #include <boost/algorithm/string.hpp>
-#include <Poco/NumberFormatter.h>
+//#include <Service/formatHex.h>
 
 namespace DB
 {
@@ -17,8 +17,6 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int BAD_ARGUMENTS;
 }
-
-using Poco::NumberFormatter;
 
 static inline void set_response(
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> & responses_queue,
@@ -1350,9 +1348,10 @@ void SvsKeeperStorage::processRequest(
     LOG_TRACE(
         log,
         "[process request]SessionID/xid #{}#{}, opnum {}",
-        session_id,
+        toHexString(session_id),
         zk_request->xid,
         Coordination::toString(zk_request->getOpNum()));
+
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
@@ -1391,7 +1390,7 @@ void SvsKeeperStorage::processRequest(
             }
             else
             {
-                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", NumberFormatter::formatHex(session_id, true));
+                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", toHexString(session_id));
             }
             clearDeadWatches(session_id);
         }
@@ -1405,6 +1404,7 @@ void SvsKeeperStorage::processRequest(
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
             closing_sessions.erase(session_id);
+            LOG_INFO(log, "Process close session {}, total sessions {}", toHexString(session_id), session_and_timeout.size());
         }
 
         {
@@ -1419,18 +1419,28 @@ void SvsKeeperStorage::processRequest(
     /// ZooKeeper update sessions expiry for each request, not only for heartbeats
     {
         std::lock_guard lock(session_mutex);
-        if (!closing_sessions.contains(session_id))
-            session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-        else
+        if (!session_and_timeout.contains(session_id))
         {
             LOG_WARNING(
                 log,
-                "Session {} is closing, ignore op {} to path {}",
-                NumberFormatter::formatHex(session_id, true),
+                "Session {} is expired, ignore op {} to path {}",
+                toHexString(session_id),
                 Coordination::toString(zk_request->getOpNum()),
                 zk_request->getPath());
             return;
         }
+
+        if (closing_sessions.contains(session_id))
+        {
+            LOG_WARNING(
+                log,
+                "Session {} is closing, ignore op {} to path {}",
+                toHexString(session_id),
+                Coordination::toString(zk_request->getOpNum()),
+                zk_request->getPath());
+            return;
+        }
+        session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
     }
 
     if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
@@ -1645,16 +1655,16 @@ bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*sessio
     std::lock_guard lock(session_mutex);
     if (closing_sessions.contains(session_id))
     {
-        LOG_WARNING(log, "Session {} is closing, ignore session timeout updating.", NumberFormatter::formatHex(session_id, true));
+        LOG_WARNING(log, "Session {} is closing, ignore session timeout updating.", toHexString(session_id));
         return false;
     }
     if (!session_and_timeout.contains(session_id))
     {
-        LOG_WARNING(log, "Updated session timeout for {}, but it is already expired.", session_id);
+        LOG_WARNING(log, "Updating session timeout for {}, but it is already expired.", toHexString(session_id));
         return false;
     }
     session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-    LOG_INFO(log, "Updated session timeout for {}", session_id);
+    LOG_INFO(log, "Updated session timeout for {}", toHexString(session_id));
     return true;
 }
 
@@ -1689,7 +1699,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
-    LOG_INFO(log, "clearDeadWatches, session id {}", session_id);
+    LOG_DEBUG(log, "clearDeadWatches, session id {}", toHexString(session_id));
     //    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
@@ -1737,7 +1747,7 @@ void SvsKeeperStorage::dumpWatches(WriteBufferFromOwnString & buf) const
     std::lock_guard lock(watch_mutex);
     for (const auto & [session_id, watches_paths] : sessions_and_watchers)
     {
-        buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
+        buf << toHexString(session_id) << "\n";
         for (const String & path : watches_paths)
             buf << "\t" << path << "\n";
     }
@@ -1749,7 +1759,7 @@ void SvsKeeperStorage::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
     {
         for (int64_t session_id : session_ids)
         {
-            buf << "\t0x" << NumberFormatter::formatHex(session_id) << "\n";
+            buf << "\t" << toHexString(session_id) << "\n";
         }
     };
 
@@ -1777,13 +1787,12 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
         }
     };
 
-    buf << "Sessions dump (" << session_and_timeout.size() << "):\n";
-
     {
         std::lock_guard lock(session_mutex);
+        buf << "Sessions dump (" << session_and_timeout.size() << "):\n";
         for (const auto & [session_id, _] : session_and_timeout)
         {
-            buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
+            buf << toHexString(session_id) << "\n";
         }
     }
 
@@ -1791,7 +1800,7 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
     buf << "Sessions with Ephemerals (" << getSessionWithEphemeralNodesCount() << "):\n";
     for (const auto & [session_id, ephemeral_paths] : ephemerals)
     {
-        buf << "0x" << NumberFormatter::formatHex(session_id) << "\n";
+        buf << toHexString(session_id) << "\n";
         write_str_set(ephemeral_paths);
     }
 }

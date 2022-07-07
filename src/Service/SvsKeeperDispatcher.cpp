@@ -5,6 +5,7 @@
 #include <Common/checkStackSize.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Poco/NumberFormatter.h>
+#include <Service/formatHex.h>
 
 namespace DB
 {
@@ -43,7 +44,7 @@ void SvsKeeperDispatcher::requestThread()
                 LOG_TRACE(
                     log,
                     "Push request to keeper server : session {}, xid {}, opnum {}",
-                    request.session_id,
+                    toHexString(request.session_id),
                     request.request->xid,
                     Coordination::toString(request.request->getOpNum()));
                 server->putRequest(request);
@@ -248,19 +249,23 @@ void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseC
 
 void SvsKeeperDispatcher::sessionCleanerTask()
 {
+    LOG_INFO(log, "start session clear task");
     while (true)
     {
         if (shutdown_called)
-            return;
+            break;
 
         try
         {
             if (isLeader())
             {
                 auto dead_sessions = server->getDeadSessions();
+                if (!dead_sessions.empty())
+                    LOG_INFO(log, "Found dead sessions {}", dead_sessions.size());
+
                 for (int64_t dead_session : dead_sessions)
                 {
-                    LOG_INFO(log, "Found dead session {}, will try to close it", dead_session);
+                    LOG_INFO(log, "Found dead session {}, will try to close it", toHexString(dead_session));
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;
@@ -286,6 +291,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
 
         std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
     }
+
+    LOG_INFO(log, "end session clear task!");
 }
 
 
@@ -339,7 +346,7 @@ void SvsKeeperDispatcher::updateConfigurationThread()
 
 void SvsKeeperDispatcher::finishSession(int64_t session_id)
 {
-    LOG_TRACE(log, "finish session {}", NumberFormatter::formatHex(session_id, true));
+    LOG_TRACE(log, "finish session {}", toHexString(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     if (session_it != session_to_response_callback.end())
