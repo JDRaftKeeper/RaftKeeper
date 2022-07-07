@@ -508,7 +508,7 @@ public:
 //                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
 //                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
 //                                }
-                                if (current_session_pending_requests.begin()->request->xid < committed_request.request->xid) /// read request
+                                if (current_session_pending_requests.begin()->request->xid < committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
                                     break;
 
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
