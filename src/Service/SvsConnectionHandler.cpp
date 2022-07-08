@@ -70,7 +70,7 @@ SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSock
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_DEBUG(log, "New connection from {}" + socket_.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
     registerConnection(this);
 
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
@@ -84,15 +84,14 @@ SvsConnectionHandler::~SvsConnectionHandler()
     {
         /// 4lw cmd connection will not init session_id
         if (session_id != -1)
-        {
             LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
 
-            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
-            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
-            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
-            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
-        }
         unregisterConnection(this);
+
+        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
+        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
+        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
