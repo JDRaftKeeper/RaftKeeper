@@ -315,7 +315,7 @@ public:
         }
     }
 
-    void run3(size_t thread_idx)
+    void run3()
     {
         while (!shutdown_called)
         {
@@ -349,134 +349,75 @@ public:
 
                             LOG_TRACE(log, "error session {}, xid {}", session_id, xid);
 
-                            if (session_id % thread_count == thread_idx) /// is myself
+                            auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
+                            auto & requests = pending_requests.find(session_id)->second;
+
+                            std::optional<Request> request;
+                            for (auto request_it = requests.begin(); request_it != requests.end();)
                             {
-                                auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
-                                auto & requests = pending_requests.find(session_id)->second;
-
-                                std::optional<Request> request;
-                                for (auto request_it = requests.begin(); request_it != requests.end();)
+                                if (uint64_t(request_it->request->xid) == xid)
                                 {
-                                    if (uint64_t(request_it->request->xid) == xid)
-                                    {
-                                        request = *request_it;
-                                        request_it = requests.erase(request_it);
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        ++request_it;
-                                    }
-                                }
-
-                                auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
-                                auto & w_requests = pending_write_requests.find(session_id)->second;
-                                for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
-                                {
-                                    if (uint64_t(w_request_it->request->xid) == xid)
-                                    {
-                                        w_request_it = w_requests.erase(w_request_it);
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        ++w_request_it;
-                                    }
-                                }
-
-                                if (request)
-                                {
-                                    auto response = request->request->makeResponse();
-
-                                    response->xid = request->request->xid;
-                                    response->zxid = 0;
-
-                                    auto [accepted, error_code] = it->second;
-                                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                                     : Coordination::Error::ZCONNECTIONLOSS;
-
-                                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
-
-                                    it = errors.erase(it);
-
-                                    if (!accepted)
-                                        throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
-                                    else
-                                        throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
-
+                                    request = *request_it;
+                                    request_it = requests.erase(request_it);
+                                    break;
                                 }
                                 else
                                 {
-                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
+                                    ++request_it;
                                 }
+                            }
+
+                            auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
+                            auto & w_requests = pending_write_requests.find(session_id)->second;
+                            for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
+                            {
+                                if (uint64_t(w_request_it->request->xid) == xid)
+                                {
+                                    w_request_it = w_requests.erase(w_request_it);
+                                    break;
+                                }
+                                else
+                                {
+                                    ++w_request_it;
+                                }
+                            }
+
+                            if (request)
+                            {
+                                auto response = request->request->makeResponse();
+
+                                response->xid = request->request->xid;
+                                response->zxid = 0;
+
+                                auto [accepted, error_code] = it->second;
+                                response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                 : Coordination::Error::ZCONNECTIONLOSS;
+
+                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
+
+                                it = errors.erase(it);
+
+                                if (!accepted)
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
+                                else
+                                    throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
+
                             }
                             else
                             {
-                                ++it;
+                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
                             }
                         }
                     }
                 }
 
                 size_t committed_request_size = committed_queue.size();
+
+                for (size_t i = 0; i < thread_count; i++)
                 {
-                    auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
-                    auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
-
-                    size_t request_size = requests_queue->size(thread_idx);
-
-                    LOG_TRACE(log, "thread_idx {} request_size {}", thread_idx, request_size);
-                    for (size_t i = 0; i < request_size; ++i)
-                    {
-                        Request request;
-                        if (requests_queue->tryPop(thread_idx, request))
-                        {
-                            pending_requests[request.session_id].push_back(request);
-                            if (!request.request->isReadRequest())
-                            {
-                                pending_write_requests[request.session_id].push_back(request);
-                            }
-                        }
-                    }
-
-                    /// process every session, until encountered write request
-                    for (auto it = pending_requests.begin(); it != pending_requests.end();)
-                    {
-                        auto current_session_id = it->first;
-
-                        auto & requests = it->second;
-                        for (auto requets_it = requests.begin(); requets_it != requests.end();)
-                        {
-                            //                        LOG_TRACE(log, "requests.size() {}", requests.size());
-                            //                        LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
-                            //                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
-                            //                        if (!pending_write_requests[current_session_id].empty())
-                            //                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
-                            if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
-                            {
-                                /// read request
-                                if (!requets_it->request->isReadRequest())
-                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
-
-                                //                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, requets_it->request->xid);
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
-                                requets_it = requests.erase(requets_it);
-                                //                            if (requets_it != requests.end())
-                                //                                LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-
-                        if (requests.empty())
-                            it = pending_requests.erase(it);
-                        else
-                            ++it;
-                    }
+                    request_thread->trySchedule([this, i] { processReadRequests(i); });
                 }
-
+                request_thread->wait();
 
                 {
                     /// process committed request, single thread
@@ -497,7 +438,7 @@ public:
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
                                 committed_queue.pop();
                             }
-                            else if (committed_request.session_id % thread_count == thread_idx) /// is myself
+                            else
                             {
                                 if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID)
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
@@ -523,14 +464,6 @@ public:
                                 if (current_session_pending_requests.empty())
                                     pending_requests.erase(committed_request.session_id);
                             }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            break;
                         }
                     }
                 }
@@ -540,6 +473,65 @@ public:
             {
                 tryLogCurrentException(__PRETTY_FUNCTION__);
             }
+        }
+    }
+
+    void processReadRequests(size_t thread_idx)
+    {
+        auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
+        auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
+
+        size_t request_size = requests_queue->size(thread_idx);
+
+        LOG_TRACE(log, "thread_idx {} request_size {}", thread_idx, request_size);
+        for (size_t i = 0; i < request_size; ++i)
+        {
+            Request request;
+            if (requests_queue->tryPop(thread_idx, request))
+            {
+                pending_requests[request.session_id].push_back(request);
+                if (!request.request->isReadRequest())
+                {
+                    pending_write_requests[request.session_id].push_back(request);
+                }
+            }
+        }
+
+        /// process every session, until encountered write request
+        for (auto it = pending_requests.begin(); it != pending_requests.end();)
+        {
+            auto current_session_id = it->first;
+
+            auto & requests = it->second;
+            for (auto requets_it = requests.begin(); requets_it != requests.end();)
+            {
+                //                        LOG_TRACE(log, "requests.size() {}", requests.size());
+                //                        LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
+                //                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
+                //                        if (!pending_write_requests[current_session_id].empty())
+                //                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
+                if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
+                {
+                    /// read request
+                    if (!requets_it->request->isReadRequest())
+                        throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
+
+                    //                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, requets_it->request->xid);
+                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
+                    requets_it = requests.erase(requets_it);
+                    //                            if (requets_it != requests.end())
+                    //                                LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (requests.empty())
+                it = pending_requests.erase(it);
+            else
+                ++it;
         }
     }
 
@@ -595,11 +587,11 @@ public:
         request_thread = std::make_shared<ThreadPool>(thread_count_);
         for (size_t i = 0; i < thread_count; i++)
         {
-//            thread_pending_write_requests.emplace(i, std::unordered_map<int64_t, RequestForSessions>());
+            //            thread_pending_write_requests.emplace(i, std::unordered_map<int64_t, RequestForSessions>());
             thread_pending_write_requests[i];
             thread_pending_requests[i];
-            request_thread->trySchedule([this, i] { run3(i); });
         }
+        main_thread = ThreadFromGlobalPool([this] { run3(); });
     }
 
     void notifyOnError() {
