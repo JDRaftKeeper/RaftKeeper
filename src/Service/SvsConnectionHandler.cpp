@@ -82,18 +82,21 @@ SvsConnectionHandler::~SvsConnectionHandler()
 {
     try
     {
-        LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
+        /// 4lw cmd connection will not init session_id
+        if (session_id != -1)
+        {
+            LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
+
+            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
+            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
+            reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
+        }
+        unregisterConnection(this);
     }
     catch (...)
     {
     }
-
-    unregisterConnection(this);
-
-    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
-    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
-    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
-    reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
 }
 
 void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /*pNf*/)
