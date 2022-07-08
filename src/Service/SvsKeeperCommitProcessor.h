@@ -449,7 +449,7 @@ public:
 //                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
 //                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
 //                                }
-                                if (current_session_pending_requests.begin()->request->xid < committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
+                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
                                     break;
 
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
@@ -505,11 +505,11 @@ public:
             auto & requests = it->second;
             for (auto requets_it = requests.begin(); requets_it != requests.end();)
             {
-                if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
+                if (pending_write_requests[current_session_id].empty() || requets_it->request->xid != pending_write_requests[current_session_id].begin()->request->xid)
                 {
                     /// read request
                     if (!requets_it->request->isReadRequest())
-                        throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
+                        throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request, session {}, xid {}", requets_it->session_id, requets_it->request->xid);
 
                     server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
                     requets_it = requests.erase(requets_it);
