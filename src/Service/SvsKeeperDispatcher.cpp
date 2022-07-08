@@ -541,7 +541,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     }
 
 //    int thread_count = 1; // TODO
-    requests_queue = std::make_shared<RequestsQueue>(1, 20000);
+    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
 #ifdef __THREAD_POOL_VEC__
     request_threads.reserve(thread_count);
@@ -552,9 +552,9 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     for (int i = 0; i < thread_count; ++i)
         response_threads.emplace_back(&SvsKeeperStorageDispatcher::responseThread, this);
 #else
-    request_thread = std::make_shared<ThreadPool>(1);
+    request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
-    for (size_t i = 0; i < 1; i++)
+    for (size_t i = 0; i < thread_count; i++)
     {
         request_thread->trySchedule([this, i] { requestThreadFakeZk(i); });
     }
