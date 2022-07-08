@@ -421,7 +421,7 @@ public:
 
                 {
                     /// process committed request, single thread
-                    std::lock_guard lock(committed_mutex);
+//                    std::lock_guard lock(committed_mutex);
 
                     LOG_TRACE(log, "committed_request_size {}", committed_request_size);
                     Request committed_request;
@@ -505,22 +505,14 @@ public:
             auto & requests = it->second;
             for (auto requets_it = requests.begin(); requets_it != requests.end();)
             {
-                //                        LOG_TRACE(log, "requests.size() {}", requests.size());
-                //                        LOG_TRACE(log, "pending_write_requests[current_session_id].size() {}", pending_write_requests[current_session_id].size());
-                //                        LOG_TRACE(log, "current_session_id {}, requets_it->request->xid {}", current_session_id, requets_it->request->xid);
-                //                        if (!pending_write_requests[current_session_id].empty())
-                //                            LOG_TRACE(log, "current_session_id {}, pending head write requests xid {}", current_session_id, pending_write_requests[current_session_id].begin()->request->xid);
                 if (pending_write_requests[current_session_id].empty() || requets_it->request->xid < pending_write_requests[current_session_id].begin()->request->xid)
                 {
                     /// read request
                     if (!requets_it->request->isReadRequest())
                         throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request");
 
-                    //                            LOG_TRACE(log, "current_session_id {}, request xid {}", current_session_id, requets_it->request->xid);
                     server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
                     requets_it = requests.erase(requets_it);
-                    //                            if (requets_it != requests.end())
-                    //                                LOG_TRACE(log, "next current_session_id {}, request xid {}", requets_it->session_id, requets_it->request->xid);
                 }
                 else
                 {
@@ -619,7 +611,7 @@ private:
 
     ThreadPoolPtr request_thread;
 
-    std::mutex committed_mutex;
+//    std::mutex committed_mutex;
 
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
 
