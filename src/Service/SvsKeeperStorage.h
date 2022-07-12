@@ -15,10 +15,10 @@
 #include <IO/WriteBufferFromString.h>
 #include <functional>
 #include <common/logger_useful.h>
+#include <Service/formatHex.h>
 
 namespace DB
 {
-using namespace DB;
 struct SvsKeeperStorageRequest;
 using SvsKeeperStorageRequestPtr = std::shared_ptr<SvsKeeperStorageRequest>;
 using ResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr &)>;
@@ -179,6 +179,7 @@ public:
     {
         int64_t session_id;
         Coordination::ZooKeeperRequestPtr request;
+        int64_t time;
     };
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
@@ -248,7 +249,7 @@ public:
         auto it = session_and_timeout.emplace(result, session_timeout_ms);
         if (!it.second)
         {
-            LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", getHexUIntLowercase(result));
+            LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", toHexString(result));
         }
         session_expiry_queue.addNewSessionOrUpdate(result, session_timeout_ms);
         return result;
@@ -260,6 +261,7 @@ public:
         SvsKeeperThreadSafeQueue<ResponseForSession> & responses_queue,
         const Coordination::ZooKeeperRequestPtr & request,
         int64_t session_id,
+        int64_t time,
         std::optional<int64_t> new_last_zxid = {},
         bool check_acl = true,
         bool ignore_response = false);

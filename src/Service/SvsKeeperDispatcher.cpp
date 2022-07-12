@@ -3,6 +3,9 @@
 #include <Common/isLocalAddress.h>
 #include <Common/setThreadName.h>
 #include <Common/checkStackSize.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
+#include <Poco/NumberFormatter.h>
+#include <Service/formatHex.h>
 
 namespace DB
 {
@@ -15,6 +18,7 @@ namespace ErrorCodes
 }
 
 namespace fs = std::filesystem;
+using Poco::NumberFormatter;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
@@ -447,13 +451,13 @@ bool SvsKeeperDispatcher::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_resul
 void SvsKeeperDispatcher::responseThread()
 {
     setThreadName("SerKeeperRspT");
+
+    SvsKeeperStorage::ResponseForSession response_for_session;
+    UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+
     while (!shutdown_called)
     {
-        SvsKeeperStorage::ResponseForSession response_for_session;
-
-        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-
-        if (responses_queue.tryPop(response_for_session, max_wait))
+        if (responses_queue.tryPop(response_for_session, std::min(max_wait, static_cast<UInt64>(1000))))
         {
             if (shutdown_called)
                 break;
@@ -494,10 +498,12 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     SvsKeeperStorage::RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
+    using namespace std::chrono;
+    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, request->getOpNum());
+    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
 
-//    std::lock_guard lock(push_request_mutex);
+    //    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
@@ -581,9 +587,11 @@ void SvsKeeperDispatcher::shutdown()
             LOG_DEBUG(log, "Shutting down storage dispatcher");
             shutdown_called = true;
 
+            LOG_DEBUG(log, "Shutting down update_configuration_thread");
             if (update_configuration_thread.joinable())
                 update_configuration_thread.join();
 
+            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
             if (session_cleaner_thread.joinable())
                 session_cleaner_thread.join();
 
@@ -599,10 +607,14 @@ void SvsKeeperDispatcher::shutdown()
             response_threads.clear();
 #else
 
-            requests_commit_event.notifiyAll();
+//            requests_commit_event.notifiyAll();
+
+            LOG_DEBUG(log, "Shutting down request_thread");
 
             if (request_thread)
                 request_thread->wait();
+
+            LOG_DEBUG(log, "Shutting down responses_thread");
             if (responses_thread)
                 responses_thread->wait();
 #endif
@@ -614,6 +626,7 @@ void SvsKeeperDispatcher::shutdown()
         if (server)
             server->shutdown();
 
+        LOG_DEBUG(log, "for unhandled requests sending session expired error to client.");
         SvsKeeperStorage::RequestForSession request_for_session;
         while (requests_queue->tryPopAny(request_for_session))
         {
@@ -631,34 +644,40 @@ void SvsKeeperDispatcher::shutdown()
     LOG_DEBUG(log, "Dispatcher shut down");
 }
 
-void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback)
+void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
-    if (!session_to_response_callback.try_emplace(session_id, callback).second)
+    if (!session_to_response_callback.try_emplace(session_id, callback).second && !is_reconnected)
         throw Exception(DB::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", session_id);
 }
 
 void SvsKeeperDispatcher::sessionCleanerTask()
 {
+    LOG_INFO(log, "start session clear task");
     while (true)
     {
         if (shutdown_called)
-            return;
+            break;
 
         try
         {
             if (isLeader())
             {
                 auto dead_sessions = server->getDeadSessions();
+                if (!dead_sessions.empty())
+                    LOG_INFO(log, "Found dead sessions {}", dead_sessions.size());
+
                 for (int64_t dead_session : dead_sessions)
                 {
-                    LOG_INFO(log, "Found dead session {}, will try to close it", dead_session);
+                    LOG_INFO(log, "Found dead session {}, will try to close it", toHexString(dead_session));
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;
                     SvsKeeperStorage::RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;
+                    using namespace std::chrono;
+                    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
                         std::lock_guard lock(push_request_mutex);
                         if (!requests_queue->push(std::move(request_info)))
@@ -676,6 +695,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
 
         std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
     }
+
+    LOG_INFO(log, "end session clear task!");
 }
 
 
@@ -691,14 +712,13 @@ void SvsKeeperDispatcher::updateConfigurationThread()
             if (!server->checkInit())
             {
                 LOG_INFO(log, "Server still not initialized, will not apply configuration until initialization finished");
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
                 continue;
             }
 
             ConfigUpdateAction action;
-            if (!update_configuration_queue.pop(action))
-                break;
-
+            if (!update_configuration_queue.tryPop(action, 1000))
+                continue;
 
             /// We must wait this update from leader or apply it ourself (if we are leader)
             bool done = false;
@@ -730,6 +750,7 @@ void SvsKeeperDispatcher::updateConfigurationThread()
 
 void SvsKeeperDispatcher::finishSession(int64_t session_id)
 {
+    LOG_TRACE(log, "finish session {}", toHexString(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     if (session_it != session_to_response_callback.end())

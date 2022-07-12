@@ -15,6 +15,7 @@
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Common/Stopwatch.h>
 #include <IO/WriteHelpers.h>
+#include <Poco/NumberFormatter.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push
@@ -43,6 +44,7 @@ namespace ErrorCodes
 }
 
 using nuraft::cs_new;
+using Poco::NumberFormatter;
 
 const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
 
@@ -574,8 +576,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
     int64_t serialized_next_session_id = serializeSessions(storage, save_batch_size, version, session_path);
     LOG_INFO(log,
              "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-             getHexUIntLowercase(next_session_id),
-             getHexUIntLowercase(serialized_next_session_id));
+             NumberFormatter::formatHex(next_session_id, true),
+             NumberFormatter::formatHex(serialized_next_session_id, true));
 
     /// 3. Save sessions
     String acl_path;

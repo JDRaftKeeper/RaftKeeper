@@ -349,7 +349,7 @@ def test_cmd_srvr(started_cluster):
 
         assert 'Raft Service version' in result
         assert 'Latency min/avg/max' in result
-        assert result['Received'] == '10'
+        assert result['Received'] == '11'
         assert result['Sent'] == '10'
         assert int(result['Connections']) == 1
         assert int(result['Zxid']) > 14
@@ -387,7 +387,7 @@ def test_cmd_stat(started_cluster):
 
         assert 'Raft Service version' in result
         assert 'Latency min/avg/max' in result
-        assert result['Received'] == '10'
+        assert result['Received'] == '11'
         assert result['Sent'] == '10'
         assert int(result['Connections']) == 1
         assert int(result['Zxid']) > 14
@@ -408,7 +408,7 @@ def test_cmd_stat(started_cluster):
             col = col.strip().split('=')
             result[col[0]] = col[1]
 
-        assert result['recved'] == '10'
+        assert result['recved'] == '11'
         assert result['sent'] == '10'
 
     finally:
@@ -442,13 +442,13 @@ def test_cmd_cons(started_cluster):
             col = col.strip().split('=')
             result[col[0]] = col[1]
 
-        assert result['recved'] == '10'
+        assert result['recved'] == '11'
         assert result['sent'] == '10'
         assert 'sid' in result
         assert result['lop'] == 'Create'
         assert 'est' in result
         assert result['to'] == '30000'
-        assert result['lcxid'] == '0x000000000000000a'
+        assert result['lcxid'] == '0xa'
         assert 'lzxid' in result
         assert 'lresp' in result
         assert int(result['llat']) >= 0
