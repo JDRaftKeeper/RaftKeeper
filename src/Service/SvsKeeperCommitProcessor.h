@@ -435,7 +435,7 @@ public:
                             auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
                             if (current_session_pending_w_requests.empty()) /// another server session request
                             {
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, committed_request.time, {}, true, false);
                                 committed_queue.pop();
                             }
                             else
@@ -452,7 +452,7 @@ public:
                                 if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
                                     break;
 
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
+                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, committed_request.time, {}, true, false);
                                 committed_queue.pop();
 
                                 current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
@@ -511,7 +511,7 @@ public:
                     if (!requets_it->request->isReadRequest())
                         throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request, session {}, xid {}", requets_it->session_id, requets_it->request->xid);
 
-                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, {}, true, false);
+                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, requets_it->time, {}, true, false);
                     requets_it = requests.erase(requets_it);
                 }
                 else

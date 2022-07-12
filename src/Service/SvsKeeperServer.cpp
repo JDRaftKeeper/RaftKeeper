@@ -11,6 +11,7 @@
 #include <libnuraft/async.hxx>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <boost/algorithm/string.hpp>
+#include <Poco/NumberFormatter.h>
 
 #ifndef TEST_TCPHANDLER
 //#define TEST_TCPHANDLER
@@ -23,6 +24,8 @@ namespace ErrorCodes
     extern const int RAFT_ERROR;
     extern const int INVALID_CONFIG_PARAMETER;
 }
+
+using Poco::NumberFormatter;
 
 namespace
 {
@@ -280,6 +283,7 @@ void SvsKeeperServer::removeServer(const std::string & endpoint)
 
 void SvsKeeperServer::shutdown()
 {
+    LOG_INFO(log, "Shutting down keeper server.");
     state_machine->shutdown();
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
@@ -289,17 +293,19 @@ void SvsKeeperServer::shutdown()
 
     if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
+    LOG_INFO(log, "Shut down keeper server done!");
 }
 
 namespace
 {
 #ifdef TEST_TCPHANDLER
 #else
-    nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, const Coordination::ZooKeeperRequestPtr & request)
+    nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request)
     {
         DB::WriteBufferFromNuraftBuffer buf;
         DB::writeIntBinary(session_id, buf);
         request->write(buf);
+        DB::writeIntBinary(time, buf);
         return buf.getBuffer();
     }
 #endif
@@ -307,7 +313,7 @@ namespace
 
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    auto [session_id, request] = request_for_session;
+    auto [session_id, request, time] = request_for_session;
 #ifdef TEST_TCPHANDLER
     if (Coordination::ZooKeeperCreateRequest * zk_request = dynamic_cast<Coordination::ZooKeeperCreateRequest *>(request.get()))
     {
@@ -322,18 +328,29 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 #else
     if (isLeaderAlive() && request->isReadRequest())
     {
+        LOG_TRACE(
+            log,
+            "[put read request]SessionID/xid #{}#{}, opnum {}",
+            session_id,
+            request->xid,
+            Coordination::toString(request->getOpNum()));
         state_machine->processReadRequest(request_for_session);
     }
     else
     {
 
         std::vector<ptr<buffer>> entries;
-        entries.push_back(getZooKeeperLogEntry(session_id, request));
+        entries.push_back(getZooKeeperLogEntry(session_id, time, request));
 
         requests_commit_event.addRequest(session_id, request->xid);
 
         LOG_TRACE(
-            log, "[putRequest]SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
+            log,
+            "[put write request]SessionID/xid #{}#{}, opnum {}, entries {}",
+            session_id,
+            request->xid,
+            Coordination::toString(request->getOpNum()),
+            entries.size());
 
         ptr<nuraft::cmd_result<ptr<buffer>>> result;
         {
@@ -389,7 +406,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
     for (auto & request_session : request_batch)
     {
         LOG_TRACE(log, "push request to entries session {}, xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
-        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.request));
+        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.time, request_session.request));
     }
     /// append_entries write reuqest
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
@@ -398,7 +415,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
 
 void SvsKeeperServer::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    auto [session_id, request] = request_for_session;
+    auto [session_id, request, time] = request_for_session;
     if (isLeaderAlive() && request->isReadRequest())
     {
         state_machine->processReadRequest(request_for_session);
@@ -437,7 +454,7 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 
 bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
 {
-    LOG_DEBUG(log, "Updating session timeout for {}", session_id);
+    LOG_DEBUG(log, "Updating session timeout for {}", NumberFormatter::formatHex(session_id, true));
 
     auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
     nuraft::buffer_serializer bs(entry);
@@ -564,6 +581,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             if (!result->get_accepted())
                 LOG_INFO(log, "Command to add server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
 
+            LOG_DEBUG(log, "Wait for apply action AddServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!added)
@@ -603,6 +621,7 @@ bool SvsKeeperServer::applyConfigurationUpdate(const ConfigUpdateAction & task)
             if (!result->get_accepted())
                 LOG_INFO(log, "Command to remove server {} was not accepted for the {} time, will sleep for {} ms and retry", task.server->get_id(), i + 1, sleep_ms * (i + 1));
 
+            LOG_DEBUG(log, "Wait for apply action RemoveServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         if (!removed)
@@ -637,6 +656,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
                 return false;
             }
 
+            LOG_DEBUG(log, "Wait for action AddServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         return false;
@@ -659,6 +679,7 @@ bool SvsKeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
                 return false;
             }
 
+            LOG_DEBUG(log, "Wait for action RemoveServer {} done for {} ms", task.server->get_id(), sleep_ms * (i + 1));
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms * (i + 1)));
         }
         return false;

@@ -8,6 +8,7 @@
 #include <Poco/SHA1Engine.h>
 #include <Poco/Base64Encoder.h>
 #include <boost/algorithm/string.hpp>
+//#include <Service/formatHex.h>
 
 namespace DB
 {
@@ -260,7 +261,8 @@ struct SvsKeeperStorageRequest
     virtual std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t zxid,
-        int64_t session_id) const = 0;
+        int64_t session_id,
+        int64_t time) const = 0;
     virtual bool checkAuth(SvsKeeperStorage & /*storage*/, int64_t /*session_id*/) const { return true; }
 
     virtual SvsKeeperStorage::ResponsesForSessions
@@ -278,7 +280,8 @@ struct SvsKeeperStorageHeartbeatRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & /* storage */,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         return {zk_request->makeResponse(), {}};
     }
@@ -290,7 +293,8 @@ struct SvsKeeperStorageSetWatchesRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & /* storage */,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         return {zk_request->makeResponse(), {}};
     }
@@ -308,7 +312,8 @@ struct SvsKeeperStorageSyncRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & /* storage */,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         dynamic_cast<Coordination::ZooKeeperSyncResponse *>(response.get())->path
@@ -323,7 +328,8 @@ struct SvsKeeperStorageSetSeqNumRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         Coordination::ZooKeeperSetSeqNumRequest & request = dynamic_cast<Coordination::ZooKeeperSetSeqNumRequest &>(*zk_request);
@@ -369,7 +375,8 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t zxid,
-        int64_t session_id) const override
+        int64_t session_id,
+        int64_t time) const override
     {
         Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageCreateRequest"));
 
@@ -439,7 +446,7 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
         created_node->stat.czxid = zxid;
         created_node->stat.mzxid = zxid;
         created_node->stat.pzxid = zxid;
-        created_node->stat.ctime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+        created_node->stat.ctime = time;
         created_node->stat.mtime = created_node->stat.ctime;
         created_node->stat.numChildren = 0;
         created_node->stat.dataLength = request.data.length();
@@ -552,7 +559,8 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetResponse & response = dynamic_cast<Coordination::ZooKeeperGetResponse &>(*response_ptr);
@@ -600,7 +608,8 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t zxid,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperRemoveResponse & response = dynamic_cast<Coordination::ZooKeeperRemoveResponse &>(*response_ptr);
@@ -684,7 +693,8 @@ struct SvsKeeperStorageExistsRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t /* zxid */,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperExistsResponse & response = dynamic_cast<Coordination::ZooKeeperExistsResponse &>(*response_ptr);
@@ -743,7 +753,8 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t zxid,
-        int64_t /* session_id */) const override
+        int64_t /* session_id */,
+        int64_t time) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperSetResponse & response = dynamic_cast<Coordination::ZooKeeperSetResponse &>(*response_ptr);
@@ -763,7 +774,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
                 std::lock_guard node_lock(node->mutex);
                 ++node->stat.version;
                 node->stat.mzxid = zxid;
-                node->stat.mtime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+                node->stat.mtime = time;
                 node->stat.dataLength = request.data.length();
                 node->data = request.data;
             }
@@ -793,7 +804,7 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
                 it->second.data = request.data;
                 ++it->second.stat.version;
                 it->second.stat.mzxid = zxid;
-                it->second.stat.mtime = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+                it->second.stat.mtime = time;
                 it->second.stat.dataLength = request.data.length();
                 it->second.data = request.data;
 
@@ -838,7 +849,8 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t /*zxid*/,
-        int64_t /*session_id*/) const override
+        int64_t /*session_id*/,
+        int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
@@ -909,7 +921,8 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t /*zxid*/,
-        int64_t /*session_id*/) const override
+        int64_t /*session_id*/,
+        int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperCheckResponse & response = dynamic_cast<Coordination::ZooKeeperCheckResponse &>(*response_ptr);
@@ -967,7 +980,8 @@ struct SvsKeeperStorageSetACLRequest final : public SvsKeeperStorageRequest
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t session_id) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t session_id,
+                                                                int64_t /* time */) const override
     {
         auto & container = storage.container;
 
@@ -1034,7 +1048,8 @@ struct SvsKeeperStorageGetACLRequest final : public SvsKeeperStorageRequest
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
 
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t /*session_id*/) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t /*session_id*/,
+                                                                int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetACLResponse & response = dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*response_ptr);
@@ -1059,7 +1074,8 @@ struct SvsKeeperStorageGetACLRequest final : public SvsKeeperStorageRequest
 struct SvsKeeperStorageAuthRequest final : public SvsKeeperStorageRequest
 {
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t session_id) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(SvsKeeperStorage & storage, int64_t /*zxid*/, int64_t session_id,
+                                                                int64_t /* time */) const override
     {
         Coordination::ZooKeeperAuthRequest & auth_request = dynamic_cast<Coordination::ZooKeeperAuthRequest &>(*zk_request);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
@@ -1141,7 +1157,8 @@ struct SvsKeeperStorageMultiRequest final : public SvsKeeperStorageRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
         SvsKeeperStorage & storage,
         int64_t zxid,
-        int64_t session_id) const override
+        int64_t session_id,
+        int64_t time) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperMultiResponse & response = dynamic_cast<Coordination::ZooKeeperMultiResponse &>(*response_ptr);
@@ -1152,7 +1169,7 @@ struct SvsKeeperStorageMultiRequest final : public SvsKeeperStorageRequest
             size_t i = 0;
             for (const auto & concrete_request : concrete_requests)
             {
-                auto [cur_response, undo_action] = concrete_request->process(storage, zxid, session_id);
+                auto [cur_response, undo_action] = concrete_request->process(storage, zxid, session_id, time);
 
                 response.responses[i] = cur_response;
                 if (cur_response->error != Coordination::Error::ZOK)
@@ -1211,7 +1228,8 @@ struct SvsKeeperStorageCloseRequest final : public SvsKeeperStorageRequest
 {
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(SvsKeeperStorage & /* storage */, int64_t, int64_t) const override
+    process(SvsKeeperStorage & /* storage */, int64_t, int64_t,
+            int64_t /* time */) const override
     {
         throw DB::Exception("Called process on close request", ErrorCodes::LOGICAL_ERROR);
     }
@@ -1322,10 +1340,18 @@ void SvsKeeperStorage::processRequest(
     SvsKeeperThreadSafeQueue<ResponseForSession> & responses_queue,
     const Coordination::ZooKeeperRequestPtr & zk_request,
     int64_t session_id,
+    int64_t time,
     std::optional<int64_t> new_last_zxid,
     bool check_acl [[maybe_unused]],
     bool ignore_response)
 {
+    LOG_TRACE(
+        log,
+        "[process request]SessionID/xid #{}#{}, opnum {}",
+        toHexString(session_id),
+        zk_request->xid,
+        Coordination::toString(zk_request->getOpNum()));
+
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
@@ -1364,7 +1390,7 @@ void SvsKeeperStorage::processRequest(
             }
             else
             {
-                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", getHexUIntLowercase(session_id));
+                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", toHexString(session_id));
             }
             clearDeadWatches(session_id);
         }
@@ -1378,6 +1404,7 @@ void SvsKeeperStorage::processRequest(
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
             closing_sessions.erase(session_id);
+            LOG_INFO(log, "Process close session {}, total sessions {}", toHexString(session_id), session_and_timeout.size());
         }
 
         {
@@ -1392,24 +1419,34 @@ void SvsKeeperStorage::processRequest(
     /// ZooKeeper update sessions expiry for each request, not only for heartbeats
     {
         std::lock_guard lock(session_mutex);
-        if (!closing_sessions.contains(session_id))
-            session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-        else
+        if (!session_and_timeout.contains(session_id))
         {
             LOG_WARNING(
                 log,
-                "Session 0x{} is closing, ignore op {} to path {}",
-                getHexUIntLowercase(session_id),
+                "Session {} is expired, ignore op {} to path {}",
+                toHexString(session_id),
                 Coordination::toString(zk_request->getOpNum()),
                 zk_request->getPath());
             return;
         }
+
+        if (closing_sessions.contains(session_id))
+        {
+            LOG_WARNING(
+                log,
+                "Session {} is closing, ignore op {} to path {}",
+                toHexString(session_id),
+                Coordination::toString(zk_request->getOpNum()),
+                zk_request->getPath());
+            return;
+        }
+        session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
     }
 
     if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = storage_request->process(*this, zxid, session_id);
+        auto [response, _] = storage_request->process(*this, zxid, session_id, time);
         response->xid = zk_request->xid;
         /// Heartbeat not increase zxid
         response->zxid = zxid;
@@ -1418,7 +1455,7 @@ void SvsKeeperStorage::processRequest(
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         SvsKeeperStorageRequestPtr storage_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = storage_request->process(*this, zxid, session_id);
+        auto [response, _] = storage_request->process(*this, zxid, session_id, time);
         response->xid = zk_request->xid;
         /// SetWatches not increase zxid
         response->zxid = zxid;
@@ -1505,8 +1542,10 @@ void SvsKeeperStorage::processRequest(
         }
         else
         {
-            response = storage_request->process(*this, zxid, session_id).first;
+            response = storage_request->process(*this, zxid, session_id, time).first;
         }
+
+        response->request_created_time_us = zk_request->request_created_time_us;
 
         response->xid = zk_request->xid;
         response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
@@ -1616,16 +1655,16 @@ bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*sessio
     std::lock_guard lock(session_mutex);
     if (closing_sessions.contains(session_id))
     {
-        LOG_WARNING(log, "Session 0x{} is closing, ignore session timeout updating.", getHexUIntLowercase(session_id));
+        LOG_WARNING(log, "Session {} is closing, ignore session timeout updating.", toHexString(session_id));
         return false;
     }
     if (!session_and_timeout.contains(session_id))
     {
-        LOG_WARNING(log, "Updated session timeout for {}, but it is already expired.", session_id);
+        LOG_WARNING(log, "Updating session timeout for {}, but it is already expired.", toHexString(session_id));
         return false;
     }
     session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
-    LOG_INFO(log, "Updated session timeout for {}", session_id);
+    LOG_INFO(log, "Updated session timeout for {}", toHexString(session_id));
     return true;
 }
 
@@ -1660,11 +1699,8 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
-    LOG_INFO(
-        log,
-        "clearDeadWatches, session id {}",
-        session_id);
-//    std::lock_guard session_lock(session_mutex);
+    LOG_DEBUG(log, "clearDeadWatches, session id {}", toHexString(session_id));
+    //    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
     if (watches_it != sessions_and_watchers.end())
@@ -1711,7 +1747,7 @@ void SvsKeeperStorage::dumpWatches(WriteBufferFromOwnString & buf) const
     std::lock_guard lock(watch_mutex);
     for (const auto & [session_id, watches_paths] : sessions_and_watchers)
     {
-        buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+        buf << toHexString(session_id) << "\n";
         for (const String & path : watches_paths)
             buf << "\t" << path << "\n";
     }
@@ -1723,7 +1759,7 @@ void SvsKeeperStorage::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
     {
         for (int64_t session_id : session_ids)
         {
-            buf << "\t0x" << getHexUIntLowercase(session_id) << "\n";
+            buf << "\t" << toHexString(session_id) << "\n";
         }
     };
 
@@ -1751,13 +1787,12 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
         }
     };
 
-    buf << "Sessions dump (" << session_and_timeout.size() << "):\n";
-
     {
         std::lock_guard lock(session_mutex);
+        buf << "Sessions dump (" << session_and_timeout.size() << "):\n";
         for (const auto & [session_id, _] : session_and_timeout)
         {
-            buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+            buf << toHexString(session_id) << "\n";
         }
     }
 
@@ -1765,7 +1800,7 @@ void SvsKeeperStorage::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf)
     buf << "Sessions with Ephemerals (" << getSessionWithEphemeralNodesCount() << "):\n";
     for (const auto & [session_id, ephemeral_paths] : ephemerals)
     {
-        buf << "0x" << getHexUIntLowercase(session_id) << "\n";
+        buf << toHexString(session_id) << "\n";
         write_str_set(ephemeral_paths);
     }
 }

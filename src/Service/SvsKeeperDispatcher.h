@@ -23,7 +23,9 @@
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperSyncProcessor.h>
 #include <Service/SvsKeeperCommitProcessor.h>
+#include <Poco/FIFOBuffer.h>
 
+#define USE_NIO_FOR_KEEPER
 
 namespace DB
 {
@@ -32,6 +34,8 @@ namespace DB
 #endif
 
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
+
+
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 class SvsKeeperDispatcher
 {
@@ -41,7 +45,6 @@ private:
     std::mutex push_request_mutex;
     ptr<RequestsQueue> requests_queue;
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
-//    SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
     using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
 
@@ -104,7 +107,7 @@ public:
         return server->updateSessionTimeout(session_id, session_timeout_ms);
     }
 
-    void registerSession(int64_t session_id, ZooKeeperResponseCallback callback);
+    void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
 

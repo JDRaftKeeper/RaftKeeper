@@ -1112,15 +1112,18 @@ class ClickHouseInstance:
                     time.sleep(1)
 
             if not stopped:
+                print(self.name, "stop failed")
                 pid = self.get_process_pid("clickhouse")
                 if pid is not None:
                     logging.warning(f"Force kill clickhouse in stop_clickhouse. ps:{pid}")
-                    self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
+                    # self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
                     self.stop_clickhouse(kill=True)
                 else:
                     ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
                     logging.warning(f"We want force stop clickhouse, but no clickhouse-server is running\n{ps_all}")
                     return
+            else:
+                print(self.name, "stopped")
         except Exception as e:
             logging.warning(f"Stop ClickHouse raised an error {e}")
 
@@ -1213,6 +1216,7 @@ class ClickHouseInstance:
         output = self.exec_in_container(["bash", "-c",
                                          "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | awk '{{print $1}}'".format(
                                              process_name)])
+
         if output:
             try:
                 pid = int(output.split('\n')[0].strip())

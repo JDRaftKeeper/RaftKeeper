@@ -12,8 +12,6 @@
 using Poco::Util::Application;
 using Poco::Util::ServerApplication;
 
-#define ServerPort 9000
-
 namespace DB
 {
 class Service : public BaseDaemon, public IServer

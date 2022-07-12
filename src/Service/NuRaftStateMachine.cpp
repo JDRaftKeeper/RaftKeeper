@@ -244,7 +244,7 @@ NuRaftStateMachine::NuRaftStateMachine(
             }
             for (auto & request : *(batch.request_vec))
             {
-                storage.processRequest(responses_queue, request->request, request->session_id, {}, true, true);
+                storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
                 if (request->session_id > storage.session_id_counter)
                 {
                     LOG_WARNING(
@@ -313,6 +313,16 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
     request_for_session->request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request_for_session->request->xid = xid;
     request_for_session->request->readImpl(buffer);
+
+    if (buffer.eof())
+    {
+        request_for_session->time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    }
+    else
+    {
+        readIntBinary(request_for_session->time, buffer);
+    }
+
     return request_for_session;
 }
 
@@ -373,6 +383,8 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
     request_for_session.request->xid = xid;
     request_for_session.request->readImpl(buffer);
 
+    readIntBinary(request_for_session.time, buffer);
+
     auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
     LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", request_for_session.session_id, length, xid, Coordination::toString(opnum));
 
@@ -385,6 +397,7 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSes
     /// TODO unify digital encoding mode, see parseRequest
     writeIntBinary(session_request.session_id, out);
     session_request.request->write(out);
+    Coordination::write(session_request.time, out);
     return out.getBuffer();
 }
 
@@ -461,7 +474,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         }
         else
         {
-            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, {}, true, ignore_response);
+            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.time, {}, true, ignore_response);
         }
 
         last_committed_idx = log_idx;
@@ -485,7 +498,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
 
 void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id);
+    storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.time);
 }
 
 std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
@@ -559,11 +572,12 @@ void NuRaftStateMachine::shutdown()
         return;
 
     shutdown_called = true;
-    LOG_INFO(log, "State machine shut down");
+    LOG_INFO(log, "State machine shutting down");
 
     storage.finalize();
     task_manager->shutDown();
     snap_thread.join();
+    LOG_INFO(log, "State machine shut down done!");
 }
 
 bool compareTime(const std::string & s1, const std::string & s2)
