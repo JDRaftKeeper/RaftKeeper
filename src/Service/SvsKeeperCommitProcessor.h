@@ -440,7 +440,7 @@ public:
                             }
                             else
                             {
-                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID)
+                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close)
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
 
                                 auto & current_session_pending_requests = pending_requests[committed_request.session_id];
@@ -449,7 +449,7 @@ public:
 //                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
 //                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
 //                                }
-                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->xid != Coordination::CLOSE_XID && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
+                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
                                     break;
 
                                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, {}, true, false);
@@ -458,10 +458,10 @@ public:
                                 current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
                                 current_session_pending_requests.erase(current_session_pending_requests.begin());
 
-                                if (current_session_pending_w_requests.empty())
+                                if (current_session_pending_w_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
                                     pending_write_requests.erase(committed_request.session_id);
 
-                                if (current_session_pending_requests.empty())
+                                if (current_session_pending_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
                                     pending_requests.erase(committed_request.session_id);
                             }
                         }
