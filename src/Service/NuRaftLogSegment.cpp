@@ -369,11 +369,16 @@ UInt64 NuRaftLogSegment::flush() const
     if (seg_fd >= 0)
     {
         std::lock_guard write_lock(log_mutex);
-        int ret = ::fsync(seg_fd);
+
+        int ret;
+#if defined(OS_DARWIN)
+        ret = ::fsync(seg_fd);
+#else
+        ret = ::fdatasync(seg_fd);
+#endif
         if (ret == -1)
             LOG_ERROR(log, "log fsync error");
-
-        if (ret == 0)
+        else if (ret == 0)
             return last_index; /// return last_index
     }
     return 0;
