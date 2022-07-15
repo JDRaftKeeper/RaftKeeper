@@ -318,5 +318,9 @@ if (USE_NURAFT OR USE_JD_NURAFT)
   add_subdirectory(nuraft-cmake)
 endif()
 
+if (USE_CONCURRENTQUEUE)
+    add_subdirectory(concurrentqueue-cmake)
+endif()
+
 add_subdirectory(fast_float)
 

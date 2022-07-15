@@ -492,6 +492,7 @@ include (cmake/find/odbc.cmake)
 include (cmake/find/rocksdb.cmake)
 include (cmake/find/libpqxx.cmake)
 include (cmake/find/nuraft.cmake)
+include (cmake/find/concurrentqueue.cmake)
 
 
 if(NOT USE_INTERNAL_PARQUET_LIBRARY)

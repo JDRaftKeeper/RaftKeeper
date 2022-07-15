@@ -326,6 +326,11 @@ if (USE_NURAFT OR USE_JD_NURAFT)
     dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
 endif()
 
+if (USE_CONCURRENTQUEUE)
+    dbms_target_link_libraries(PUBLIC ${CONCURRENTQUEUE_LIBRARY})
+endif()
+
+
 if(RE2_INCLUDE_DIR)
     target_include_directories(clickhouse_common_io SYSTEM BEFORE PUBLIC ${RE2_INCLUDE_DIR})
 endif()
