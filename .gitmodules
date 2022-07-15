@@ -221,3 +221,6 @@
 [submodule "contrib/NuRaft"]
 	path = contrib/NuRaft
 	url = https://github.com/eBay/NuRaft.git
+[submodule "contrib/concurrentqueue"]
+	path = contrib/concurrentqueue
+	url = https://github.com/cameron314/concurrentqueue.git
