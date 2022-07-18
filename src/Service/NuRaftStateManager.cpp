@@ -110,21 +110,31 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
 
     auto ret_cluster_config = cs_new<cluster_config>();
 
-    for (const auto & key : keys)
     {
-        if (startsWith(key, "server"))
+        std::lock_guard<std::mutex> lock(clients_mutex);
+        clients.clear();
+
+        for (const auto & key : keys)
         {
-            int id_ = config.getInt(config_name + "." + key + ".server_id");
-            String host = config.getString(config_name + "." + key + ".host");
-            String port = config.getString(config_name + "." + key + ".port", "5103");
-            String endpoint_ = host + ":" + port;
-            bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
-            int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
-            ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
-        }
-        else if (key == "async_replication")
-        {
-            ret_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
+            if (startsWith(key, "server"))
+            {
+                int id_ = config.getInt(config_name + "." + key + ".server_id");
+                String host = config.getString(config_name + "." + key + ".host");
+                String port = config.getString(config_name + "." + key + ".port", "5103");
+                String endpoint_ = host + ":" + port;
+                String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "5101");
+                String forwarding_endpoint_ = host + ":" + forwarding_port;
+                bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
+                int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
+                ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
+
+                std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_);
+                clients.emplace(id_, client);
+            }
+            else if (key == "async_replication")
+            {
+                ret_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
+            }
         }
     }
 
@@ -186,6 +196,14 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     }
 
     return result;
+}
+
+ptr<ForwardingClient> NuRaftStateManager::getClient(int32 id)
+{
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex);
+        return clients.find(id)->second;
+    }
 }
 
 }

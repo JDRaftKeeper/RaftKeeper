@@ -212,7 +212,7 @@ void SvsKeeperServer::getServerList(std::vector<Server> & server_list)
 {
     std::vector<ptr<srv_config>> configs;
     raft_instance->get_srv_config_all(configs);
-    int leader_id = raft_instance->get_leader();
+    int32 leader_id = raft_instance->get_leader();
 
     for (auto & entry : configs)
     {
@@ -233,6 +233,11 @@ void SvsKeeperServer::getServerList(std::vector<Server> & server_list)
         server_list.push_back(server);
         //std::cout << std::endl;
     }
+}
+
+ptr<ForwardingClient> SvsKeeperServer::getLeaderClient()
+{
+    return state_manager->getClient(raft_instance->get_leader());
 }
 
 void SvsKeeperServer::removeServer(const std::string & endpoint)

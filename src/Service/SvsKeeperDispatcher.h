@@ -23,6 +23,7 @@
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperSyncProcessor.h>
 #include <Service/SvsKeeperCommitProcessor.h>
+#include <Service/FollowerRequestProcessor.h>
 #include <Poco/FIFOBuffer.h>
 
 #define USE_NIO_FOR_KEEPER
@@ -83,6 +84,8 @@ private:
 
     SvsKeeperSyncProcessor svskeeper_sync_processor;
 
+    FollowerRequestProcessor follower_request_processor;
+
 private:
     void requestThread(size_t thread_index);
     void requestThreadFakeZk(size_t thread_index);
@@ -100,6 +103,8 @@ public:
     ~SvsKeeperDispatcher() = default;
 
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
+
+    bool putForwardingRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
     int64_t getSessionID(int64_t session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)

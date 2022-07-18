@@ -54,7 +54,12 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 //                requests_commit_event.addRequest(request_for_session.session_id, request_for_session.request->xid);
 
                 if (!request_for_session.request->isReadRequest())
-                    svskeeper_sync_processor.processRequest(request_for_session);
+                {
+                    if (server->isLeader())
+                        svskeeper_sync_processor.processRequest(request_for_session);
+                    else
+                        follower_request_processor.processRequest(request_for_session);
+                }
 
                 svskeeper_commit_processor->processRequest(request_for_session);
 
@@ -516,6 +521,30 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     return true;
 }
 
+
+bool SvsKeeperDispatcher::putForwardingRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
+{
+    SvsKeeperStorage::RequestForSession request_info;
+    request_info.request = request;
+    request_info.session_id = session_id;
+    using namespace std::chrono;
+    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
+
+    //    std::lock_guard lock(push_request_mutex);
+
+    /// Put close requests without timeouts
+    if (request->getOpNum() == Coordination::OpNum::Close)
+    {
+        if (!requests_queue->push(std::move(request_info)))
+            throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
+    }
+    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+    return true;
+}
+
 void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
     LOG_DEBUG(log, "Initializing storage dispatcher");
@@ -537,6 +566,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
         thread_count = configuration_and_settings->thread_count;
 
+        follower_request_processor.initialize(thread_count, server);
         svskeeper_sync_processor.initialize(1, server);
         svskeeper_commit_processor->initialize(thread_count,server);
     }

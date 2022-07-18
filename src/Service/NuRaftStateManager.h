@@ -7,6 +7,7 @@
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <common/logger_useful.h>
+#include <Service/ForwardingClient.h>
 
 namespace DB
 {
@@ -75,6 +76,8 @@ public:
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
+    ptr<ForwardingClient> getClient(int32 id);
+
 protected:
     NuRaftStateManager() { }
 
@@ -88,6 +91,9 @@ private:
     ptr<log_store> curr_log_store;
 
     ptr<cluster_config> cur_cluster_config;
+
+    mutable std::mutex clients_mutex;
+    mutable std::unordered_map<UInt32, ptr<ForwardingClient>> clients;
 
 protected:
     Poco::Logger * log;

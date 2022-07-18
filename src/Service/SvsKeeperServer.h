@@ -66,6 +66,8 @@ public:
 
     void getServerList(std::vector<Server> & server_list);
 
+    ptr<ForwardingClient> getLeaderClient();
+
     void removeServer(const std::string & endpoint);
 
     void putRequest(const SvsKeeperStorage::RequestForSession & request);
