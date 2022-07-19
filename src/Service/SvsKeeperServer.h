@@ -66,7 +66,7 @@ public:
 
     void getServerList(std::vector<Server> & server_list);
 
-    ptr<ForwardingClient> getLeaderClient();
+    ptr<ForwardingClient> getLeaderClient(size_t thread_idx);
 
     void removeServer(const std::string & endpoint);
 

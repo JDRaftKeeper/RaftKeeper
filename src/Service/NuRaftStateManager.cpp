@@ -19,15 +19,16 @@ NuRaftStateManager::NuRaftStateManager(
     const std::string & log_dir_,
     const Poco::Util::AbstractConfiguration & config,
     bool force_sync,
-    bool async_fsync)
+    bool async_fsync,
+    size_t thread_count)
     : my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_)
 {
-    log = &(Poco::Logger::get("RaftStateManager"));
+    log = &(Poco::Logger::get("NuRaftStateManager"));
     curr_log_store = cs_new<NuRaftFileLogStore>(log_dir, false , force_sync, async_fsync);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
-    cur_cluster_config = parseClusterConfig(config, "service.remote_servers");
+    cur_cluster_config = parseClusterConfig(config, "service.remote_servers", thread_count);
 }
 
 ptr<cluster_config> NuRaftStateManager::load_config()
@@ -103,7 +104,7 @@ void NuRaftStateManager::system_exit(const int exit_code)
     LOG_ERROR(log, "Raft system exit with code {}", exit_code);
 }
 
-ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const
+ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name, size_t thread_count) const
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
@@ -129,8 +130,13 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
                 ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
 
                 LOG_INFO(log, "Create ForwardingClient for {}, {}", id_, forwarding_endpoint_);
-                std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_);
-                clients.emplace(id_, client);
+
+                for (size_t i = 0; i < thread_count; ++i)
+                {
+                    auto & client_list = clients[id_];
+                    std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_);
+                    client_list.push_back(client);
+                }
             }
             else if (key == "async_replication")
             {
@@ -199,11 +205,11 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     return result;
 }
 
-ptr<ForwardingClient> NuRaftStateManager::getClient(int32 id)
+ptr<ForwardingClient> NuRaftStateManager::getClient(int32 id, size_t thread_idx)
 {
     {
         std::lock_guard<std::mutex> lock(clients_mutex);
-        return clients.find(id)->second;
+        return clients[id][thread_idx];
     }
 }
 
