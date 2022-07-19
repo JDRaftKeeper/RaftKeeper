@@ -48,8 +48,9 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
     }
 
     LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
-    out->write(request_for_session.session_id);
+
     request_for_session.request->write(*out);
+    out->write(request_for_session.session_id);
 }
 
 
