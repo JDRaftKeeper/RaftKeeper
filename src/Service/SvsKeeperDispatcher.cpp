@@ -530,7 +530,7 @@ bool SvsKeeperDispatcher::putForwardingRequest(const Coordination::ZooKeeperRequ
     using namespace std::chrono;
     request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
+    LOG_TRACE(log, "[putForwardingRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
