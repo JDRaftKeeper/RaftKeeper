@@ -1,7 +1,7 @@
 
 #include <Service/ForwardingClient.h>
 #include <IO/WriteHelpers.h>
-#include <Common/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
 
 namespace DB
 {
@@ -54,11 +54,11 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
     /// Excessive copy to calculate length.
     WriteBufferFromOwnString buf;
     Coordination::write(request_for_session.session_id, buf);
-    Coordination::write(xid, buf);
-    Coordination::write(getOpNum(), buf);
-    writeImpl(buf);
-    Coordination::write(buf.str(), out);
-    out.next();
+    Coordination::write(request_for_session.request->xid, buf);
+    Coordination::write(request_for_session.request->getOpNum(), buf);
+    request_for_session.request->writeImpl(buf);
+    Coordination::write(buf.str(), *out);
+    out->next();
 }
 
 
