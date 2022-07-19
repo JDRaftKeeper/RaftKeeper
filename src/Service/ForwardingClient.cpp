@@ -34,7 +34,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
         }
         catch (...)
         {
-            LOG_ERROR(log, "Got exception connection {}: {}", getCurrentExceptionMessage(true), address.toString());
+            LOG_ERROR(log, "Got exception connection {}, {}: {}", endpoint, address.toString(), getCurrentExceptionMessage(true));
         }
     }
 }
