@@ -90,7 +90,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(header, read_buf);
 
-                body_len = header;
+                body_len = header + 8; /// tail session_id
                 LOG_TRACE(log, "read request length : {}", body_len);
 
                 /// clear len_buf
@@ -249,8 +249,6 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::receiveRequest(int32_t length)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-    int64_t session_id;
-    Coordination::read(session_id, body);
 
     int32_t xid;
     Coordination::read(xid, body);
@@ -258,12 +256,12 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
     Coordination::OpNum opnum;
     Coordination::read(opnum, body);
 
-    if (opnum != Coordination::OpNum::Heartbeat)
-        LOG_DEBUG(log, "Receive request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
-
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
     request->readImpl(body);
+
+    int64_t session_id;
+    Coordination::read(session_id, body);
 
     request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
 
