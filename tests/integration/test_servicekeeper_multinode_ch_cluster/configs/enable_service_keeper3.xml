@@ -6,7 +6,7 @@
         <snapshot_dir>./snapshot_log</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
         <snapshot_create_interval>86400</snapshot_create_interval>
-        <raft_grpc_port>5101</raft_grpc_port>
+        <forwarding_port>5101</forwarding_port>
         <service_port>5102</service_port>
         <internal_port>5103</internal_port>
         <thread_count>16</thread_count>
@@ -22,16 +22,19 @@
                 <server_id>1</server_id>
                 <host>node1</host>
                 <port>5103</port>
+                <forwarding_port>5101</forwarding_port>
             </server>
             <server>
                 <server_id>2</server_id>
                 <host>node2</host>
                 <port>5103</port>
+                <forwarding_port>5101</forwarding_port>
             </server>
             <server>
                 <server_id>3</server_id>
                 <host>node3</host>
                 <port>5103</port>
+                <forwarding_port>5101</forwarding_port>
             </server>
             <async_replication>false</async_replication>
         </remote_servers>
