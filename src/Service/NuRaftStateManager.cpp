@@ -128,6 +128,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
                 int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
                 ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
 
+                LOG_INFO(log, "Create ForwardingClient for {}, {}", id_, forwarding_endpoint_);
                 std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_);
                 clients.emplace(id_, client);
             }
