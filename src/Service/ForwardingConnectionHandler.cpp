@@ -267,7 +267,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
 
     LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
 
-    if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
+    if (!service_keeper_storage_dispatcher->putForwardingRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
     return std::make_pair(opnum, xid);
 }
