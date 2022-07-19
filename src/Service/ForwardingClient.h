@@ -17,6 +17,20 @@ public:
     void connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout);
     void send(SvsKeeperStorage::RequestForSession request_for_session);
 
+    ~ForwardingClient()
+    {
+        try
+        {
+            socket.shutdown();
+            connected = false;
+        }
+        catch (...)
+        {
+            /// We must continue to execute all callbacks, because the user is waiting for them.
+            tryLogCurrentException(__PRETTY_FUNCTION__);
+        }
+    }
+
 private:
     bool connected{false};
     String endpoint;
