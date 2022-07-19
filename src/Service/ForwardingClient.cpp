@@ -9,7 +9,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
 {
     static constexpr size_t num_tries = 3;
 
-//    WriteBufferFromOwnString fail_reasons;
+    WriteBufferFromOwnString fail_reasons;
     for (size_t try_no = 0; try_no < num_tries; ++try_no)
     {
         try
@@ -34,7 +34,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
         }
         catch (...)
         {
-//            fail_reasons << "\n" << getCurrentExceptionMessage(false) << ", " << address.toString();
+            LOG_ERROR(log, "Got exception connection {}: {}", getCurrentExceptionMessage(true), address.toString());
         }
     }
 }
@@ -47,9 +47,9 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
         connect(add, operation_timeout);
     }
 
-    LOG_TRACE(log, "forwarding session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
+    LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
     out->write(request_for_session.session_id);
-    request_for_session.request->writeImpl(*out);
+    request_for_session.request->write(*out);
 }
 
 
