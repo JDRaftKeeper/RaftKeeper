@@ -157,7 +157,8 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
 
 ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
 {
-    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers");
+    int32_t thread_count = config.getInt("service.thread_count", 1);
+    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers", thread_count);
 
     std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
     for (const auto & new_server : new_cluster_config->get_servers())
