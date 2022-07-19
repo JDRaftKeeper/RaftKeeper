@@ -90,7 +90,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(header, read_buf);
 
-                body_len = header + 8; /// tail session_id
+                body_len = header; /// tail session_id
                 LOG_TRACE(log, "read request length : {}", body_len);
 
                 /// clear len_buf
@@ -250,6 +250,9 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
 
+    int64_t session_id;
+    Coordination::read(session_id, body);
+
     int32_t xid;
     Coordination::read(xid, body);
 
@@ -260,12 +263,9 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
     request->xid = xid;
     request->readImpl(body);
 
-    int64_t session_id;
-    Coordination::read(session_id, body);
-
     request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
 
-    LOG_TRACE(log, "Receive request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
+    LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
 
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
