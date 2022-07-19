@@ -64,7 +64,8 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_settings_->log_storage_path,
         config,
         coordination_settings_->coordination_settings->force_sync,
-        coordination_settings_->coordination_settings->async_fsync);
+        coordination_settings_->coordination_settings->async_fsync,
+        coordination_settings_->thread_count);
 
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
@@ -235,9 +236,9 @@ void SvsKeeperServer::getServerList(std::vector<Server> & server_list)
     }
 }
 
-ptr<ForwardingClient> SvsKeeperServer::getLeaderClient()
+ptr<ForwardingClient> SvsKeeperServer::getLeaderClient(size_t thread_idx)
 {
-    return state_manager->getClient(raft_instance->get_leader());
+    return state_manager->getClient(raft_instance->get_leader(), thread_idx);
 }
 
 void SvsKeeperServer::removeServer(const std::string & endpoint)

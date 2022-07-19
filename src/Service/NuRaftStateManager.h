@@ -47,11 +47,12 @@ public:
         const std::string & log_dir,
         const Poco::Util::AbstractConfiguration & config,
         bool force_sync,
-        bool async_fsync);
+        bool async_fsync,
+        size_t thread_count);
 
     ~NuRaftStateManager() override = default;
 
-    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const;
+    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name, size_t thread_count) const;
 
     ptr<cluster_config> load_config() override;
 
@@ -76,7 +77,7 @@ public:
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
-    ptr<ForwardingClient> getClient(int32 id);
+    ptr<ForwardingClient> getClient(int32 id, size_t thread_idx);
 
 protected:
     NuRaftStateManager() { }
@@ -93,7 +94,7 @@ private:
     ptr<cluster_config> cur_cluster_config;
 
     mutable std::mutex clients_mutex;
-    mutable std::unordered_map<UInt32, ptr<ForwardingClient>> clients;
+    mutable std::unordered_map<UInt32, std::vector<ptr<ForwardingClient>>> clients;
 
 protected:
     Poco::Logger * log;

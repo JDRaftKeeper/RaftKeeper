@@ -34,7 +34,7 @@ public:
 
             if (requests_queue->tryPop(thread_idx, request_for_session, max_wait))
             {
-                server->getLeaderClient()->send(request_for_session);
+                server->getLeaderClient(thread_idx)->send(request_for_session);
             }
         }
     }
@@ -55,7 +55,7 @@ public:
         while (requests_queue->tryPopAny(request_for_session))
         {
             /// TODO ?
-            server->getLeaderClient()->send(request_for_session);
+            server->getLeaderClient(0)->send(request_for_session);
         }
     }
 
