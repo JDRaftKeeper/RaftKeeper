@@ -12,7 +12,7 @@ namespace DB
 class ForwardingClient
 {
 public:
-    ForwardingClient(String endpoint_) : endpoint(endpoint_), operation_timeout(10 * 1000 * 1000 /* TODO */), log(&Poco::Logger::get("ForwardingClient")) {}
+    ForwardingClient(String endpoint_, Poco::Timespan operation_timeout_ms) : endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingClient")) {}
 
     void connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout);
     void send(SvsKeeperStorage::RequestForSession request_for_session);
@@ -21,8 +21,11 @@ public:
     {
         try
         {
-            socket.shutdown();
-            connected = false;
+            if (connected)
+            {
+                socket.shutdown();
+                connected = false;
+            }
         }
         catch (...)
         {

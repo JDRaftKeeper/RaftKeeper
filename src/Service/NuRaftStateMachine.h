@@ -13,7 +13,6 @@
 #include <Service/SvsKeeperThreadSafeQueue.h>
 #include <libnuraft/nuraft.hxx>
 #include <common/types.h>
-#include <Service/RequestsCommitEvent.h>
 
 
 namespace DB
@@ -38,7 +37,6 @@ public:
         UInt32 snap_end_second,
         UInt32 internal,
         UInt32 keep_max_snapshot_count,
-        RequestsCommitEvent & requests_commit_event_,
         ptr<nuraft::log_store> logstore = nullptr,
         std::string superdigest = "",
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
@@ -150,7 +148,6 @@ private:
     //NodeMap node_map;
     SvsKeeperStorage storage;
     SvsKeeperResponsesQueue & responses_queue;
-    RequestsCommitEvent & requests_commit_event;
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
