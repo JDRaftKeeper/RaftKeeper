@@ -740,7 +740,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     SvsKeeperResponsesQueue ano_queue;
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
-    NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits, ano_store);
+    NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, ano_store);
 
     assertStateMachineEquals(machine.getStorage(), ano_machine.getStorage());
 
