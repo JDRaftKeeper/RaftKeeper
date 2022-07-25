@@ -10,7 +10,6 @@
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
-#include <Service/RequestsCommitEvent.h>
 
 using namespace nuraft;
 using namespace DB;
@@ -656,8 +655,8 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
-    RequestsCommitEvent wait_commits;
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits, store);
+
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, store);
 
     int64_t last_log_term = store->term_at(store->next_slot() -1);
     int64_t term = last_log_term == 0 ? 1 : last_log_term;
