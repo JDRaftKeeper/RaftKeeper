@@ -11,7 +11,6 @@
 #include <Poco/Logger.h>
 #include <Poco/Util/LayeredConfiguration.h>
 #include <common/argsToConfig.h>
-#include <Service/RequestsCommitEvent.h>
 
 using namespace nuraft;
 using namespace DB;
@@ -195,8 +194,7 @@ TEST(RaftStateMachine, appendEntry)
 
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    RequestsCommitEvent wait_commits;
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     std::string key("/table1");
     std::string data("CREATE TABLE table1;");
     createZNode(machine, key, data);
@@ -214,8 +212,7 @@ TEST(RaftStateMachine, modifyEntry)
 
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    RequestsCommitEvent wait_commits;
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     std::string key("/table1");
     std::string data1("CREATE TABLE table1;");
     //LogOpTypePB op = OP_TYPE_CREATE;
@@ -249,8 +246,7 @@ TEST(RaftStateMachine, createSnapshot)
 
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    RequestsCommitEvent wait_commits;
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
     LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -285,9 +281,8 @@ TEST(RaftStateMachine, syncSnapshot)
 
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    RequestsCommitEvent wait_commits;
-    NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3, wait_commits);
-    NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3, wait_commits);
+    NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3);
+    NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3);
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
@@ -342,8 +337,8 @@ TEST(RaftStateMachine, initStateMachine)
         SvsKeeperResponsesQueue queue;
         SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
-        RequestsCommitEvent wait_commits;
-        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits, log_store);
+
+        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, log_store);
 
         ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
         UInt32 last_index = 128;
@@ -382,8 +377,7 @@ TEST(RaftStateMachine, initStateMachine)
         SvsKeeperResponsesQueue queue;
         SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
-        RequestsCommitEvent wait_commits;
-        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, wait_commits, log_store);
+        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, log_store);
         LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
         ASSERT_EQ(machine.last_commit_index(), 256);
         machine.shutdown();
