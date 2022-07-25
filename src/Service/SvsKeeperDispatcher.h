@@ -19,7 +19,6 @@
 #include <Service/KeeperConnectionStats.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/SvsKeeperSettings.h>
-#include <Service/RequestsCommitEvent.h>
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperSyncProcessor.h>
 #include <Service/SvsKeeperCommitProcessor.h>
@@ -76,8 +75,6 @@ private:
 
     KeeperConfigurationAndSettingsPtr configuration_and_settings;
 
-    RequestsCommitEvent requests_commit_event;
-
     Poco::Logger * log;
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
@@ -87,7 +84,7 @@ private:
     FollowerRequestProcessor follower_request_processor;
 
 private:
-    void requestThread(size_t thread_index);
+    void requestThread();
     void requestThreadFakeZk(size_t thread_index);
     void responseThread();
     void sessionCleanerTask();
@@ -124,10 +121,6 @@ public:
 
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
-
-    bool canAccumulateBatch(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch, size_t request_batch_size);
-
-    bool waitResultAndHandleError(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch);
 
     /// Are we leader
     bool isLeader() const

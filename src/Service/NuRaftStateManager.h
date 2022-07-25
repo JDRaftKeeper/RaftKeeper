@@ -7,6 +7,7 @@
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <common/logger_useful.h>
+#include <Service/SvsKeeperSettings.h>
 #include <Service/ForwardingClient.h>
 
 namespace DB
@@ -46,9 +47,7 @@ public:
         const std::string & endpoint,
         const std::string & log_dir,
         const Poco::Util::AbstractConfiguration & config,
-        bool force_sync,
-        bool async_fsync,
-        size_t thread_count);
+        KeeperConfigurationAndSettingsPtr coordination_settings_);
 
     ~NuRaftStateManager() override = default;
 
@@ -83,6 +82,8 @@ protected:
     NuRaftStateManager() { }
 
 private:
+    KeeperConfigurationAndSettingsPtr coordination_settings;
+
     int my_server_id;
     std::string endpoint;
 
