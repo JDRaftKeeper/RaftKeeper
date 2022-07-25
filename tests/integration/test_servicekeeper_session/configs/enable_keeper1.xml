@@ -1,6 +1,7 @@
 <yandex>
     <service>
         <service_port>5102</service_port>
+        <forwarding_port>5101</forwarding_port>
         <my_id>1</my_id>
         <host>node1</host>
         <log_dir>/var/lib/clickhouse/coordination/log</log_dir>
