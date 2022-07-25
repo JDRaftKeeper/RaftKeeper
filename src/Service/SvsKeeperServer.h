@@ -7,7 +7,6 @@
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
 #include <libnuraft/nuraft.hxx>
-#include <Service/RequestsCommitEvent.h>
 
 namespace DB
 {
@@ -39,8 +38,6 @@ private:
 
     SvsKeeperResponsesQueue & responses_queue;
 
-    RequestsCommitEvent & requests_commit_event;
-
     Poco::Logger * log;
 
     std::mutex initialized_mutex;
@@ -57,7 +54,6 @@ public:
         const KeeperConfigurationAndSettingsPtr & coordination_settings_,
         const Poco::Util::AbstractConfiguration & config_,
         SvsKeeperResponsesQueue & responses_queue_,
-        RequestsCommitEvent & requests_commit_event_,
         std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_ = nullptr);
 
     void startup();

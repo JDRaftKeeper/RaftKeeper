@@ -27,8 +27,7 @@ public:
     {
         while (!shutdown_called)
         {
-            //            UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
-            UInt64 max_wait = 10000;
+            UInt64 max_wait = operation_timeout_ms;
 
             SvsKeeperStorage::RequestForSession request_for_session;
 
@@ -45,9 +44,6 @@ public:
             return;
 
         shutdown_called = true;
-//
-//        if (main_thread.joinable())
-//            main_thread.join();
 
         request_thread->wait();
 
@@ -59,8 +55,9 @@ public:
         }
     }
 
-    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_)
+    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_)
     {
+        operation_timeout_ms = operation_timeout_ms_;
         server = server_;
         requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
         request_thread = std::make_shared<ThreadPool>(thread_count);
@@ -76,14 +73,11 @@ private:
 
     ThreadPoolPtr request_thread;
 
-//    ThreadFromGlobalPool main_thread;
-
     bool shutdown_called{false};
-
 
     std::shared_ptr<SvsKeeperServer> server;
 
-
+    UInt64 operation_timeout_ms = 10000;
 };
 
 }

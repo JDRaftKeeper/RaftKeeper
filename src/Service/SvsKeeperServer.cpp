@@ -48,13 +48,11 @@ SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config_,
     SvsKeeperResponsesQueue & responses_queue_,
-    RequestsCommitEvent & requests_commit_event_,
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
     : server_id(coordination_settings_->server_id)
     , coordination_and_settings(coordination_settings_)
     , config(config_)
     , responses_queue(responses_queue_)
-    , requests_commit_event(requests_commit_event_)
     , log(&(Poco::Logger::get("RaftKeeperServer")))
 {
 
@@ -63,10 +61,7 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_settings_->host + ":" + std::to_string(coordination_settings_->tcp_port),
         coordination_settings_->log_storage_path,
         config,
-        coordination_settings_->coordination_settings->force_sync,
-        coordination_settings_->coordination_settings->async_fsync,
-        coordination_settings_->thread_count);
-
+        coordination_settings_);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
@@ -76,7 +71,6 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_and_settings->snapshot_end_time,
         coordination_and_settings->snapshot_create_interval,
         coordination_and_settings->coordination_settings->max_stored_snapshots,
-        requests_commit_event,
         state_manager->load_log_store(),
         checkAndGetSuperdigest(coordination_and_settings->super_digest),
         KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
@@ -348,8 +342,6 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
         std::vector<ptr<buffer>> entries;
         entries.push_back(getZooKeeperLogEntry(session_id, time, request));
 
-        requests_commit_event.addRequest(session_id, request->xid);
-
         LOG_TRACE(
             log,
             "[put write request]SessionID/xid #{}#{}, opnum {}, entries {}",
@@ -369,17 +361,10 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 
         if (result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
         {
-            /// wait commit
-            LOG_TRACE(
-                log, "wait commit SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
-
-            requests_commit_event.waitForCommit(session_id, request->xid);
-            LOG_TRACE(
-                log, "wait commit done SessionID/xid #{}#{}, opnum {}, entries {}", session_id, request->xid, request->getOpNum(), entries.size());
+            /// response pushed into queue by state machine
             return;
         }
 
-        requests_commit_event.erase(session_id, request->xid);
         auto response = request->makeResponse();
 
         response->xid = request->xid;

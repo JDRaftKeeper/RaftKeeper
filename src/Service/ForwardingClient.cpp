@@ -45,7 +45,7 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
     if (!connected)
     {
         Poco::Net::SocketAddress add{endpoint};
-        connect(add, operation_timeout);
+        connect(add, operation_timeout.totalMilliseconds() / 3);
     }
 
     LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
