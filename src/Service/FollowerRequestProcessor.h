@@ -32,7 +32,7 @@ public:
 
             SvsKeeperStorage::RequestForSession request_for_session;
 
-            if (requests_queue->tryPop(thread_idx, request_for_session, max_wait))
+            if (requests_queue->tryPop(thread_idx, request_for_session, max_wait) && !server->isLeader())
             {
                 try
                 {
@@ -43,7 +43,7 @@ public:
                     svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
                 }
             }
-            else
+            else if (!server->isLeader())
             {
                 /// sned ping
                 try
