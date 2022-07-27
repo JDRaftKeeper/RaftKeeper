@@ -9,6 +9,7 @@ namespace DB
 namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
+    extern const int NETWORK_ERROR;
 }
 
 void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
@@ -46,6 +47,15 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
     }
 }
 
+void ForwardingClient::disconnect()
+{
+    if (connected)
+    {
+        socket.close();
+        connected = false;
+    }
+}
+
 void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_session)
 {
     if (!connected)
@@ -61,15 +71,22 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
 
     LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
 
-//    request_for_session.request->write(*out);
-    /// Excessive copy to calculate length.
-    WriteBufferFromOwnString buf;
-    Coordination::write(request_for_session.session_id, buf);
-    Coordination::write(request_for_session.request->xid, buf);
-    Coordination::write(request_for_session.request->getOpNum(), buf);
-    request_for_session.request->writeImpl(buf);
-    Coordination::write(buf.str(), *out);
-    out->next();
+    try
+    {
+        WriteBufferFromOwnString buf;
+        Coordination::write(request_for_session.session_id, buf);
+        Coordination::write(request_for_session.request->xid, buf);
+        Coordination::write(request_for_session.request->getOpNum(), buf);
+        request_for_session.request->writeImpl(buf);
+        Coordination::write(buf.str(), *out);
+        out->next();
+    }
+    catch(...)
+    {
+        LOG_ERROR(log, "Got exception send {}, {}", endpoint, getCurrentExceptionMessage(true));
+        disconnect();
+        throw Exception("ForwardingClient send failed", ErrorCodes::NETWORK_ERROR);
+    }
 }
 
 

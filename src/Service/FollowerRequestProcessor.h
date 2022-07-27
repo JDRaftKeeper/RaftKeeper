@@ -36,13 +36,7 @@ public:
             {
                 try
                 {
-                    if (auto client = server->getLeaderClient(thread_idx))
-                        client->send(request_for_session);
-                    else
-                    {
-                        LOG_ERROR(log, "don't has client, server alive {}", server->isLeaderAlive());
-                    }
-
+                    server->getLeaderClient(thread_idx)->send(request_for_session);
                 }
                 catch (...)
                 {
