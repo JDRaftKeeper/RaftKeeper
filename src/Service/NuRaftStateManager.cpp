@@ -134,6 +134,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
                     auto & client_list = clients[id_];
                     std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
                     client_list.push_back(client);
+                    LOG_INFO(log, "Create ForwardingClient for {}, {}, thread {}, {}", id_, forwarding_endpoint_, i, static_cast<void*>(client.get()));
                 }
             }
             else if (key == "async_replication")
@@ -155,8 +156,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
 
 ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
 {
-    int32_t thread_count = config.getInt("service.thread_count", 1);
-    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers", thread_count);
+    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers", coordination_settings->thread_count);
 
     std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
     for (const auto & new_server : new_cluster_config->get_servers())
