@@ -43,6 +43,20 @@ public:
                     svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
                 }
             }
+            else
+            {
+                /// sned ping
+                try
+                {
+                    auto connection = server->getLeaderClient(thread_idx);
+                    connection->sendPing();
+                    connection->receivePing();
+                }
+                catch (...)
+                {
+                    ///
+                }
+            }
         }
     }
 

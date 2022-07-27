@@ -1,5 +1,5 @@
 
-#include <Service/ForwardingClient.h>
+#include <Service/ForwardingConnection.h>
 #include <IO/WriteHelpers.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 
@@ -12,7 +12,7 @@ namespace ErrorCodes
     extern const int NETWORK_ERROR;
 }
 
-void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
+void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
 {
     static constexpr size_t num_tries = 3;
 
@@ -37,6 +37,12 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
 
             connected = true;
 
+            sendHandshake();
+            LOG_TRACE(log, "sent handshake {}", endpoint);
+
+            receiveHandshake();
+            LOG_TRACE(log, "receive handshake {}", endpoint);
+
             LOG_TRACE(log, "connect succ {}", endpoint);
             break;
         }
@@ -47,7 +53,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
     }
 }
 
-void ForwardingClient::disconnect()
+void ForwardingConnection::disconnect()
 {
     if (connected)
     {
@@ -56,7 +62,7 @@ void ForwardingClient::disconnect()
     }
 }
 
-void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_session)
+void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_session)
 {
     if (!connected)
     {
@@ -66,13 +72,14 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
 
     if (!connected)
     {
-        throw Exception("ForwardingClient connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
+        throw Exception("ForwardingConnection connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
     }
 
     LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
 
     try
     {
+        Coordination::write(Protocol::Data, *out);
         WriteBufferFromOwnString buf;
         Coordination::write(request_for_session.session_id, buf);
         Coordination::write(request_for_session.request->xid, buf);
@@ -85,9 +92,59 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
     {
         LOG_ERROR(log, "Got exception send {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
-        throw Exception("ForwardingClient send failed", ErrorCodes::NETWORK_ERROR);
+        throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
     }
 }
+
+void ForwardingConnection::sendPing()
+{
+    if (!connected)
+    {
+        Poco::Net::SocketAddress add{endpoint};
+        connect(add, operation_timeout.totalMilliseconds() / 3);
+    }
+
+    if (!connected)
+    {
+        throw Exception("ForwardingConnection connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
+    }
+
+    LOG_TRACE(log, "Send ping to endpoint {}", endpoint);
+
+    try
+    {
+        Coordination::write(Protocol::Ping, *out);
+        out->next();
+    }
+    catch(...)
+    {
+        LOG_ERROR(log, "Got exception send {}, {}", endpoint, getCurrentExceptionMessage(true));
+        disconnect();
+        throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
+    }
+}
+
+void ForwardingConnection::receivePing()
+{
+    int8_t type;
+    Coordination::read(type, *in);
+    assert(type == Protocol::Ping);
+}
+
+void ForwardingConnection::sendHandshake()
+{
+    Coordination::write(Protocol::Hello, *out);
+    out->next();
+}
+
+
+void ForwardingConnection::receiveHandshake()
+{
+    int8_t type;
+    Coordination::read(type, *in);
+    assert(type == Protocol::Hello);
+}
+
 
 
 }
