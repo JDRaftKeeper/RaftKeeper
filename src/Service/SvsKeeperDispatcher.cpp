@@ -22,7 +22,7 @@ using Poco::NumberFormatter;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
-    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(responses_queue)), svskeeper_sync_processor(svskeeper_commit_processor)
+    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(responses_queue)), svskeeper_sync_processor(svskeeper_commit_processor), follower_request_processor(svskeeper_commit_processor)
 {
 }
 
