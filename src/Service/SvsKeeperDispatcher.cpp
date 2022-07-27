@@ -53,6 +53,8 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
             {
                 if (!request_for_session.request->isReadRequest())
                 {
+                    LOG_TRACE(log, "leader is {}", server->getLeader());
+
                     if (server->isLeader())
                         svskeeper_sync_processor.processRequest(request_for_session);
                     else

@@ -64,6 +64,8 @@ public:
 
     ptr<ForwardingConnection> getLeaderClient(size_t thread_idx);
 
+    int32 getLeader();
+
     void removeServer(const std::string & endpoint);
 
     void putRequest(const SvsKeeperStorage::RequestForSession & request);

@@ -235,6 +235,12 @@ ptr<ForwardingConnection> SvsKeeperServer::getLeaderClient(size_t thread_idx)
     return state_manager->getClient(raft_instance->get_leader(), thread_idx);
 }
 
+
+int32 SvsKeeperServer::getLeader()
+{
+    return raft_instance->get_leader();
+}
+
 void SvsKeeperServer::removeServer(const std::string & endpoint)
 {
     std::vector<Server> server_list;
