@@ -14,7 +14,8 @@ using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
 public:
 
-    FollowerRequestProcessor()
+    FollowerRequestProcessor(std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
+        : svskeeper_commit_processor(svskeeper_commit_processor_)
     {
     }
 
@@ -33,7 +34,14 @@ public:
 
             if (requests_queue->tryPop(thread_idx, request_for_session, max_wait))
             {
-                server->getLeaderClient(thread_idx)->send(request_for_session);
+                try
+                {
+                    server->getLeaderClient(thread_idx)->send(request_for_session);
+                }
+                catch (...)
+                {
+                    svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
+                }
             }
         }
     }
@@ -51,7 +59,14 @@ public:
         while (requests_queue->tryPopAny(request_for_session))
         {
             /// TODO ?
-            server->getLeaderClient(0)->send(request_for_session);
+            try
+            {
+                server->getLeaderClient(0)->send(request_for_session);
+            }
+            catch (Exception e)
+            {
+                svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
+            }
         }
     }
 
@@ -70,6 +85,8 @@ public:
 
 private:
     ptr<RequestsQueue> requests_queue;
+
+    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
     ThreadPoolPtr request_thread;
 

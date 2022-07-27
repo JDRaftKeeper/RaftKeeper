@@ -1,5 +1,6 @@
 <yandex>
     <service>
+        <forwarding_port>5101</forwarding_port>
         <service_port>5102</service_port>
         <my_id>2</my_id>
         <remote_servers>

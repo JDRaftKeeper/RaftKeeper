@@ -6,6 +6,11 @@
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int ALL_CONNECTION_TRIES_FAILED;
+}
+
 void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
 {
     static constexpr size_t num_tries = 3;
@@ -15,6 +20,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
     {
         try
         {
+            LOG_TRACE(log, "try connect {}", endpoint);
             /// Reset the state of previous attempt.
 
             socket = Poco::Net::StreamSocket();
@@ -30,7 +36,7 @@ void ForwardingClient::connect(Poco::Net::SocketAddress & address, Poco::Timespa
 
             connected = true;
 
-            LOG_TRACE(log, "connected succ {}", endpoint);
+            LOG_TRACE(log, "connect succ {}", endpoint);
             break;
         }
         catch (...)
@@ -46,6 +52,11 @@ void ForwardingClient::send(SvsKeeperStorage::RequestForSession request_for_sess
     {
         Poco::Net::SocketAddress add{endpoint};
         connect(add, operation_timeout.totalMilliseconds() / 3);
+    }
+
+    if (!connected)
+    {
+        throw Exception("ForwardingClient connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
     }
 
     LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
