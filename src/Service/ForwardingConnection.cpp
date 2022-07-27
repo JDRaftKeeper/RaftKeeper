@@ -41,7 +41,7 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
             receiveHandshake();
-            LOG_TRACE(log, "receive handshake {}", endpoint);
+            LOG_TRACE(log, "received handshake {}", endpoint);
 
             LOG_TRACE(log, "connect succ {}", endpoint);
             break;
@@ -79,7 +79,7 @@ void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_
 
     try
     {
-        Coordination::write(Protocol::Data, *out);
+        Coordination::write(ForwardProtocol::Data, *out);
         WriteBufferFromOwnString buf;
         Coordination::write(request_for_session.session_id, buf);
         Coordination::write(request_for_session.request->xid, buf);
@@ -113,7 +113,7 @@ void ForwardingConnection::sendPing()
 
     try
     {
-        Coordination::write(Protocol::Ping, *out);
+        Coordination::write(ForwardProtocol::Ping, *out);
         out->next();
     }
     catch(...)
@@ -128,12 +128,12 @@ void ForwardingConnection::receivePing()
 {
     int8_t type;
     Coordination::read(type, *in);
-    assert(type == Protocol::Ping);
+    assert(type == ForwardProtocol::Ping);
 }
 
 void ForwardingConnection::sendHandshake()
 {
-    Coordination::write(Protocol::Hello, *out);
+    Coordination::write(ForwardProtocol::Hello, *out);
     out->next();
 }
 
@@ -142,7 +142,7 @@ void ForwardingConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);
-    assert(type == Protocol::Hello);
+    assert(type == ForwardProtocol::Hello);
 }
 
 
