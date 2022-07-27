@@ -16,16 +16,13 @@ public:
 
     void connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout);
     void send(SvsKeeperStorage::RequestForSession request_for_session);
+    void disconnect();
 
     ~ForwardingClient()
     {
         try
         {
-            if (connected)
-            {
-                socket.shutdown();
-                connected = false;
-            }
+            disconnect();
         }
         catch (...)
         {
