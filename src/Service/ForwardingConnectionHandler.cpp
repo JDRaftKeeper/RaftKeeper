@@ -86,30 +86,30 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         continue;
                 }
 
-                /// read protocol
-                int8_t protocol;
+                /// read forward_protocol
+                int8_t forward_protocol;
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
-                Coordination::read(protocol, read_buf);
+                Coordination::read(forward_protocol, read_buf);
 
                 WriteBufferFromFiFoBuffer out;
                 bool has_data = false;
-                switch (protocol)
+                switch (forward_protocol)
                 {
-                    case Protocol::Hello:
-                        Coordination::write(Protocol::Hello, out);
+                    case ForwardProtocol::Hello:
+                        Coordination::write(ForwardProtocol::Hello, out);
                         /// Set socket to blocking mode to simplify sending.
                         socket_.setBlocking(true);
                         socket_.sendBytes(*out.getBuffer());
                         socket_.setBlocking(false);
                         break;
-                    case Protocol::Ping:
-                        Coordination::write(Protocol::Ping, out);
+                    case ForwardProtocol::Ping:
+                        Coordination::write(ForwardProtocol::Ping, out);
                         /// Set socket to blocking mode to simplify sending.
                         socket_.setBlocking(true);
                         socket_.sendBytes(*out.getBuffer());
                         socket_.setBlocking(false);
                         break;
-                    case Protocol::Data:
+                    case ForwardProtocol::Data:
                         has_data = true;
                         break;
                     default:

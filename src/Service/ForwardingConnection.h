@@ -10,7 +10,7 @@
 namespace DB
 {
 
-enum Protocol : int8_t
+enum ForwardProtocol : int8_t
 {
     Hello = 1,
     Ping = 2,
