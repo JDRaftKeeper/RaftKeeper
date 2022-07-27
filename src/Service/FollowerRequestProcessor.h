@@ -15,7 +15,7 @@ using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 public:
 
     FollowerRequestProcessor(std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
-        : svskeeper_commit_processor(svskeeper_commit_processor_)
+        : svskeeper_commit_processor(svskeeper_commit_processor_) , log(&Poco::Logger::get("FollowerRequestProcessor"))
     {
     }
 
@@ -36,7 +36,13 @@ public:
             {
                 try
                 {
-                    server->getLeaderClient(thread_idx)->send(request_for_session);
+                    if (auto client = server->getLeaderClient(thread_idx))
+                        client->send(request_for_session);
+                    else
+                    {
+                        LOG_ERROR(log, "don't has client, server alive {}", server->isLeaderAlive());
+                    }
+
                 }
                 catch (...)
                 {
@@ -87,6 +93,8 @@ private:
     ptr<RequestsQueue> requests_queue;
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
+
+    Poco::Logger * log;
 
     ThreadPoolPtr request_thread;
 
