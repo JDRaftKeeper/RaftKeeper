@@ -9,6 +9,7 @@
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Common/setThreadName.h>
+#include <Service/ForwardingConnection.h>
 
 namespace DB
 {
@@ -85,9 +86,43 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         continue;
                 }
 
+                /// read protocol
+                int8_t protocol;
+                ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
+                Coordination::read(protocol, read_buf);
+
+                WriteBufferFromFiFoBuffer out;
+                bool has_data = false;
+                switch (protocol)
+                {
+                    case Protocol::Hello:
+                        Coordination::write(Protocol::Hello, out);
+                        /// Set socket to blocking mode to simplify sending.
+                        socket_.setBlocking(true);
+                        socket_.sendBytes(*out.getBuffer());
+                        socket_.setBlocking(false);
+                        break;
+                    case Protocol::Ping:
+                        Coordination::write(Protocol::Ping, out);
+                        /// Set socket to blocking mode to simplify sending.
+                        socket_.setBlocking(true);
+                        socket_.sendBytes(*out.getBuffer());
+                        socket_.setBlocking(false);
+                        break;
+                    case Protocol::Data:
+                        has_data = true;
+                        break;
+                    default:
+                        delete this;
+                        return;
+                }
+
+                if (!has_data)
+                    continue;
+
                 /// header read completed
                 int32_t header{};
-                ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
+
                 Coordination::read(header, read_buf);
 
                 body_len = header; /// tail session_id
