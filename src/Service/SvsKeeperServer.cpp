@@ -230,7 +230,7 @@ void SvsKeeperServer::getServerList(std::vector<Server> & server_list)
     }
 }
 
-ptr<ForwardingClient> SvsKeeperServer::getLeaderClient(size_t thread_idx)
+ptr<ForwardingConnection> SvsKeeperServer::getLeaderClient(size_t thread_idx)
 {
     return state_manager->getClient(raft_instance->get_leader(), thread_idx);
 }

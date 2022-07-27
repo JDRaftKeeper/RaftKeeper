@@ -8,7 +8,7 @@
 #include <Common/StringUtils/StringUtils.h>
 #include <common/logger_useful.h>
 #include <Service/SvsKeeperSettings.h>
-#include <Service/ForwardingClient.h>
+#include <Service/ForwardingConnection.h>
 
 namespace DB
 {
@@ -76,7 +76,7 @@ public:
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
-    ptr<ForwardingClient> getClient(int32 id, size_t thread_idx);
+    ptr<ForwardingConnection> getClient(int32 id, size_t thread_idx);
 
 protected:
     NuRaftStateManager() { }
@@ -95,7 +95,7 @@ private:
     ptr<cluster_config> cur_cluster_config;
 
     mutable std::mutex clients_mutex;
-    mutable std::unordered_map<UInt32, std::vector<ptr<ForwardingClient>>> clients;
+    mutable std::unordered_map<UInt32, std::vector<ptr<ForwardingConnection>>> clients;
 
 protected:
     Poco::Logger * log;

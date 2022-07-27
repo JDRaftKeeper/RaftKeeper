@@ -127,14 +127,14 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
                 int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
                 ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
 
-                LOG_INFO(log, "Create ForwardingClient for {}, {}", id_, forwarding_endpoint_);
+                LOG_INFO(log, "Create ForwardingConnection for {}, {}", id_, forwarding_endpoint_);
 
                 for (size_t i = 0; i < thread_count; ++i)
                 {
                     auto & client_list = clients[id_];
-                    std::shared_ptr<ForwardingClient> client = std::make_shared<ForwardingClient>(forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
+                    std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
                     client_list.push_back(client);
-                    LOG_INFO(log, "Create ForwardingClient for {}, {}, thread {}, {}", id_, forwarding_endpoint_, i, static_cast<void*>(client.get()));
+                    LOG_INFO(log, "Create ForwardingConnection for {}, {}, thread {}, {}", id_, forwarding_endpoint_, i, static_cast<void*>(client.get()));
                 }
             }
             else if (key == "async_replication")
@@ -204,7 +204,7 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     return result;
 }
 
-ptr<ForwardingClient> NuRaftStateManager::getClient(int32 id, size_t thread_idx)
+ptr<ForwardingConnection> NuRaftStateManager::getClient(int32 id, size_t thread_idx)
 {
     {
         std::lock_guard<std::mutex> lock(clients_mutex);

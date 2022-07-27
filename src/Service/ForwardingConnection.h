@@ -9,16 +9,32 @@
 
 namespace DB
 {
-class ForwardingClient
+
+enum Protocol : int8_t
+{
+    Hello = 1,
+    Ping = 2,
+    Data = 3
+};
+
+class ForwardingConnection
 {
 public:
-    ForwardingClient(String endpoint_, Poco::Timespan operation_timeout_ms) : endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingClient")) {}
+    ForwardingConnection(String endpoint_, Poco::Timespan operation_timeout_ms) : endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingConnection")) {}
 
     void connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout);
     void send(SvsKeeperStorage::RequestForSession request_for_session);
     void disconnect();
 
-    ~ForwardingClient()
+    void sendHandshake();
+
+    void receiveHandshake();
+
+    void sendPing();
+
+    void receivePing();
+
+    ~ForwardingConnection()
     {
         try
         {
