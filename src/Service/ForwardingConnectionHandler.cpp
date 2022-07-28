@@ -164,7 +164,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     if (!req_body_buf->isFull())
                         continue;
 
-                    auto [received_op, received_xid] = receiveRequest(req_body_buf->size());
+                    receiveRequest(req_body_buf->size());
 
                     req_body_buf.reset();
                     current_package_done = true;
