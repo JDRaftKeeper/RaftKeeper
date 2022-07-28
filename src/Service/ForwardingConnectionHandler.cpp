@@ -89,6 +89,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 int8_t forward_protocol{};
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(forward_protocol, read_buf);
+                req_header_buf.drain(req_header_buf.used());
 
                 LOG_TRACE(log, "recive {}", ForwardProtocol(forward_protocol));
 
@@ -118,8 +119,6 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         return;
                 }
 
-                req_header_buf.drain(req_header_buf.used());
-
                 if (has_data)
                 {
                     current_package_done = false;
@@ -146,6 +145,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     int32_t body_len{};
                     ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
                     Coordination::read(body_len, read_buf);
+                    req_body_len_buf.drain(req_body_len_buf.used());
 
                     LOG_TRACE(log, "Read request done, body length : {}", body_len);
 
@@ -154,8 +154,6 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     socket_.receiveBytes(*req_body_buf);
                     if (!req_body_buf->isFull())
                         continue;
-
-                    req_body_len_buf.drain(req_body_len_buf.used());
 
                     receiveRequest(req_body_buf->size());
 
