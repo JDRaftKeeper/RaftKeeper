@@ -91,12 +91,13 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(forward_protocol, read_buf);
 
+                LOG_TRACE(log, "recive {}", ForwardProtocol(forward_protocol));
+
                 WriteBufferFromFiFoBuffer out;
                 bool has_data = false;
                 switch (forward_protocol)
                 {
                     case ForwardProtocol::Hello:
-                        LOG_TRACE(log, "recive Hello");
                         Coordination::write(ForwardProtocol::Hello, out);
                         /// Set socket to blocking mode to simplify sending.
                         socket_.setBlocking(true);
@@ -104,7 +105,6 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         socket_.setBlocking(false);
                         break;
                     case ForwardProtocol::Ping:
-                        LOG_TRACE(log, "recive Ping");
                         Coordination::write(ForwardProtocol::Ping, out);
                         /// Set socket to blocking mode to simplify sending.
                         socket_.setBlocking(true);
@@ -112,7 +112,6 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         socket_.setBlocking(false);
                         break;
                     case ForwardProtocol::Data:
-                        LOG_TRACE(log, "recive Data");
                         has_data = true;
                         break;
                     default:
