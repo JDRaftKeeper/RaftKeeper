@@ -66,26 +66,22 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
         LOG_TRACE(log, "forwarding handler socket readable");
         if (!socket_.available())
         {
-//            LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
+            LOG_INFO(log, "Client close connection! errno {}", errno);
             destroyMe();
             return;
         }
 
         while(socket_.available())
         {
-            /// request body length
-            int32_t body_len{};
-
-            /// 1. Request header
-            if (!next_req_header_read_done)
+            if (!req_header_buf.isFull())
             {
+                socket_.receiveBytes(req_header_buf);
                 if (!req_header_buf.isFull())
-                {
-                    socket_.receiveBytes(req_header_buf);
-                    if (!req_header_buf.isFull())
-                        continue;
-                }
+                    continue;
+            }
 
+            if (current_package_done)
+            {
                 /// read forward_protocol
                 int8_t forward_protocol{};
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
@@ -119,69 +115,59 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         return;
                 }
 
-                if (!has_data)
-                    continue;
-
-                /// header read completed
-                int32_t header{};
-
-                Coordination::read(header, read_buf);
-
-                body_len = header; /// tail session_id
-                LOG_TRACE(log, "read request length : {}", body_len);
-
-                /// clear len_buf
-                req_header_buf.drain(req_header_buf.used());
-                next_req_header_read_done = true;
-            }
-
-            /// 2. Read body
-
-            if (previous_req_body_read_done)
-                /// create a buffer
-                req_body_buf = std::make_shared<FIFOBuffer>(body_len);
-
-            socket_.receiveBytes(*req_body_buf);
-
-            if (!req_body_buf->isFull())
-                continue;
-
-            /// Request reading done, set flags
-            next_req_header_read_done = false;
-            previous_req_body_read_done = true;
-
-            LOG_TRACE(log, "Read request done, body length : {}", body_len);
-            poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
-
-            {
-                session_stopwatch.start();
-
-                try
+//                if (!has_data)
+//                {
+                    req_header_buf.drain(req_header_buf.used());
+//                }
+                if (has_data)
                 {
-                    auto [received_op, received_xid] = receiveRequest(body_len);
-
-                    if (received_op == Coordination::OpNum::Close)
+                    current_package_done = false;
+                    if (!req_body_len_buf.isFull())
                     {
-//                        LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
-                        close_xid = received_xid;
+                        socket_.receiveBytes(req_body_len_buf);
+                        if (!req_body_len_buf.isFull())
+                            continue;
                     }
-                    else if (received_op == Coordination::OpNum::Heartbeat)
-                    {
-//                        LOG_TRACE(log, "Received heartbeat for session #{}", session_id);
-                    }
-
-                    /// Each request restarts session stopwatch
-                    session_stopwatch.restart();
                 }
-                catch (const Exception & e)
+                else
+                    current_package_done = true;
+            }
+            else
+            {
+                if (!req_body_buf) /// new data package
                 {
-                    tryLogCurrentException(log);
-
-                    if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
+                    if (!req_body_len_buf.isFull())
                     {
-                        destroyMe();
-                        return;
+                        socket_.receiveBytes(req_body_len_buf);
+                        if (!req_body_len_buf.isFull())
+                            continue;
                     }
+
+                    /// request body length
+                    int32_t body_len{};
+                    ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
+                    Coordination::read(body_len, read_buf);
+
+                    LOG_TRACE(log, "Read request done, body length : {}", body_len);
+
+                    req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+
+                    socket_.receiveBytes(*req_body_buf);
+                    if (!req_body_buf->isFull())
+                        continue;
+
+                    req_body_len_buf.drain(req_body_len_buf.used());
+                }
+                else
+                {
+                    socket_.receiveBytes(*req_body_buf);
+                    if (!req_body_buf->isFull())
+                        continue;
+
+                    auto [received_op, received_xid] = receiveRequest(req_body_buf->size());
+
+                    req_body_buf.reset();
+                    current_package_done = true;
                 }
             }
         }
