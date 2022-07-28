@@ -35,14 +35,13 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             in.emplace(socket);
             out.emplace(socket);
 
-            connected = true;
-
             sendHandshake();
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
             receiveHandshake();
             LOG_TRACE(log, "received handshake {}", endpoint);
 
+            connected = true;
             LOG_TRACE(log, "connect succ {}", endpoint);
             break;
         }
