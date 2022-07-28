@@ -118,19 +118,15 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         return;
                 }
 
-//                if (!has_data)
-//                {
-                    req_header_buf.drain(req_header_buf.used());
-//                }
+                req_header_buf.drain(req_header_buf.used());
+
                 if (has_data)
                 {
                     current_package_done = false;
+
+                    socket_.receiveBytes(req_body_len_buf);
                     if (!req_body_len_buf.isFull())
-                    {
-                        socket_.receiveBytes(req_body_len_buf);
-                        if (!req_body_len_buf.isFull())
-                            continue;
-                    }
+                        continue;
                 }
                 else
                     current_package_done = true;
@@ -160,12 +156,20 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         continue;
 
                     req_body_len_buf.drain(req_body_len_buf.used());
+
+                    receiveRequest(req_body_buf->size());
+
+                    req_body_buf.reset();
+                    current_package_done = true;
                 }
                 else
                 {
-                    socket_.receiveBytes(*req_body_buf);
                     if (!req_body_buf->isFull())
-                        continue;
+                    {
+                        socket_.receiveBytes(*req_body_buf);
+                        if (!req_body_buf->isFull())
+                            continue;
+                    }
 
                     receiveRequest(req_body_buf->size());
 
