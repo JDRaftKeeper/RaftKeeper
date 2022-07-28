@@ -68,7 +68,7 @@ private:
 
     FIFOBuffer req_body_len_buf = FIFOBuffer(4);
 
-    bool current_package_done = false;
+    bool current_package_done = true;
 
     Context & global_context;
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
