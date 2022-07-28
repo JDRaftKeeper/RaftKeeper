@@ -78,14 +78,6 @@ private:
 
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
-
-    Coordination::XID close_xid = Coordination::CLOSE_XID;
-    Poco::Timestamp established;
-
-    LastOpMultiVersion last_op;
-
-    mutable std::mutex conn_stats_mutex;
-    KeeperConnectionStats conn_stats;
 };
 
 }

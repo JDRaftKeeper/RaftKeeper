@@ -36,7 +36,6 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
     , session_timeout(
           0, global_context.getConfigRef().getUInt("service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
-    , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
     LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
 
