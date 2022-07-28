@@ -64,10 +64,11 @@ private:
     SocketReactor & reactor_;
 
     ptr<FIFOBuffer> req_body_buf;
-    FIFOBuffer req_header_buf = FIFOBuffer(4);
+    FIFOBuffer req_header_buf = FIFOBuffer(1);
 
-    bool next_req_header_read_done = false;
-    bool previous_req_body_read_done = true;
+    FIFOBuffer req_body_len_buf = FIFOBuffer(4);
+
+    bool current_package_done = false;
 
     Context & global_context;
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
