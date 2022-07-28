@@ -72,15 +72,19 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
         while(socket_.available())
         {
-            if (!req_header_buf.isFull())
-            {
-                socket_.receiveBytes(req_header_buf);
-                if (!req_header_buf.isFull())
-                    continue;
-            }
+            LOG_TRACE(log, "forwarding handler socket available");
 
             if (current_package_done)
             {
+                LOG_TRACE(log, "try handle new package");
+
+                if (!req_header_buf.isFull())
+                {
+                    socket_.receiveBytes(req_header_buf);
+                    if (!req_header_buf.isFull())
+                        continue;
+                }
+
                 /// read forward_protocol
                 int8_t forward_protocol{};
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
