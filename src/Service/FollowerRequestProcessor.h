@@ -50,7 +50,7 @@ public:
                 {
                     auto connection = server->getLeaderClient(thread_idx);
                     connection->sendPing();
-                    connection->receivePing();
+//                    connection->receivePing();
                 }
                 catch (...)
                 {
