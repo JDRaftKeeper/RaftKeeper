@@ -97,18 +97,18 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 switch (forward_protocol)
                 {
                     case ForwardProtocol::Hello:
-                        Coordination::write(ForwardProtocol::Hello, out);
+//                        Coordination::write(ForwardProtocol::Hello, out);
                         /// Set socket to blocking mode to simplify sending.
-                        socket_.setBlocking(true);
-                        socket_.sendBytes(*out.getBuffer());
-                        socket_.setBlocking(false);
+//                        socket_.setBlocking(true);
+//                        socket_.sendBytes(*out.getBuffer());
+//                        socket_.setBlocking(false);
                         break;
                     case ForwardProtocol::Ping:
-                        Coordination::write(ForwardProtocol::Ping, out);
+//                        Coordination::write(ForwardProtocol::Ping, out);
                         /// Set socket to blocking mode to simplify sending.
-                        socket_.setBlocking(true);
-                        socket_.sendBytes(*out.getBuffer());
-                        socket_.setBlocking(false);
+//                        socket_.setBlocking(true);
+//                        socket_.sendBytes(*out.getBuffer());
+//                        socket_.setBlocking(false);
                         break;
                     case ForwardProtocol::Data:
                         has_data = true;
@@ -291,7 +291,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
 
     request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
 
-    LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
+    LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
     if (!service_keeper_storage_dispatcher->putForwardingRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);

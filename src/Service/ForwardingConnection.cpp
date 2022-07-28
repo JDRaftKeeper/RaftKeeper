@@ -38,7 +38,7 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             sendHandshake();
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
-            receiveHandshake();
+//            receiveHandshake();
             LOG_TRACE(log, "received handshake {}", endpoint);
 
             connected = true;
