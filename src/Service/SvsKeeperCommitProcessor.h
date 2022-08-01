@@ -120,7 +120,8 @@ public:
                             }
                             else
                             {
-                                throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error");
+                                LOG_WARNING(log, "Not found error request. Maybe it is still in the request queue and will be processed next time");
+                                break;
                             }
                         }
                     }
@@ -147,6 +148,8 @@ public:
                             auto & pending_requests = thread_pending_requests.find(committed_request.session_id % thread_count)->second;
                             auto & pending_write_requests = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
 
+                            LOG_TRACE(log, "committed_request opNum {}, session {}, xid {}", Coordination::toString(committed_request.request->getOpNum()), committed_request.session_id, committed_request.request->xid);
+
                             auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
                             if (current_session_pending_w_requests.empty()) /// another server session request
                             {
@@ -155,6 +158,7 @@ public:
                             }
                             else
                             {
+                                LOG_TRACE(log, "current_session_pending_w_request opNum {}, session {}, xid {}", Coordination::toString(current_session_pending_w_requests.begin()->request->getOpNum()), current_session_pending_w_requests.begin()->session_id, current_session_pending_w_requests.begin()->request->xid);
                                 if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close)
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
 
@@ -164,6 +168,7 @@ public:
 //                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
 //                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
 //                                }
+                                LOG_TRACE(log, "current_session_pending_request opNum {}, session {}, xid {}", Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()), current_session_pending_requests.begin()->session_id, current_session_pending_requests.begin()->request->xid);
                                 if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
                                     break;
 

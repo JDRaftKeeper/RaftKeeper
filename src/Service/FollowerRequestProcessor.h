@@ -7,6 +7,11 @@
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int RAFT_ERROR;
+}
+
 class FollowerRequestProcessor
 {
 using Request = SvsKeeperStorage::RequestForSession;
@@ -36,14 +41,17 @@ public:
             {
                 try
                 {
-                    server->getLeaderClient(thread_idx)->send(request_for_session);
+                    if (server->isLeaderAlive())
+                        server->getLeaderClient(thread_idx)->send(request_for_session);
+                    else
+                        throw Exception("Raft no leader", ErrorCodes::RAFT_ERROR);
                 }
                 catch (...)
                 {
                     svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
                 }
             }
-            else if (!server->isLeader())
+            else if (!server->isLeader() && server->isLeaderAlive())
             {
                 /// sned ping
                 try

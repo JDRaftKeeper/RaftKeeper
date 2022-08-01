@@ -225,6 +225,8 @@ def test_bad_auth(started_cluster):
     print("start test_bad_auth")
     auth_connection = get_fake_zk()
 
+    print("session " + str(auth_connection._session_id))
+
     with pytest.raises(AuthFailedError):
         auth_connection.add_auth('world', 'anyone')
 
