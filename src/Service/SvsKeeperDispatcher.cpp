@@ -51,7 +51,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
             try
             {
-                if (!request_for_session.request->isReadRequest())
+                if (!request_for_session.request->isReadRequest() && server->isLeaderAlive())
                 {
                     LOG_TRACE(log, "leader is {}", server->getLeader());
 
@@ -59,6 +59,10 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         svskeeper_sync_processor.processRequest(request_for_session);
                     else
                         follower_request_processor.processRequest(request_for_session);
+                }
+                else if (!request_for_session.request->isReadRequest() && !server->isLeaderAlive())
+                {
+                    svskeeper_sync_processor.processRequest(request_for_session);
                 }
 
                 svskeeper_commit_processor->processRequest(request_for_session);
