@@ -93,9 +93,9 @@ def test_restart(started_cluster):
         node2.stop_clickhouse()
         node3.stop_clickhouse()
 
-        node1.start_clickhouse()
-        node2.start_clickhouse()
-        node3.start_clickhouse()
+        node1.start_clickhouse(start_wait=False)
+        node2.start_clickhouse(start_wait=False)
+        node3.start_clickhouse(start_wait=False)
 
         wait_nodes(cluster1, node1, node2, node3)
 

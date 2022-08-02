@@ -1127,7 +1127,7 @@ class ClickHouseInstance:
         except Exception as e:
             logging.warning(f"Stop ClickHouse raised an error {e}")
 
-    def start_clickhouse(self, start_wait_sec=60):
+    def start_clickhouse(self, start_wait_sec=60, start_wait=True):
         if not self.stay_alive:
             raise Exception("ClickHouse can be started again only with stay_alive=True instance")
         start_time = time.time()
@@ -1143,7 +1143,7 @@ class ClickHouseInstance:
                 self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
                 time.sleep(1)
                 continue
-            else:
+            elif start_wait is True:
                 logging.debug("Clickhouse process running.")
                 print("Clickhouse process running.")
                 try:
@@ -1153,6 +1153,8 @@ class ClickHouseInstance:
                     logging.warning(f"Current start attempt failed. Will kill {pid} just in case.")
                     self.exec_in_container(["bash", "-c", f"kill -9 {pid}"], user='root', nothrow=True)
                     time.sleep(time_to_sleep)
+            elif start_wait is False:
+                return
 
         raise Exception("Cannot start ClickHouse, see additional info in logs")
 
