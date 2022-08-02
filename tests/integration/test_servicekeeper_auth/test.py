@@ -129,6 +129,66 @@ def test_digest_auth_basic(started_cluster, get_zk):
     print("end test_digest_auth_basic")
 
 
+def test_no_auth(started_cluster, get_zk):
+    print("start test_no_auth")
+    no_auth_connection = get_zk()
+
+    acls, stat = no_auth_connection.get_acls("/")
+    assert stat.aversion == 0
+    assert len(acls) == 1
+    for acl in acls:
+        assert acl.acl_list == ['ALL']
+        assert acl.id.scheme == 'world'
+        assert acl.perms == 31
+        assert acl.id.id in ('anyone')
+
+
+    no_auth_connection.create("/test_no_auth", b"data")
+
+    no_auth_connection.set_acls("/test_no_auth", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=True, admin=False)])
+
+    with pytest.raises(NoAuthError):
+        no_auth_connection.set_acls("/test_no_auth", acls=[make_acl("world", "anyone", read=False, write=False, create=True, delete=False, admin=False)])
+
+
+
+    no_auth_connection.create("/test_no_auth1", b"data")
+
+    no_auth_connection.set_acls("/test_no_auth1", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
+
+    with pytest.raises(NoAuthError):
+        no_auth_connection.set_acls("/test_no_auth1", acls=[make_acl("world", "anyone", read=False, write=False, create=True, delete=False, admin=False)])
+
+
+
+    no_auth_connection.create("/test_no_auth2", b"data")
+
+    no_auth_connection.set_acls("/test_no_auth2", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
+
+    with pytest.raises(NoAuthError):
+        no_auth_connection.set_acls("/test_no_auth2", acls=[make_acl("world", "anyone", read=False, write=True, create=False, delete=False, admin=False)])
+
+
+
+    no_auth_connection.create("/test_no_auth3", b"data")
+
+    no_auth_connection.set_acls("/test_no_auth3", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
+
+    with pytest.raises(NoAuthError):
+        no_auth_connection.set_acls("/test_no_auth3", acls=[make_acl("world", "anyone", read=True, write=False, create=False, delete=False, admin=False)])
+
+
+
+    no_auth_connection.create("/test_no_auth4", b"data")
+
+    no_auth_connection.set_acls("/test_no_auth4", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
+
+    with pytest.raises(NoAuthError):
+        no_auth_connection.set_acls("/test_no_auth4", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=True, admin=False)])
+
+    print("end test_no_auth")
+
+
 def test_super_auth(started_cluster):
     print("start test_super_auth")
     auth_connection = get_fake_zk()
