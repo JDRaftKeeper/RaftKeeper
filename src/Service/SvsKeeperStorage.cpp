@@ -1419,7 +1419,7 @@ void SvsKeeperStorage::processRequest(
     /// ZooKeeper update sessions expiry for each request, not only for heartbeats
     {
         std::lock_guard lock(session_mutex);
-        if (!session_and_timeout.contains(session_id))
+        if (!session_and_timeout.contains(session_id) && !new_last_zxid)
         {
             LOG_WARNING(
                 log,
