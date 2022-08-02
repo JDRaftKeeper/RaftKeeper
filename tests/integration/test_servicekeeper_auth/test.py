@@ -188,10 +188,12 @@ def test_no_auth(started_cluster, get_zk):
 
     no_auth_connection.create("/test_no_auth4", b"data")
 
+    no_auth_connection.create("/test_no_auth4/c", b"data")
+
     no_auth_connection.set_acls("/test_no_auth4", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
 
     with pytest.raises(NoAuthError):
-        no_auth_connection.delete("/test_no_auth4")
+        no_auth_connection.delete("/test_no_auth4/c")
 
     print("end test_no_auth")
 
