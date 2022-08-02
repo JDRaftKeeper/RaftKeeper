@@ -152,8 +152,10 @@ static bool fixupACL(
         }
         else if (request_acl.scheme == "world" && request_acl.id == "anyone")
         {
-            /// We don't need to save default ACLs
             valid_found = true;
+
+            Coordination::ACL new_acl = request_acl;
+            result_acls.push_back(new_acl);
         }
         else if (request_acl.scheme == "digest")
         {
