@@ -30,7 +30,8 @@ def clear_clickhouse_data():
 
 def convert_zookeeper_data():
     cmd = '/usr/bin/clickhouse service-converter --zookeeper-logs-dir /zookeeper/version-2/ --zookeeper-snapshots-dir  /zookeeper/version-2/ --output-dir /var/lib/clickhouse/coordination/raft_snapshot'
-    node.exec_in_container(['bash', '-c', cmd])
+    output = node.exec_in_container(['bash', '-c', cmd])
+    print("convert_zookeeper_data output: ", output)
 
 def stop_clickhouse():
     node.stop_clickhouse()
