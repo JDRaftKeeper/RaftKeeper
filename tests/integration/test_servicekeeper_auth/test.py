@@ -164,7 +164,7 @@ def test_no_auth(started_cluster, get_zk):
     no_auth_connection.set_acls("/test_no_auth1", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
 
     with pytest.raises(NoAuthError):
-        no_auth_connection.set_acls("/test_no_auth1", acls=[make_acl("world", "anyone", read=False, write=False, create=True, delete=False, admin=False)])
+        no_auth_connection.create("/test_no_auth1/c", b"data")
 
 
 
@@ -173,7 +173,7 @@ def test_no_auth(started_cluster, get_zk):
     no_auth_connection.set_acls("/test_no_auth2", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
 
     with pytest.raises(NoAuthError):
-        no_auth_connection.set_acls("/test_no_auth2", acls=[make_acl("world", "anyone", read=False, write=True, create=False, delete=False, admin=False)])
+        no_auth_connection.set("/test_no_auth2", b"data1")
 
 
 
@@ -182,7 +182,7 @@ def test_no_auth(started_cluster, get_zk):
     no_auth_connection.set_acls("/test_no_auth3", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
 
     with pytest.raises(NoAuthError):
-        no_auth_connection.set_acls("/test_no_auth3", acls=[make_acl("world", "anyone", read=True, write=False, create=False, delete=False, admin=False)])
+        no_auth_connection.get("/test_no_auth3")
 
 
 
@@ -191,7 +191,7 @@ def test_no_auth(started_cluster, get_zk):
     no_auth_connection.set_acls("/test_no_auth4", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=False, admin=True)])
 
     with pytest.raises(NoAuthError):
-        no_auth_connection.set_acls("/test_no_auth4", acls=[make_acl("world", "anyone", read=False, write=False, create=False, delete=True, admin=False)])
+        no_auth_connection.delete("/test_no_auth4")
 
     print("end test_no_auth")
 
