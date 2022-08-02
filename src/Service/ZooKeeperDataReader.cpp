@@ -145,6 +145,8 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
 //        }
 //    }
 
+    LOG_INFO(log, "Totally deserialized {} nodes from snapshot", count);
+
     return max_zxid;
 }
 
@@ -159,7 +161,7 @@ void deserializeSvsKeeperStorageFromSnapshot(SvsKeeperStorage & storage, const s
 
     LOG_INFO(log, "Magic deserialized, looks OK");
     auto max_session_id = deserializeSessionAndTimeout(storage, reader);
-    LOG_INFO(log, "Sessions and timeouts deserialized");
+    LOG_INFO(log, "Sessions and timeouts deserialized, max_session_id: {}", max_session_id);
 
     storage.session_id_counter = max_session_id + 1; /// session_id_counter pointer to next slot
     deserializeACLMap(storage, reader);
