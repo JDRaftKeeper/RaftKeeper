@@ -129,6 +129,13 @@ def test_digest_auth_basic(started_cluster, get_zk):
     print("end test_digest_auth_basic")
 
 
+@pytest.mark.parametrize(
+    ('get_zk'),
+    [
+        get_genuine_zk,
+        get_fake_zk
+    ]
+)
 def test_no_auth(started_cluster, get_zk):
     print("start test_no_auth")
     no_auth_connection = get_zk()
