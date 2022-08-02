@@ -105,7 +105,7 @@ def test_restart(started_cluster):
             assert node3_zk.get("/test_restart_node/" + str(i + 100)) == b"hello111"
 
         for i in range(10000):
-            assert node3_zk.get("/test_restart_node1/" + str(i + 100)) == b"hello"
+            assert node3_zk.get("/test_restart_node1/" + str(i)) == b"hello"
 
     finally:
         try:
