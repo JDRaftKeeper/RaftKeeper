@@ -162,7 +162,7 @@ public class ZooTask implements Runnable {
             //throw new RuntimeException(e);
         } finally {
             try {
-                if(zoo != null) {
+                if(zoo != null && !Main.commandStr.equals("create")) { /// znode clear by get
                     rmr(zoo,Main.ROOT_PATH +"/" + id);
                     rmr(zoo,Main.CREATE_PATH+ "/"+"threadCount"+Main.threads+ "/" + id);
                     zoo.close();
