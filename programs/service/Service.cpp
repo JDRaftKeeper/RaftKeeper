@@ -249,42 +249,44 @@ int Service::main(const std::vector<std::string> & /*args*/)
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
 #endif
 
-    const char * forwarding_port_name = "service.forwarding_port";
-    createServer(listen_host, forwarding_port_name, listen_try, [&](UInt16 port) {
-#ifdef USE_NIO_FOR_KEEPER
-        Poco::Net::ServerSocket socket(port);
-        socket.setBlocking(false);
+    if (config().has("service.forwarding_port"))
+    {
+        const char * forwarding_port_name = "service.forwarding_port";
+        createServer(listen_host, forwarding_port_name, listen_try, [&](UInt16 port) {
+    #ifdef USE_NIO_FOR_KEEPER
+            Poco::Net::ServerSocket socket(port);
+            socket.setBlocking(false);
 
-        Poco::Timespan timeout(global_context->getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000) * 1000);
-        nio_forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
-        /// TODO add io thread count to config
-        nio_forwarding_server_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-            "NIO-HANDLER", *global_context, socket, *nio_forwarding_server, timeout);
-        LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
-#else
-            Poco::Net::ServerSocket socket;
-            auto address = socketBindListen(socket, listen_host, port);
-            socket.setReceiveTimeout(settings.receive_timeout);
-            socket.setSendTimeout(settings.send_timeout);
-            servers->emplace_back(
-                port_name,
-                std::make_unique<Poco::Net::TCPServer>(
-                    new ServiceTCPHandlerFactory(*this, false, true), server_pool, socket, new Poco::Net::TCPServerParams));
+            Poco::Timespan timeout(global_context->getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000) * 1000);
+            nio_forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
+            /// TODO add io thread count to config
+            nio_forwarding_server_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
+                "NIO-HANDLER", *global_context, socket, *nio_forwarding_server, timeout);
+            LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
+    #else
+                Poco::Net::ServerSocket socket;
+                auto address = socketBindListen(socket, listen_host, port);
+                socket.setReceiveTimeout(settings.receive_timeout);
+                socket.setSendTimeout(settings.send_timeout);
+                servers->emplace_back(
+                    port_name,
+                    std::make_unique<Poco::Net::TCPServer>(
+                        new ServiceTCPHandlerFactory(*this, false, true), server_pool, socket, new Poco::Net::TCPServerParams));
 
-            LOG_INFO(log, "Listening for connections on : {}", address.toString());
+                LOG_INFO(log, "Listening for connections on : {}", address.toString());
 
-            /// 3. Start the TCPServer
-            for (auto & server : *servers)
-                server.start();
+                /// 3. Start the TCPServer
+                for (auto & server : *servers)
+                    server.start();
 
-            {
-                String level_str = config().getString("text_log.level", "");
-                int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
-                setTextLog(global_context->getTextLog(), level);
-            }
-#endif
-    });
-
+                {
+                    String level_str = config().getString("text_log.level", "");
+                    int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
+                    setTextLog(global_context->getTextLog(), level);
+                }
+    #endif
+        });
+    }
 
     zkutil::EventPtr unused_event = std::make_shared<Poco::Event>();
     zkutil::ZooKeeperNodeCache unused_cache([] { return nullptr; });

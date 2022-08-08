@@ -162,17 +162,17 @@ public class Main {
             baseStart= Integer.parseInt(args[7]);
         }
 
-//         System.out.println("\n================= Config =================");
-//         System.out.println("target: " + target);
-//         System.out.println("client: " + client);
-//         System.out.println("threads: " + threads);
-//         System.out.println("payloadSize: " + payloadSize);
-//         System.out.println("duration: " + duration + " s");
-//         //System.out.println("batchCnt: " + batchCnt );
-//         System.out.println("model: " + commandStr);//只创造
-//         System.out.println("baseSize: " + baseSize);
-//         System.out.println("baseStart: " + baseStart);
-//         System.out.println("\n");
+        System.out.println("\n================= Config =================");
+        System.out.println("target: " + target);
+        System.out.println("client: " + client);
+        System.out.println("threads: " + threads);
+        System.out.println("payloadSize: " + payloadSize);
+        System.out.println("duration: " + duration + " s");
+        //System.out.println("batchCnt: " + batchCnt );
+        System.out.println("model: " + commandStr);//只创造
+        System.out.println("baseSize: " + baseSize);
+        System.out.println("baseStart: " + baseStart);
+        System.out.println("\n");
         String modeStr = "mode : ";
         if(baseSize == 0){
             modeStr += "benchmark";
@@ -229,7 +229,8 @@ public class Main {
 //         System.out.println("start running!!!!!!!!!!!!!!");
         runStartTime = System.nanoTime();
         Thread[] threadVec=new Thread[threads];
-        int clientNum = threads/10; // 10个线程用一个client
+//         int clientNum = threads/10; // 10个线程用一个client
+        int clientNum = threads;
 
         List<ZooKeeper> clients = new ArrayList<ZooKeeper>();
         for (int i = 0; i < clientNum; i++)
@@ -242,7 +243,7 @@ public class Main {
 
             for (int i = 0; i < threads; i++) {
                 ZooTask zootask = new ZooTask(latch, i);
-                zootask.setZooKeeperClient(clients.get(i % clientNum));
+                zootask.setZooKeeperClient(clients.get(i));
                 threadVec[i] = new Thread(zootask, "worker-" + i);
                 threadVec[i].start();
             }
@@ -398,14 +399,14 @@ public class Main {
     }
 
     private void print() throws IOException {//打印结果
-//         System.out.println("\n\n================= Result =================");
-//         System.out.println("measured in microsecond");
-//         System.out.println("thread_size,avgTps,avgRT(microsecond),TP90(microsecond),TP99(microsecond),TP999(microsecond),timeoutCount,failRate");
-//         System.out.println(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+timeoutCount+","+failRate);
-//         System.out.println("\n");
-//         System.out.println("total  requests: " + totalCnt.get());
-//         System.out.println("fail count: " + errorCount);
-//         System.out.println("fail count: " + errorCount);
+        System.out.println("\n\n================= Result =================");
+        System.out.println("measured in microsecond");
+        System.out.println("thread_size,avgTps,avgRT(microsecond),TP90(microsecond),TP99(microsecond),TP999(microsecond),timeoutCount,failRate");
+        System.out.println(threads+","+avgTps+","+avgRT+","+tp90+","+tp99+","+tp999+","+timeoutCount+","+failRate);
+        System.out.println("\n");
+        System.out.println("total  requests: " + totalCnt.get());
+        System.out.println("fail count: " + errorCount);
+        System.out.println("fail count: " + errorCount);
 
         //写每个线程的tps文件
 //         String threadTpsFilePath = "threadTPSResult"+"-"+threads+"-"+commandStr+"-"+baseSize+".txt";
@@ -468,6 +469,7 @@ public class Main {
 //             osw.write(threads+","+avgRTVec[i]+","+otp90[i]+","+otp99[i]+","+otp999[i]+","+rtBucketsVec[i][RT_BUCKET_SIZE-1].get()+"\n");
 //         }
 //         osw.close();
+        System.out.println("\n\n================= Result done =================");
     }
 
     /**
