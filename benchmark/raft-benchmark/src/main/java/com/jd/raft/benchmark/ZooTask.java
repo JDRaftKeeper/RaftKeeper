@@ -234,9 +234,10 @@ public class ZooTask implements Runnable {
      * get baseNode operation
      */
     private int sendGetRequests(ZooKeeper zoo, int workerId ,int batchIndex ) throws Exception {
-        batchIndex%=Main.baseSize;
+//         batchIndex%=Main.baseSize;
         for(int  i = 0; i< Main.CREATE_BATCH_SIZE; i++){
-            String path = Main.BASE_NODE_ROOT + "/" + workerId + "/" + batchIndex + "/" + Main.NODE_PREFIX + i;
+//             String path = Main.BASE_NODE_ROOT + "/" + workerId + "/" + batchIndex + "/" + Main.NODE_PREFIX + i;
+            String path =  Main.CREATE_PATH+ "/"+"threadCount"+Main.threads + "/" + workerId + "/" + batchIndex+ "/"+Main.NODE_PREFIX + i;
             getData(zoo, path);//创造
         }
 
