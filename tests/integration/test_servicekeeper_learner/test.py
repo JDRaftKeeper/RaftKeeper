@@ -282,7 +282,7 @@ def test_stop_learner(started_cluster):
         node2_zk.create("/test_stop_learner", b"", ephemeral=False)
         node3_zk.create("/test_stop_learner1", b"123", ephemeral=False)
 
-        node3_zk.create("/test_stop_learner_ephemeral", b"", ephemeral=False)
+        node3_zk.create("/test_stop_learner_ephemeral", b"", ephemeral=True)
 
         assert node1_zk.exists("/test_stop_learner_ephemeral") is not None
         assert node2_zk.exists("/test_stop_learner_ephemeral") is not None
