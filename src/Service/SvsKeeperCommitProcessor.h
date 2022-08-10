@@ -37,8 +37,7 @@ public:
         {
             try
             {
-                auto need_wait = [&]()-> bool
-                {
+                auto need_wait = [&]() -> bool {
                     if (errors.empty() /*&& pending_requests.empty()*/ && requests_queue->empty() && committed_queue.empty())
                         return true;
 
@@ -48,7 +47,7 @@ public:
                 {
                     using namespace std::chrono_literals;
                     std::unique_lock lk(mutex);
-                    cv.wait_for(lk, operation_timeout_ms * 1ms, [&]{ return !need_wait() || shutdown_called; });
+                    cv.wait_for(lk, operation_timeout_ms * 1ms, [&] { return !need_wait() || shutdown_called; });
                 }
 
                 if (shutdown_called)
@@ -60,7 +59,7 @@ public:
                     {
                         for (auto it = errors.begin(); it != errors.end();)
                         {
-                            auto & [ session_id, xid ] = it->first;
+                            auto & [session_id, xid] = it->first;
 
                             LOG_TRACE(log, "error session {}, xid {}", session_id, xid);
 
@@ -116,11 +115,11 @@ public:
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Request batch is not accepted.");
                                 else
                                     throw Exception(ErrorCodes::RAFT_ERROR, "Request batch error, nuraft code {}", error_code);
-
                             }
                             else
                             {
-                                LOG_WARNING(log, "Not found error request. Maybe it is still in the request queue and will be processed next time");
+                                LOG_WARNING(
+                                    log, "Not found error request. Maybe it is still in the request queue and will be processed next time");
                                 break;
                             }
                         }
@@ -137,7 +136,6 @@ public:
 
                 {
                     /// process committed request, single thread
-//                    std::lock_guard lock(committed_mutex);
 
                     LOG_TRACE(log, "committed_request_size {}", committed_request_size);
                     Request committed_request;
@@ -146,48 +144,96 @@ public:
                         if (committed_queue.peek(committed_request))
                         {
                             auto & pending_requests = thread_pending_requests.find(committed_request.session_id % thread_count)->second;
-                            auto & pending_write_requests = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
+                            auto & pending_write_requests
+                                = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
 
-                            LOG_TRACE(log, "committed_request opNum {}, session {}, xid {}", Coordination::toString(committed_request.request->getOpNum()), committed_request.session_id, committed_request.request->xid);
+                            LOG_TRACE(
+                                log,
+                                "committed_request opNum {}, session {}, xid {}",
+                                Coordination::toString(committed_request.request->getOpNum()),
+                                committed_request.session_id,
+                                committed_request.request->xid);
 
                             auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
                             if (current_session_pending_w_requests.empty()) /// another server session request
                             {
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, committed_request.time, {}, true, false);
+                                server->getKeeperStateMachine()->getStorage().processRequest(
+                                    responses_queue,
+                                    committed_request.request,
+                                    committed_request.session_id,
+                                    committed_request.time,
+                                    {},
+                                    true,
+                                    false);
                                 committed_queue.pop();
                             }
                             else
                             {
-                                LOG_TRACE(log, "current_session_pending_w_request opNum {}, session {}, xid {}", Coordination::toString(current_session_pending_w_requests.begin()->request->getOpNum()), current_session_pending_w_requests.begin()->session_id, current_session_pending_w_requests.begin()->request->xid);
-                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close)
-                                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, current session {} pending head write request xid {} not same committed request xid {}", committed_request.session_id, current_session_pending_w_requests.begin()->request->xid, committed_request.request->xid);
+                                LOG_TRACE(
+                                    log,
+                                    "current_session_pending_w_request opNum {}, session {}, xid {}",
+                                    Coordination::toString(current_session_pending_w_requests.begin()->request->getOpNum()),
+                                    current_session_pending_w_requests.begin()->session_id,
+                                    current_session_pending_w_requests.begin()->request->xid);
+
+                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid
+                                    && /* Compatible close xid is not 7FFFFFFF */ committed_request.request->getOpNum()
+                                        != Coordination::OpNum::Close
+                                    && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close)
+                                    throw Exception(
+                                        ErrorCodes::RAFT_ERROR,
+                                        "Logic Error, current session {} pending head write request xid {} {} not same committed request "
+                                        "xid {} {}",
+                                        committed_request.session_id,
+                                        current_session_pending_w_requests.begin()->request->xid,
+                                        current_session_pending_w_requests.begin()->request->getOpNum(),
+                                        committed_request.request->xid,
+                                        committed_request.request->getOpNum());
 
                                 auto & current_session_pending_requests = pending_requests[committed_request.session_id];
-//                                while (current_session_pending_requests.begin()->request->xid < committed_request.request->xid)
-//                                {
-//                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
-//                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
-//                                }
-                                LOG_TRACE(log, "current_session_pending_request opNum {}, session {}, xid {}", Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()), current_session_pending_requests.begin()->session_id, current_session_pending_requests.begin()->request->xid);
-                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid && /* Compatible close xid is not 7FFFFFFF */committed_request.request->getOpNum() != Coordination::OpNum::Close && current_session_pending_requests.begin()->request->getOpNum() != Coordination::OpNum::Close) /// read request
+                                //                                while (current_session_pending_requests.begin()->request->xid < committed_request.request->xid)
+                                //                                {
+                                //                                    server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, current_session_pending_requests[0].request, current_session_pending_requests[0].session_id, {}, true, false);
+                                //                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
+                                //                                }
+                                LOG_TRACE(
+                                    log,
+                                    "Current session pending request opNum {}, session {}, xid {}",
+                                    Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()),
+                                    current_session_pending_requests.begin()->session_id,
+                                    current_session_pending_requests.begin()->request->xid);
+
+                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid
+                                    && /* Compatible close xid is not 7FFFFFFF */ committed_request.request->getOpNum()
+                                        != Coordination::OpNum::Close
+                                    && current_session_pending_requests.begin()->request->getOpNum()
+                                        != Coordination::OpNum::Close) /// read request
                                     break;
 
-                                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, committed_request.request, committed_request.session_id, committed_request.time, {}, true, false);
+                                server->getKeeperStateMachine()->getStorage().processRequest(
+                                    responses_queue,
+                                    committed_request.request,
+                                    committed_request.session_id,
+                                    committed_request.time,
+                                    {},
+                                    true,
+                                    false);
                                 committed_queue.pop();
 
                                 current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
                                 current_session_pending_requests.erase(current_session_pending_requests.begin());
 
-                                if (current_session_pending_w_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                if (current_session_pending_w_requests.empty()
+                                    || committed_request.request->getOpNum() == Coordination::OpNum::Close)
                                     pending_write_requests.erase(committed_request.session_id);
 
-                                if (current_session_pending_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                if (current_session_pending_requests.empty()
+                                    || committed_request.request->getOpNum() == Coordination::OpNum::Close)
                                     pending_requests.erase(committed_request.session_id);
                             }
                         }
                     }
                 }
-
             }
             catch (...)
             {
