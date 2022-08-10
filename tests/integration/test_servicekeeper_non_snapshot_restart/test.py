@@ -89,6 +89,15 @@ def test_restart(started_cluster):
         for i in range(10000):
             node1_zk.create("/test_restart_node1/" + str(i), b"hello")
 
+        node1_zk.create("/test_restart_node2", b"hello")
+
+        for i in range(10000):
+            t = node1_zk.transaction()
+            t.create("/test_restart_node2/q" + str(i))
+            t.delete("/test_restart_node2/a" + str(i))
+            t.create("/test_restart_node2/x" + str(i))
+            t.commit()
+
         node1.stop_clickhouse()
         node2.stop_clickhouse()
         node3.stop_clickhouse()
@@ -102,10 +111,14 @@ def test_restart(started_cluster):
         node3_zk = get_fake_zk(cluster1, "node1")
 
         for i in range(9900):
-            assert node3_zk.get("/test_restart_node/" + str(i + 100)) == b"hello111"
+            assert node3_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
 
         for i in range(10000):
-            assert node3_zk.get("/test_restart_node1/" + str(i)) == b"hello"
+            assert node3_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
+
+        children = node3_zk.get_children("/test_restart_node2")
+
+        assert children == []
 
     finally:
         try:
