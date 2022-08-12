@@ -48,7 +48,7 @@ public:
                 }
                 catch (...)
                 {
-                    svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
+                    svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
                 }
             }
             else if (!server->isLeader() && server->isLeaderAlive())
@@ -87,7 +87,7 @@ public:
             }
             catch (Exception e)
             {
-                svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
+                svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
             }
         }
     }
