@@ -40,7 +40,7 @@ public:
         {
             for (auto & request_session : prev_batch)
             {
-                svskeeper_commit_processor->onError(request_session.session_id, request_session.request->xid, result_accepted, prev_result->get_result_code());
+                svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session);
             }
             return false;
         }
@@ -106,7 +106,7 @@ public:
         SvsKeeperStorage::RequestForSession request_for_session;
         while (requests_queue->tryPopAny(request_for_session))
         {
-            svskeeper_commit_processor->onError(request_for_session.session_id, request_for_session.request->xid, false, nuraft::cmd_result_code::CANCELLED);
+            svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
         }
     }
 
