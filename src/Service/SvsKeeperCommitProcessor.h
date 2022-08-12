@@ -12,10 +12,19 @@ namespace ErrorCodes
     extern const int RAFT_ERROR;
 }
 
-class SvsKeeperCommitProcessor
-{
 using Request = SvsKeeperStorage::RequestForSession;
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
+
+struct ErrorRequest
+{
+    bool accepted;
+    nuraft::cmd_result_code error_code;
+    Request request;
+};
+
+class SvsKeeperCommitProcessor
+{
+
 
 public:
     SvsKeeperCommitProcessor(SvsKeeperResponsesQueue & responses_queue_)
@@ -63,36 +72,47 @@ public:
 
                             LOG_TRACE(log, "error session {}, xid {}", session_id, xid);
 
-                            auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
-                            auto & requests = pending_requests.find(session_id)->second;
+                            auto & error_request = it->second;
+                            auto op_num = error_request.request.request->getOpNum();
 
                             std::optional<Request> request;
-                            for (auto request_it = requests.begin(); request_it != requests.end();)
+                            if (op_num == Coordination::OpNum::Close || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
                             {
-                                if (uint64_t(request_it->request->xid) == xid)
-                                {
-                                    request = *request_it;
-                                    request_it = requests.erase(request_it);
-                                    break;
-                                }
-                                else
-                                {
-                                    ++request_it;
-                                }
+                                request = error_request.request;
                             }
-
-                            auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
-                            auto & w_requests = pending_write_requests.find(session_id)->second;
-                            for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
+                            else
                             {
-                                if (uint64_t(w_request_it->request->xid) == xid)
+                                auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
+                                auto & requests = pending_requests.find(session_id)->second;
+
+
+                                for (auto request_it = requests.begin(); request_it != requests.end();)
                                 {
-                                    w_request_it = w_requests.erase(w_request_it);
-                                    break;
+                                    if (uint64_t(request_it->request->xid) == xid)
+                                    {
+                                        request = *request_it;
+                                        request_it = requests.erase(request_it);
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        ++request_it;
+                                    }
                                 }
-                                else
+
+                                auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
+                                auto & w_requests = pending_write_requests.find(session_id)->second;
+                                for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
                                 {
-                                    ++w_request_it;
+                                    if (uint64_t(w_request_it->request->xid) == xid)
+                                    {
+                                        w_request_it = w_requests.erase(w_request_it);
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        ++w_request_it;
+                                    }
                                 }
                             }
 
@@ -103,7 +123,9 @@ public:
                                 response->xid = request->request->xid;
                                 response->zxid = 0;
 
-                                auto [accepted, error_code] = it->second;
+                                auto accepted = it->second.accepted;
+                                auto error_code = it->second.error_code;
+
                                 response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                                  : Coordination::Error::ZCONNECTIONLOSS;
 
@@ -154,8 +176,10 @@ public:
                                 committed_request.session_id,
                                 committed_request.request->xid);
 
+                            auto op_num = committed_request.request->getOpNum();
                             auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
-                            if (current_session_pending_w_requests.empty()) /// another server session request
+                            /// another server session request or can be out of order
+                            if (current_session_pending_w_requests.empty() || op_num == Coordination::OpNum::Close || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
                             {
                                 server->getKeeperStateMachine()->getStorage().processRequest(
                                     responses_queue,
@@ -176,10 +200,7 @@ public:
                                     current_session_pending_w_requests.begin()->session_id,
                                     current_session_pending_w_requests.begin()->request->xid);
 
-                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid
-                                    && /* Compatible close xid is not 7FFFFFFF */ committed_request.request->getOpNum()
-                                        != Coordination::OpNum::Close
-                                    && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close)
+                                if (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
                                     throw Exception(
                                         ErrorCodes::RAFT_ERROR,
                                         "Logic Error, current session {} pending head write request xid {} {} not same committed request "
@@ -203,11 +224,7 @@ public:
                                     current_session_pending_requests.begin()->session_id,
                                     current_session_pending_requests.begin()->request->xid);
 
-                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid
-                                    && /* Compatible close xid is not 7FFFFFFF */ committed_request.request->getOpNum()
-                                        != Coordination::OpNum::Close
-                                    && current_session_pending_requests.begin()->request->getOpNum()
-                                        != Coordination::OpNum::Close) /// read request
+                                if (current_session_pending_requests.begin()->request->xid != committed_request.request->xid) /// read request
                                     break;
 
                                 server->getKeeperStateMachine()->getStorage().processRequest(
@@ -223,12 +240,10 @@ public:
                                 current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
                                 current_session_pending_requests.erase(current_session_pending_requests.begin());
 
-                                if (current_session_pending_w_requests.empty()
-                                    || committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                if (current_session_pending_w_requests.empty())
                                     pending_write_requests.erase(committed_request.session_id);
 
-                                if (current_session_pending_requests.empty()
-                                    || committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                if (current_session_pending_requests.empty())
                                     pending_requests.erase(committed_request.session_id);
                             }
                         }
@@ -255,10 +270,14 @@ public:
             Request request;
             if (requests_queue->tryPop(thread_idx, request))
             {
-                pending_requests[request.session_id].push_back(request);
-                if (!request.request->isReadRequest())
+                auto op_num = request.request->getOpNum();
+                if (op_num != Coordination::OpNum::Close && op_num != Coordination::OpNum::Heartbeat && op_num != Coordination::OpNum::Auth)
                 {
-                    pending_write_requests[request.session_id].push_back(request);
+                    pending_requests[request.session_id].push_back(request);
+                    if (!request.request->isReadRequest())
+                    {
+                        pending_write_requests[request.session_id].push_back(request);
+                    }
                 }
             }
         }
@@ -322,11 +341,11 @@ public:
         }
     }
 
-    void onError(int64_t session_id, int64_t xid, bool accepted, nuraft::cmd_result_code error_code) {
+    void onError(bool accepted, nuraft::cmd_result_code error_code, Request request) {
         if (!shutdown_called) {
             std::lock_guard lock(errors_mutex);
-            std::pair<bool, nuraft::cmd_result_code> v{ accepted, error_code };
-            errors.emplace(UInt128(session_id, xid), v);
+            ErrorRequest error_request{accepted, error_code, request};
+            errors.emplace(UInt128(request.session_id, request.request->xid), error_request);
             cv.notify_all();
         }
     }
@@ -370,7 +389,7 @@ private:
 
     mutable std::mutex errors_mutex;
     /// key : session_id xid
-    std::unordered_map<UInt128, std::pair<bool, nuraft::cmd_result_code>> errors;
+    std::unordered_map<UInt128, ErrorRequest> errors;
 
     std::mutex mutex;
 
