@@ -12,7 +12,7 @@ from helpers.network import PartitionManager
 from kazoo.client import KazooClient, KazooState
 
 cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/logs_conf.xml'], with_zookeeper=True, use_old_bin=True)
+node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], with_zookeeper=True, use_old_bin=True)
 
 
 @pytest.fixture(scope="module")
@@ -99,7 +99,7 @@ def test_simple_replicated_table(started_cluster):
 
         node1.stop_clickhouse()
 
-        cluster2 = ClickHouseCluster(__file__)
+        cluster2 = ClickHouseServiceCluster(__file__)
         node2 = cluster2.add_instance('node', main_configs=['configs/log_conf.xml', 'configs/enable_test_keeper.xml'], stay_alive=True)
 
 

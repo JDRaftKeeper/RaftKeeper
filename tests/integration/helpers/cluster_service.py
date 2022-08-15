@@ -111,7 +111,7 @@ class ClickHouseServiceCluster:
     """
 
     def __init__(self, base_path, name=None, base_config_dir=None, server_bin_path=None, client_bin_path=None,
-                 odbc_bridge_bin_path=None, zookeeper_config_path=None, custom_dockerd_host=None):
+                 odbc_bridge_bin_path=None, zookeeper_config_path=None, custom_dockerd_host=None, use_old_bin=False):
         for param in list(os.environ.keys()):
             print("ENV %40s %s" % (param, os.environ[param]))
         self.base_dir = p.dirname(base_path)
@@ -119,8 +119,13 @@ class ClickHouseServiceCluster:
 
         self.base_config_dir = base_config_dir or os.environ.get('CLICKHOUSE_TESTS_BASE_CONFIG_DIR',
                                                                  '/etc/clickhouse-server/')
-        self.server_bin_path = p.realpath(
-            server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
+
+        if use_old_bin:
+            self.server_bin_path = p.realpath(
+                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH', '/usr/bin/clickhouse_old'))
+        else:
+            self.server_bin_path = p.realpath(
+                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
         self.odbc_bridge_bin_path = p.realpath(odbc_bridge_bin_path or get_odbc_bridge_path())
         self.client_bin_path = p.realpath(
             client_bin_path or os.environ.get('CLICKHOUSE_TESTS_CLIENT_BIN_PATH', '/usr/bin/clickhouse-client'))
