@@ -22,7 +22,7 @@
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperSyncProcessor.h>
 #include <Service/SvsKeeperCommitProcessor.h>
-#include <Service/FollowerRequestProcessor.h>
+#include <Service/SvsKeeperFollowerProcessor.h>
 #include <Poco/FIFOBuffer.h>
 
 #define USE_NIO_FOR_KEEPER
@@ -81,7 +81,7 @@ private:
 
     SvsKeeperSyncProcessor svskeeper_sync_processor;
 
-    FollowerRequestProcessor follower_request_processor;
+    SvsKeeperFollowerProcessor follower_request_processor;
 
 private:
     void requestThread();

@@ -22,7 +22,7 @@ NuRaftStateManager::NuRaftStateManager(
     : coordination_settings(coordination_settings_), my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_)
 {
     log = &(Poco::Logger::get("NuRaftStateManager"));
-    curr_log_store = cs_new<NuRaftFileLogStore>(log_dir, false , coordination_settings->coordination_settings->force_sync, coordination_settings->coordination_settings->async_fsync);
+    curr_log_store = cs_new<NuRaftFileLogStore>(log_dir, false , coordination_settings->coordination_settings->force_sync, coordination_settings->coordination_settings->async_fsync, coordination_settings->coordination_settings->fsync_interval);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
