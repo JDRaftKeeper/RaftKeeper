@@ -35,6 +35,17 @@ def check_args_and_update_paths(args):
     if not os.path.isabs(args.binary):
         args.binary = os.path.abspath(os.path.join(CURRENT_WORK_DIR, args.binary))
 
+    if not os.path.isabs(args.old_binary):
+        args.old_binary = os.path.abspath(os.path.join(CURRENT_WORK_DIR, args.binary))
+
+    if args.old_binary:
+        if not os.path.isabs(args.old_binary):
+            args.old_binary = os.path.abspath(os.path.join(CURRENT_WORK_DIR, args.old_binary))
+    else:
+        args.old_binary = args.binary
+        logging.info("old_binary is not set. Will use {}".format(args.old_binary))
+
+
     if not args.bridge_binary:
         args.bridge_binary = os.path.join(os.path.dirname(args.binary), 'clickhouse-odbc-bridge')
     elif not os.path.isabs(args.bridge_binary):
@@ -105,6 +116,11 @@ if __name__ == "__main__":
         "--binary",
         default=os.environ.get("CLICKHOUSE_TESTS_SERVER_BIN_PATH", os.environ.get("CLICKHOUSE_TESTS_CLIENT_BIN_PATH", "/usr/bin/clickhouse")),
         help="Path to clickhouse binary. For example /usr/bin/clickhouse")
+
+    parser.add_argument(
+        "--old-binary",
+        default=os.environ.get("CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH", os.environ.get("CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH", "/usr/bin/clickhouse")),
+        help="Path to old clickhouse binary. For example /usr/bin/clickhouse")
 
     parser.add_argument(
         "--bridge-binary",
@@ -203,6 +219,7 @@ if __name__ == "__main__":
         --volume={base_cfg}:/clickhouse-config --volume={cases_dir}:/ClickHouse/tests/integration \
         --volume={src_dir}/Server/grpc_protos:/ClickHouse/src/Server/grpc_protos \
         --volume={raft_benchmark_dir}:/ClickHouse/benchmark/raft-benchmark \
+        --volume={old_bin}:/clickhouse_old \
         --volume={name}_volume:/var/lib/docker {env_tags} -e PYTEST_OPTS='{opts}' {img} {command}".format(
         net=net,
         tty=tty,
@@ -212,6 +229,7 @@ if __name__ == "__main__":
         cases_dir=args.cases_dir,
         src_dir=args.src_dir,
         raft_benchmark_dir=args.raft_benchmark_dir,
+        old_bin=args.old_binary,
         env_tags=env_tags,
         opts=' '.join(args.pytest_args),
         img=DIND_INTEGRATION_TESTS_IMAGE_NAME + ":" + args.docker_image_version,
