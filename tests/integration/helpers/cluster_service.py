@@ -198,7 +198,7 @@ class ClickHouseServiceCluster:
                      with_redis=False, with_minio=False, with_cassandra=False,
                      hostname=None, env_variables=None, image="yandex/clickhouse-integration-test", tag=None,
                      stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None,
-                     zookeeper_docker_compose_path=None, zookeeper_use_tmpfs=True, minio_certs_dir=None):
+                     zookeeper_docker_compose_path=None, zookeeper_use_tmpfs=True, minio_certs_dir=None, use_old_bin=False):
         """Add an instance to the cluster.
 
         name - the name of the instance directory and the value of the 'instance' macro in ClickHouse.
@@ -255,7 +255,8 @@ class ClickHouseServiceCluster:
             ipv4_address=ipv4_address,
             ipv6_address=ipv6_address,
             with_installed_binary=with_installed_binary,
-            tmpfs=tmpfs or [])
+            tmpfs=tmpfs or [],
+            use_old_bin=use_old_bin)
 
         docker_compose_yml_dir = get_docker_compose_path()
 
@@ -868,8 +869,10 @@ class ClickHouseServiceCluster:
 
 
 CLICKHOUSE_START_COMMAND = "clickhouse service --config-file=/etc/clickhouse-server/config.xml --log-file=/var/log/clickhouse-server/clickhouse-service.log --errorlog-file=/var/log/clickhouse-server/clickhouse-service.err.log"
+OLD_CLICKHOUSE_START_COMMAND = "clickhouse_old service --config-file=/etc/clickhouse-server/config.xml --log-file=/var/log/clickhouse-server/clickhouse-service.log --errorlog-file=/var/log/clickhouse-server/clickhouse-service.err.log"
 
 CLICKHOUSE_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(CLICKHOUSE_START_COMMAND)
+OLD_CLICKHOUSE_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(OLD_CLICKHOUSE_START_COMMAND)
 
 DOCKER_COMPOSE_TEMPLATE = '''
 version: '2.3'
@@ -922,7 +925,7 @@ class ClickHouseInstance:
             with_cassandra, server_bin_path, odbc_bridge_bin_path, clickhouse_path_dir, with_odbc_drivers,
             hostname=None, env_variables=None,
             image="yandex/clickhouse-integration-test", tag="latest",
-            stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None):
+            stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None, use_old_bin=False):
 
         self.name = name
         self.base_cmd = cluster.base_cmd
@@ -931,6 +934,7 @@ class ClickHouseInstance:
         self.hostname = hostname if hostname is not None else self.name
 
         self.tmpfs = tmpfs or []
+        self.use_old_bin = use_old_bin
         self.base_config_dir = p.abspath(p.join(base_path, base_config_dir)) if base_config_dir else None
         self.custom_main_config_paths = [p.abspath(p.join(base_path, c)) for c in custom_main_configs]
         self.custom_user_config_paths = [p.abspath(p.join(base_path, c)) for c in custom_user_configs]
@@ -1075,17 +1079,28 @@ class ClickHouseInstance:
                                expect_fail_and_get_error=True)
 
     def kill_clickhouse(self, stop_start_wait_sec=5):
-        pid = self.get_process_pid("clickhouse")
+        if self.use_old_bin:
+            pid = self.get_process_pid("clickhouse_old")
+        else:
+            pid = self.get_process_pid("clickhouse")
+
         if not pid:
             raise Exception("No clickhouse found")
         self.exec_in_container(["bash", "-c", "kill -9 {}".format(pid)], user='root')
         time.sleep(stop_start_wait_sec)
 
     def restore_clickhouse(self, retries=100):
-        pid = self.get_process_pid("clickhouse")
+        if self.use_old_bin:
+            pid = self.get_process_pid("clickhouse_old")
+        else:
+            pid = self.get_process_pid("clickhouse")
+
         if pid:
             raise Exception("ClickHouse has already started")
-        self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+        if self.use_old_bin:
+            self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+        else:
+            self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
         # from helpers.test_tools import assert_eq_with_retry
         # wait start
         # assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
@@ -1094,17 +1109,28 @@ class ClickHouseInstance:
         if not self.stay_alive:
             raise Exception("clickhouse can be stopped only with stay_alive=True instance")
         try:
-            ps_clickhouse = self.exec_in_container(["bash", "-c", "ps -C clickhouse"], nothrow=True, user='root')
+            if self.use_old_bin:
+                ps_clickhouse = self.exec_in_container(["bash", "-c", "ps -C clickhouse_old"], nothrow=True, user='root')
+            else:
+                ps_clickhouse = self.exec_in_container(["bash", "-c", "ps -C clickhouse"], nothrow=True, user='root')
+
             if ps_clickhouse == "  PID TTY      STAT   TIME COMMAND" :
                 logging.warning("ClickHouse process already stopped")
                 return
 
-            self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
+            if self.use_old_bin:
+                self.exec_in_container(["bash", "-c", "pkill {} clickhouse_old".format("-9" if kill else "")], user='root')
+            else:
+                self.exec_in_container(["bash", "-c", "pkill {} clickhouse".format("-9" if kill else "")], user='root')
 
             start_time = time.time()
             stopped = False
             while time.time() <= start_time + stop_wait_sec:
-                pid = self.get_process_pid("clickhouse")
+                if self.use_old_bin:
+                    pid = self.get_process_pid("clickhouse_old")
+                else:
+                    pid = self.get_process_pid("clickhouse")
+
                 if pid is None:
                     stopped = True
                     break
@@ -1113,7 +1139,11 @@ class ClickHouseInstance:
 
             if not stopped:
                 print(self.name, "stop failed")
-                pid = self.get_process_pid("clickhouse")
+                if self.use_old_bin:
+                    pid = self.get_process_pid("clickhouse_old")
+                else:
+                    pid = self.get_process_pid("clickhouse")
+
                 if pid is not None:
                     logging.warning(f"Force kill clickhouse in stop_clickhouse. ps:{pid}")
                     # self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/clickhouse-server/stdout.log"], user='root')
@@ -1136,11 +1166,18 @@ class ClickHouseInstance:
         while start_time + start_wait_sec >= time.time():
             # sometimes after SIGKILL (hard reset) server may refuse to start for some time
             # for different reasons.
-            pid = self.get_process_pid("clickhouse")
+            if self.use_old_bin:
+                pid = self.get_process_pid("clickhouse_old")
+            else:
+                pid = self.get_process_pid("clickhouse")
+
             if pid is None:
                 logging.debug("No clickhouse process running. Start new one.")
                 print("No clickhouse process running. Start new one.")
-                self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+                if self.use_old_bin:
+                    self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
+                else:
+                    self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
                 time.sleep(1)
                 continue
             elif start_wait is True:
@@ -1226,37 +1263,6 @@ class ClickHouseInstance:
             except:
                 return None
         return None
-
-    def restart_with_latest_version(self, stop_start_wait_sec=10, callback_onstop=None, signal=15):
-        if not self.stay_alive:
-            raise Exception("Cannot restart not stay alive container")
-        self.exec_in_container(["bash", "-c", "pkill -{} clickhouse".format(signal)], user='root')
-        retries = int(stop_start_wait_sec / 0.5)
-        local_counter = 0
-        # wait stop
-        while local_counter < retries:
-            if not self.get_process_pid("clickhouse service"):
-                break
-            time.sleep(0.5)
-            local_counter += 1
-
-        # force kill if server hangs
-        if self.get_process_pid("clickhouse service"):
-            # server can die before kill, so don't throw exception, it's expected
-            self.exec_in_container(["bash", "-c", "pkill -{} clickhouse".format(9)], nothrow=True, user='root')
-
-        if callback_onstop:
-            callback_onstop(self)
-        self.exec_in_container(
-            ["bash", "-c", "cp /usr/share/clickhouse_fresh /usr/bin/clickhouse && chmod 777 /usr/bin/clickhouse"],
-            user='root')
-        self.exec_in_container(["bash", "-c",
-                                "cp /usr/share/clickhouse-odbc-bridge_fresh /usr/bin/clickhouse-odbc-bridge && chmod 777 /usr/bin/clickhouse"],
-                               user='root')
-        self.exec_in_container(["bash", "-c", "{} --daemon".format(CLICKHOUSE_START_COMMAND)], user=str(os.getuid()))
-        from helpers.test_tools import assert_eq_with_retry
-        # wait start
-        assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
 
     def get_docker_handle(self):
         return self.docker_client.containers.get(self.docker_id)
@@ -1470,10 +1476,16 @@ class ClickHouseInstance:
             self._create_odbc_config_file()
             odbc_ini_path = '- ' + self.odbc_ini_path
 
-        entrypoint_cmd = CLICKHOUSE_START_COMMAND
+        if self.use_old_bin:
+            entrypoint_cmd = OLD_CLICKHOUSE_START_COMMAND
+        else:
+            entrypoint_cmd = CLICKHOUSE_START_COMMAND
 
         if self.stay_alive:
-            entrypoint_cmd = CLICKHOUSE_STAY_ALIVE_COMMAND
+            if self.use_old_bin:
+                entrypoint_cmd = OLD_CLICKHOUSE_STAY_ALIVE_COMMAND
+            else:
+                entrypoint_cmd = CLICKHOUSE_STAY_ALIVE_COMMAND
 
         print("Entrypoint cmd: {}".format(entrypoint_cmd))
 
