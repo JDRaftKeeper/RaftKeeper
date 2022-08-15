@@ -68,7 +68,9 @@ void LogEntryQueue::clear()
         entry_vec[i] = nullptr;
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_new, bool force_sync_, bool async_fsync_): force_sync(force_sync_), async_fsync(async_fsync_)
+NuRaftFileLogStore::NuRaftFileLogStore(
+    const std::string & log_dir, bool force_new, bool force_sync_, bool async_fsync_, UInt64 fsync_interval_)
+    : force_sync(force_sync_), async_fsync(async_fsync_), fsync_interval(fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
@@ -103,8 +105,14 @@ NuRaftFileLogStore::NuRaftFileLogStore(const std::string & log_dir, bool force_n
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
-    const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_, bool async_fsync_)
-    : force_sync(force_sync_), async_fsync(async_fsync_)
+    const std::string & log_dir,
+    bool force_new,
+    UInt32 max_log_size_,
+    UInt32 max_segment_count_,
+    bool force_sync_,
+    bool async_fsync_,
+    UInt64 fsync_interval_)
+    : force_sync(force_sync_), async_fsync(async_fsync_), fsync_interval(fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
@@ -154,7 +162,8 @@ void NuRaftFileLogStore::fsyncThread()
 {
     async_fsync_event = std::make_shared<Poco::Event>();
 
-    while (!shutdown_called) {
+    while (!shutdown_called)
+    {
         async_fsync_event->wait();
 
         if (shutdown_called) break;
@@ -250,14 +259,22 @@ void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 {
     LOG_TRACE(log, "fsync log store, start log idx {}, log count {}", start, cnt);
 
-    if (force_sync && !async_fsync)
+    if (force_sync)
     {
-        flush();
-    }
+        if (async_fsync)
+        {
+            async_fsync_event->set();
+        }
+        else
+        {
+            to_flush_count++;
 
-    if (force_sync && async_fsync)
-    {
-        async_fsync_event->set();
+            if (to_flush_count % fsync_interval == 0)
+            {
+                to_flush_count = 0;
+                flush();
+            }
+        }
     }
 }
 
