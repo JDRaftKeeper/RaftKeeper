@@ -42,8 +42,8 @@ class NuRaftFileLogStore : public nuraft::log_store
     __nocopy__(NuRaftFileLogStore)
 
 public :
-    NuRaftFileLogStore(const std::string & log_dir, bool force_new = false, bool force_sync_ = true, bool async_fsync_ = true);
-    NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_ = true, bool async_fsync_ = true);
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new = false, bool force_sync_ = true, bool async_fsync_ = true, UInt64 fsync_interval_ = 1);
+    NuRaftFileLogStore(const std::string & log_dir, bool force_new, UInt32 max_log_size_, UInt32 max_segment_count_, bool force_sync_ = true, bool async_fsync_ = true, UInt64 fsync_interval_ = 1);
     ~NuRaftFileLogStore() override;
 
     ulong next_slot() const override;
@@ -111,6 +111,8 @@ private:
 //    std::atomic<UInt32> to_flush_count {};
     bool force_sync;
     bool async_fsync;
+    UInt64 fsync_interval{1};
+    UInt64 to_flush_count{0};
     ThreadFromGlobalPool fsync_thread;
     std::atomic<bool> shutdown_called{false};
     ulong disk_last_durable_index;
