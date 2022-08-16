@@ -12,7 +12,7 @@ from helpers.network import PartitionManager
 from kazoo.client import KazooClient, KazooState
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-cluster1 = ClickHouseServiceCluster(__file__, use_old_bin=True)
+cluster1 = ClickHouseServiceCluster(__file__)
 node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], stay_alive=True, use_old_bin=True)
 
 
