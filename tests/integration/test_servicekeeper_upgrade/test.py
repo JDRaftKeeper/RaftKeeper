@@ -12,8 +12,8 @@ from helpers.network import PartitionManager
 from kazoo.client import KazooClient, KazooState
 
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
-cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], with_zookeeper=True, use_old_bin=True)
+cluster1 = ClickHouseServiceCluster(__file__, use_old_bin=True)
+node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], stay_alive=True, use_old_bin=True)
 
 
 @pytest.fixture(scope="module")
@@ -94,6 +94,12 @@ def test_data(started_cluster):
             t.create("/test_restart_node2/x" + str(i))
             t.commit()
 
+        output = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
+        print("ps ax | grep clickhouse output: ", output)
+
+        output1 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse_old"], user='root')
+        print("ps ax | grep clickhouse output: ", output1)
+
         node1.stop_clickhouse()
         node1.copy_file_to_container(os.path.join(SCRIPT_DIR, "configs/enable_test_keeper.xml"), '/etc/clickhouse-server/config.xml')
 
@@ -101,6 +107,12 @@ def test_data(started_cluster):
 
         node1.start_clickhouse()
         wait_node(cluster1, node1)
+
+        output2 = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
+        print("ps ax | grep clickhouse output: ", output2)
+
+        output3 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse"], user='root')
+        print("ps ax | grep clickhouse output: ", output3)
 
         node2_zk = get_fake_zk(cluster1, "node")
 
