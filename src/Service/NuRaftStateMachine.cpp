@@ -160,31 +160,34 @@ NuRaftStateMachine::NuRaftStateMachine(
                         {
                             if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
                             {
+                                batch.request_vec->push_back(nullptr);
                                 LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
                                 continue;
                             }
 
                             if (isNewSessionRequest(entry.entry->get_buf()))
                             {
-                                /// replay session
-                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
-                                int64_t session_id = storage.getSessionID(session_timeout_ms);
-                                LOG_TRACE(
-                                    log,
-                                    "Replay log create session, session_id {} with timeout {} from log",
-                                    session_id,
-                                    session_timeout_ms);
+                                batch.request_vec->push_back(nullptr);
+//                                /// replay session
+//                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
+//                                int64_t session_id = storage.getSessionID(session_timeout_ms);
+//                                LOG_TRACE(
+//                                    log,
+//                                    "Replay log create session, session_id {} with timeout {} from log",
+//                                    session_id,
+//                                    session_timeout_ms);
                             }
                             else if (isUpdateSessionRequest(entry.entry->get_buf()))
                             {
+                                batch.request_vec->push_back(nullptr);
                                 /// replay update session
-                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
-                                int64_t session_id = data_serializer.get_i64();
-                                int64_t session_timeout_ms = data_serializer.get_i64();
-
-                                storage.updateSessionTimeout(session_id, session_timeout_ms);
-                                LOG_TRACE(
-                                    log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
+//                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
+//                                int64_t session_id = data_serializer.get_i64();
+//                                int64_t session_timeout_ms = data_serializer.get_i64();
+//
+//                                storage.updateSessionTimeout(session_id, session_timeout_ms);
+//                                LOG_TRACE(
+//                                    log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
                             }
                             else
                             {
@@ -192,10 +195,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                                 ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
                                 LOG_TRACE(log, "Replay log request, session {}", ptr_request->session_id);
 
-                                if (ptr_request != nullptr)
-                                {
-                                    batch.request_vec->push_back(ptr_request);
-                                }
+                                batch.request_vec->push_back(ptr_request);
                             }
                             idx++;
                         }
@@ -240,17 +240,50 @@ NuRaftStateMachine::NuRaftStateMachine(
                 LOG_DEBUG(log, "log vector is null");
                 break;
             }
-            for (auto & request : *(batch.request_vec))
+
+            for (size_t i = 0; i < batch.log_vec->size(); ++i)
             {
-                storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
-                if (request->session_id > storage.session_id_counter)
+                auto entry = (*batch.log_vec)[i];
+                if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
+                    continue;
+
+                if (isNewSessionRequest(entry.entry->get_buf()))
                 {
-                    LOG_WARNING(
+                    /// replay session
+                    int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
+                    int64_t session_id = storage.getSessionID(session_timeout_ms);
+                    LOG_TRACE(
                         log,
-                        "Storage's session_id_counter {} must more than the session id {} of log.",
-                        storage.session_id_counter,
-                        request->session_id);
-                    storage.session_id_counter = request->session_id;
+                        "Replay log create session, session_id {} with timeout {} from log",
+                        session_id,
+                        session_timeout_ms);
+                }
+                else if (isUpdateSessionRequest(entry.entry->get_buf()))
+                {
+                    // replay update session
+                    nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
+                    int64_t session_id = data_serializer.get_i64();
+                    int64_t session_timeout_ms = data_serializer.get_i64();
+
+                    storage.updateSessionTimeout(session_id, session_timeout_ms);
+                    LOG_TRACE(
+                        log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
+                }
+                else
+                {
+                    /// replay nodes
+                    auto & request = (*batch.request_vec)[i];
+                    LOG_TRACE(log, "Replay log request, session {}", request->session_id);
+                    storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
+                    if (request->session_id > storage.session_id_counter)
+                    {
+                        LOG_WARNING(
+                            log,
+                            "Storage's session_id_counter {} must more than the session id {} of log.",
+                            storage.session_id_counter,
+                            request->session_id);
+                        storage.session_id_counter = request->session_id;
+                    }
                 }
             }
             log_queue.pop();

@@ -686,6 +686,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
         else
         {
             LOG_INFO(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
+            version_ = SnapshotVersion::V0;
             snap_fs->seekg(cur_read_size);
             read_size = cur_read_size;
         }
