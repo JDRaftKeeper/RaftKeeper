@@ -122,7 +122,7 @@ class ClickHouseServiceCluster:
 
         if use_old_bin:
             self.server_bin_path = p.realpath(
-                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH', '/usr/bin/clickhouse_old'))
+                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH', '/clickhouse_old'))
         else:
             self.server_bin_path = p.realpath(
                 server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
@@ -891,6 +891,7 @@ services:
             - {logs_dir}:/var/log/clickhouse-server/
             - /etc/passwd:/etc/passwd:ro
             {binary_volume}
+            {old_binary_volume}
             {odbc_bridge_volume}
             {odbc_ini_path}
             {keytab_path}
@@ -1507,6 +1508,7 @@ class ClickHouseInstance:
                 net_alias1 = "- " + self.hostname
 
         if not self.with_installed_binary:
+            old_binary_volume = "- " + self.server_bin_path + ":/usr/bin/clickhouse_old"
             binary_volume = "- " + self.server_bin_path + ":/usr/bin/clickhouse"
             odbc_bridge_volume = "- " + self.odbc_bridge_bin_path + ":/usr/bin/clickhouse-odbc-bridge"
         else:
@@ -1520,6 +1522,7 @@ class ClickHouseInstance:
                 name=self.name,
                 hostname=self.hostname,
                 binary_volume=binary_volume,
+                old_binary_volume=old_binary_volume,
                 odbc_bridge_volume=odbc_bridge_volume,
                 instance_config_dir=instance_config_dir,
                 config_d_dir=self.config_d_dir,

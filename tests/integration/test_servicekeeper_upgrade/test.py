@@ -11,6 +11,7 @@ from helpers.network import PartitionManager
 
 from kazoo.client import KazooClient, KazooState
 
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 cluster1 = ClickHouseServiceCluster(__file__)
 node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], with_zookeeper=True, use_old_bin=True)
 
@@ -47,10 +48,6 @@ def wait_node(cluster, node):
     else:
         raise Exception("Can't wait node", node.name, "to become ready")
 
-def wait_nodes(cluster, node1, node2, node3):
-    for node in [node1, node2, node3]:
-        wait_node(cluster, node)
-
 
 def get_fake_zk(cluster, nodename, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(nodename) + ":5102", timeout=timeout)
@@ -65,11 +62,11 @@ def get_fake_zk(cluster, nodename, timeout=30.0):
     return _fake_zk_instance
 
 
-def test_simple_replicated_table(started_cluster):
+def test_data(started_cluster):
 
     try:
         # cluster1.start()
-        wait_nodes(cluster1, node1)
+        wait_node(cluster1, node1)
         node1_zk = get_fake_zk(cluster1, "node")
 
         node1_zk.create("/test_restart_node", b"hello")
@@ -98,14 +95,14 @@ def test_simple_replicated_table(started_cluster):
             t.commit()
 
         node1.stop_clickhouse()
+        node1.copy_file_to_container(os.path.join(SCRIPT_DIR, "configs/enable_test_keeper.xml"), '/etc/clickhouse-server/config.xml')
 
-        cluster2 = ClickHouseServiceCluster(__file__)
-        node2 = cluster2.add_instance('node', main_configs=['configs/log_conf.xml', 'configs/enable_test_keeper.xml'], stay_alive=True)
+        node1.use_old_bin=False
 
+        node1.start_clickhouse()
+        wait_node(cluster1, node1)
 
-        wait_nodes(cluster1, node2)
-
-        node2_zk = get_fake_zk(cluster2, "node")
+        node2_zk = get_fake_zk(cluster1, "node")
 
         for i in range(9900):
             assert node2_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
@@ -119,4 +116,4 @@ def test_simple_replicated_table(started_cluster):
 
 
     finally:
-        cluster2.shutdown()
+        cluster1.shutdown()
