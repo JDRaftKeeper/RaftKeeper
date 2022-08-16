@@ -111,7 +111,7 @@ class ClickHouseServiceCluster:
     """
 
     def __init__(self, base_path, name=None, base_config_dir=None, server_bin_path=None, client_bin_path=None,
-                 odbc_bridge_bin_path=None, zookeeper_config_path=None, custom_dockerd_host=None, use_old_bin=False):
+                 odbc_bridge_bin_path=None, zookeeper_config_path=None, custom_dockerd_host=None):
         for param in list(os.environ.keys()):
             print("ENV %40s %s" % (param, os.environ[param]))
         self.base_dir = p.dirname(base_path)
@@ -120,12 +120,8 @@ class ClickHouseServiceCluster:
         self.base_config_dir = base_config_dir or os.environ.get('CLICKHOUSE_TESTS_BASE_CONFIG_DIR',
                                                                  '/etc/clickhouse-server/')
 
-        if use_old_bin:
-            self.server_bin_path = p.realpath(
-                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_OLD_SERVER_BIN_PATH', '/clickhouse_old'))
-        else:
-            self.server_bin_path = p.realpath(
-                server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
+        self.server_bin_path = p.realpath(
+            server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
         self.odbc_bridge_bin_path = p.realpath(odbc_bridge_bin_path or get_odbc_bridge_path())
         self.client_bin_path = p.realpath(
             client_bin_path or os.environ.get('CLICKHOUSE_TESTS_CLIENT_BIN_PATH', '/usr/bin/clickhouse-client'))
@@ -1508,7 +1504,7 @@ class ClickHouseInstance:
                 net_alias1 = "- " + self.hostname
 
         if not self.with_installed_binary:
-            old_binary_volume = "- " + self.server_bin_path + ":/usr/bin/clickhouse_old"
+            old_binary_volume = "- " + "/clickhouse_old" + ":/usr/bin/clickhouse_old"
             binary_volume = "- " + self.server_bin_path + ":/usr/bin/clickhouse"
             odbc_bridge_volume = "- " + self.odbc_bridge_bin_path + ":/usr/bin/clickhouse-odbc-bridge"
         else:
