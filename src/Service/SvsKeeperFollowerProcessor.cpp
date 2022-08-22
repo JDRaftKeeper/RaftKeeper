@@ -65,7 +65,7 @@ void SvsKeeperFollowerProcessor::shutdown()
         {
             server->getLeaderClient(0)->send(request_for_session);
         }
-        catch (Exception e)
+        catch (...)
         {
             svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
         }
