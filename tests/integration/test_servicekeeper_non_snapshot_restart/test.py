@@ -93,43 +93,51 @@ def test_restart(started_cluster):
     try:
         wait_nodes(cluster1, node1, node2, node3)
 
+        fake_zks = [get_fake_zk(cluster1, node) for node in [node1, node2, node3]]
+
         node1_zk = get_fake_zk(cluster1, "node1")
 
         node1_zk.create("/test_restart_node", b"hello")
 
         for i in range(10000):
-            node1_zk.create("/test_restart_node/" + str(i), b"hello")
+            fake_zk = random.choice(fake_zks)
+            fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
         get_fake_zk(cluster1, "node1")
 
         for i in range(10000):
-            node1_zk.set("/test_restart_node/" + str(i), b"hello111")
+            fake_zk = random.choice(fake_zks)
+            fake_zk.set("/test_restart_node/" + str(i), b"hello111")
 
-        get_fake_zk(cluster1, "node1")
+        get_fake_zk(cluster1, "node2")
 
         for i in range(100):
-            node1_zk.delete("/test_restart_node/" + str(i))
+            fake_zk = random.choice(fake_zks)
+            fake_zk.delete("/test_restart_node/" + str(i))
 
-        get_fake_zk(cluster1, "node1")
+        get_fake_zk(cluster1, "node3")
 
         node1_zk.create("/test_restart_node1", b"hello")
 
         for i in range(10000):
-            node1_zk.create("/test_restart_node1/" + str(i), b"hello")
+            fake_zk = random.choice(fake_zks)
+            fake_zk.create("/test_restart_node1/" + str(i), b"hello")
 
         get_fake_zk(cluster1, "node1")
 
         node1_zk.create("/test_restart_node2", b"hello")
 
         for i in range(10000):
-            t = node1_zk.transaction()
+            fake_zk = random.choice(fake_zks)
+            t = fake_zk.transaction()
             t.create("/test_restart_node2/q" + str(i))
             t.delete("/test_restart_node2/a" + str(i))
             t.create("/test_restart_node2/x" + str(i))
             t.commit()
 
+        fake_zk = random.choice(fake_zks)
         d = {}
-        dump_states(node1_zk, d)
+        dump_states(fake_zk, d)
 
         node1.stop_clickhouse()
         node2.stop_clickhouse()
@@ -141,25 +149,26 @@ def test_restart(started_cluster):
 
         wait_nodes(cluster1, node1, node2, node3)
 
-        node3_zk = get_fake_zk(cluster1, "node3")
-
         for i in range(9900):
-            assert node3_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
+            fake_zk = random.choice(fake_zks)
+            assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
 
         for i in range(10000):
-            assert node3_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
+            fake_zk = random.choice(fake_zks)
+            assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
 
-        children = node3_zk.get_children("/test_restart_node2")
+        fake_zk = random.choice(fake_zks)
+        children = fake_zk.get_children("/test_restart_node2")
 
         assert children == []
 
         dd = {}
-        dump_states(node3_zk, dd)
+        dump_states(fake_zk, dd)
 
-        node2_zk = get_fake_zk(cluster1, "node2")
+        fake_zk = random.choice(fake_zks)
 
         ddd = {}
-        dump_states(node2_zk, ddd)
+        dump_states(fake_zk, ddd)
 
         assert len(d) == len(dd)
         assert len(d) == len(ddd)
@@ -172,7 +181,7 @@ def test_restart(started_cluster):
 
     finally:
         try:
-            for zk_conn in [node1_zk, node2_zk, node3_zk]:
+            for zk_conn in fake_zks:
                 try:
                     zk_conn.stop()
                     zk_conn.close()

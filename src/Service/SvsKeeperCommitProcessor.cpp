@@ -113,7 +113,7 @@ void SvsKeeperCommitProcessor::run()
                         else
                         {
                             LOG_WARNING(
-                                log, "Not found error request. Maybe it is still in the request queue and will be processed next time");
+                                log, "Not found error request session {} xid {} from pending queue. Maybe it is still in the request queue and will be processed next time", session_id, xid);
                             break;
                         }
                     }
@@ -175,16 +175,30 @@ void SvsKeeperCommitProcessor::run()
 
                             while (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid)
                             {
-                                LOG_WARNING(
-                                    log,
-                                    "Logic Error, current session {} pending head write request xid {} {} not same committed request xid {} {}",
-                                    committed_request.session_id,
-                                    current_session_pending_w_requests.begin()->request->xid,
-                                    current_session_pending_w_requests.begin()->request->getOpNum(),
-                                    committed_request.request->xid,
-                                    committed_request.request->getOpNum());
-
-                                current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
+                                if (errors.contains(UInt128(current_session_pending_w_requests.begin()->session_id, current_session_pending_w_requests.begin()->request->xid)))
+                                {
+                                    LOG_WARNING(
+                                        log,
+                                        "Current session {} pending head write request xid {} {} not same committed request xid {} {}, because it is in errors",
+                                        committed_request.session_id,
+                                        current_session_pending_w_requests.begin()->request->xid,
+                                        current_session_pending_w_requests.begin()->request->getOpNum(),
+                                        committed_request.request->xid,
+                                        committed_request.request->getOpNum());
+                                    break;
+                                }
+                                else
+                                {
+                                    LOG_ERROR(
+                                        log,
+                                        "Logic Error, current session {} pending head write request xid {} {} not same committed request xid {} {}",
+                                        committed_request.session_id,
+                                        current_session_pending_w_requests.begin()->request->xid,
+                                        current_session_pending_w_requests.begin()->request->getOpNum(),
+                                        committed_request.request->xid,
+                                        committed_request.request->getOpNum());
+                                    current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
+                                }
                             }
 
                             auto & current_session_pending_requests = pending_requests[committed_request.session_id];
@@ -197,42 +211,61 @@ void SvsKeeperCommitProcessor::run()
                                 current_session_pending_requests.begin()->request->xid);
 
                             bool has_read_request = false;
-                            while(current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
+                            bool found_in_error = false;
+                            while (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
                             {
-                                if (current_session_pending_requests.begin()->request->isReadRequest())
+                                auto current_begin_request_session = current_session_pending_requests.begin();
+                                if (current_begin_request_session->request->isReadRequest())
                                 {
                                     LOG_TRACE(
                                         log,
                                         "Current session {} pending head request xid {} {} is read request",
                                         committed_request.session_id,
-                                        current_session_pending_requests.begin()->session_id,
-                                        current_session_pending_requests.begin()->request->xid);
+                                        current_begin_request_session->session_id,
+                                        current_begin_request_session->request->xid);
 
                                     has_read_request = true;
                                     break;
                                 }
                                 else
                                 {
-                                    LOG_WARNING(
-                                        log,
-                                        "Logic Error, current session {} pending head request xid {} {} not same committed request xid {} {}",
-                                        committed_request.session_id,
-                                        current_session_pending_requests.begin()->session_id,
-                                        current_session_pending_requests.begin()->request->xid,
-                                        committed_request.request->xid,
-                                        committed_request.request->getOpNum());
+                                    if (errors.contains(UInt128(current_begin_request_session->session_id, current_begin_request_session->request->xid)))
+                                    {
+                                        LOG_WARNING(
+                                            log,
+                                            "Current session {} pending head request xid {} {} not same committed request xid {} {}, because it is in errors",
+                                            committed_request.session_id,
+                                            current_begin_request_session->session_id,
+                                            current_begin_request_session->request->xid,
+                                            committed_request.request->xid,
+                                            committed_request.request->getOpNum());
 
-                                    auto response = current_session_pending_requests.begin()->request->makeResponse();
-                                    response->xid = current_session_pending_requests.begin()->request->xid;
-                                    response->zxid = 0;
-                                    response->error = Coordination::Error::ZSESSIONEXPIRED;
-                                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{current_session_pending_requests.begin()->session_id, response});
+                                        found_in_error = true;
+                                        break;
+                                    }
+                                    else
+                                    {
+                                        LOG_ERROR(
+                                            log,
+                                            "Logic Error, current session {} pending head request xid {} {} not same committed request xid {} {}",
+                                            committed_request.session_id,
+                                            current_begin_request_session->session_id,
+                                            current_begin_request_session->request->xid,
+                                            committed_request.request->xid,
+                                            committed_request.request->getOpNum());
 
-                                    current_session_pending_requests.erase(current_session_pending_requests.begin());
+                                        auto response = current_begin_request_session->request->makeResponse();
+                                        response->xid = current_begin_request_session->request->xid;
+                                        response->zxid = 0;
+                                        response->error = Coordination::Error::ZSESSIONEXPIRED;
+                                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{current_begin_request_session->session_id, response});
+
+                                        current_session_pending_requests.erase(current_session_pending_requests.begin());
+                                    }
                                 }
                             }
 
-                            if (has_read_request)
+                            if (has_read_request || found_in_error)
                                 break;
 
                             server->getKeeperStateMachine()->getStorage().processRequest(
