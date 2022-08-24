@@ -54,23 +54,6 @@ void SvsKeeperCommitProcessor::run()
                         }
                         else
                         {
-                            auto & pending_write_requests = thread_pending_write_requests.find(session_id % thread_count)->second;
-                            auto & w_requests = pending_write_requests.find(session_id)->second;
-                            for (auto w_request_it = w_requests.begin(); w_request_it != w_requests.end();)
-                            {
-                                if (uint64_t(w_request_it->request->xid) <= xid)
-                                {
-                                    w_request_it = w_requests.erase(w_request_it);
-
-                                    if (uint64_t(w_request_it->request->xid) == xid)
-                                        break;
-                                }
-                                else
-                                {
-                                    ++w_request_it;
-                                }
-                            }
-
                             auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
                             auto & requests = pending_requests.find(session_id)->second;
 
@@ -146,8 +129,7 @@ void SvsKeeperCommitProcessor::run()
                     if (committed_queue.peek(committed_request))
                     {
                         auto & pending_requests = thread_pending_requests.find(committed_request.session_id % thread_count)->second;
-                        auto & pending_write_requests
-                            = thread_pending_write_requests.find(committed_request.session_id % thread_count)->second;
+                        auto & current_session_pending_requests = pending_requests[committed_request.session_id];
 
                         LOG_TRACE(
                             log,
@@ -157,9 +139,8 @@ void SvsKeeperCommitProcessor::run()
                             committed_request.request->xid);
 
                         auto op_num = committed_request.request->getOpNum();
-                        auto & current_session_pending_w_requests = pending_write_requests[committed_request.session_id];
                         /// another server session request or can be out of order
-                        if (current_session_pending_w_requests.empty() || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
+                        if (current_session_pending_requests.empty() || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
                         {
                             server->getKeeperStateMachine()->getStorage().processRequest(
                                 responses_queue,
@@ -173,49 +154,6 @@ void SvsKeeperCommitProcessor::run()
                         }
                         else
                         {
-                            LOG_TRACE(
-                                log,
-                                "Current session pending write request opNum {}, session {}, xid {}",
-                                Coordination::toString(current_session_pending_w_requests.begin()->request->getOpNum()),
-                                current_session_pending_w_requests.begin()->session_id,
-                                current_session_pending_w_requests.begin()->request->xid);
-
-
-                            while (current_session_pending_w_requests.begin()->request->xid != committed_request.request->xid
-                                   && current_session_pending_w_requests.begin()->request->getOpNum() != Coordination::OpNum::Close
-                                   && committed_request.request->getOpNum() != Coordination::OpNum::Close)  /// because the client close xid is not necessarily a CLOSE_XID.
-                            {
-                                if (errors.contains(UInt128(current_session_pending_w_requests.begin()->session_id, current_session_pending_w_requests.begin()->request->xid)))
-                                {
-                                    LOG_WARNING(
-                                        log,
-                                        "Current session {} pending head write request xid {} {} not same committed request xid {} {}, because it is in errors",
-                                        committed_request.session_id,
-                                        current_session_pending_w_requests.begin()->request->xid,
-                                        current_session_pending_w_requests.begin()->request->getOpNum(),
-                                        committed_request.request->xid,
-                                        Coordination::toString(committed_request.request->getOpNum()));
-                                    break;
-                                }
-                                else
-                                {
-                                    LOG_ERROR(
-                                        log,
-                                        "Logic Error, current session {} pending head write request xid {} {} not same committed request xid {} {}",
-                                        committed_request.session_id,
-                                        current_session_pending_w_requests.begin()->request->xid,
-                                        current_session_pending_w_requests.begin()->request->getOpNum(),
-                                        committed_request.request->xid,
-                                        Coordination::toString(committed_request.request->getOpNum()));
-                                    current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
-
-                                    if (current_session_pending_w_requests.empty())
-                                        break;
-                                }
-                            }
-
-                            auto & current_session_pending_requests = pending_requests[committed_request.session_id];
-
                             LOG_TRACE(
                                 log,
                                 "Current session pending request opNum {}, session {}, xid {}",
@@ -240,7 +178,8 @@ void SvsKeeperCommitProcessor::run()
                                     has_read_request = true;
                                     break;
                                 }
-                                else if (current_begin_request_session->request->getOpNum() != Coordination::OpNum::Close  && committed_request.request->getOpNum() != Coordination::OpNum::Close)
+                                /// Because close's xid is not necessarily CLOSE_XID.
+                                else if (!(current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close))
                                 {
                                     if (errors.contains(UInt128(current_begin_request_session->session_id, current_begin_request_session->request->xid)))
                                     {
@@ -294,11 +233,8 @@ void SvsKeeperCommitProcessor::run()
                                 false);
                             committed_queue.pop();
 
-                            current_session_pending_w_requests.erase(current_session_pending_w_requests.begin());
-                            current_session_pending_requests.erase(current_session_pending_requests.begin());
-
-                            if (current_session_pending_w_requests.empty())
-                                pending_write_requests.erase(committed_request.session_id);
+                            if (!current_session_pending_requests.empty())
+                                current_session_pending_requests.erase(current_session_pending_requests.begin());
 
                             if (current_session_pending_requests.empty())
                                 pending_requests.erase(committed_request.session_id);
@@ -316,7 +252,6 @@ void SvsKeeperCommitProcessor::run()
 
 void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
 {
-    auto & pending_write_requests = thread_pending_write_requests.find(thread_idx)->second;
     auto & pending_requests = thread_pending_requests.find(thread_idx)->second;
 
     size_t request_size = requests_queue->size(thread_idx);
@@ -331,10 +266,6 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
             if (op_num != Coordination::OpNum::Heartbeat && op_num != Coordination::OpNum::Auth)
             {
                 pending_requests[request.session_id].push_back(request);
-                if (!request.request->isReadRequest())
-                {
-                    pending_write_requests[request.session_id].push_back(request);
-                }
             }
         }
     }
@@ -342,17 +273,12 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
     /// process every session, until encountered write request
     for (auto it = pending_requests.begin(); it != pending_requests.end();)
     {
-        auto current_session_id = it->first;
-
         auto & requests = it->second;
         for (auto requets_it = requests.begin(); requets_it != requests.end();)
         {
-            if (pending_write_requests[current_session_id].empty() || requets_it->request->xid != pending_write_requests[current_session_id].begin()->request->xid)
+            /// read request
+            if (requets_it->request->isReadRequest())
             {
-                /// read request
-                if (!requets_it->request->isReadRequest())
-                    throw Exception(ErrorCodes::RAFT_ERROR, "Logic Error, request requried read request, session {}, xid {}", requets_it->session_id, requets_it->request->xid);
-
                 server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, requets_it->time, {}, true, false);
                 requets_it = requests.erase(requets_it);
             }
@@ -418,7 +344,6 @@ void SvsKeeperCommitProcessor::initialize(size_t thread_count_, std::shared_ptr<
     request_thread = std::make_shared<ThreadPool>(thread_count_);
     for (size_t i = 0; i < thread_count; i++)
     {
-        thread_pending_write_requests[i];
         thread_pending_requests[i];
     }
     main_thread = ThreadFromGlobalPool([this] { run(); });
