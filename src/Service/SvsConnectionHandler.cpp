@@ -618,7 +618,7 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
     /// TODO should invoked after response sent to client.
     updateStats(response);
 
-    if (response->getOpNum() == Coordination::OpNum::Close)
+    if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
     {
         responses->push(ptr<FIFOBuffer>());
     }

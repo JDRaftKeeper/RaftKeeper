@@ -139,6 +139,8 @@ def test_restart(started_cluster):
 
         wait_nodes(node1, node2, node3)
 
+        fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
+
         for i in range(9900):
             fake_zk = random.choice(fake_zks)
             assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
