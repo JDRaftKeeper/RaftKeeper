@@ -271,6 +271,9 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
 
         /// 1. accumulate data into tmp_buf
         responses->forEach([&size_to_sent, this] (const auto & resp) -> bool {
+            if (resp == is_close)
+                return false;
+
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
                 /// add whole resp to send_buf
@@ -314,6 +317,12 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
                 resp->begin();
                 sent = 0;
             }
+        }
+
+        if (responses->peek(resp) && resp == is_close)
+        {
+            destroyMe();
+            return;
         }
 
         /// If all sent unregister writable event.
@@ -609,11 +618,18 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
     /// TODO should invoked after response sent to client.
     updateStats(response);
 
-    WriteBufferFromFiFoBuffer buf;
-    response->write(buf);
+    if (response->getOpNum() == Coordination::OpNum::Close)
+    {
+        responses->push(ptr<FIFOBuffer>());
+    }
+    else
+    {
+        WriteBufferFromFiFoBuffer buf;
+        response->write(buf);
 
-    /// TODO handle timeout
-    responses->push(buf.getBuffer());
+        /// TODO handle timeout
+        responses->push(buf.getBuffer());
+    }
 
     LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event

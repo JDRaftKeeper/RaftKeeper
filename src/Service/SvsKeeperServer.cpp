@@ -398,7 +398,7 @@ void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & req
 
 ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std::vector<SvsKeeperStorage::RequestForSession> & request_batch)
 {
-    LOG_WARNING(log, "process the batch requests {}", request_batch.size());
+    LOG_DEBUG(log, "process the batch requests {}", request_batch.size());
     std::vector<ptr<buffer>> entries;
     for (auto & request_session : request_batch)
     {

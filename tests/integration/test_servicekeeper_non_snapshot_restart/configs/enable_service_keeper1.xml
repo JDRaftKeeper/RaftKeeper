@@ -16,6 +16,9 @@
             <session_timeout_ms>80000</session_timeout_ms>
             <operation_timeout_ms>50000</operation_timeout_ms>
             <snapshot_distance>10000000</snapshot_distance>
+            <!--<election_timeout_lower_bound_ms>50</election_timeout_lower_bound_ms>
+            <election_timeout_upper_bound_ms>90</election_timeout_upper_bound_ms>
+            <heart_beat_interval_ms>40</heart_beat_interval_ms>-->
         </coordination_settings>
 
         <remote_servers>
