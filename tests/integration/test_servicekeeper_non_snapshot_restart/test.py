@@ -30,12 +30,12 @@ def started_cluster():
 def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
-def wait_node(cluster1, node):
+def wait_node(node):
     for _ in range(100):
         zk = None
         try:
             # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
-            zk = get_fake_zk(cluster1, node.name, timeout=30.0)
+            zk = get_fake_zk(node, timeout=30.0)
             zk.get("/")
             print("node", node.name, "ready")
             break
@@ -49,20 +49,12 @@ def wait_node(cluster1, node):
     else:
         raise Exception("Can't wait node", node.name, "to become ready")
 
-def wait_nodes(cluster1, node1, node2, node3):
+def wait_nodes(node1, node2, node3):
     for node in [node1, node2, node3]:
-        wait_node(cluster1, node)
+        wait_node(node)
 
-
-def get_fake_zk(cluster1, nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":5102", timeout=timeout)
-    def reset_listener(state):
-        nonlocal _fake_zk_instance
-        print("Fake zk callback called for state", state)
-        if state != KazooState.CONNECTED:
-            _fake_zk_instance._reset()
-
-    _fake_zk_instance.add_listener(reset_listener)
+def get_fake_zk(node, timeout=60.0):
+    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(node.name) + ":5102", timeout=timeout)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
@@ -91,41 +83,39 @@ def dump_states(zk1, d, path="/"):
 def test_restart(started_cluster):
 
     try:
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes(node1, node2, node3)
 
-        fake_zks = [get_fake_zk(cluster1, node) for node in [node1, node2, node3]]
+        fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
-        node1_zk = get_fake_zk(cluster1, "node1")
-
-        node1_zk.create("/test_restart_node", b"hello")
+        fake_zks[0].create("/test_restart_node", b"hello")
 
         for i in range(10000):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
-        get_fake_zk(cluster1, "node1")
+        get_fake_zk(node1)
 
         for i in range(10000):
             fake_zk = random.choice(fake_zks)
             fake_zk.set("/test_restart_node/" + str(i), b"hello111")
 
-        get_fake_zk(cluster1, "node2")
+        get_fake_zk(node2)
 
         for i in range(100):
             fake_zk = random.choice(fake_zks)
             fake_zk.delete("/test_restart_node/" + str(i))
 
-        get_fake_zk(cluster1, "node3")
+        get_fake_zk(node3)
 
-        node1_zk.create("/test_restart_node1", b"hello")
+        fake_zks[1].create("/test_restart_node1", b"hello")
 
         for i in range(10000):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node1/" + str(i), b"hello")
 
-        get_fake_zk(cluster1, "node1")
+        get_fake_zk(node1)
 
-        node1_zk.create("/test_restart_node2", b"hello")
+        fake_zks[2].create("/test_restart_node2", b"hello")
 
         for i in range(10000):
             fake_zk = random.choice(fake_zks)
@@ -147,7 +137,7 @@ def test_restart(started_cluster):
         node2.start_clickhouse(start_wait=False)
         node3.start_clickhouse(start_wait=False)
 
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes(node1, node2, node3)
 
         for i in range(9900):
             fake_zk = random.choice(fake_zks)

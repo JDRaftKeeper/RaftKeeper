@@ -85,6 +85,8 @@ private:
     static constexpr size_t SENT_BUFFER_SIZE = 1024;
     FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
+    ptr<FIFOBuffer> is_close = nullptr;
+
     Logger * log;
 
     StreamSocket socket_;
