@@ -64,7 +64,6 @@ private:
     SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
 
     using RequestForSessions = std::vector<SvsKeeperStorage::RequestForSession>;
-    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> thread_pending_write_requests;
 
     std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> thread_pending_requests;
 
