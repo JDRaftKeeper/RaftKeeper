@@ -219,7 +219,7 @@ def test_follower_restart(started_cluster):
 
         node1_zk.create("/test_restart_node", b"hello")
 
-        node3.restart_clickhouse(kill=True)
+        node3.restart_clickhouse()
         wait_node(cluster1, node3)
 
         node3_zk = get_fake_zk(cluster1, "node3")

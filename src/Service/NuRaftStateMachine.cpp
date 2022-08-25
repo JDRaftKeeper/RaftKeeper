@@ -55,6 +55,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 snap_end_second,
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
+    std::mutex & new_session_id_callback_mutex_,
+    std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
     ptr<log_store> logstore,
     std::string superdigest,
     UInt32 object_node_size,
@@ -63,6 +65,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
     , svskeeper_commit_processor(svskeeper_commit_processor_)
+    , new_session_id_callback_mutex(new_session_id_callback_mutex_)
+    , new_session_id_callback(new_session_id_callback_)
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
 
@@ -468,6 +472,19 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         LOG_DEBUG(log, "Session ID response {} with timeout {}", session_id, session_timeout_ms);
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
+
+        {
+            std::unique_lock session_id_lock(new_session_id_callback_mutex);
+            if (new_session_id_callback.contains(session_id))
+            {
+                new_session_id_callback.find(session_id)->second->notify_all();
+            }
+            else
+            {
+                LOG_ERROR(log, "Not found callback for session id {}, maybe time out", session_id);
+            }
+        }
+
         return response;
     }
     else if (isUpdateSessionRequest(data))

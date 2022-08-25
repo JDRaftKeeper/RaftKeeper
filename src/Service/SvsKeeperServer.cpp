@@ -71,6 +71,8 @@ SvsKeeperServer::SvsKeeperServer(
         coordination_and_settings->snapshot_end_time,
         coordination_and_settings->snapshot_create_interval,
         coordination_and_settings->coordination_settings->max_stored_snapshots,
+        new_session_id_callback_mutex,
+        new_session_id_callback,
         state_manager->load_log_store(),
         checkAndGetSuperdigest(coordination_and_settings->super_digest),
         KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
@@ -426,6 +428,14 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
     nuraft::buffer_serializer bs(entry);
     bs.put_i64(session_timeout_ms);
 
+    auto pre_session_id = state_machine->getStorage().getSessionIDCounter();
+
+    ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
+    {
+        std::unique_lock session_id_lock(new_session_id_callback_mutex);
+        new_session_id_callback.emplace(pre_session_id, condition);
+    }
+
     std::lock_guard lock(append_entries_mutex);
 
     auto result = raft_instance->append_entries({entry});
@@ -445,6 +455,19 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
 
     nuraft::buffer_serializer bs_resp(resp);
     int64_t sid = bs_resp.get_i64();
+
+    {
+        std::unique_lock session_id_lock(new_session_id_callback_mutex);
+        using namespace std::chrono_literals;
+        auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
+
+        new_session_id_callback.erase(pre_session_id);
+        if (status == std::cv_status::timeout)
+        {
+            throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session id {}", sid);
+        }
+    }
+
     LOG_DEBUG(log, "[getSessionID]SessionID #{}", sid);
     return sid;
 }
