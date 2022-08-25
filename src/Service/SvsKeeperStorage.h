@@ -255,6 +255,12 @@ public:
         return result;
     }
 
+    int64_t getSessionIDCounter() const
+    {
+        std::lock_guard lock(session_mutex);
+        return session_id_counter;
+    }
+
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
 
     void processRequest(

@@ -45,6 +45,9 @@ private:
     std::condition_variable initialized_cv;
 //    std::atomic<bool> initial_batch_committed = false;
 
+    std::mutex new_session_id_callback_mutex;
+    std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
+
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
 
     void addServer(ptr<srv_config> srv_conf_to_add);

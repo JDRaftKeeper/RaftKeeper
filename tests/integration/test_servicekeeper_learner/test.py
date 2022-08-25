@@ -36,7 +36,7 @@ def wait_node(cluster1, node):
         try:
             # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
             zk = get_fake_zk(cluster1, node.name, timeout=30.0)
-            zk.create("/test", sequence=True)
+            zk.get("/")
             print("node", node.name, "ready")
             break
         except Exception as ex:

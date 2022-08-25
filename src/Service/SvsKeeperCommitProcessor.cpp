@@ -179,7 +179,11 @@ void SvsKeeperCommitProcessor::run()
                                     break;
                                 }
                                 /// Because close's xid is not necessarily CLOSE_XID.
-                                else if (!(current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close))
+                                else if (current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                {
+                                    break;
+                                }
+                                else
                                 {
                                     if (errors.contains(UInt128(current_begin_request_session->session_id, current_begin_request_session->request->xid)))
                                     {

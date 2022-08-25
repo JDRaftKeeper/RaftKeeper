@@ -656,7 +656,10 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
     ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, store);
+    std::mutex new_session_id_callback_mutex;
+    std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
+
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, store);
 
     int64_t last_log_term = store->term_at(store->next_slot() -1);
     int64_t term = last_log_term == 0 ? 1 : last_log_term;
@@ -740,7 +743,8 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     SvsKeeperResponsesQueue ano_queue;
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
-    NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, ano_store);
+
+    NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
 
     assertStateMachineEquals(machine.getStorage(), ano_machine.getStorage());
 
