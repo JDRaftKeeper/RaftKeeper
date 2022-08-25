@@ -466,22 +466,21 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         int64_t session_id;
         nuraft::buffer_serializer bs(response);
         {
+            std::unique_lock session_id_lock(new_session_id_callback_mutex);
             session_id = storage.getSessionID(session_timeout_ms);
             bs.put_i64(session_id);
-        }
-        LOG_DEBUG(log, "Session ID response {} with timeout {}", session_id, session_timeout_ms);
-        last_committed_idx = log_idx;
-        task_manager->afterCommitted(last_committed_idx);
 
-        {
-            std::unique_lock session_id_lock(new_session_id_callback_mutex);
+            LOG_DEBUG(log, "Session ID response {} with timeout {}", session_id, session_timeout_ms);
+            last_committed_idx = log_idx;
+            task_manager->afterCommitted(last_committed_idx);
+
             if (new_session_id_callback.contains(session_id))
             {
                 new_session_id_callback.find(session_id)->second->notify_all();
             }
             else
             {
-                LOG_ERROR(log, "Not found callback for session id {}, maybe time out", session_id);
+                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", session_id);
             }
         }
 

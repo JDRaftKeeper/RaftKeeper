@@ -428,43 +428,44 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
     nuraft::buffer_serializer bs(entry);
     bs.put_i64(session_timeout_ms);
 
-    auto pre_session_id = state_machine->getStorage().getSessionIDCounter();
-
-    ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
+    int64_t sid;
     {
-        std::unique_lock session_id_lock(new_session_id_callback_mutex);
-        new_session_id_callback.emplace(pre_session_id, condition);
+        std::lock_guard lock(append_entries_mutex);
+
+        auto result = raft_instance->append_entries({entry});
+
+        if (!result->has_result())
+            result->get();
+
+        if (!result->get_accepted())
+            throw Exception(ErrorCodes::RAFT_ERROR, "Cannot send session_id request to RAFT, reason {}", result->get_result_str());
+
+        if (result->get_result_code() != nuraft::cmd_result_code::OK)
+            throw Exception(ErrorCodes::RAFT_ERROR, "session_id request failed to RAFT");
+
+        auto resp = result->get();
+        if (resp == nullptr)
+            throw Exception(ErrorCodes::RAFT_ERROR, "Received nullptr as session_id");
+
+        nuraft::buffer_serializer bs_resp(resp);
+        sid = bs_resp.get_i64();
     }
 
-    std::lock_guard lock(append_entries_mutex);
-
-    auto result = raft_instance->append_entries({entry});
-
-    if (!result->has_result())
-        result->get();
-
-    if (!result->get_accepted())
-        throw Exception(ErrorCodes::RAFT_ERROR, "Cannot send session_id request to RAFT, reason {}", result->get_result_str());
-
-    if (result->get_result_code() != nuraft::cmd_result_code::OK)
-        throw Exception(ErrorCodes::RAFT_ERROR, "session_id request failed to RAFT");
-
-    auto resp = result->get();
-    if (resp == nullptr)
-        throw Exception(ErrorCodes::RAFT_ERROR, "Received nullptr as session_id");
-
-    nuraft::buffer_serializer bs_resp(resp);
-    int64_t sid = bs_resp.get_i64();
-
     {
         std::unique_lock session_id_lock(new_session_id_callback_mutex);
-        using namespace std::chrono_literals;
-        auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
-
-        new_session_id_callback.erase(pre_session_id);
-        if (status == std::cv_status::timeout)
+        if (!state_machine->getStorage().containsSession(sid))
         {
-            throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session id {}", sid);
+            ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
+            new_session_id_callback.emplace(sid, condition);
+
+            using namespace std::chrono_literals;
+            auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
+
+            new_session_id_callback.erase(sid);
+            if (status == std::cv_status::timeout)
+            {
+                throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session id {}", sid);
+            }
         }
     }
 
