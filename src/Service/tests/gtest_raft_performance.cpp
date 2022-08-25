@@ -152,7 +152,11 @@ TEST(RaftPerformance, machineCreateThread)
     cleanDirectory(snap_dir);
     SvsKeeperResponsesQueue queue;
     SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
+
+    std::mutex new_session_id_callback_mutex;
+    std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
+
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte

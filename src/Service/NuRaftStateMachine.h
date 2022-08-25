@@ -37,6 +37,8 @@ public:
         UInt32 snap_end_second,
         UInt32 internal,
         UInt32 keep_max_snapshot_count,
+        std::mutex & new_session_id_callback_mutex_,
+        std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
         ptr<nuraft::log_store> logstore = nullptr,
         std::string superdigest = "",
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
@@ -182,6 +184,9 @@ private:
     std::shared_ptr<SnapTask> snap_task;
 
     std::atomic<bool> shutdown_called{false};
+
+    std::mutex & new_session_id_callback_mutex;
+    std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback;
 };
 
 };
