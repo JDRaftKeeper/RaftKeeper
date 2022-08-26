@@ -288,8 +288,8 @@ def test_simple_replicated_table(started_cluster):
 
         node5.query("INSERT INTO t SELECT number FROM numbers(10)")
 
-        node4.query("SYSTEM SYNC REPLICA t", timeout=10)
-        node6.query("SYSTEM SYNC REPLICA t", timeout=10)
+        node4.query("SYSTEM SYNC REPLICA t", timeout=15)
+        node6.query("SYSTEM SYNC REPLICA t", timeout=15)
 
         assert node4.query("SELECT COUNT() FROM t") == "10\n"
         assert node5.query("SELECT COUNT() FROM t") == "10\n"
