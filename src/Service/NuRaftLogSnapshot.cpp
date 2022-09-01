@@ -154,26 +154,26 @@ saveBatchAndUpdateCheckSum(std::shared_ptr<WriteBufferFromFile> & out, ptr<Snaps
     return {save_size, updateCheckSum(checksum, data_crc)};
 }
 
-static String toString(const Coordination::ACLs & acls)
-{
-    WriteBufferFromOwnString ret;
-    String left_bracket = "[ ";
-    String comma = ", ";
-    String right_bracket = " ]";
-    ret.write(left_bracket.c_str(), left_bracket.length());
-    for (const auto & acl : acls)
-    {
-        auto permissions = std::to_string(acl.permissions);
-        ret.write(permissions.c_str(), permissions.length());
-        ret.write(comma.c_str(), comma.length());
-        ret.write(acl.scheme.c_str(), acl.scheme.length());
-        ret.write(comma.c_str(), comma.length());
-        ret.write(acl.id.c_str(), acl.id.length());
-        ret.write(comma.c_str(), comma.length());
-    }
-    ret.write(right_bracket.c_str(), right_bracket.length());
-    return ret.str();
-}
+//static String toString(const Coordination::ACLs & acls)
+//{
+//    WriteBufferFromOwnString ret;
+//    String left_bracket = "[ ";
+//    String comma = ", ";
+//    String right_bracket = " ]";
+//    ret.write(left_bracket.c_str(), left_bracket.length());
+//    for (const auto & acl : acls)
+//    {
+//        auto permissions = std::to_string(acl.permissions);
+//        ret.write(permissions.c_str(), permissions.length());
+//        ret.write(comma.c_str(), comma.length());
+//        ret.write(acl.scheme.c_str(), acl.scheme.length());
+//        ret.write(comma.c_str(), comma.length());
+//        ret.write(acl.id.c_str(), acl.id.length());
+//        ret.write(comma.c_str(), comma.length());
+//    }
+//    ret.write(right_bracket.c_str(), right_bracket.length());
+//    return ret.str();
+//}
 
 void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version)
 {
@@ -743,7 +743,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             Coordination::ACLs acls;
                             Coordination::read(acls, in);
                             node->acl_id = storage.acl_map.convertACLs(acls);
-                            LOG_TRACE(log, "parseOneObject path {}, acl_id {}, node_acls {}", key, node->acl_id, toString(acls));
+//                            LOG_TRACE(log, "parseOneObject path {}, acl_id {}, node_acls {}", key, node->acl_id, toString(acls));
                         }
 
                         /// Some strange ACLID during deserialization from ZooKeeper
@@ -751,18 +751,18 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             node->acl_id = 0;
 
                         storage.acl_map.addUsage(node->acl_id);
-                        LOG_TRACE(log, "parseOneObject path {}, acl_id {}", key, node->acl_id);
+//                        LOG_TRACE(log, "parseOneObject path {}, acl_id {}", key, node->acl_id);
 
                         Coordination::read(node->is_ephemeral, in);
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
                         auto ephemeral_owner = node->stat.ephemeralOwner;
-                        LOG_TRACE(log, "Load snapshot read key {}", key);
+//                        LOG_TRACE(log, "Load snapshot read key {}", key);
                         storage.container.emplace(key, std::move(node));
 
                         if (ephemeral_owner != 0)
                         {
-                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+//                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
                             std::lock_guard l(storage.ephemerals_mutex);
                             auto & ephemeral_nodes = storage.ephemerals[ephemeral_owner];
                             ephemeral_nodes.emplace(key);
@@ -847,7 +847,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(acl_id, in);
                         Coordination::read(acls, in);
 
-                        LOG_TRACE(log, "parseOneObject acl_id {}, node_acls {}", acl_id, toString(acls));
+//                        LOG_TRACE(log, "parseOneObject acl_id {}, node_acls {}", acl_id, toString(acls));
                         storage.acl_map.addMapping(acl_id, acls);
                     }
                 }

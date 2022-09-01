@@ -418,7 +418,11 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
     request_for_session.request->xid = xid;
     request_for_session.request->readImpl(buffer);
 
-    readIntBinary(request_for_session.time, buffer);
+    if (!buffer.eof())
+        readIntBinary(request_for_session.time, buffer);
+    else /// backward compatibility
+        request_for_session.time
+            = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
     LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", request_for_session.session_id, length, xid, Coordination::toString(opnum));
@@ -455,7 +459,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     //2^19 = 524,288
 //    if (log_idx << 45 == 0)
 //    {
-        LOG_TRACE(log, "Begin commit log index {}", log_idx);
+        LOG_DEBUG(log, "Begin commit log index {}", log_idx);
 //    }
 
     if (isNewSessionRequest(data))
