@@ -102,7 +102,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 {
     try
     {
-        LOG_INFO(log, "session {} socket readable", toHexString(session_id));
+        LOG_TRACE(log, "session {} socket readable", toHexString(session_id));
         if (!socket_.available())
         {
             LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
@@ -112,9 +112,6 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
         while(socket_.available())
         {
-            /// request body length
-            int32_t body_len{};
-
             /// 1. Request header
             if (!next_req_header_read_done)
             {
@@ -144,7 +141,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
 
                 body_len = header;
-                LOG_INFO(log, "read request length : {}", body_len);
+                LOG_TRACE(log, "session {} read request length : {}", toHexString(session_id), body_len);
 
                 /// clear len_buf
                 req_header_buf.drain(req_header_buf.used());
@@ -154,8 +151,11 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
             /// 2. Read body
 
             if (previous_req_body_read_done)
+            {
                 /// create a buffer
                 req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+                previous_req_body_read_done = false;
+            }
 
             socket_.receiveBytes(*req_body_buf);
 
@@ -168,7 +168,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
             packageReceived();
 
-            LOG_INFO(log, "Read request done, body length : {}, req_body_buf used {}", body_len, req_body_buf->used());
+            LOG_TRACE(log, "session {} read request done, body length : {}, req_body_buf used {}", toHexString(session_id), body_len, req_body_buf->used());
             poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
 
             /// 3. handshake
@@ -221,12 +221,12 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
                     if (received_op == Coordination::OpNum::Close)
                     {
-                        LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
+                        LOG_DEBUG(log, "Received close event with xid {} for session {}", received_xid, toHexString(session_id));
                         close_xid = received_xid;
                     }
                     else if (received_op == Coordination::OpNum::Heartbeat)
                     {
-                        LOG_INFO(log, "Received heartbeat for session #{}", session_id);
+                        LOG_TRACE(log, "Received heartbeat for session {}", toHexString(session_id));
                     }
 
                     /// Each request restarts session stopwatch
@@ -234,7 +234,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
                 catch (const Exception & e)
                 {
-                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", session_id));
+                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", toHexString(session_id)));
 
                     if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
                     {
@@ -247,12 +247,12 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
     }
     catch (Poco::Net::NetException &)
     {
-        tryLogCurrentException(log, "Network error when receiving request, will close connection.");
+        tryLogCurrentException(log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
     catch (...)
     {
-        tryLogCurrentException(log, "Fatal error when handling request, will close connection.");
+        tryLogCurrentException(log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
 }

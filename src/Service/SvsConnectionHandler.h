@@ -95,6 +95,9 @@ private:
     ptr<FIFOBuffer> req_body_buf;
     FIFOBuffer req_header_buf = FIFOBuffer(4);
 
+    /// request body length
+    int32_t body_len{};
+
     bool next_req_header_read_done = false;
     bool previous_req_body_read_done = true;
     bool handshake_done = false;
