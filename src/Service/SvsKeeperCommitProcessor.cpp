@@ -131,7 +131,7 @@ void SvsKeeperCommitProcessor::run()
                         auto & pending_requests = thread_pending_requests.find(committed_request.session_id % thread_count)->second;
                         auto & current_session_pending_requests = pending_requests[committed_request.session_id];
 
-                        LOG_TRACE(
+                        LOG_DEBUG(
                             log,
                             "committed_request opNum {}, session {}, xid {}",
                             Coordination::toString(committed_request.request->getOpNum()),
@@ -154,7 +154,7 @@ void SvsKeeperCommitProcessor::run()
                         }
                         else
                         {
-                            LOG_TRACE(
+                            LOG_DEBUG(
                                 log,
                                 "Current session pending request opNum {}, session {}, xid {}",
                                 Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()),
@@ -168,7 +168,7 @@ void SvsKeeperCommitProcessor::run()
                                 auto current_begin_request_session = current_session_pending_requests.begin();
                                 if (current_begin_request_session->request->isReadRequest())
                                 {
-                                    LOG_TRACE(
+                                    LOG_DEBUG(
                                         log,
                                         "Current session {} pending head request xid {} {} is read request",
                                         committed_request.session_id,
