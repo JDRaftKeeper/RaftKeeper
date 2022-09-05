@@ -3,9 +3,11 @@
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <IO/WriteBufferFromPocoSocket.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
 #include <Poco/Net/StreamSocket.h>
 #include <common/logger_useful.h>
 #include <Service/SvsKeeperStorage.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
 
 namespace DB
 {
@@ -14,7 +16,19 @@ enum ForwardProtocol : int8_t
 {
     Hello = 1,
     Ping = 2,
-    Data = 3
+    Data = 3,
+    Result = 4
+};
+
+struct ForwardResponse
+{
+    ForwardProtocol protocol;
+    bool accepted;
+    void write(WriteBufferFromFiFoBuffer & buf) const
+    {
+        Coordination::write(protocol, buf);
+        Coordination::write(accepted, buf);
+    }
 };
 
 class ForwardingConnection

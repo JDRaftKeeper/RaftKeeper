@@ -50,7 +50,7 @@ private:
 
     std::pair<Coordination::OpNum, Coordination::XID> receiveRequest(int32_t length);
 
-    void sendResponse(const Coordination::ZooKeeperResponsePtr& resp);
+    void sendResponse(ForwardProtocol protocol, bool accepted);
 
     /// destroy connection
     void destroyMe();

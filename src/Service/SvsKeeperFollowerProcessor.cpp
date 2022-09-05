@@ -38,7 +38,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             {
                 auto connection = server->getLeaderClient(thread_idx);
                 connection->sendPing();
-                //                    connection->receivePing();
+                connection->receivePing();
             }
             catch (...)
             {
