@@ -10,6 +10,7 @@ namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
+    extern const int RAFT_ERROR;
 }
 
 void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
@@ -38,7 +39,7 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             sendHandshake();
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
-//            receiveHandshake();
+            receiveHandshake();
             LOG_TRACE(log, "received handshake {}", endpoint);
 
             connected = true;
@@ -89,9 +90,34 @@ void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_
     }
     catch(...)
     {
-        LOG_ERROR(log, "Got exception send {}, {}", endpoint, getCurrentExceptionMessage(true));
+        LOG_ERROR(log, "Got exception while forwarding to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
         throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
+    }
+
+    /// There are two situations,
+    /// 1. Feedback is not accepted.
+    /// 2. Receiving network packets failed, which cannot determine whether the opposite end is accepted.
+    try
+    {
+        int8_t type;
+        Coordination::read(type, *in);
+        assert(type == ForwardProtocol::Result);
+
+        bool accepted;
+        Coordination::read(accepted, *in);
+        if (!accepted)
+            throw Exception("Request not accepted", ErrorCodes::RAFT_ERROR);
+    }
+    catch(Exception & e)
+    {
+        LOG_ERROR(log, "Got exception while receiving forward result {}, {}", endpoint, getCurrentExceptionMessage(true));
+
+        /// TODO If it is a network exception, we receive the request by default. To be discussed.
+        if (e.code() == ErrorCodes::RAFT_ERROR)
+            throw e;
+        else
+            disconnect();
     }
 }
 
@@ -117,7 +143,7 @@ void ForwardingConnection::sendPing()
     }
     catch(...)
     {
-        LOG_ERROR(log, "Got exception send {}, {}", endpoint, getCurrentExceptionMessage(true));
+        LOG_ERROR(log, "Got exception while send ping to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
         throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
     }

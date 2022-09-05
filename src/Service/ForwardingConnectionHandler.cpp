@@ -98,18 +98,10 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 switch (forward_protocol)
                 {
                     case ForwardProtocol::Hello:
-//                        Coordination::write(ForwardProtocol::Hello, out);
-                        /// Set socket to blocking mode to simplify sending.
-//                        socket_.setBlocking(true);
-//                        socket_.sendBytes(*out.getBuffer());
-//                        socket_.setBlocking(false);
+                        sendResponse(ForwardProtocol::Hello, true);
                         break;
                     case ForwardProtocol::Ping:
-//                        Coordination::write(ForwardProtocol::Ping, out);
-                        /// Set socket to blocking mode to simplify sending.
-//                        socket_.setBlocking(true);
-//                        socket_.sendBytes(*out.getBuffer());
-//                        socket_.setBlocking(false);
+                        sendResponse(ForwardProtocol::Ping, true);
                         break;
                     case ForwardProtocol::Data:
                         has_data = true;
@@ -132,24 +124,27 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (!req_body_buf) /// new data package
+                try
                 {
-                    if (!req_body_len_buf.isFull())
+                    if (!req_body_buf) /// new data package
                     {
-                        socket_.receiveBytes(req_body_len_buf);
                         if (!req_body_len_buf.isFull())
-                            continue;
+                        {
+                            socket_.receiveBytes(req_body_len_buf);
+                            if (!req_body_len_buf.isFull())
+                                continue;
+                        }
+
+                        /// request body length
+                        int32_t body_len{};
+                        ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
+                        Coordination::read(body_len, read_buf);
+                        req_body_len_buf.drain(req_body_len_buf.used());
+
+                        LOG_TRACE(log, "Read request done, body length : {}", body_len);
+
+                        req_body_buf = std::make_shared<FIFOBuffer>(body_len);
                     }
-
-                    /// request body length
-                    int32_t body_len{};
-                    ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
-                    Coordination::read(body_len, read_buf);
-                    req_body_len_buf.drain(req_body_len_buf.used());
-
-                    LOG_TRACE(log, "Read request done, body length : {}", body_len);
-
-                    req_body_buf = std::make_shared<FIFOBuffer>(body_len);
 
                     socket_.receiveBytes(*req_body_buf);
                     if (!req_body_buf->isFull())
@@ -157,22 +152,15 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                     receiveRequest(req_body_buf->size());
 
+                    sendResponse(ForwardProtocol::Result, true);
+
                     req_body_buf.reset();
                     current_package_done = true;
                 }
-                else
+                catch (...)
                 {
-                    if (!req_body_buf->isFull())
-                    {
-                        socket_.receiveBytes(*req_body_buf);
-                        if (!req_body_buf->isFull())
-                            continue;
-                    }
-
-                    receiveRequest(req_body_buf->size());
-
-                    req_body_buf.reset();
-                    current_package_done = true;
+                    sendResponse(ForwardProtocol::Result, false);
+                    tryLogCurrentException(log, "Error processing request.");
                 }
             }
         }
@@ -300,12 +288,13 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
     return std::make_pair(opnum, xid);
 }
 
-void ForwardingConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
+void ForwardingConnectionHandler::sendResponse(ForwardProtocol protocol, bool accepted)
 {
 //    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
+    ForwardResponse response{protocol, accepted};
     WriteBufferFromFiFoBuffer buf;
-    response->write(buf);
+    response.write(buf);
 
     /// TODO handle timeout
     responses->push(buf.getBuffer());
