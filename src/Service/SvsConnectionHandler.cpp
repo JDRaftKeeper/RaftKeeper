@@ -261,7 +261,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
 {
     try
     {
-        LOG_INFO(log, "session {} socket writable", toHexString(session_id));
+        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
 
         if (responses->size() == 0 && send_buf.used() == 0)
             return;
@@ -308,7 +308,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_INFO(log, "sent response to {}", toHexString(session_id));
+                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -328,7 +328,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
         /// If all sent unregister writable event.
         if (responses->size() == 0 && send_buf.used() == 0)
         {
-            LOG_INFO(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
+            LOG_DEBUG(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
             reactor_.removeEventHandler(
                 socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
         }
@@ -613,7 +613,7 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
 
 void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
 {
-    LOG_INFO(log, "Dispatch response to conn handler session {}", toHexString(session_id));
+    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
     /// TODO should invoked after response sent to client.
     updateStats(response);
@@ -631,12 +631,12 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
         responses->push(buf.getBuffer());
     }
 
-    LOG_INFO(log, "Add socket writable event handler - session {}", toHexString(session_id));
+    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
     reactor_.addEventHandler(
         socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_INFO(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
+    LOG_TRACE(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
 
     reactor_.wakeUp();
 }
