@@ -464,12 +464,12 @@ int64_t SvsKeeperServer::getSessionID(int64_t session_timeout_ms)
             new_session_id_callback.erase(sid);
             if (status == std::cv_status::timeout)
             {
-                throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session id {}", sid);
+                throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session {}", sid);
             }
         }
     }
 
-    LOG_DEBUG(log, "[getSessionID]SessionID #{}", sid);
+    LOG_DEBUG(log, "Got session {}", sid);
     return sid;
 }
 

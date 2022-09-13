@@ -65,9 +65,11 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                     svskeeper_sync_processor.processRequest(request_for_session);
                 }
 
-                svskeeper_commit_processor->processRequest(request_for_session);
-
-                LOG_TRACE(log, "requestThreadFakeZk put request_for_session session_id {}, xid {}, opnum {}", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
+                if (containsSession(request_for_session.session_id))
+                {
+                    LOG_TRACE(log, "requestThreadFakeZk put request_for_session session_id {}, xid {}, opnum {}", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
+                    svskeeper_commit_processor->processRequest(request_for_session);
+                }
             }
             catch (...)
             {
@@ -170,7 +172,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
-        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+        throw Exception("Cannot push request to queue within operation timeout, requests_queue size {}", requests_queue->size(), ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 
@@ -205,8 +207,16 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
     bool session_consistent = configuration_and_settings->coordination_settings->session_consistent;
 
+    size_t thread_count = configuration_and_settings->thread_count;
+    UInt64 operation_timeout_ms = configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds();
+
     if (session_consistent)
+    {
         server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue, svskeeper_commit_processor);
+
+        /// Raft server needs to be able to handle commit when startup.
+        svskeeper_commit_processor->initialize(thread_count, server, shared_from_this(), operation_timeout_ms);
+    }
     else
         server = std::make_shared<SvsKeeperServer>(configuration_and_settings, config, responses_queue);
 
@@ -228,14 +238,10 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
         throw;
     }
 
-    size_t thread_count = configuration_and_settings->thread_count;
-
     if (session_consistent)
     {
-        UInt64 operation_timeout_ms = configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds();
         follower_request_processor.initialize(thread_count, server, operation_timeout_ms);
         svskeeper_sync_processor.initialize(1, server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
-        svskeeper_commit_processor->initialize(thread_count,server, operation_timeout_ms);
         requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     }
     else
@@ -457,6 +463,15 @@ void SvsKeeperDispatcher::finishSession(int64_t session_id)
     if (session_it != session_to_response_callback.end())
         session_to_response_callback.erase(session_it);
 }
+
+bool SvsKeeperDispatcher::containsSession(int64_t session_id)
+{
+    LOG_TRACE(log, "contains session {}", toHexString(session_id));
+    std::lock_guard lock(session_to_response_callback_mutex);
+    auto session_it = session_to_response_callback.find(session_id);
+    return session_it != session_to_response_callback.end();
+}
+
 
 void SvsKeeperDispatcher::updateConfiguration(const Poco::Util::AbstractConfiguration & config)
 {
