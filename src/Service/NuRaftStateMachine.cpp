@@ -258,7 +258,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                     int64_t session_id = storage.getSessionID(session_timeout_ms);
                     LOG_TRACE(
                         log,
-                        "Replay log create session, session_id {} with timeout {} from log",
+                        "Replay log create session {} with timeout {} from log",
                         session_id,
                         session_timeout_ms);
                 }
@@ -271,7 +271,7 @@ NuRaftStateMachine::NuRaftStateMachine(
 
                     storage.updateSessionTimeout(session_id, session_timeout_ms);
                     LOG_TRACE(
-                        log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
+                        log, "Replay log update session {} with timeout {}", session_id, session_timeout_ms);
                 }
                 else
                 {
@@ -474,7 +474,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             session_id = storage.getSessionID(session_timeout_ms);
             bs.put_i64(session_id);
 
-            LOG_DEBUG(log, "Session ID response {} with timeout {}", session_id, session_timeout_ms);
+            LOG_DEBUG(log, "Commit session id {} with timeout {}", session_id, session_timeout_ms);
             last_committed_idx = log_idx;
             task_manager->afterCommitted(last_committed_idx);
 
@@ -500,7 +500,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         nuraft::buffer_serializer bs(response);
 
         int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
-        LOG_DEBUG(log, "Update session ID {} timeout {}, response {}", session_id, session_timeout_ms, is_success);
+        LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", session_id, session_timeout_ms, is_success);
 
         bs.put_i8(is_success);
 

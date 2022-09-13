@@ -272,7 +272,7 @@ void ServiceTCPHandler::runImpl()
                 /// new session
                 LOG_INFO(log, "Requesting session ID for new client");
                 session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-                LOG_INFO(log, "Received session ID {}", session_id);
+                LOG_INFO(log, "Received session id {}", session_id);
             }
         }
         catch (const Exception & e)
@@ -314,7 +314,7 @@ void ServiceTCPHandler::runImpl()
 
                 if (received_op == Coordination::OpNum::Close)
                 {
-                    LOG_DEBUG(log, "Received close event with xid {} for session id #{}", received_xid, session_id);
+                    LOG_DEBUG(log, "Received close event with xid {} for session {}", received_xid, session_id);
                     close_xid = received_xid;
                     close_received = true;
                 }
