@@ -1565,7 +1565,7 @@ void SvsKeeperStorage::processRequest(
             {
                 LOG_TRACE(
                     log,
-                    "Zxid {}, session id {}, opnum {}, xid {}, error no {}, msg {}",
+                    "Zxid {}, session {}, opnum {}, xid {}, error no {}, msg {}",
                     zxid,
                     session_id,
                     Coordination::toString(zk_request->getOpNum()),
@@ -1595,7 +1595,7 @@ void SvsKeeperStorage::processRequest(
 
                     LOG_TRACE(
                         log,
-                        "Register watch, session id {}, path {}, opnum {}, xid {}, error no {}, msg {}",
+                        "Register watch, session {}, path {}, opnum {}, xid {}, error no {}, msg {}",
                         session_id,
                         zk_request->getPath(),
                         Coordination::toString(zk_request->getOpNum()),
@@ -1634,7 +1634,7 @@ void SvsKeeperStorage::processRequest(
                                 = dynamic_cast<Coordination::ZooKeeperWatchResponse *>(session_id_response.response.get());
                             LOG_TRACE(
                                 log,
-                                "Processed watch, session id {}, path {}, type {}, xid {} zxid {}",
+                                "Processed watch, session {}, path {}, type {}, xid {} zxid {}",
                                 session_id_response.session_id,
                                 watch_response->path,
                                 watch_response->type,
@@ -1701,7 +1701,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
-    LOG_DEBUG(log, "clearDeadWatches, session id {}", toHexString(session_id));
+    LOG_DEBUG(log, "Clear dead watches, session {}", session_id);
     //    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);

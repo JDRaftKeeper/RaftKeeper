@@ -67,7 +67,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
                 if (containsSession(request_for_session.session_id))
                 {
-                    LOG_TRACE(log, "requestThreadFakeZk put request_for_session session_id {}, xid {}, opnum {}", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
+                    LOG_TRACE(log, "Put request session {}, xid {}, opnum {} to commit processor", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
                     svskeeper_commit_processor->processRequest(request_for_session);
                 }
             }
@@ -376,7 +376,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
 
                 for (int64_t dead_session : dead_sessions)
                 {
-                    LOG_INFO(log, "Found dead session {}, will try to close it", toHexString(dead_session));
+                    LOG_INFO(log, "Found dead session {}, will try to close it", dead_session);
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;

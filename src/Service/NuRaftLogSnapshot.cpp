@@ -576,8 +576,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
     int64_t serialized_next_session_id = serializeSessions(storage, save_batch_size, version, session_path);
     LOG_INFO(log,
              "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-             NumberFormatter::formatHex(next_session_id, true),
-             NumberFormatter::formatHex(serialized_next_session_id, true));
+             next_session_id,
+             serialized_next_session_id);
 
     /// 3. Save sessions
     String acl_path;
