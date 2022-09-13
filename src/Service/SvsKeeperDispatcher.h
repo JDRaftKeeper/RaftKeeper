@@ -37,7 +37,7 @@ using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeep
 
 
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
-class SvsKeeperDispatcher
+class SvsKeeperDispatcher : public std::enable_shared_from_this<SvsKeeperDispatcher>
 {
 
 private:
@@ -112,6 +112,8 @@ public:
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
+
+    bool containsSession(int64_t session_id);
 
     /// Thread apply or wait configuration changes from leader
     void updateConfigurationThread();

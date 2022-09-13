@@ -1,5 +1,5 @@
 
-#include <Service/SvsKeeperCommitProcessor.h>
+#include <Service/SvsKeeperDispatcher.h>
 
 namespace DB
 {
@@ -8,7 +8,10 @@ void SvsKeeperCommitProcessor::processRequest(Request request_for_session)
 {
     if (!shutdown_called) {
         requests_queue->push(request_for_session);
-        cv.notify_all();
+        {
+            std::unique_lock lk(mutex);
+            cv.notify_all();
+        }
     }
 }
 
@@ -18,7 +21,8 @@ void SvsKeeperCommitProcessor::run()
     {
         try
         {
-            auto need_wait = [&]() -> bool {
+            auto need_wait = [&]() -> bool
+            {
                 if (errors.empty() /*&& pending_requests.empty()*/ && requests_queue->empty() && committed_queue.empty())
                     return true;
 
@@ -28,14 +32,15 @@ void SvsKeeperCommitProcessor::run()
             {
                 using namespace std::chrono_literals;
                 std::unique_lock lk(mutex);
-                cv.wait_for(lk, operation_timeout_ms * 1ms, [&] { return !need_wait() || shutdown_called; });
+                if (!cv.wait_for(lk, operation_timeout_ms * 1ms, [&] { return !need_wait() || shutdown_called; }))
+                    LOG_WARNING(log, "wait time out errors size {}, requests_queue size {}, committed_queue size {}", errors.size(), requests_queue->size(), committed_queue.size());
             }
 
             if (shutdown_called)
                 return;
 
             {
-                std::lock_guard lock(errors_mutex);
+                std::lock_guard lock(mutex);
                 if (!errors.empty())
                 {
                     for (auto it = errors.begin(); it != errors.end();)
@@ -104,7 +109,7 @@ void SvsKeeperCommitProcessor::run()
                         else
                         {
                             LOG_WARNING(
-                                log, "Not found error request session {} xid {} from pending queue. Maybe it is still in the request queue and will be processed next time", session_id, xid);
+                                log, "Not found error request session {}, xid {} from pending queue. Maybe it is still in the request queue and will be processed next time", session_id, xid);
                             break;
                         }
                     }
@@ -133,27 +138,30 @@ void SvsKeeperCommitProcessor::run()
 
                         LOG_DEBUG(
                             log,
-                            "committed_request opNum {}, session {}, xid {}",
+                            "current_session_pending_requests size {} committed_request opNum {}, session {} xid {} request {}",
+                            current_session_pending_requests.size(),
                             Coordination::toString(committed_request.request->getOpNum()),
                             committed_request.session_id,
-                            committed_request.request->xid);
+                            committed_request.request->xid,
+                            committed_request.request->toString());
 
                         auto op_num = committed_request.request->getOpNum();
+
                         /// another server session request or can be out of order
-                        if (current_session_pending_requests.empty() || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
+                        if (!service_keeper_storage_dispatcher->containsSession(committed_request.session_id) || op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
                         {
-                            server->getKeeperStateMachine()->getStorage().processRequest(
-                                responses_queue,
-                                committed_request.request,
-                                committed_request.session_id,
-                                committed_request.time,
-                                {},
-                                true,
-                                false);
+                            LOG_DEBUG(log, "Not contains session {}", committed_request.session_id);
+                            stateMachineProcessRequest(committed_request);
                             committed_queue.pop();
                         }
                         else
                         {
+                            if (current_session_pending_requests.empty())
+                            {
+                                LOG_WARNING(log, "current_session_pending_requests empty, matbe it's in request queue");
+                                break;
+                            }
+
                             LOG_DEBUG(
                                 log,
                                 "Current session pending request opNum {}, session {}, xid {}",
@@ -201,25 +209,17 @@ void SvsKeeperCommitProcessor::run()
                                     }
                                     else
                                     {
-                                        LOG_ERROR(
+                                        LOG_WARNING(
                                             log,
-                                            "Logic Error, current session {} pending head request xid {} {} not same committed request xid {} {}",
+                                            "Logic Error, maybe reconnected current session {} pending head request xid {} {} not same committed request xid {} {}, pending request size {}",
                                             committed_request.session_id,
-                                            current_begin_request_session->session_id,
                                             current_begin_request_session->request->xid,
+                                            current_begin_request_session->request->toString(),
                                             committed_request.request->xid,
-                                            Coordination::toString(committed_request.request->getOpNum()));
+                                            committed_request.request->toString(),
+                                            current_session_pending_requests.size());
 
-                                        auto response = current_begin_request_session->request->makeResponse();
-                                        response->xid = current_begin_request_session->request->xid;
-                                        response->zxid = 0;
-                                        response->error = Coordination::Error::ZSESSIONEXPIRED;
-                                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{current_begin_request_session->session_id, response});
-
-                                        current_session_pending_requests.erase(current_session_pending_requests.begin());
-
-                                        if (current_session_pending_requests.empty())
-                                            break;
+                                        break;
                                     }
                                 }
                             }
@@ -227,20 +227,14 @@ void SvsKeeperCommitProcessor::run()
                             if (has_read_request || found_in_error)
                                 break;
 
-                            server->getKeeperStateMachine()->getStorage().processRequest(
-                                responses_queue,
-                                committed_request.request,
-                                committed_request.session_id,
-                                committed_request.time,
-                                {},
-                                true,
-                                false);
+                            stateMachineProcessRequest(committed_request);
+
                             committed_queue.pop();
 
                             if (!current_session_pending_requests.empty())
                                 current_session_pending_requests.erase(current_session_pending_requests.begin());
 
-                            if (current_session_pending_requests.empty())
+                            if (current_session_pending_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
                                 pending_requests.erase(committed_request.session_id);
                         }
                     }
@@ -283,7 +277,7 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
             /// read request
             if (requets_it->request->isReadRequest())
             {
-                server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, requets_it->request, requets_it->session_id, requets_it->time, {}, true, false);
+                stateMachineProcessRequest(*requets_it);
                 requets_it = requests.erase(requets_it);
             }
             else
@@ -296,6 +290,25 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
             it = pending_requests.erase(it);
         else
             ++it;
+    }
+}
+
+void SvsKeeperCommitProcessor::stateMachineProcessRequest(const RequestForSession & reuqest) const
+{
+    try
+    {
+        LOG_TRACE(
+            log,
+            "Process reuqest session {} xid {} request {}",
+            reuqest.session_id,
+            reuqest.request->xid,
+            reuqest.request->toString());
+
+        server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, reuqest.request, reuqest.session_id, reuqest.time, {}, true, false);
+    }
+    catch (...)
+    {
+        tryLogCurrentException(log, fmt::format("Got exception while process session {} read request {}.", reuqest.session_id, reuqest.request->toString()));
     }
 }
 
@@ -324,26 +337,35 @@ void SvsKeeperCommitProcessor::shutdown()
 void SvsKeeperCommitProcessor::commit(Request request)
 {
     if (!shutdown_called) {
+
         committed_queue.push(request);
-        cv.notify_all();
+
+        {
+            std::unique_lock lk(mutex);
+            cv.notify_all();
+        }
+        LOG_DEBUG(log, "commit notify committed_queue size {}", committed_queue.size());
     }
 }
 
 void SvsKeeperCommitProcessor::onError(bool accepted, nuraft::cmd_result_code error_code, Request request)
 {
     if (!shutdown_called) {
-        std::lock_guard lock(errors_mutex);
-        ErrorRequest error_request{accepted, error_code, request};
-        errors.emplace(UInt128(request.session_id, request.request->xid), error_request);
+        {
+            std::unique_lock lk(mutex);
+            ErrorRequest error_request{accepted, error_code, request};
+            errors.emplace(UInt128(request.session_id, request.request->xid), error_request);
+        }
         cv.notify_all();
     }
 }
 
-void SvsKeeperCommitProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_)
+void SvsKeeperCommitProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 operation_timeout_ms_)
 {
     operation_timeout_ms = operation_timeout_ms_;
     thread_count = thread_count_;
     server = server_;
+    service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count_);
     for (size_t i = 0; i < thread_count; i++)

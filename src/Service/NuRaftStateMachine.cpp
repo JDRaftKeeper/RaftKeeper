@@ -512,12 +512,12 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     {
         auto request_for_session = parseRequest(data);
         SvsKeeperStorage::ResponsesForSessions responses_for_sessions;
-        LOG_TRACE(
+        LOG_DEBUG(
             log,
-            "Commit log index {}, SessionID/XID #{}#{}",
+            "Commit log index {}, session {}, xid {}, request {}",
             log_idx,
             request_for_session.session_id,
-            request_for_session.request->xid);
+            request_for_session.request->xid, request_for_session.request->toString());
 
         if (svskeeper_commit_processor)
         {

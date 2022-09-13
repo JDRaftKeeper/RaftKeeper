@@ -177,6 +177,21 @@ public:
         return popImpl(x, std::nullopt /*timeout in milliseconds*/);
     }
 
+    void pop()
+    {
+        T x;
+        popImpl(x, std::nullopt /*timeout in milliseconds*/);
+    }
+
+    bool peek(T & x)
+    {
+        std::unique_lock lock(queue_mutex);
+        if (queue.empty())
+            return false;
+        x = queue.front();
+        return true;
+    }
+
     /// Returns false if queue is finished or object was not pushed during timeout
     bool tryPush(const T & x, UInt64 milliseconds = 0)
     {
