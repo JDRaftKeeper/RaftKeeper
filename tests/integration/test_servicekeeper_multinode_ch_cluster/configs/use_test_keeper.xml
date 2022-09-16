@@ -12,6 +12,6 @@
             <host>node3</host>
             <port>5102</port>
         </node>
-        <session_timeout_ms>30000</session_timeout_ms>
+        <session_timeout_ms>1000</session_timeout_ms>
     </zookeeper>
 </yandex>

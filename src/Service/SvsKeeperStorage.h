@@ -212,7 +212,7 @@ public:
     SvsKeeperSessionExpiryQueue session_expiry_queue;
     SessionAndTimeout session_and_timeout;
     /// pending close sessions
-    std::unordered_set<int64_t> closing_sessions;
+//    std::unordered_set<int64_t> closing_sessions;
     mutable std::mutex session_mutex;
 
     /// Session id -> patch
@@ -289,8 +289,6 @@ public:
     {
         std::lock_guard lock(session_mutex);
         auto ret = session_expiry_queue.getExpiredSessions();
-        for (auto session : ret)
-            closing_sessions.emplace(session);
         return ret;
     }
 

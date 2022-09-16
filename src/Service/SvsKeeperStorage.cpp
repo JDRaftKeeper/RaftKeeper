@@ -1405,7 +1405,6 @@ void SvsKeeperStorage::processRequest(
             std::lock_guard lock(session_mutex);
             session_expiry_queue.remove(session_id);
             session_and_timeout.erase(session_id);
-            closing_sessions.erase(session_id);
             LOG_INFO(log, "Process close session {}, total sessions {}", toHexString(session_id), session_and_timeout.size());
         }
 
@@ -1426,17 +1425,6 @@ void SvsKeeperStorage::processRequest(
             LOG_WARNING(
                 log,
                 "Session {} is expired, ignore op {} to path {}",
-                toHexString(session_id),
-                Coordination::toString(zk_request->getOpNum()),
-                zk_request->getPath());
-            return;
-        }
-
-        if (closing_sessions.contains(session_id))
-        {
-            LOG_WARNING(
-                log,
-                "Session {} is closing, ignore op {} to path {}",
                 toHexString(session_id),
                 Coordination::toString(zk_request->getOpNum()),
                 zk_request->getPath());
@@ -1655,11 +1643,6 @@ void SvsKeeperStorage::processRequest(
 bool SvsKeeperStorage::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
 {
     std::lock_guard lock(session_mutex);
-    if (closing_sessions.contains(session_id))
-    {
-        LOG_WARNING(log, "Session {} is closing, ignore session timeout updating.", toHexString(session_id));
-        return false;
-    }
     if (!session_and_timeout.contains(session_id))
     {
         LOG_WARNING(log, "Updating session timeout for {}, but it is already expired.", toHexString(session_id));

@@ -60,43 +60,47 @@ void SvsKeeperCommitProcessor::run()
                         else
                         {
                             auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
-                            auto & requests = pending_requests.find(session_id)->second;
+                            auto session_requests = pending_requests.find(session_id);
 
-                            for (auto request_it = requests.begin(); request_it != requests.end();)
+                            if (session_requests != pending_requests.end())
                             {
-                                if (uint64_t(request_it->request->xid) <= xid)
+                                auto & requests = session_requests->second;
+                                for (auto request_it = requests.begin(); request_it != requests.end();)
                                 {
-                                    if (uint64_t(request_it->request->xid) == xid)
-                                        request = *request_it;
+                                    if (uint64_t(request_it->request->xid) <= xid)
+                                    {
+                                        if (uint64_t(request_it->request->xid) == xid)
+                                            request = *request_it;
 
-                                    auto response = request_it->request->makeResponse();
+                                        auto response = request_it->request->makeResponse();
 
-                                    response->xid = request_it->request->xid;
-                                    response->zxid = 0;
+                                        response->xid = request_it->request->xid;
+                                        response->zxid = 0;
 
-                                    auto accepted = it->second.accepted;
-                                    auto error_code = it->second.error_code;
+                                        auto accepted = it->second.accepted;
+                                        auto error_code = it->second.error_code;
 
-                                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                                     : Coordination::Error::ZCONNECTIONLOSS;
+                                        response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
 
-                                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_it->session_id, response});
+                                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_it->session_id, response});
 
-                                    LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, Coordination::toString(request_it->request->getOpNum()));
+                                        LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, Coordination::toString(request_it->request->getOpNum()));
 
-                                    if (!accepted)
-                                        LOG_ERROR(log, "Request batch is not accepted");
+                                        if (!accepted)
+                                            LOG_ERROR(log, "Request batch is not accepted");
+                                        else
+                                            LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
+
+                                        request_it = requests.erase(request_it);
+
+                                        if (request)
+                                            break;
+                                    }
                                     else
-                                        LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
-
-                                    request_it = requests.erase(request_it);
-
-                                    if (request)
-                                        break;
-                                }
-                                else
-                                {
-                                    ++request_it;
+                                    {
+                                        ++request_it;
+                                    }
                                 }
                             }
                         }
@@ -156,71 +160,80 @@ void SvsKeeperCommitProcessor::run()
                         }
                         else
                         {
-                            if (current_session_pending_requests.empty())
-                            {
-                                LOG_WARNING(log, "current_session_pending_requests empty, matbe it's in request queue");
-                                break;
-                            }
-
-                            LOG_DEBUG(
-                                log,
-                                "Current session pending request opNum {}, session {}, xid {}",
-                                Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()),
-                                current_session_pending_requests.begin()->session_id,
-                                current_session_pending_requests.begin()->request->xid);
-
                             bool has_read_request = false;
                             bool found_in_error = false;
-                            while (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
+                            if (!current_session_pending_requests.empty())
                             {
-                                auto current_begin_request_session = current_session_pending_requests.begin();
-                                if (current_begin_request_session->request->isReadRequest())
-                                {
-                                    LOG_DEBUG(
-                                        log,
-                                        "Current session {} pending head request xid {} {} is read request",
-                                        committed_request.session_id,
-                                        current_begin_request_session->session_id,
-                                        current_begin_request_session->request->xid);
+                                LOG_DEBUG(
+                                    log,
+                                    "Current session pending request opNum {}, session {}, xid {}",
+                                    Coordination::toString(current_session_pending_requests.begin()->request->getOpNum()),
+                                    current_session_pending_requests.begin()->session_id,
+                                    current_session_pending_requests.begin()->request->xid);
 
-                                    has_read_request = true;
-                                    break;
-                                }
-                                /// Because close's xid is not necessarily CLOSE_XID.
-                                else if (current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                while (current_session_pending_requests.begin()->request->xid != committed_request.request->xid)
                                 {
-                                    break;
-                                }
-                                else
-                                {
-                                    if (errors.contains(UInt128(current_begin_request_session->session_id, current_begin_request_session->request->xid)))
+                                    auto current_begin_request_session = current_session_pending_requests.begin();
+                                    if (current_begin_request_session->request->isReadRequest())
                                     {
-                                        LOG_WARNING(
+                                        LOG_DEBUG(
                                             log,
-                                            "Current session {} pending head request xid {} {} not same committed request xid {} {}, because it is in errors",
+                                            "Current session {} pending head request xid {} {} is read request",
                                             committed_request.session_id,
                                             current_begin_request_session->session_id,
-                                            current_begin_request_session->request->xid,
-                                            committed_request.request->xid,
-                                            Coordination::toString(committed_request.request->getOpNum()));
+                                            current_begin_request_session->request->xid);
 
-                                        found_in_error = true;
+                                        has_read_request = true;
+                                        break;
+                                    }
+                                    /// Because close's xid is not necessarily CLOSE_XID.
+                                    else if (current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                                    {
                                         break;
                                     }
                                     else
                                     {
-                                        LOG_WARNING(
-                                            log,
-                                            "Logic Error, maybe reconnected current session {} pending head request xid {} {} not same committed request xid {} {}, pending request size {}",
-                                            committed_request.session_id,
-                                            current_begin_request_session->request->xid,
-                                            current_begin_request_session->request->toString(),
-                                            committed_request.request->xid,
-                                            committed_request.request->toString(),
-                                            current_session_pending_requests.size());
+                                        if (errors.contains(UInt128(current_begin_request_session->session_id, current_begin_request_session->request->xid)))
+                                        {
+                                            LOG_WARNING(
+                                                log,
+                                                "Current session {} pending head request xid {} {} not same committed request xid {} {}, because it is in errors",
+                                                committed_request.session_id,
+                                                current_begin_request_session->session_id,
+                                                current_begin_request_session->request->xid,
+                                                committed_request.request->xid,
+                                                Coordination::toString(committed_request.request->getOpNum()));
 
-                                        break;
+                                            found_in_error = true;
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            LOG_WARNING(
+                                                log,
+                                                "Logic Error, maybe reconnected current session {} pending head request xid {} {} not same committed request xid {} {}, pending request size {}",
+                                                committed_request.session_id,
+                                                current_begin_request_session->request->xid,
+                                                current_begin_request_session->request->toString(),
+                                                committed_request.request->xid,
+                                                committed_request.request->toString(),
+                                                current_session_pending_requests.size());
+
+                                            break;
+                                        }
                                     }
+                                }
+                            }
+                            else
+                            {
+                                /// close request never appear in current_session_pending_requests
+                                if (committed_request.request->getOpNum() != Coordination::OpNum::Close)
+                                {
+                                    LOG_WARNING(log, "current_session_pending_requests is empty, maybe request in request queue. session {} committed request xid {} {}",
+                                                committed_request.session_id,
+                                                committed_request.request->xid,
+                                                committed_request.request->toString());
+                                    break;
                                 }
                             }
 
@@ -231,10 +244,17 @@ void SvsKeeperCommitProcessor::run()
 
                             committed_queue.pop();
 
-                            if (!current_session_pending_requests.empty())
-                                current_session_pending_requests.erase(current_session_pending_requests.begin());
+                            for (auto it = current_session_pending_requests.begin(); it != current_session_pending_requests.end();)
+                            {
+                                auto xid = it->request->xid;
+                                it = current_session_pending_requests.erase(it);
+                                if (xid == committed_request.request->xid)
+                                {
+                                    break;
+                                }
+                            }
 
-                            if (current_session_pending_requests.empty() || committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                            if (current_session_pending_requests.empty())
                                 pending_requests.erase(committed_request.session_id);
                         }
                     }
