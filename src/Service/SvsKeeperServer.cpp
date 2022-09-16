@@ -477,6 +477,12 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
 {
     LOG_DEBUG(log, "Updating session timeout for {}", NumberFormatter::formatHex(session_id, true));
 
+    ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
+    {
+        std::unique_lock session_id_lock(new_session_id_callback_mutex);
+        new_session_id_callback.emplace(session_id, condition);
+    }
+
     auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
     nuraft::buffer_serializer bs(entry);
 
@@ -500,6 +506,19 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
     auto buffer = ReadBufferFromNuraftBuffer(*result->get());
     int8_t is_success;
     Coordination::read(is_success, buffer);
+
+    {
+        std::unique_lock session_id_lock(new_session_id_callback_mutex);
+
+        using namespace std::chrono_literals;
+        auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
+
+        new_session_id_callback.erase(session_id);
+        if (status == std::cv_status::timeout)
+        {
+            throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session {}", session_id);
+        }
+    }
 
     return is_success;
 }

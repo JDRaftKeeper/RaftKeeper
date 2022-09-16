@@ -499,13 +499,25 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         auto response = nuraft::buffer::alloc(1);
         nuraft::buffer_serializer bs(response);
 
-        int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
-        LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", session_id, session_timeout_ms, is_success);
+        {
+            std::unique_lock session_id_lock(new_session_id_callback_mutex);
+            int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
+            bs.put_i8(is_success);
 
-        bs.put_i8(is_success);
+            LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", session_id, session_timeout_ms, is_success);
+            last_committed_idx = log_idx;
+            task_manager->afterCommitted(last_committed_idx);
 
-        last_committed_idx = log_idx;
-        task_manager->afterCommitted(last_committed_idx);
+            if (new_session_id_callback.contains(session_id))
+            {
+                new_session_id_callback.find(session_id)->second->notify_all();
+            }
+            else
+            {
+                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", session_id);
+            }
+        }
+
         return response;
     }
     else

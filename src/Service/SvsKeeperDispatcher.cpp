@@ -65,7 +65,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                     svskeeper_sync_processor.processRequest(request_for_session);
                 }
 
-                if (containsSession(request_for_session.session_id))
+                if (containsSession(request_for_session.session_id) && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
                     LOG_TRACE(log, "Put request session {}, xid {}, opnum {} to commit processor", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
                     svskeeper_commit_processor->processRequest(request_for_session);
