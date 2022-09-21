@@ -29,6 +29,8 @@ public:
 
     void shutdown();
 
+    void runRecive(size_t thread_idx);
+
     void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_);
 
 
@@ -40,6 +42,8 @@ private:
     Poco::Logger * log;
 
     ThreadPoolPtr request_thread;
+
+    ThreadPoolPtr response_thread;
 
     bool shutdown_called{false};
 

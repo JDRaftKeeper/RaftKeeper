@@ -48,9 +48,9 @@ public:
 
 private:
 
-    std::pair<Coordination::OpNum, Coordination::XID> receiveRequest(int32_t length);
+    std::pair<int64_t, Coordination::XID> receiveRequest(int32_t length);
 
-    void sendResponse(ForwardProtocol protocol, bool accepted);
+    void sendResponse(const ForwardResponse & response);
 
     /// destroy connection
     void destroyMe();
@@ -68,7 +68,13 @@ private:
 
     FIFOBuffer req_body_len_buf = FIFOBuffer(4);
 
-    bool current_package_done = true;
+    /// ForwardProtocol and is_done
+    struct CurrentPackage
+    {
+        ForwardProtocol protocol;
+        bool is_done;
+    };
+    CurrentPackage current_package{Unknown, true};
 
     Context & global_context;
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
@@ -78,6 +84,9 @@ private:
 
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
+
+    int32_t server_id;
+    int32_t client_id;
 };
 
 }

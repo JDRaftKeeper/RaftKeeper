@@ -95,29 +95,50 @@ void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_
         throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
     }
 
+}
+
+bool ForwardingConnection::poll(UInt64 max_wait)
+{
+    if (!connected)
+        return false;
+
+    return in->poll(max_wait);
+}
+
+bool ForwardingConnection::recive(ForwardResponse & response)
+{
+    if (!connected)
+        return false;
+
     /// There are two situations,
-    /// 1. Feedback is not accepted.
+    /// 1. Feedback not accepted.
     /// 2. Receiving network packets failed, which cannot determine whether the opposite end is accepted.
     try
     {
         int8_t type;
         Coordination::read(type, *in);
-        assert(type == ForwardProtocol::Result);
+        response.protocol = ForwardProtocol(type);
 
-        bool accepted;
-        Coordination::read(accepted, *in);
-        if (!accepted)
-            throw Exception("Request not accepted", ErrorCodes::RAFT_ERROR);
+        Coordination::read(response.accepted, *in);
+
+        int32_t code;
+        Coordination::read(code, *in);
+        response.error_code = code;
+
+        Coordination::read(response.session_id, *in);
+
+        Coordination::read(response.xid, *in);
+
+        LOG_TRACE(log, "Recived forward response {}", response.toString());
+
+        return true;
     }
-    catch(Exception & e)
+    catch(...)
     {
         LOG_ERROR(log, "Got exception while receiving forward result {}, {}", endpoint, getCurrentExceptionMessage(true));
-
         /// TODO If it is a network exception, we receive the request by default. To be discussed.
-        if (e.code() == ErrorCodes::RAFT_ERROR)
-            throw e;
-        else
-            disconnect();
+        disconnect();
+        return false;
     }
 }
 
@@ -149,16 +170,11 @@ void ForwardingConnection::sendPing()
     }
 }
 
-void ForwardingConnection::receivePing()
-{
-    int8_t type;
-    Coordination::read(type, *in);
-    assert(type == ForwardProtocol::Ping);
-}
-
 void ForwardingConnection::sendHandshake()
 {
     Coordination::write(ForwardProtocol::Hello, *out);
+    Coordination::write(my_server_id, *out);
+    Coordination::write(thread_id, *out);
     out->next();
 }
 
@@ -168,6 +184,18 @@ void ForwardingConnection::receiveHandshake()
     int8_t type;
     Coordination::read(type, *in);
     assert(type == ForwardProtocol::Hello);
+
+    bool accepted;
+    Coordination::read(accepted, *in);
+
+    int32_t code;
+    Coordination::read(code, *in);
+
+    int64_t session_id;
+    Coordination::read(session_id, *in);
+
+    int64_t xid;
+    Coordination::read(xid, *in);
 }
 
 

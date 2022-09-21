@@ -321,7 +321,7 @@ namespace
 
 void SvsKeeperServer::putRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    auto [session_id, request, time] = request_for_session;
+    auto [session_id, request, time, server, client] = request_for_session;
 #ifdef TEST_TCPHANDLER
     if (Coordination::ZooKeeperCreateRequest * zk_request = dynamic_cast<Coordination::ZooKeeperCreateRequest *>(request.get()))
     {
@@ -414,7 +414,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
 
 void SvsKeeperServer::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    auto [session_id, request, time] = request_for_session;
+    auto [session_id, request, time, server, client] = request_for_session;
     if (isLeaderAlive() && request->isReadRequest())
     {
         state_machine->processReadRequest(request_for_session);
@@ -477,12 +477,6 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
 {
     LOG_DEBUG(log, "Updating session timeout for {}", NumberFormatter::formatHex(session_id, true));
 
-    ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
-    {
-        std::unique_lock session_id_lock(new_session_id_callback_mutex);
-        new_session_id_callback.emplace(session_id, condition);
-    }
-
     auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
     nuraft::buffer_serializer bs(entry);
 
@@ -507,16 +501,27 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
     int8_t is_success;
     Coordination::read(is_success, buffer);
 
+    if (!is_success)
+        return false;
+
     {
         std::unique_lock session_id_lock(new_session_id_callback_mutex);
 
-        using namespace std::chrono_literals;
-        auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
-
-        new_session_id_callback.erase(session_id);
-        if (status == std::cv_status::timeout)
+        const auto & dead_session = getDeadSessions();
+        if (std::count(dead_session.begin(), dead_session.end(), session_id))
         {
-            throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session {}", session_id);
+            ptr<std::condition_variable> condition = std::make_shared<std::condition_variable>();
+
+            new_session_id_callback.emplace(session_id, condition);
+
+            using namespace std::chrono_literals;
+            auto status = condition->wait_for(session_id_lock, session_timeout_ms * 1ms);
+
+            new_session_id_callback.erase(session_id);
+            if (status == std::cv_status::timeout)
+            {
+                throw Exception(ErrorCodes::RAFT_ERROR, "Time out, can not allocate session {}", session_id);
+            }
         }
     }
 
@@ -542,7 +547,8 @@ bool SvsKeeperServer::isFollower() const
 
 bool SvsKeeperServer::isLeaderAlive() const
 {
-    return raft_instance->is_leader_alive();
+    /// nuraft leader_ and role_ not sync
+    return raft_instance->is_leader_alive() && raft_instance->get_leader() != -1;
 }
 
 uint64_t SvsKeeperServer::getFollowerCount() const

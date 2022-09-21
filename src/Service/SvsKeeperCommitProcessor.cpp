@@ -1,12 +1,14 @@
 
 #include <Service/SvsKeeperDispatcher.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
 
 namespace DB
 {
 
 void SvsKeeperCommitProcessor::processRequest(Request request_for_session)
 {
-    if (!shutdown_called) {
+    if (!shutdown_called)
+    {
         requests_queue->push(request_for_session);
         {
             std::unique_lock lk(mutex);
@@ -48,73 +50,89 @@ void SvsKeeperCommitProcessor::run()
                         auto & [session_id, xid] = it->first;
 
                         auto & error_request = it->second;
-                        auto op_num = error_request.request.request->getOpNum();
 
-                        LOG_WARNING(log, "error session {}, xid {}, opNum {}", session_id, xid, Coordination::toString(op_num));
+                        LOG_WARNING(log, "error session {}, xid {}", session_id, xid);
 
-                        std::optional<Request> request;
-                        if (op_num == Coordination::OpNum::Heartbeat || op_num == Coordination::OpNum::Auth)
+                        if (!service_keeper_storage_dispatcher->containsSession(session_id))
                         {
-                            request = error_request.request;
+                            LOG_WARNING(log, "Not my session error, session {}, xid {}", session_id, xid);
+                            it = errors.erase(it);
                         }
                         else
                         {
-                            auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
-                            auto session_requests = pending_requests.find(session_id);
-
-                            if (session_requests != pending_requests.end())
+                            using namespace Coordination;
+                            std::optional<Request> request;
+                            if (int32_t(xid) == Coordination::PING_XID)
                             {
-                                auto & requests = session_requests->second;
-                                for (auto request_it = requests.begin(); request_it != requests.end();)
+                                ZooKeeperRequestPtr heartbeat_request = std::make_shared<ZooKeeperHeartbeatRequest>();
+                                Request request1{ int64_t(session_id), heartbeat_request, 0, -1, -1};
+                                request.emplace(request1);
+                            }
+                            else if (int32_t(xid) == Coordination::AUTH_XID)
+                            {
+                                ZooKeeperRequestPtr auth_request = std::make_shared<ZooKeeperAuthRequest>();
+                                Request request1{ int64_t(session_id), auth_request, 0, -1, -1};
+                                request.emplace(request1);
+                            }
+                            else
+                            {
+                                auto & pending_requests = thread_pending_requests.find(session_id % thread_count)->second;
+                                auto session_requests = pending_requests.find(session_id);
+
+                                if (session_requests != pending_requests.end())
                                 {
-                                    if (uint64_t(request_it->request->xid) <= xid)
+                                    auto & requests = session_requests->second;
+                                    for (auto request_it = requests.begin(); request_it != requests.end();)
                                     {
-                                        if (uint64_t(request_it->request->xid) == xid)
-                                            request = *request_it;
-
-                                        auto response = request_it->request->makeResponse();
-
-                                        response->xid = request_it->request->xid;
-                                        response->zxid = 0;
-
-                                        auto accepted = it->second.accepted;
-                                        auto error_code = it->second.error_code;
-
-                                        response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
-
-                                        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_it->session_id, response});
-
-                                        LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, Coordination::toString(request_it->request->getOpNum()));
-
-                                        if (!accepted)
-                                            LOG_ERROR(log, "Request batch is not accepted");
-                                        else
-                                            LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
-
-                                        request_it = requests.erase(request_it);
-
-                                        if (request)
+                                        if (uint64_t(request_it->request->xid) <= xid)
+                                        {
                                             break;
-                                    }
-                                    else
-                                    {
-                                        ++request_it;
+                                        }
+                                        else if (uint64_t(request_it->request->xid) == xid)
+                                        {
+                                            request = *request_it;
+                                            request_it = requests.erase(request_it);
+                                            break;
+                                        }
+                                        else
+                                        {
+                                            ++request_it;
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        if (request)
-                        {
-                            it = errors.erase(it);
-                            LOG_ERROR(log, "Matched error request session {}, xid {}, opNum {} from pending requests queue", session_id, xid, Coordination::toString(op_num));
-                        }
-                        else
-                        {
-                            LOG_WARNING(
-                                log, "Not found error request session {}, xid {} from pending queue. Maybe it is still in the request queue and will be processed next time", session_id, xid);
-                            break;
+                            if (request)
+                            {
+                                auto response = request->request->makeResponse();
+
+                                response->xid = request->request->xid;
+                                response->zxid = 0;
+
+                                auto accepted = error_request.accepted;
+                                auto error_code = error_request.error_code;
+
+                                response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                                 : Coordination::Error::ZCONNECTIONLOSS;
+
+                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
+
+                                LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, Coordination::toString(request->request->getOpNum()));
+
+                                if (!accepted)
+                                    LOG_ERROR(log, "Request batch is not accepted");
+                                else
+                                    LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
+
+                                it = errors.erase(it);
+                                LOG_ERROR(log, "Matched error request session {}, xid {} from pending requests queue", session_id, xid);
+                            }
+                            else
+                            {
+                                LOG_WARNING(
+                                    log, "Not found error request session {}, xid {} from pending queue. Maybe it is still in the request queue and will be processed next time", session_id, xid);
+                                break;
+                            }
                         }
                     }
                 }
@@ -338,7 +356,11 @@ void SvsKeeperCommitProcessor::shutdown()
         return;
 
     shutdown_called = true;
-    cv.notify_all();
+
+    {
+        std::unique_lock lk(mutex);
+        cv.notify_all();
+    }
 
     if (main_thread.joinable())
         main_thread.join();
@@ -356,10 +378,9 @@ void SvsKeeperCommitProcessor::shutdown()
 
 void SvsKeeperCommitProcessor::commit(Request request)
 {
-    if (!shutdown_called) {
-
+    if (!shutdown_called)
+    {
         committed_queue.push(request);
-
         {
             std::unique_lock lk(mutex);
             cv.notify_all();
@@ -368,13 +389,14 @@ void SvsKeeperCommitProcessor::commit(Request request)
     }
 }
 
-void SvsKeeperCommitProcessor::onError(bool accepted, nuraft::cmd_result_code error_code, Request request)
+void SvsKeeperCommitProcessor::onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid)
 {
-    if (!shutdown_called) {
+    if (!shutdown_called)
+    {
         {
             std::unique_lock lk(mutex);
-            ErrorRequest error_request{accepted, error_code, request};
-            errors.emplace(UInt128(request.session_id, request.request->xid), error_request);
+            ErrorRequest error_request{accepted, error_code, session_id, xid};
+            errors.emplace(UInt128(session_id, xid), error_request);
         }
         cv.notify_all();
     }

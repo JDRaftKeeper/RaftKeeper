@@ -17,18 +17,18 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
 
         SvsKeeperStorage::RequestForSession request_for_session;
 
-        if (requests_queue->tryPop(thread_idx, request_for_session, max_wait) && !server->isLeader())
+        if (requests_queue->tryPop(thread_idx, request_for_session, max_wait/2) && !server->isLeader())
         {
             try
             {
-                if (server->isLeaderAlive())
+                if (!server->isLeader() && server->isLeaderAlive())
                     server->getLeaderClient(thread_idx)->send(request_for_session);
                 else
                     throw Exception("Raft no leader", ErrorCodes::RAFT_ERROR);
             }
             catch (...)
             {
-                svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
+                svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
             }
         }
         else if (!server->isLeader() && server->isLeaderAlive())
@@ -38,12 +38,46 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             {
                 auto connection = server->getLeaderClient(thread_idx);
                 connection->sendPing();
-                connection->receivePing();
             }
             catch (...)
             {
                 ///
             }
+        }
+    }
+}
+
+void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
+{
+    while (!shutdown_called)
+    {
+        try
+        {
+            UInt64 max_wait = operation_timeout_ms;
+            ForwardResponse response;
+            if (!server->isLeader() && server->isLeaderAlive())
+            {
+                auto client = server->getLeaderClient(thread_idx);
+
+                if (!client->poll(max_wait))
+                    continue;
+
+                client->recive(response);
+
+                if (response.protocol == Result && !response.accepted && response.session_id != ForwardResponse::non_session_id)
+                {
+                    LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
+                    svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid);
+                }
+            }
+            else
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
+        }
+        catch (...)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
     }
 }
@@ -56,6 +90,7 @@ void SvsKeeperFollowerProcessor::shutdown()
     shutdown_called = true;
 
     request_thread->wait();
+    response_thread->wait();
 
     SvsKeeperStorage::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
@@ -67,7 +102,7 @@ void SvsKeeperFollowerProcessor::shutdown()
         }
         catch (...)
         {
-            svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
+            svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
         }
     }
 }
@@ -81,6 +116,12 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count, std::shared_ptr
     for (size_t i = 0; i < thread_count; i++)
     {
         request_thread->trySchedule([this, i] { run(i); });
+    }
+
+    response_thread = std::make_shared<ThreadPool>(thread_count);
+    for (size_t i = 0; i < thread_count; i++)
+    {
+        response_thread->trySchedule([this, i] { runRecive(i); });
     }
 }
 
