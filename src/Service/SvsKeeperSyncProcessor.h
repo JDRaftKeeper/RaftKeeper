@@ -26,7 +26,7 @@ public:
 
     void shutdown();
 
-    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_, UInt64 max_batch_size_);
+    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_, UInt64 max_batch_size_);
 
 private:
     ptr<RequestsQueue> requests_queue;
@@ -34,6 +34,8 @@ private:
     ThreadPoolPtr request_thread;
 
     bool shutdown_called{false};
+
+    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 
     std::shared_ptr<SvsKeeperServer> server;
 

@@ -74,7 +74,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
         {
             LOG_TRACE(log, "forwarding handler socket available");
 
-            if (current_package_done)
+            if (current_package.is_done)
             {
                 LOG_TRACE(log, "try handle new package");
 
@@ -90,77 +90,104 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(forward_protocol, read_buf);
                 req_header_buf.drain(req_header_buf.used());
+                current_package.protocol = ForwardProtocol(forward_protocol);
 
-                LOG_TRACE(log, "recive {}", ForwardProtocol(forward_protocol));
+                LOG_TRACE(log, "recive {}", current_package.protocol);
 
                 WriteBufferFromFiFoBuffer out;
-                bool has_data = false;
                 switch (forward_protocol)
                 {
                     case ForwardProtocol::Hello:
-                        sendResponse(ForwardProtocol::Hello, true);
+                        current_package.is_done = false;
                         break;
                     case ForwardProtocol::Ping:
-                        sendResponse(ForwardProtocol::Ping, true);
+                    {
+                        current_package.is_done = true;
+                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
                         break;
+                    }
                     case ForwardProtocol::Data:
-                        has_data = true;
+                        current_package.is_done = false;
                         break;
                     default:
-                        delete this;
+                        destroyMe();
                         return;
                 }
-
-                if (has_data)
-                {
-                    current_package_done = false;
-
-                    socket_.receiveBytes(req_body_len_buf);
-                    if (!req_body_len_buf.isFull())
-                        continue;
-                }
-                else
-                    current_package_done = true;
             }
             else
             {
-                try
+                if (current_package.protocol == ForwardProtocol::Hello)
                 {
-                    if (!req_body_buf) /// new data package
+                    if (!req_body_buf)
                     {
-                        if (!req_body_len_buf.isFull())
-                        {
-                            socket_.receiveBytes(req_body_len_buf);
-                            if (!req_body_len_buf.isFull())
-                                continue;
-                        }
-
-                        /// request body length
-                        int32_t body_len{};
-                        ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
-                        Coordination::read(body_len, read_buf);
-                        req_body_len_buf.drain(req_body_len_buf.used());
-
-                        LOG_TRACE(log, "Read request done, body length : {}", body_len);
-
-                        req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+                        /// server client
+                        req_body_buf = std::make_shared<FIFOBuffer>(8);
                     }
-
                     socket_.receiveBytes(*req_body_buf);
                     if (!req_body_buf->isFull())
                         continue;
 
-                    receiveRequest(req_body_buf->size());
+                    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
 
-                    sendResponse(ForwardProtocol::Result, true);
+                    Coordination::read(server_id, body);
+                    Coordination::read(client_id, body);
+
+                    /// register session response callback
+                    auto response_callback = [this](const ForwardResponse & response)
+                    {
+                        sendResponse(response);
+                    };
+
+                    service_keeper_storage_dispatcher->registerForward({server_id, client_id}, response_callback);
+
+                    LOG_INFO(log, "register forward from server {} client {}", server_id, client_id);
+
+                    service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, {ForwardProtocol::Hello, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid});
 
                     req_body_buf.reset();
-                    current_package_done = true;
+                    current_package.is_done = true;
                 }
-                catch (...)
+                else if (current_package.protocol == ForwardProtocol::Data)
                 {
-                    sendResponse(ForwardProtocol::Result, false);
-                    tryLogCurrentException(log, "Error processing request.");
+                    std::pair<int64_t, int64_t> session_xid{ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                    try
+                    {
+                        if (!req_body_buf) /// new data package
+                        {
+                            if (!req_body_len_buf.isFull())
+                            {
+                                socket_.receiveBytes(req_body_len_buf);
+                                if (!req_body_len_buf.isFull())
+                                    continue;
+                            }
+
+                            /// request body length
+                            int32_t body_len{};
+                            ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
+                            Coordination::read(body_len, read_buf);
+                            req_body_len_buf.drain(req_body_len_buf.used());
+
+                            LOG_TRACE(log, "Read request done, body length : {}", body_len);
+
+                            req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+                        }
+
+                        socket_.receiveBytes(*req_body_buf);
+                        if (!req_body_buf->isFull())
+                            continue;
+
+                        session_xid = receiveRequest(req_body_buf->size());
+
+                        req_body_buf.reset();
+                        current_package.is_done = true;
+                    }
+                    catch (...)
+                    {
+                        ForwardResponse response{ForwardProtocol::Result, false, nuraft::cmd_result_code::CANCELLED, session_xid.first, session_xid.second};
+                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        tryLogCurrentException(log, "Error processing request.");
+                    }
                 }
             }
         }
@@ -262,7 +289,7 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 }
 
 
-std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::receiveRequest(int32_t length)
+std::pair<int64_t, Coordination::XID> ForwardingConnectionHandler::receiveRequest(int32_t length)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
 
@@ -283,16 +310,15 @@ std::pair<Coordination::OpNum, Coordination::XID> ForwardingConnectionHandler::r
 
     LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
-    if (!service_keeper_storage_dispatcher->putForwardingRequest(request, session_id))
+    if (!service_keeper_storage_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
-    return std::make_pair(opnum, xid);
+    return std::make_pair(session_id, xid);
 }
 
-void ForwardingConnectionHandler::sendResponse(ForwardProtocol protocol, bool accepted)
+void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
 {
 //    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
-    ForwardResponse response{protocol, accepted};
     WriteBufferFromFiFoBuffer buf;
     response.write(buf);
 
@@ -311,6 +337,7 @@ void ForwardingConnectionHandler::sendResponse(ForwardProtocol protocol, bool ac
 
 void ForwardingConnectionHandler::destroyMe()
 {
+    service_keeper_storage_dispatcher->unRegisterForward(server_id, client_id);
     delete this;
 }
 

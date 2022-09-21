@@ -1,5 +1,5 @@
 
-#include <Service/SvsKeeperSyncProcessor.h>
+#include <Service/SvsKeeperDispatcher.h>
 
 namespace DB
 {
@@ -26,7 +26,15 @@ bool SvsKeeperSyncProcessor::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_re
     {
         for (auto & request_session : prev_batch)
         {
-            svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session);
+            if (request_session.isForwardRequest())
+            {
+                ForwardResponse response{Result, result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid};
+                service_keeper_storage_dispatcher->setAppendEntryResponse(request_session.server_id, request_session.client_id, response);
+            }
+            else
+            {
+                svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid);
+            }
         }
         return false;
     }
@@ -92,12 +100,13 @@ void SvsKeeperSyncProcessor::shutdown()
     SvsKeeperStorage::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
-        svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session);
+        svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
     }
 }
 
-void SvsKeeperSyncProcessor::initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_, UInt64 max_batch_size_)
+void SvsKeeperSyncProcessor::initialize(size_t thread_count, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_, UInt64 max_batch_size_)
 {
+    service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
     operation_timeout_ms = operation_timeout_ms_;
     max_batch_size = max_batch_size_;
     server = server_;
