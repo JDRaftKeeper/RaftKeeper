@@ -19,7 +19,8 @@ struct ErrorRequest
 {
     bool accepted;
     nuraft::cmd_result_code error_code;
-    Request request;
+    int64_t session_id;
+    Coordination::XID xid;
 };
 
 class SvsKeeperDispatcher;
@@ -47,7 +48,7 @@ public:
 
     void commit(Request request);
 
-    void onError(bool accepted, nuraft::cmd_result_code error_code, Request request);
+    void onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid);
 
     void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 operation_timeout_ms_);
 

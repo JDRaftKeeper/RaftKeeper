@@ -34,7 +34,7 @@ namespace DB
 #endif
 
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
-
+using ForwardResponseCallback = std::function<void(const ForwardResponse & response)>;
 
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 class SvsKeeperDispatcher : public std::enable_shared_from_this<SvsKeeperDispatcher>
@@ -50,6 +50,23 @@ private:
 
     std::mutex session_to_response_callback_mutex;
     SessionToResponseCallback session_to_response_callback;
+
+    std::mutex forward_to_response_callback_mutex;
+
+    struct pair_hash
+    {
+        template<class T1, class T2>
+        std::size_t operator() (const std::pair<T1, T2>& p) const
+        {
+            auto h1 = std::hash<T1>{}(p.first);
+            auto h2 = std::hash<T2>{}(p.second);
+            return h1 ^ h2;
+        }
+    };
+
+    using ServerForClient = std::pair<int32_t, int32_t>;
+    using ForwardToResponseCallback = std::unordered_map<ServerForClient, ForwardResponseCallback, pair_hash>;
+    ForwardToResponseCallback forward_to_response_callback;
 
     using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
     /// More than 1k updates is definitely misconfiguration.
@@ -101,13 +118,17 @@ public:
 
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
-    bool putForwardingRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
+    bool putForwardingRequest(size_t server_id, size_t client_id, const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
     int64_t getSessionID(int64_t session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
     {
         return server->updateSessionTimeout(session_id, session_timeout_ms);
     }
+
+    void registerForward(ServerForClient server_client, ForwardResponseCallback callback);
+
+    void unRegisterForward(int32_t server_id, int32_t client_id);
 
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     /// Call if we don't need any responses for this session no more (session was expired)
@@ -123,6 +144,8 @@ public:
 
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
+
+    void setAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response);
 
     /// Are we leader
     bool isLeader() const

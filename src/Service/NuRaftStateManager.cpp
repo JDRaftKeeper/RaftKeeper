@@ -134,7 +134,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
                     for (size_t i = 0; i < thread_count; ++i)
                     {
                         auto & client_list = clients[id_];
-                        std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
+                        std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(my_server_id, i, forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
                         client_list.push_back(client);
                         LOG_INFO(log, "Create ForwardingConnection for {}, {}, thread {}, {}", id_, forwarding_endpoint_, i, static_cast<void*>(client.get()));
                     }

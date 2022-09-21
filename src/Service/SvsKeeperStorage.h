@@ -180,6 +180,15 @@ public:
         int64_t session_id;
         Coordination::ZooKeeperRequestPtr request;
         int64_t time;
+
+        /// for forward request
+        int32_t server_id{-1};
+        int32_t client_id{-1};
+
+        bool isForwardRequest() const
+        {
+            return server_id > -1 && client_id > -1;
+        }
     };
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
