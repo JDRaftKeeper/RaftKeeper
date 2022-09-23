@@ -84,7 +84,7 @@ SvsConnectionHandler::~SvsConnectionHandler()
     {
         /// 4lw cmd connection will not init session_id
         if (session_id != -1)
-            LOG_INFO(log, "Disconnecting session {}", session_id);
+            LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
 
         unregisterConnection(this);
 
@@ -102,10 +102,10 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 {
     try
     {
-        LOG_TRACE(log, "session {} socket readable", session_id);
+        LOG_TRACE(log, "session {} socket readable", toHexString(session_id));
         if (!socket_.available())
         {
-            LOG_INFO(log, "Client of session {} close connection! errno {}", session_id, errno);
+            LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
             destroyMe();
             return;
         }
@@ -141,7 +141,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
 
                 body_len = header;
-                LOG_TRACE(log, "session {} read request length : {}", session_id, body_len);
+                LOG_TRACE(log, "session {} read request length : {}", toHexString(session_id), body_len);
 
                 /// clear len_buf
                 req_header_buf.drain(req_header_buf.used());
@@ -168,7 +168,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
             packageReceived();
 
-            LOG_TRACE(log, "session {} read request done, body length : {}, req_body_buf used {}", session_id, body_len, req_body_buf->used());
+            LOG_TRACE(log, "session {} read request done, body length : {}, req_body_buf used {}", toHexString(session_id), body_len, req_body_buf->used());
             poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
 
             /// 3. handshake
@@ -221,12 +221,12 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
                     if (received_op == Coordination::OpNum::Close)
                     {
-                        LOG_DEBUG(log, "Received close event with xid {} for session {}", received_xid, session_id);
+                        LOG_DEBUG(log, "Received close event with xid {} for session {}", received_xid, toHexString(session_id));
                         close_xid = received_xid;
                     }
                     else if (received_op == Coordination::OpNum::Heartbeat)
                     {
-                        LOG_TRACE(log, "Received heartbeat for session {}", session_id);
+                        LOG_TRACE(log, "Received heartbeat for session {}", toHexString(session_id));
                     }
 
                     /// Each request restarts session stopwatch
@@ -234,7 +234,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
                 catch (const Exception & e)
                 {
-                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", session_id));
+                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", toHexString(session_id)));
 
                     if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
                     {
@@ -247,12 +247,12 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
     }
     catch (Poco::Net::NetException &)
     {
-        tryLogCurrentException(log, fmt::format("Network error when receiving request, will close connection session {}.", session_id));
+        tryLogCurrentException(log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
     catch (...)
     {
-        tryLogCurrentException(log, fmt::format("Fatal error when handling request, will close connection session {}.", session_id));
+        tryLogCurrentException(log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
 }
@@ -261,7 +261,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
 {
     try
     {
-        LOG_TRACE(log, "session {} socket writable", session_id);
+        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
 
         if (responses->size() == 0 && send_buf.used() == 0)
             return;
@@ -308,7 +308,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_TRACE(log, "sent response to {}", session_id);
+                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -348,7 +348,7 @@ void SvsConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification>
 
 void SvsConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-    LOG_WARNING(log, "Socket of session {} error, errno {} !", session_id, errno);
+    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
     destroyMe();
 }
 
@@ -485,7 +485,8 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
                 /// session expired, set timeout <=0
                 LOG_WARNING(
                     log,
-                    "Client try to reconnects but session {} is already expired", connect_req.previous_session_id);
+                    "Client try to reconnects but session {} is already expired",
+                    toHexString(connect_req.previous_session_id));
                 session_expired = true;
                 connect_success = false;
             }
@@ -497,14 +498,14 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
                     /// update failed
                     /// session was expired when updating
                     /// session expired, set timeout <=0
-                    LOG_WARNING(log, "Session {} was expired when updating", connect_req.previous_session_id);
+                    LOG_WARNING(log, "Session {} was expired when updating", toHexString(connect_req.previous_session_id));
                     session_expired = true;
                     connect_success = false;
                 }
                 else
                 {
                     is_reconnected = true;
-                    LOG_INFO(log, "Client reconnected with session {}", connect_req.previous_session_id);
+                    LOG_INFO(log, "Client reconnected with session {}", toHexString(connect_req.previous_session_id));
                 }
             }
         }
@@ -512,7 +513,7 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
         {
             /// new session
             session_id = service_keeper_storage_dispatcher->getSessionID(session_timeout.totalMilliseconds());
-            LOG_INFO(log, "New session with ID {}", session_id);
+            LOG_INFO(log, "New session with ID {}", toHexString(session_id));
         }
     }
     catch (const Exception & e)
@@ -598,7 +599,7 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     Coordination::read(opnum, body);
 
     if (opnum != Coordination::OpNum::Heartbeat)
-        LOG_DEBUG(log, "Receive request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
+        LOG_DEBUG(log, "Receive request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
@@ -607,13 +608,13 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
 
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
     return std::make_pair(opnum, xid);
 }
 
 void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
 {
-    LOG_TRACE(log, "Dispatch response to conn handler session {}", session_id);
+    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
     /// TODO should invoked after response sent to client.
     updateStats(response);
@@ -631,7 +632,7 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
         responses->push(buf.getBuffer());
     }
 
-    LOG_TRACE(log, "Add socket writable event handler - session {}", session_id);
+    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
     reactor_.addEventHandler(
         socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
@@ -663,12 +664,14 @@ void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr 
 {
     /// update statistics ignoring watch, close and heartbeat response.
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
-        && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() == Coordination::OpNum::Close)
+        && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::Close)
     {
-        Int64 elapsed = (Poco::Timestamp().epochMicroseconds() - response->request_created_time_us) / 1000;
+        Int64 elapsed = (Poco::Timestamp().epochMicroseconds() - response->request_created_time_ms) / 1000;
         {
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
+            if (elapsed > 1000)
+                LOG_WARNING(log, "Request process time {}, req type {}", elapsed, Coordination::toString(response->getOpNum()));
         }
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 

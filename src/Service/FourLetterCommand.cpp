@@ -79,6 +79,8 @@ void FourLetterCommandFactory::registerCommand(FourLetterCommandPtr & command)
     if (commands.contains(command->code()))
         throw Exception("Four letter command " + command->name() + " already registered", ErrorCodes::LOGICAL_ERROR);
 
+    auto * log = &Poco::Logger::get("FourLetterCommandFactory");
+    LOG_INFO(log, "Register four letter command {}", command->name());
     commands.emplace(command->code(), std::move(command));
 }
 
@@ -132,6 +134,9 @@ void FourLetterCommandFactory::registerCommands(SvsKeeperDispatcher & keeper_dis
 
         FourLetterCommandPtr watch_command = std::make_shared<WatchCommand>(keeper_dispatcher);
         factory.registerCommand(watch_command);
+
+        FourLetterCommandPtr create_snapshot_command = std::make_shared<CreateSnapshotCommand>(keeper_dispatcher);
+        factory.registerCommand(create_snapshot_command);
 
         factory.initializeWhiteList(keeper_dispatcher);
         factory.setInitialize(true);
@@ -422,6 +427,11 @@ String IsReadOnlyCommand::run()
         return "ro";
     else
         return "rw";
+}
+
+String CreateSnapshotCommand::run()
+{
+    return keeper_dispatcher.createSnapshot() ? "Snapshot creation scheduled." : "Fail to scheduled snapshot creation.";
 }
 
 }
