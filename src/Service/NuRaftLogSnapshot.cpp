@@ -452,7 +452,7 @@ void KeeperSnapshotStore::serializeNode(
 
     std::shared_ptr<KeeperNode> node_copy;
     {
-        std::shared_lock(node->mutex);
+        std::shared_lock lock(node->mutex);
         node_copy = node->clone();
     }
 
@@ -576,8 +576,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
     int64_t serialized_next_session_id = serializeSessions(storage, save_batch_size, version, session_path);
     LOG_INFO(log,
              "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-             next_session_id,
-             serialized_next_session_id);
+             toHexString(next_session_id),
+             toHexString(serialized_next_session_id));
 
     /// 3. Save sessions
     String acl_path;

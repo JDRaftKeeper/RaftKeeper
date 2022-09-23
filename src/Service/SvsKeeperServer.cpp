@@ -113,7 +113,7 @@ void SvsKeeperServer::startup()
     raft_instance = launcher.init(
         state_machine,
         state_manager,
-        nuraft::cs_new<LoggerWrapper>("RaftInstance", coordination_settings->raft_logs_level),
+        nuraft::cs_new<LoggerWrapper>("NuRaft", coordination_settings->raft_logs_level),
         port,
         asio_opts,
         params,
