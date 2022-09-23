@@ -661,9 +661,9 @@ void SvsConnectionHandler::packageReceived()
 
 void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & response)
 {
-    /// update statistics ignoring watch response and heartbeat.
+    /// update statistics ignoring watch, close and heartbeat response.
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
-        && response->getOpNum() != Coordination::OpNum::SetWatches)
+        && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() == Coordination::OpNum::Close)
     {
         Int64 elapsed = (Poco::Timestamp().epochMicroseconds() - response->request_created_time_us) / 1000;
         {
