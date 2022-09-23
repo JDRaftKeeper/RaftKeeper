@@ -1370,11 +1370,11 @@ void SvsKeeperStorage::processRequest(
             {
                 for (const auto & ephemeral_path : it->second)
                 {
-                    LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", session_id, ephemeral_path);
+                    LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", toHexString(session_id), ephemeral_path);
                     auto parent = container.at(parentPath(ephemeral_path));
                     if (!parent)
                     {
-                        LOG_ERROR(log, "Logical error, disconnect session {}, ephemeral znode parent not exist {}", session_id, ephemeral_path);
+                        LOG_ERROR(log, "Logical error, disconnect session {}, ephemeral znode parent not exist {}", toHexString(session_id), ephemeral_path);
                     }
                     else
                     {
@@ -1455,7 +1455,7 @@ void SvsKeeperStorage::processRequest(
         std::lock_guard lock(watch_mutex);
         for (String & path : request->data_watches)
         {
-            LOG_TRACE(log, "Register data_watches for session {}, path {}, xid", session_id, path, request->xid);
+            LOG_TRACE(log, "Register data_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1464,13 +1464,13 @@ void SvsKeeperStorage::processRequest(
             auto node = container.get(path);
             if (!node)
             {
-                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
             else if (node->stat.mzxid > request->relative_zxid)
             {
-                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHANGED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1478,7 +1478,7 @@ void SvsKeeperStorage::processRequest(
 
         for (String & path : request->exist_watches)
         {
-            LOG_TRACE(log, "Register exist_watches for session {}, path {}, xid", session_id, path, request->xid);
+            LOG_TRACE(log, "Register exist_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1487,7 +1487,7 @@ void SvsKeeperStorage::processRequest(
             auto node = container.get(path);
             if (node)
             {
-                LOG_TRACE(log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                LOG_TRACE(log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CREATED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1495,7 +1495,7 @@ void SvsKeeperStorage::processRequest(
 
         for (String & path : request->list_watches)
         {
-            LOG_TRACE(log, "Register list_watches for session {}, path {}, xid", session_id, path, request->xid);
+            LOG_TRACE(log, "Register list_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
             /// register watches
             list_watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
@@ -1504,13 +1504,13 @@ void SvsKeeperStorage::processRequest(
             auto node = container.get(path);
             if (node == nullptr)
             {
-                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
             else if (node->stat.pzxid > request->relative_zxid)
             {
-                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", session_id, path);
+                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHILD);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1555,7 +1555,7 @@ void SvsKeeperStorage::processRequest(
                     log,
                     "Zxid {}, session {}, opnum {}, xid {}, error no {}, msg {}",
                     zxid,
-                    session_id,
+                    toHexString(session_id),
                     Coordination::toString(zk_request->getOpNum()),
                     zk_request->xid,
                     response->error,
@@ -1584,7 +1584,7 @@ void SvsKeeperStorage::processRequest(
                     LOG_TRACE(
                         log,
                         "Register watch, session {}, path {}, opnum {}, xid {}, error no {}, msg {}",
-                        session_id,
+                        toHexString(session_id),
                         zk_request->getPath(),
                         Coordination::toString(zk_request->getOpNum()),
                         zk_request->xid,
@@ -1623,7 +1623,7 @@ void SvsKeeperStorage::processRequest(
                             LOG_TRACE(
                                 log,
                                 "Processed watch, session {}, path {}, type {}, xid {} zxid {}",
-                                session_id_response.session_id,
+                                toHexString(session_id_response.session_id),
                                 watch_response->path,
                                 watch_response->type,
                                 watch_response->xid,
@@ -1684,7 +1684,7 @@ void SvsKeeperStorage::buildPathChildren(bool from_zk_snapshot)
 
 void SvsKeeperStorage::clearDeadWatches(int64_t session_id)
 {
-    LOG_DEBUG(log, "Clear dead watches, session {}", session_id);
+    LOG_DEBUG(log, "Clear dead watches, session {}", toHexString(session_id));
     //    std::lock_guard session_lock(session_mutex);
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);

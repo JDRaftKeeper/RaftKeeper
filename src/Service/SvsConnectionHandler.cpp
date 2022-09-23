@@ -666,12 +666,12 @@ void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr 
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
         && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::Close)
     {
-        Int64 elapsed = (Poco::Timestamp().epochMicroseconds() - response->request_created_time_ms) / 1000;
+        Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - response->request_created_time_ms;
         {
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
             if (elapsed > 1000)
-                LOG_WARNING(log, "Request process time {}, req type {}", elapsed, Coordination::toString(response->getOpNum()));
+                LOG_WARNING(log, "Request process time {}ms, req type {}", elapsed, Coordination::toString(response->getOpNum()));
         }
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 
