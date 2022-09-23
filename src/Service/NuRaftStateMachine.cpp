@@ -197,7 +197,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             {
                                 /// replay nodes
                                 ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
-                                LOG_TRACE(log, "Replay log request, session {}", ptr_request->session_id);
+                                LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
 
                                 batch.request_vec->push_back(ptr_request);
                             }
@@ -259,7 +259,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                     LOG_TRACE(
                         log,
                         "Replay log create session {} with timeout {} from log",
-                        session_id,
+                        toHexString(session_id),
                         session_timeout_ms);
                 }
                 else if (isUpdateSessionRequest(entry.entry->get_buf()))
@@ -271,13 +271,13 @@ NuRaftStateMachine::NuRaftStateMachine(
 
                     storage.updateSessionTimeout(session_id, session_timeout_ms);
                     LOG_TRACE(
-                        log, "Replay log update session {} with timeout {}", session_id, session_timeout_ms);
+                        log, "Replay log update session {} with timeout {}", toHexString(session_id), session_timeout_ms);
                 }
                 else
                 {
                     /// replay nodes
                     auto & request = (*batch.request_vec)[i];
-                    LOG_TRACE(log, "Replay log request, session {}", request->session_id);
+                    LOG_TRACE(log, "Replay log request, session {}", toHexString(request->session_id));
                     storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
                     if (request->session_id > storage.session_id_counter)
                     {
@@ -285,7 +285,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             log,
                             "Storage's session_id_counter {} must more than the session id {} of log.",
                             storage.session_id_counter,
-                            request->session_id);
+                            toHexString(request->session_id));
                         storage.session_id_counter = request->session_id;
                     }
                 }
@@ -325,7 +325,7 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
     readIntBinary(request_for_session->session_id, buffer);
     if (buffer.eof())
     {
-        LOG_DEBUG(log, "session time out {}", request_for_session->session_id);
+        LOG_DEBUG(log, "session time out {}", toHexString(request_for_session->session_id));
         return nullptr;
     }
 
@@ -425,7 +425,7 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
             = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
-    LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", request_for_session.session_id, length, xid, Coordination::toString(opnum));
+    LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", toHexString(request_for_session.session_id), length, xid, Coordination::toString(opnum));
 
     return request_for_session;
 }
@@ -474,7 +474,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             session_id = storage.getSessionID(session_timeout_ms);
             bs.put_i64(session_id);
 
-            LOG_DEBUG(log, "Commit session id {} with timeout {}", session_id, session_timeout_ms);
+            LOG_DEBUG(log, "Commit session id {} with timeout {}", toHexString(session_id), session_timeout_ms);
             last_committed_idx = log_idx;
             task_manager->afterCommitted(last_committed_idx);
 
@@ -484,7 +484,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             }
             else
             {
-                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", session_id);
+                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", toHexString(session_id));
             }
         }
 
@@ -504,7 +504,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             int8_t is_success = storage.updateSessionTimeout(session_id, session_timeout_ms);
             bs.put_i8(is_success);
 
-            LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", session_id, session_timeout_ms, is_success);
+            LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", toHexString(session_id), session_timeout_ms, is_success);
             last_committed_idx = log_idx;
             task_manager->afterCommitted(last_committed_idx);
 
@@ -514,7 +514,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             }
             else
             {
-                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", session_id);
+                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", toHexString(session_id));
             }
         }
 
@@ -528,7 +528,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             log,
             "Commit log index {}, session {}, xid {}, request {}",
             log_idx,
-            request_for_session.session_id,
+            toHexString(request_for_session.session_id),
             request_for_session.request->xid, request_for_session.request->toString());
 
         if (svskeeper_commit_processor)
@@ -670,7 +670,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
     auto t3 = Poco::Timestamp().epochMicroseconds();
     snap_task = std::make_shared<SnapTask>(snap_copy, storage.zxid, storage.session_id_counter, when_done);
     auto t4 = Poco::Timestamp().epochMicroseconds();
-    LOG_INFO(log, "Async create snapshot time cost {}, {}, {}", (t2-t1), (t3-t2), (t4-t3));
+    LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2-t1), (t3-t2), (t4-t3));
 }
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_t next_session_id)

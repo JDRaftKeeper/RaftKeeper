@@ -775,4 +775,10 @@ void SvsKeeperServer::reConfigIfNeed()
 
 }
 
+bool SvsKeeperServer::createSnapshot()
+{
+    return raft_instance->create_snapshot();
+
+}
+
 }

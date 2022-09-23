@@ -1535,7 +1535,7 @@ void SvsKeeperStorage::processRequest(
             response = storage_request->process(*this, zxid, session_id, time).first;
         }
 
-        response->request_created_time_us = zk_request->request_created_time_us;
+        response->request_created_time_ms = time;
 
         response->xid = zk_request->xid;
         response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());

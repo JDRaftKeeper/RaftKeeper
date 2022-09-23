@@ -67,7 +67,12 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
                 if (containsSession(request_for_session.session_id) && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
-                    LOG_TRACE(log, "Put request session {}, xid {}, opnum {} to commit processor", request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
+                    LOG_TRACE(
+                        log,
+                        "Put request session {}, xid {}, opnum {} to commit processor",
+                        toHexString(request_for_session.session_id),
+                        request_for_session.request->xid,
+                        request_for_session.request->getOpNum());
                     svskeeper_commit_processor->processRequest(request_for_session);
                 }
             }
@@ -154,7 +159,7 @@ void SvsKeeperDispatcher::setAppendEntryResponse(int32_t server_id, int32_t clie
     if (forward_response_writer == forward_to_response_callback.end())
         return;
 
-    LOG_TRACE(log, "[setAppendEntryResponse]server_id {}, client_id {}, session {}, xid {}", server_id, client_id, response.session_id, response.xid);
+    LOG_TRACE(log, "[setAppendEntryResponse]server_id {}, client_id {}, session {}, xid {}", server_id, client_id, toHexString(response.session_id), response.xid);
     forward_response_writer->second(response);
 }
 
@@ -182,7 +187,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     using namespace std::chrono;
     request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
+    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
@@ -209,7 +214,7 @@ bool SvsKeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_i
     request_info.server_id = server_id;
     request_info.client_id = client_id;
 
-    LOG_TRACE(log, "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}", server_id, client_id, session_id, request->xid, Coordination::toString(request->getOpNum()));
+    LOG_TRACE(log, "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}", server_id, client_id, toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
@@ -379,7 +384,7 @@ void SvsKeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseC
 {
     std::lock_guard lock(session_to_response_callback_mutex);
     if (!session_to_response_callback.try_emplace(session_id, callback).second && !is_reconnected)
-        throw Exception(DB::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", session_id);
+        throw Exception(DB::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", toHexString(session_id));
 }
 
 void SvsKeeperDispatcher::registerForward(ServerForClient server_client, ForwardResponseCallback callback)

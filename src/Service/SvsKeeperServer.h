@@ -127,6 +127,10 @@ public:
     /// Wait configuration update for action. Used by followers.
     /// Return true if update was successfully received.
     bool waitConfigurationUpdate(const ConfigUpdateAction & task);
+
+    /// Manually create snapshot.
+    /// Return true if creation is scheduled or return false
+    bool createSnapshot();
 };
 
 }

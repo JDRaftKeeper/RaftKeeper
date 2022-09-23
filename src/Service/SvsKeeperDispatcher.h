@@ -205,6 +205,11 @@ public:
     }
     void requestThreadAtomicConsistency(size_t thread_index);
     void requestThreadFakeZooKeeper(size_t thread_index);
+
+    bool createSnapshot()
+    {
+        return server->createSnapshot();
+    }
 };
 
 }
