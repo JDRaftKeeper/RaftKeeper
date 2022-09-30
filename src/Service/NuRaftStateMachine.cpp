@@ -277,7 +277,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                 {
                     /// replay nodes
                     auto & request = (*batch.request_vec)[i];
-                    LOG_TRACE(log, "Replay log request, session {}", toHexString(request->session_id));
+                    LOG_TRACE(log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
                     storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
                     if (request->session_id > storage.session_id_counter)
                     {
@@ -662,15 +662,25 @@ bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
 {
-    /// Need make a copy of s
-    auto t1 = Poco::Timestamp().epochMicroseconds();
-    ptr<buffer> snp_buf = s.serialize();
-    auto t2 = Poco::Timestamp().epochMicroseconds();
-    auto snap_copy = snapshot::deserialize(*snp_buf);
-    auto t3 = Poco::Timestamp().epochMicroseconds();
-    snap_task = std::make_shared<SnapTask>(snap_copy, storage.zxid, storage.session_id_counter, when_done);
-    auto t4 = Poco::Timestamp().epochMicroseconds();
-    LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2-t1), (t3-t2), (t4-t3));
+    if (!coordination_settings->async_snapshot)
+    {
+        create_snapshot(s);
+        ptr<std::exception> except(nullptr);
+        bool ret = true;
+        when_done(ret, except);
+    }
+    else
+    {
+        /// Need make a copy of s
+        auto t1 = Poco::Timestamp().epochMicroseconds();
+        ptr<buffer> snp_buf = s.serialize();
+        auto t2 = Poco::Timestamp().epochMicroseconds();
+        auto snap_copy = snapshot::deserialize(*snp_buf);
+        auto t3 = Poco::Timestamp().epochMicroseconds();
+        snap_task = std::make_shared<SnapTask>(snap_copy, storage.zxid, storage.session_id_counter, when_done);
+        auto t4 = Poco::Timestamp().epochMicroseconds();
+        LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2-t1), (t3-t2), (t4-t3));
+    }
 }
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_t next_session_id)

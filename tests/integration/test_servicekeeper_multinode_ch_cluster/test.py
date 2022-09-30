@@ -53,6 +53,30 @@ def wait_nodes(cluster1, node1, node2, node3):
     for node in [node1, node2, node3]:
         wait_node(cluster1, node)
 
+def compare_stats(stat1, stat2, path):
+    # new version getSessionId add zxid
+    # assert stat1.czxid == stat2.czxid, "path " + path + " cxzids not equal for stats: " + str(stat1.czxid) + " != " + str(stat2.zxid)
+    # assert stat1.mzxid == stat2.mzxid, "path " + path + " mxzids not equal for stats: " + str(stat1.mzxid) + " != " + str(stat2.mzxid)
+    assert stat1.version == stat2.version, "path " + path + " versions not equal for stats: " + str(stat1.version) + " != " + str(stat2.version)
+    assert stat1.cversion == stat2.cversion, "path " + path + " cversions not equal for stats: " + str(stat1.cversion) + " != " + str(stat2.cversion)
+    # assert stat1.aversion == stat2.aversion, "path " + path + " aversions not equal for stats: " + str(stat1.aversion) + " != " + str(stat2.aversion)  ACL
+    assert stat1.ephemeralOwner == stat2.ephemeralOwner,"path " + path + " ephemeralOwners not equal for stats: " + str(stat1.ephemeralOwner) + " != " + str(stat2.ephemeralOwner)
+    assert stat1.dataLength == stat2.dataLength , "path " + path + " ephemeralOwners not equal for stats: " + str(stat1.dataLength) + " != " + str(stat2.dataLength)
+    assert stat1.numChildren == stat2.numChildren, "path " + path + " numChildren not equal for stats: " + str(stat1.numChildren) + " != " + str(stat2.numChildren)
+    # assert stat1.pzxid == stat2.pzxid, "path " + path + " pzxid not equal for stats: " + str(stat1.pzxid) + " != " + str(stat2.pzxid) from fuzzy snapshot
+
+
+def dump_states(zk1, d, path="/"):
+    data1, stat1 = zk1.get(path)
+
+    print("path: ", path, ", data: ", data1, ", stat: ", stat1)
+    d[path] = (data1, stat1)
+
+    first_children = list(sorted(zk1.get_children(path)))
+
+    for children in first_children:
+        dump_states(zk1, d, os.path.join(path, children))
+
 
 def get_fake_zk(cluster1, nodename, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":5102", timeout=timeout)
@@ -143,6 +167,28 @@ def test_cluster_replicated_table(started_cluster):
         assert num12 == num10
 
         node4.query("DROP DATABASE IF EXISTS tmp_smoke_test ON CLUSTER test_ch_service_cluster SYNC")
+
+
+        node3_zk = get_fake_zk(cluster1, "node3")
+        ddd = {}
+        dump_states(node3_zk, ddd)
+
+        node2_zk = get_fake_zk(cluster1, "node2")
+        node3.restart_clickhouse()
+        d = {}
+        dump_states(node2_zk, d)
+
+        assert len(d) == len(ddd)
+
+        node3_zk = get_fake_zk(cluster1, "node3")
+        dd = {}
+        dump_states(node3_zk, dd)
+
+        assert len(d) == len(dd)
+        for k,v in d.items():
+            if k not in ("/"): # / not same ?
+                assert v[0] == dd[k][0]
+                compare_stats(v[1], dd[k][1], k)
 
     finally:
         cluster3.shutdown()
