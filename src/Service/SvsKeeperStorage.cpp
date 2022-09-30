@@ -618,6 +618,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         Coordination::ZooKeeperRemoveRequest & request = dynamic_cast<Coordination::ZooKeeperRemoveRequest &>(*zk_request);
         Undo undo;
 
+        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageRemoveRequest"));
         SvsKeeperStorage::Container::SharedElement node = storage.container.get(request.path);
         if (node == nullptr)
         {
@@ -629,6 +630,7 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
         }
         else if (!node->children.empty())
         {
+            LOG_TRACE(log, "Parent children begin {}", *node->children.begin());
             response.error = Coordination::Error::ZNOTEMPTY;
         }
         else

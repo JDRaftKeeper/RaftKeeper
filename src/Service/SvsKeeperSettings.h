@@ -38,7 +38,8 @@ struct Settings;
     M(UInt64, max_batch_size, 1000, "Max batch size for append_entries", 0) \
     M(UInt64, fsync_interval, 1, "How many logs do once fsync when async_fsync is false", 0) \
     M(Bool, async_fsync, true, "If `true`, users can let the leader append logs parallel with their replication", 0) \
-    M(Bool, session_consistent, true, "Request-response will follow the session xid order", 0)
+    M(Bool, session_consistent, true, "Request-response will follow the session xid order", 0) \
+    M(Bool, async_snapshot, false, "async snapshot", 0)
 
 DECLARE_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
