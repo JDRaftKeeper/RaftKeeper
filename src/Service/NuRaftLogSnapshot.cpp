@@ -580,7 +580,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
              toHexString(next_session_id),
              toHexString(serialized_next_session_id));
 
-    /// 3. Save sessions
+    /// 3. Save acls
     String acl_path;
     /// object index should start from 1
     getObjectPath(3, acl_path);
@@ -763,7 +763,8 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
 
                         if (ephemeral_owner != 0)
                         {
-                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                            /// TODO LOG_INFO -> LOG_TRACE
+                            LOG_INFO(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
                             std::lock_guard l(storage.ephemerals_mutex);
                             auto & ephemeral_nodes = storage.ephemerals[ephemeral_owner];
                             ephemeral_nodes.emplace(key);
@@ -937,6 +938,13 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
         });
     }
     object_thread_pool.wait();
+
+    size_t ephemeral_nodes = 0;
+    for (auto & paths : storage.ephemerals)
+    {
+        ephemeral_nodes += paths.second.size();
+    }
+    LOG_INFO(log, "Load snapshot done, ephemeral sessions {} nodes {}", storage.ephemerals.size(), ephemeral_nodes);
 
     storage.buildPathChildren();
 

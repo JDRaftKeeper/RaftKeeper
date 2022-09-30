@@ -283,8 +283,8 @@ NuRaftStateMachine::NuRaftStateMachine(
                     {
                         LOG_WARNING(
                             log,
-                            "Storage's session_id_counter {} must more than the session id {} of log.",
-                            storage.session_id_counter,
+                            "Storage's session_id_counter {} must bigger than the session id {} of log.",
+                            toHexString(storage.session_id_counter),
                             toHexString(request->session_id));
                         storage.session_id_counter = request->session_id;
                     }
@@ -299,6 +299,13 @@ NuRaftStateMachine::NuRaftStateMachine(
             batch.batch_end_index = 0;
         }
         object_thread_pool.wait();
+
+        size_t ephemeral_nodes = 0;
+        for (auto & paths : storage.ephemerals)
+        {
+            ephemeral_nodes += paths.second.size();
+        }
+        LOG_INFO(log, "Apply log done, ephemeral sessions {} nodes {}", storage.ephemerals.size(), ephemeral_nodes);
 
         /// In order to meet the initial application of snapshot in the cluster. At this time, the log index is less than the last index of the snapshot, and compact is required.
         if (logstore->next_slot() <= last_committed_idx)
