@@ -257,7 +257,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 
 void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 {
-    LOG_TRACE(log, "fsync log store, start log idx {}, log count {}", start, cnt);
+    LOG_INFO(log, "fsync log store, start log idx {}, log count {}", start, cnt);
 
     if (force_sync)
     {

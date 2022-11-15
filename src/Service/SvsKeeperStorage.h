@@ -179,7 +179,7 @@ public:
     {
         int64_t session_id;
         Coordination::ZooKeeperRequestPtr request;
-        int64_t time;
+        int64_t time{};
 
         /// for forward request
         int32_t server_id{-1};

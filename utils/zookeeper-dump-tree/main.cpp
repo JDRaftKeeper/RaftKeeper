@@ -55,6 +55,9 @@ int main(int argc, char ** argv)
             return true;
         };
 
+        int32_t max_ch = 0;
+        String max_path;
+
         for (auto it = list_futures.begin(); it != list_futures.end(); ++it)
         {
             Coordination::ListResponse response;
@@ -81,10 +84,16 @@ int main(int argc, char ** argv)
                     throw;
             }
 
-            if (options.at("stat").as<bool>())
-                std::cout << it->first << '\t' << response.stat.toStringWithOutTime() << '\n';
-            else
-                std::cout << it->first << '\n';
+            if (response.stat.numChildren > max_ch)
+            {
+                max_ch = response.stat.numChildren;
+                max_path = it->first;
+            }
+
+//            if (options.at("stat").as<bool>())
+//                std::cout << it->first << '\t' << response.stat.toStringWithOutTime() << '\n';
+//            else
+//                std::cout << it->first << '\n';
 
             for (const auto & name : response.names)
             {
@@ -94,6 +103,7 @@ int main(int argc, char ** argv)
                 list_futures.emplace_back(child_path, zookeeper->asyncGetChildren(child_path));
             }
         }
+        std::cout << max_ch << ", " << max_path << std::endl;
 
         return 0;
     }
