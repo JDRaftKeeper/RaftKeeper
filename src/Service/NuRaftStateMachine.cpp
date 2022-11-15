@@ -538,6 +538,13 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             toHexString(request_for_session.session_id),
             request_for_session.request->xid, request_for_session.request->toString());
 
+        if (request_for_session.time > 0)
+        {
+            Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.time;
+            if (elapsed > 1000)
+                LOG_WARNING(log, "Commit log {} request process time {}ms, session {} xid {} req type {}", log_idx, elapsed, request_for_session.session_id, request_for_session.request->xid, Coordination::toString(request_for_session.request->getOpNum()));
+        }
+
         if (svskeeper_commit_processor)
         {
             svskeeper_commit_processor->commit(request_for_session);
@@ -671,10 +678,30 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 {
     if (!coordination_settings->async_snapshot)
     {
-        create_snapshot(s);
+        Stopwatch stopwatch;
+        in_snapshot = true;
+
+        LOG_WARNING(
+            log,
+            "Create snapshot last_log_term {}, last_log_idx {}",
+            s.get_last_log_term(),
+            s.get_last_log_idx());
+
+        create_snapshot(s, storage.zxid, storage.session_id_counter);
         ptr<std::exception> except(nullptr);
         bool ret = true;
         when_done(ret, except);
+
+        stopwatch.stop();
+        in_snapshot = false;
+
+        snap_count.fetch_add(1);
+        snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+
+        LOG_INFO(
+            log,
+            "Create snapshot time cost {} ms",
+            stopwatch.elapsedMilliseconds());
     }
     else
     {

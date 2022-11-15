@@ -209,7 +209,6 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
 
 ptr<ForwardingConnection> NuRaftStateManager::getClient(int32 id, size_t thread_idx)
 {
-    LOG_TRACE(log, "get client : {}, {}", id, thread_idx);
     std::lock_guard<std::mutex> lock(clients_mutex);
     return clients[id][thread_idx];
 }
