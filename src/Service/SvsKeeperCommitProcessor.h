@@ -68,7 +68,7 @@ private:
     ThreadPoolPtr request_thread;
 
 //    SvsKeeperThreadSafeQueue<SvsKeeperStorage::RequestForSession> committed_queue;
-    ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession> committed_queue{1};
+    ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession> committed_queue{1000};
 
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 
