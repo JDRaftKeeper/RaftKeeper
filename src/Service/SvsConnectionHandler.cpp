@@ -671,7 +671,7 @@ void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr 
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
             if (elapsed > 1000)
-                LOG_WARNING(log, "Request process time {}ms, req type {}", elapsed, Coordination::toString(response->getOpNum()));
+                LOG_WARNING(log, "Request process time {}ms, session {} xid {} req type {}", elapsed, session_id, response->xid, Coordination::toString(response->getOpNum()));
         }
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 

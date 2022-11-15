@@ -78,7 +78,7 @@ void SvsKeeperSyncProcessor::run(size_t thread_idx)
         {
             to_append_batch.emplace_back(request_for_session);
 
-            if (to_append_batch.size() > max_batch_size)
+            if (to_append_batch.size() >= max_batch_size)
             {
                 result = server->putRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
