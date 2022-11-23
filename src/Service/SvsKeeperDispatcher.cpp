@@ -269,7 +269,8 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
     if (session_consistent)
     {
-        follower_request_processor.initialize(thread_count, server, operation_timeout_ms);
+        UInt64 session_sync_period_ms = configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()/2;
+        follower_request_processor.initialize(thread_count, server, session_sync_period_ms);
         svskeeper_sync_processor.initialize(1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
         requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     }

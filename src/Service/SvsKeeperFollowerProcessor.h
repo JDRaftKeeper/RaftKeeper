@@ -3,6 +3,7 @@
 #include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperServer.h>
 #include <Service/SvsKeeperCommitProcessor.h>
+#include <Common/Stopwatch.h>
 
 namespace DB
 {
@@ -31,10 +32,12 @@ public:
 
     void runRecive(size_t thread_idx);
 
-    void initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_);
+    void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, UInt64 session_sync_period_ms_);
 
 
 private:
+    size_t thread_count;
+
     ptr<RequestsQueue> requests_queue;
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
@@ -49,7 +52,11 @@ private:
 
     std::shared_ptr<SvsKeeperServer> server;
 
-    UInt64 operation_timeout_ms = 10000;
+    UInt64 session_sync_period_ms = 500;
+
+    std::atomic<UInt8> session_sync_idx{0};
+
+    Stopwatch session_sync_time_watch;
 };
 
 }

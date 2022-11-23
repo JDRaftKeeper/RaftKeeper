@@ -86,7 +86,7 @@ public:
 
     void receiveHandshake();
 
-    void sendPing();
+    void sendPing(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     bool poll(UInt64 max_wait);
 

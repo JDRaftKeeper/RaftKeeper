@@ -84,6 +84,8 @@ public:
 
     std::vector<int64_t> getDeadSessions();
 
+    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time);
+
     bool isLeader() const;
 
     bool isLeaderAlive() const;
