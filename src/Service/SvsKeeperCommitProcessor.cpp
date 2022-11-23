@@ -299,7 +299,11 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
         if (requests_queue->tryPop(thread_idx, request))
         {
             auto op_num = request.request->getOpNum();
-            if (op_num != Coordination::OpNum::Heartbeat && op_num != Coordination::OpNum::Auth)
+            if (op_num == Coordination::OpNum::Heartbeat)
+            {
+                stateMachineProcessRequest(request);
+            }
+            else if (op_num != Coordination::OpNum::Heartbeat && op_num != Coordination::OpNum::Auth)
             {
                 pending_requests[request.session_id].push_back(request);
             }

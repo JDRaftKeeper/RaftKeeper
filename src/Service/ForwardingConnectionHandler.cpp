@@ -224,6 +224,8 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             int64_t expiration_time;
                             Coordination::read(expiration_time, body);
 
+                            LOG_TRACE(log, "Recv session {}, expiration time {}", session_id, expiration_time);
+
                             service_keeper_storage_dispatcher->setSessionExpirationTime(session_id, expiration_time);
                         }
 
