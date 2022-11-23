@@ -1,0 +1,36 @@
+<yandex>
+    <service>
+        <service_port>5102</service_port>
+        <forwarding_port>5101</forwarding_port>
+        <my_id>1</my_id>
+        <host>node1</host>
+        <log_dir>/var/lib/clickhouse/coordination/log</log_dir>
+        <snapshot_dir>/var/lib/clickhouse/coordination/snapshots</snapshot_dir>
+        <snapshot_create_interval>10000</snapshot_create_interval>
+
+        <coordination_settings>
+            <operation_timeout_ms>1000</operation_timeout_ms>
+            <session_timeout_ms>100000</session_timeout_ms>
+            <snapshot_distance>3000000</snapshot_distance>
+            <raft_logs_level>debug</raft_logs_level>
+        </coordination_settings>
+
+        <remote_servers>
+            <server>
+                <server_id>1</server_id>
+                <host>node1</host>
+                <port>5103</port>
+            </server>
+            <server>
+                <server_id>2</server_id>
+                <host>node2</host>
+                <port>5103</port>
+            </server>
+            <server>
+                <server_id>3</server_id>
+                <host>node3</host>
+                <port>5103</port>
+            </server>
+        </remote_servers>
+    </service>
+</yandex>
