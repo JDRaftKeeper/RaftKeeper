@@ -58,6 +58,10 @@ public:
     /// Get all expired sessions
     std::vector<int64_t> getExpiredSessions() const;
 
+    const std::unordered_map<int64_t, int64_t> & sessionToExpirationTime();
+
+    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time);
+
     void clear();
 };
 

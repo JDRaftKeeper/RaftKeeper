@@ -13,11 +13,16 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
 {
     while (!shutdown_called)
     {
-        UInt64 max_wait = operation_timeout_ms;
+        UInt64 max_wait = session_sync_period_ms;
+        if (session_sync_idx == thread_idx)
+        {
+            auto elapsed_milliseconds = session_sync_time_watch.elapsedMilliseconds();
+            max_wait = elapsed_milliseconds >= session_sync_period_ms ? 0 : session_sync_period_ms - elapsed_milliseconds;
+        }
 
         SvsKeeperStorage::RequestForSession request_for_session;
 
-        if (requests_queue->tryPop(thread_idx, request_for_session, max_wait/2) && !server->isLeader())
+        if (requests_queue->tryPop(thread_idx, request_for_session, max_wait))
         {
             try
             {
@@ -31,18 +36,30 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                 svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
             }
         }
-        else if (!server->isLeader() && server->isLeaderAlive())
+
+        if (session_sync_idx == thread_idx && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
         {
-            /// sned ping
-            try
+            if (!server->isLeader() && server->isLeaderAlive())
             {
-                auto connection = server->getLeaderClient(thread_idx);
-                connection->sendPing();
+                /// sned ping
+                try
+                {
+                    auto connection = server->getLeaderClient(thread_idx);
+                    const std::unordered_map<int64_t, int64_t> & session_to_expiration_time = server->getKeeperStateMachine()->getStorage().sessionToExpirationTime();
+                    connection->sendPing(session_to_expiration_time);
+                }
+                catch (...)
+                {
+                    ///
+                }
             }
-            catch (...)
-            {
-                ///
-            }
+
+            session_sync_time_watch.restart();
+
+            if (thread_idx + 1 == thread_count)
+                session_sync_idx = 0;
+            else
+                session_sync_idx++;
         }
     }
 }
@@ -53,7 +70,7 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
     {
         try
         {
-            UInt64 max_wait = operation_timeout_ms;
+            UInt64 max_wait = session_sync_period_ms;
             ForwardResponse response;
             if (!server->isLeader() && server->isLeaderAlive())
             {
@@ -107,9 +124,10 @@ void SvsKeeperFollowerProcessor::shutdown()
     }
 }
 
-void SvsKeeperFollowerProcessor::initialize(size_t thread_count, std::shared_ptr<SvsKeeperServer> server_, UInt64 operation_timeout_ms_)
+void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, UInt64 session_sync_period_ms_)
 {
-    operation_timeout_ms = operation_timeout_ms_;
+    thread_count = thread_count_;
+    session_sync_period_ms = session_sync_period_ms_;
     server = server_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count);
