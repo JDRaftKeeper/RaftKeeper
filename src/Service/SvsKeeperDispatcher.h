@@ -136,6 +136,12 @@ public:
 
     bool containsSession(int64_t session_id);
 
+    /// from follower
+    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+    {
+        server->setSessionExpirationTime(session_id, expiration_time);
+    }
+
     /// Thread apply or wait configuration changes from leader
     void updateConfigurationThread();
     /// Registered in ConfigReloader callback. Add new configuration changes to

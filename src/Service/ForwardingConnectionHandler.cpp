@@ -102,9 +102,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         break;
                     case ForwardProtocol::Ping:
                     {
-                        current_package.is_done = true;
-                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
-                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        current_package.is_done = false;
                         break;
                     }
                     case ForwardProtocol::Data:
@@ -117,7 +115,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (current_package.protocol == ForwardProtocol::Hello)
+                if unlikely(current_package.protocol == ForwardProtocol::Hello)
                 {
                     if (!req_body_buf)
                     {
@@ -187,6 +185,59 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         ForwardResponse response{ForwardProtocol::Result, false, nuraft::cmd_result_code::CANCELLED, session_xid.first, session_xid.second};
                         service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing request.");
+                    }
+                }
+                else if (current_package.protocol == ForwardProtocol::Ping)
+                {
+                    try
+                    {
+                        if (!req_body_buf) /// new data package
+                        {
+                            if (!req_body_len_buf.isFull())
+                            {
+                                socket_.receiveBytes(req_body_len_buf);
+                                if (!req_body_len_buf.isFull())
+                                    continue;
+                            }
+
+                            /// request body length
+                            int32_t session_size{};
+                            ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
+                            Coordination::read(session_size, read_buf);
+                            req_body_len_buf.drain(req_body_len_buf.used());
+
+                            LOG_TRACE(log, "Read request done, session size : {}", session_size);
+
+                            req_body_buf = std::make_shared<FIFOBuffer>(session_size * 16);
+                        }
+
+                        socket_.receiveBytes(*req_body_buf);
+                        if (!req_body_buf->isFull())
+                            continue;
+
+                        ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+                        size_t session_size = req_body_buf->size() / 16;
+                        for (size_t i = 0; i < session_size; ++i)
+                        {
+                            int64_t session_id;
+                            Coordination::read(session_id, body);
+                            int64_t expiration_time;
+                            Coordination::read(expiration_time, body);
+
+                            service_keeper_storage_dispatcher->setSessionExpirationTime(session_id, expiration_time);
+                        }
+
+                        req_body_buf.reset();
+                        current_package.is_done = true;
+
+                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                    }
+                    catch (...)
+                    {
+                        ForwardResponse response{ForwardProtocol::Ping, false, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        tryLogCurrentException(log, "Error processing ping request.");
                     }
                 }
             }

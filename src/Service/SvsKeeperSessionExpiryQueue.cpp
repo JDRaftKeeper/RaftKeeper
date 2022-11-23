@@ -30,6 +30,13 @@ void SvsKeeperSessionExpiryQueue::addNewSessionOrUpdate(int64_t session_id, int6
     /// round up to next interval
     int64_t new_expiry_time = roundToNextInterval(now + timeout_ms);
 
+    setSessionExpirationTime(session_id, new_expiry_time);
+}
+
+void SvsKeeperSessionExpiryQueue::setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+{
+    int64_t new_expiry_time = expiration_time;
+
     auto session_it = session_to_expiration_time.find(session_id);
     /// We already registered this session
     if (session_it != session_to_expiration_time.end())
@@ -85,6 +92,11 @@ std::vector<int64_t> SvsKeeperSessionExpiryQueue::getExpiredSessions() const
     }
 
     return result;
+}
+
+const std::unordered_map<int64_t, int64_t> & SvsKeeperSessionExpiryQueue::sessionToExpirationTime()
+{
+    return session_to_expiration_time;
 }
 
 void SvsKeeperSessionExpiryQueue::clear()

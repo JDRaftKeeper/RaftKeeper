@@ -301,6 +301,19 @@ public:
         return ret;
     }
 
+    std::unordered_map<int64_t, int64_t> sessionToExpirationTime()
+    {
+        std::lock_guard lock(session_mutex);
+        auto & ret = session_expiry_queue.sessionToExpirationTime();
+        return ret;
+    }
+
+    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+    {
+        std::lock_guard lock(session_mutex);
+        session_expiry_queue.setSessionExpirationTime(session_id, expiration_time);
+    }
+
     bool containsSession(int64_t session_id) const;
 
     /// Introspection functions mostly used in 4-letter commands

@@ -528,6 +528,11 @@ bool SvsKeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_t
     return is_success;
 }
 
+void SvsKeeperServer::setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+{
+    state_machine->getStorage().setSessionExpirationTime(session_id, expiration_time);
+}
+
 bool SvsKeeperServer::isLeader() const
 {
     return raft_instance->is_leader();

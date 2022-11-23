@@ -142,7 +142,7 @@ bool ForwardingConnection::recive(ForwardResponse & response)
     }
 }
 
-void ForwardingConnection::sendPing()
+void ForwardingConnection::sendPing(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
     if (!connected)
     {
@@ -160,6 +160,13 @@ void ForwardingConnection::sendPing()
     try
     {
         Coordination::write(ForwardProtocol::Ping, *out);
+        Coordination::write(int32_t(session_to_expiration_time.size()), *out);
+        for (auto & session_expiration_time: session_to_expiration_time)
+        {
+            Coordination::write(session_expiration_time.first, *out);
+            Coordination::write(session_expiration_time.second, *out);
+        }
+
         out->next();
     }
     catch(...)
