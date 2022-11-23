@@ -1,12 +1,13 @@
 import pytest
 from helpers.cluster import ClickHouseCluster
-from helpers.cluster import ClickHouseServiceCluster
+from helpers.cluster_service import ClickHouseServiceCluster
 import time
 import socket
 import struct
 from multiprocessing.dummy import Pool
 
 from kazoo.client import KazooClient
+from kazoo.retry import KazooRetry
 
 # from kazoo.protocol.serialization import Connect, read_buffer, write_buffer
 
@@ -32,12 +33,12 @@ reply_header_struct = struct.Struct("!iqi")
 stat_struct = struct.Struct("!qqqqiiiqiiq")
 
 
+
 @pytest.fixture(scope="module")
 def started_cluster():
     try:
         cluster.start()
         yield cluster
-
     finally:
         cluster.shutdown()
 
@@ -52,14 +53,15 @@ def destroy_zk_client(zk):
 
 
 def wait_node(node):
-    for _ in range(100):
+    for _ in range(20):
         zk = None
         try:
-            zk = get_fake_zk(node.name, timeout=30.0)
+            zk = get_fake_zk(node.name, timeout=3.0)
+            # zk.create("/test", sequence=True)
             print("node", node.name, "ready")
             break
         except Exception as ex:
-            time.sleep(0.2)
+            time.sleep(1)
             print("Waiting until", node.name, "will be ready, exception", ex)
         finally:
             destroy_zk_client(zk)
@@ -68,23 +70,21 @@ def wait_node(node):
 
 
 def wait_nodes():
-    for n in [node1]:
+    for n in [node1, node2, node3]:
         wait_node(n)
 
 
-def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(
-        hosts=cluster.get_instance_ip(nodename) + ":9181", timeout=timeout
-    )
+def get_fake_zk(node_name, timeout=30.0):
+    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node_name) + ":5102", timeout=timeout)
+    _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1)
     _fake_zk_instance.start()
     return _fake_zk_instance
-
 
 def get_keeper_socket(node_name):
     hosts = cluster.get_instance_ip(node_name)
     client = socket.socket()
     client.settimeout(10)
-    client.connect((hosts, 9181))
+    client.connect((hosts, 5102))
     return client
 
 
@@ -111,7 +111,7 @@ def read_buffer(bytes, offset):
         return bytes[index : index + length], offset
 
 
-def handshake(node_name=node1.name, session_timeout=1000, session_id=0):
+def handshake(node_name=node1.name, session_timeout=11000, session_id=0):
     client = get_keeper_socket(node_name)
     protocol_version = 0
     last_zxid_seen = 0
@@ -156,7 +156,7 @@ def handshake(node_name=node1.name, session_timeout=1000, session_id=0):
     return client
 
 def heartbeat(client):
-    length = 8;
+    length = 8
     xid = 1
     op_num = 11
 
@@ -191,5 +191,5 @@ def test_session_timeout(started_cluster):
     time.sleep(9)
     p.map(heartbeat, [client2, client3])
 
-    time.sleep(2)
+    time.sleep(5)
     heartbeat(client1)

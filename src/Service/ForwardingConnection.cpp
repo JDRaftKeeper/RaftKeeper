@@ -161,8 +161,9 @@ void ForwardingConnection::sendPing(const std::unordered_map<int64_t, int64_t> &
     {
         Coordination::write(ForwardProtocol::Ping, *out);
         Coordination::write(int32_t(session_to_expiration_time.size()), *out);
-        for (auto & session_expiration_time: session_to_expiration_time)
+        for (auto & session_expiration_time : session_to_expiration_time)
         {
+            LOG_TRACE(log, "Send session {}, expiration time {}", session_expiration_time.first, session_expiration_time.second);
             Coordination::write(session_expiration_time.first, *out);
             Coordination::write(session_expiration_time.second, *out);
         }
