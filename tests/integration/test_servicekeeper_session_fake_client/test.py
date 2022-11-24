@@ -173,7 +173,7 @@ def heartbeat(client):
     # send request
     client.send(req)
     data = client.recv(1_000)
-    return client
+    return data
 
 
 def test_session_timeout(started_cluster):
@@ -191,5 +191,7 @@ def test_session_timeout(started_cluster):
     time.sleep(9)
     p.map(heartbeat, [client2, client3])
 
-    time.sleep(5)
-    heartbeat(client1)
+    time.sleep(4)
+    assert len(heartbeat(client1)) == 0
+    assert len(heartbeat(client2)) > 0
+    assert len(heartbeat(client3)) > 0
