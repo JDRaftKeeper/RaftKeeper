@@ -28,7 +28,17 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             try
             {
                 if (!server->isLeader() && server->isLeaderAlive())
-                    server->getLeaderClient(thread_idx)->send(request_for_session);
+                {
+                    auto client = server->getLeaderClient(thread_idx);
+                    if (client)
+                    {
+                        client->send(request_for_session);
+                    }
+                    else
+                    {
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                    }
+                }
                 else
                     throw Exception("Raft no leader", ErrorCodes::RAFT_ERROR);
             }
@@ -45,9 +55,16 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                 /// sned ping
                 try
                 {
-                    auto connection = server->getLeaderClient(thread_idx);
-                    const auto & session_to_expiration_time = service_keeper_storage_dispatcher->localSessions(std::forward<std::unordered_map<int64_t, int64_t>>(server->getKeeperStateMachine()->getStorage().sessionToExpirationTime()));
-                    connection->sendPing(session_to_expiration_time);
+                    auto client = server->getLeaderClient(thread_idx);
+                    if (client)
+                    {
+                        const auto & session_to_expiration_time = service_keeper_storage_dispatcher->localSessions(std::forward<std::unordered_map<int64_t, int64_t>>(server->getKeeperStateMachine()->getStorage().sessionToExpirationTime()));
+                        client->sendPing(session_to_expiration_time);
+                    }
+                    else
+                    {
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                    }
                 }
                 catch (...)
                 {
@@ -76,16 +93,22 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 auto client = server->getLeaderClient(thread_idx);
-
-                if (!client->poll(max_wait))
-                    continue;
-
-                client->recive(response);
-
-                if (response.protocol == Result && !response.accepted && response.session_id != ForwardResponse::non_session_id)
+                if (client)
                 {
-                    LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
-                    svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid);
+                    if (!client->poll(max_wait))
+                        continue;
+
+                    client->recive(response);
+
+                    if (response.protocol == Result && !response.accepted && response.session_id != ForwardResponse::non_session_id)
+                    {
+                        LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
+                        svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid);
+                    }
+                }
+                else
+                {
+                    LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
                 }
             }
             else
@@ -116,7 +139,15 @@ void SvsKeeperFollowerProcessor::shutdown()
         /// TODO ?
         try
         {
-            server->getLeaderClient(0)->send(request_for_session);
+            auto client = server->getLeaderClient(0);
+            if (client)
+            {
+                client->send(request_for_session);
+            }
+            else
+            {
+                LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), 0);
+            }
         }
         catch (...)
         {
