@@ -514,7 +514,7 @@ bool SvsKeeperDispatcher::containsSession(int64_t session_id)
     return session_it != session_to_response_callback.end();
 }
 
-const std::unordered_map<int64_t, int64_t> & SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time) const
+const std::unordered_map<int64_t, int64_t> & SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
     for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
