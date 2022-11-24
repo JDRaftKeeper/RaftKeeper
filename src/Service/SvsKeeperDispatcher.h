@@ -136,18 +136,7 @@ public:
 
     bool containsSession(int64_t session_id);
 
-    const std::unordered_map<int64_t, int64_t> & localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time) const
-    {
-        std::lock_guard lock(session_to_response_callback_mutex);
-        for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
-        {
-            if (session_to_response_callback.find(it->first) == session_to_response_callback.end())
-                it = session_to_expiration_time.erase(it);
-            else
-                it++;
-        }
-        return session_to_expiration_time;
-    }
+    const std::unordered_map<int64_t, int64_t> & localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time) const;
 
     /// from follower
     void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)

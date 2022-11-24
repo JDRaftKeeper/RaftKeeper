@@ -514,6 +514,19 @@ bool SvsKeeperDispatcher::containsSession(int64_t session_id)
     return session_it != session_to_response_callback.end();
 }
 
+const std::unordered_map<int64_t, int64_t> & SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time) const
+{
+    std::lock_guard lock(session_to_response_callback_mutex);
+    for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
+    {
+        if (session_to_response_callback.find(it->first) == session_to_response_callback.end())
+            it = session_to_expiration_time.erase(it);
+        else
+            it++;
+    }
+    return session_to_expiration_time;
+}
+
 
 void SvsKeeperDispatcher::updateConfiguration(const Poco::Util::AbstractConfiguration & config)
 {
