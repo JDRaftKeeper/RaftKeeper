@@ -270,7 +270,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     if (session_consistent)
     {
         UInt64 session_sync_period_ms = configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()/2;
-        follower_request_processor.initialize(thread_count, server, session_sync_period_ms);
+        follower_request_processor.initialize(thread_count, server, shared_from_this(), session_sync_period_ms);
         svskeeper_sync_processor.initialize(1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
         requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     }
@@ -407,6 +407,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
         {
             if (isLeader())
             {
+                std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+
                 auto dead_sessions = server->getDeadSessions();
                 if (!dead_sessions.empty())
                     LOG_INFO(log, "Found dead sessions {}", dead_sessions.size());
@@ -432,13 +434,15 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     LOG_INFO(log, "Dead session close request pushed");
                 }
             }
+            else
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+            }
         }
         catch (...)
         {
             tryLogCurrentException(__PRETTY_FUNCTION__);
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
     }
 
     LOG_INFO(log, "end session clear task!");

@@ -1,4 +1,5 @@
 
+#include <Service/SvsKeeperDispatcher.h>
 #include <Service/SvsKeeperFollowerProcessor.h>
 
 namespace DB
@@ -45,7 +46,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                 try
                 {
                     auto connection = server->getLeaderClient(thread_idx);
-                    const std::unordered_map<int64_t, int64_t> & session_to_expiration_time = server->getKeeperStateMachine()->getStorage().sessionToExpirationTime();
+                    auto & session_to_expiration_time = service_keeper_storage_dispatcher->localSessions(std::forward<std::unordered_map<int64_t, int64_t>>(server->getKeeperStateMachine()->getStorage().sessionToExpirationTime()));
                     connection->sendPing(session_to_expiration_time);
                 }
                 catch (...)
@@ -124,11 +125,12 @@ void SvsKeeperFollowerProcessor::shutdown()
     }
 }
 
-void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, UInt64 session_sync_period_ms_)
+void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_)
 {
     thread_count = thread_count_;
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
+    service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count);
     for (size_t i = 0; i < thread_count; i++)

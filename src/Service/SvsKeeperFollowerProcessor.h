@@ -32,7 +32,7 @@ public:
 
     void runRecive(size_t thread_idx);
 
-    void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, UInt64 session_sync_period_ms_);
+    void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_);
 
 
 private:
@@ -41,6 +41,8 @@ private:
     ptr<RequestsQueue> requests_queue;
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
+
+    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 
     Poco::Logger * log;
 
