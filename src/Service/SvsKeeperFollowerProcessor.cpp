@@ -58,8 +58,11 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     auto client = server->getLeaderClient(thread_idx);
                     if (client)
                     {
-                        const auto & session_to_expiration_time = service_keeper_storage_dispatcher->localSessions(std::forward<std::unordered_map<int64_t, int64_t>>(server->getKeeperStateMachine()->getStorage().sessionToExpirationTime()));
-                        client->sendPing(session_to_expiration_time);
+                        auto session_to_expiration_time = server->getKeeperStateMachine()->getStorage().sessionToExpirationTime();
+                        service_keeper_storage_dispatcher->localSessions(session_to_expiration_time);
+                        LOG_DEBUG(log, "Has {} session expiration time to send", session_to_expiration_time.size());
+                        if (!session_to_expiration_time.empty())
+                            client->sendPing(session_to_expiration_time);
                     }
                     else
                     {
