@@ -136,7 +136,7 @@ public:
 
     bool containsSession(int64_t session_id);
 
-    const std::unordered_map<int64_t, int64_t> & localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time);
+    void localSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     /// from follower
     void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
