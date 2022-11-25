@@ -514,17 +514,22 @@ bool SvsKeeperDispatcher::containsSession(int64_t session_id)
     return session_it != session_to_response_callback.end();
 }
 
-const std::unordered_map<int64_t, int64_t> & SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> && session_to_expiration_time)
+void SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
     for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
     {
-        if (session_to_response_callback.find(it->first) == session_to_response_callback.end())
+        if (!session_to_response_callback.contains(it->first))
+        {
+            LOG_TRACE(log, "Not local session {}", it->first);
             it = session_to_expiration_time.erase(it);
+        }
         else
-            it++;
+        {
+            LOG_TRACE(log, "Local session {}", it->first);
+            ++it;
+        }
     }
-    return session_to_expiration_time;
 }
 
 
