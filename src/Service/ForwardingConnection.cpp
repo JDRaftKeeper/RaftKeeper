@@ -128,6 +128,7 @@ bool ForwardingConnection::recive(ForwardResponse & response)
         Coordination::read(response.session_id, *in);
 
         Coordination::read(response.xid, *in);
+        Coordination::read(response.opnum, *in);
 
         LOG_TRACE(log, "Recived forward response {}", response.toString());
 

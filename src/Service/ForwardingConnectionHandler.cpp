@@ -148,7 +148,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 }
                 else if (current_package.protocol == ForwardProtocol::Data)
                 {
-                    std::pair<int64_t, int64_t> session_xid{ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> session_xid_opnum{{ForwardResponse::non_session_id, ForwardResponse::non_xid}, Coordination::OpNum::Error};
                     try
                     {
                         if (!req_body_buf) /// new data package
@@ -175,14 +175,14 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         if (!req_body_buf->isFull())
                             continue;
 
-                        session_xid = receiveRequest(req_body_buf->size());
+                        session_xid_opnum = receiveRequest(req_body_buf->size());
 
                         req_body_buf.reset();
                         current_package.is_done = true;
                     }
                     catch (...)
                     {
-                        ForwardResponse response{ForwardProtocol::Result, false, nuraft::cmd_result_code::CANCELLED, session_xid.first, session_xid.second};
+                        ForwardResponse response{ForwardProtocol::Result, false, nuraft::cmd_result_code::CANCELLED, session_xid_opnum.first.first, session_xid_opnum.first.second, session_xid_opnum.second};
                         service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing request.");
                     }
@@ -232,12 +232,12 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         req_body_buf.reset();
                         current_package.is_done = true;
 
-                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
                         service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
                     }
                     catch (...)
                     {
-                        ForwardResponse response{ForwardProtocol::Ping, false, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid};
+                        ForwardResponse response{ForwardProtocol::Ping, false, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
                         service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing ping request.");
                     }
@@ -342,7 +342,7 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 }
 
 
-std::pair<int64_t, Coordination::XID> ForwardingConnectionHandler::receiveRequest(int32_t length)
+std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnectionHandler::receiveRequest(int32_t length)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
 
@@ -365,7 +365,8 @@ std::pair<int64_t, Coordination::XID> ForwardingConnectionHandler::receiveReques
 
     if (!service_keeper_storage_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
-    return std::make_pair(session_id, xid);
+
+    return {{session_id, xid}, opnum};
 }
 
 void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)

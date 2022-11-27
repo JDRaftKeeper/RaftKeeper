@@ -48,7 +48,7 @@ public:
 
 private:
 
-    std::pair<int64_t, Coordination::XID> receiveRequest(int32_t length);
+    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> receiveRequest(int32_t length);
 
     void sendResponse(const ForwardResponse & response);
 
