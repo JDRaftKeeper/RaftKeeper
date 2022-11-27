@@ -84,6 +84,7 @@ void SvsKeeperCommitProcessor::run()
                                     auto & requests = session_requests->second;
                                     for (auto request_it = requests.begin(); request_it != requests.end();)
                                     {
+                                        LOG_TRACE(log, "session {} pending request xid {}, target error xid {}", session_id, request_it->request->xid, xid);
                                         if (uint64_t(request_it->request->xid) <= xid)
                                         {
                                             break;
@@ -100,14 +101,27 @@ void SvsKeeperCommitProcessor::run()
                                         }
                                     }
                                 }
+                                else
+                                {
+                                    LOG_WARNING(log, "session {}, no pending requests", session_id);
+                                }
                             }
 
-                            if (request)
+                            if (request || error_request.opnum == Coordination::OpNum::Close)
                             {
-                                auto response = request->request->makeResponse();
-
-                                response->xid = request->request->xid;
-                                response->zxid = 0;
+                                ZooKeeperResponsePtr response;
+                                if (request)
+                                {
+                                    response = request->request->makeResponse();
+                                    response->xid = request->request->xid;
+                                    response->zxid = 0;
+                                }
+                                else
+                                {
+                                    response = std::make_shared<ZooKeeperCloseResponse>();
+                                    response->xid = Coordination::CLOSE_XID;
+                                    response->zxid = 0;
+                                }
 
                                 auto accepted = error_request.accepted;
                                 auto error_code = error_request.error_code;
@@ -305,6 +319,7 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
             }
             else if (op_num != Coordination::OpNum::Heartbeat && op_num != Coordination::OpNum::Auth)
             {
+                LOG_TRACE(log, "put session {} xid {} to pending requests", request.session_id, request.request->xid);
                 pending_requests[request.session_id].push_back(request);
             }
         }
@@ -346,7 +361,21 @@ void SvsKeeperCommitProcessor::stateMachineProcessRequest(const RequestForSessio
             reuqest.request->xid,
             reuqest.request->toString());
 
-        server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, reuqest.request, reuqest.session_id, reuqest.time, {}, true, false);
+        if (!server->isLeaderAlive())
+        {
+            auto response = reuqest.request->makeResponse();
+
+            response->xid = reuqest.request->xid;
+            response->zxid = 0;
+
+            response->error = Coordination::Error::ZCONNECTIONLOSS;
+
+            responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{reuqest.session_id, response});
+        }
+        else
+        {
+            server->getKeeperStateMachine()->getStorage().processRequest(responses_queue, reuqest.request, reuqest.session_id, reuqest.time, {}, true, false);
+        }
     }
     catch (...)
     {
@@ -393,13 +422,14 @@ void SvsKeeperCommitProcessor::commit(Request request)
     }
 }
 
-void SvsKeeperCommitProcessor::onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid)
+void SvsKeeperCommitProcessor::onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid, Coordination::OpNum opnum)
 {
     if (!shutdown_called)
     {
+        LOG_WARNING(log, "on error session {}, xid {}", session_id, xid);
         {
             std::unique_lock lk(mutex);
-            ErrorRequest error_request{accepted, error_code, session_id, xid};
+            ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
             errors.emplace(UInt128(session_id, xid), error_request);
         }
         cv.notify_all();

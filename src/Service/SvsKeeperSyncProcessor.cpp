@@ -33,7 +33,7 @@ bool SvsKeeperSyncProcessor::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_re
             }
             else
             {
-                svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid);
+                svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
             }
         }
         return false;
@@ -100,7 +100,7 @@ void SvsKeeperSyncProcessor::shutdown()
     SvsKeeperStorage::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
-        svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
+        svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
     }
 }
 
