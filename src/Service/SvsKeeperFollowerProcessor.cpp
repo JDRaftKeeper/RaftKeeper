@@ -44,7 +44,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             }
             catch (...)
             {
-                svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
+                svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
             }
         }
 
@@ -106,7 +106,7 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                     if (response.protocol == Result && !response.accepted && response.session_id != ForwardResponse::non_session_id)
                     {
                         LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
-                        svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid);
+                        svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid, response.opnum);
                     }
                 }
                 else
@@ -154,7 +154,7 @@ void SvsKeeperFollowerProcessor::shutdown()
         }
         catch (...)
         {
-            svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid);
+            svskeeper_commit_processor->onError(false, nuraft::cmd_result_code::CANCELLED, request_for_session.session_id, request_for_session.request->xid, request_for_session.request->getOpNum());
         }
     }
 }

@@ -32,6 +32,7 @@ struct ForwardResponse
     int32_t error_code{nuraft::cmd_result_code::OK};
     int64_t session_id{-1};
     int64_t xid{-1};
+    Coordination::OpNum opnum{Coordination::OpNum::Error};
 
     void write(WriteBufferFromFiFoBuffer & buf) const
     {
@@ -40,6 +41,7 @@ struct ForwardResponse
         Coordination::write(error_code, buf);
         Coordination::write(session_id, buf);
         Coordination::write(xid, buf);
+        Coordination::write(opnum, buf);
     }
 
     String toString() const
@@ -68,6 +70,7 @@ struct ForwardResponse
         res += ", error_code: " + std::to_string(error_code);
         res += ", session_id: " + std::to_string(session_id);
         res += ", xid: " + std::to_string(xid);
+        res += ", opnum: " + Coordination::toString(opnum);
         return res;
     }
 };
