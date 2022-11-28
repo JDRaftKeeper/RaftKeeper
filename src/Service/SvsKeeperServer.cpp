@@ -535,7 +535,16 @@ void SvsKeeperServer::setSessionExpirationTime(int64_t session_id, int64_t expir
 
 int64_t SvsKeeperServer::getSessionTimeout(int64_t session_id)
 {
-    return state_machine->getStorage().session_and_timeout.find(session_id)->second;
+    LOG_DEBUG(log, "get session timeout for {}", session_id);
+    if (state_machine->getStorage().session_and_timeout.contains(session_id))
+    {
+        return state_machine->getStorage().session_and_timeout.find(session_id)->second;
+    }
+    else
+    {
+        LOG_WARNING(log, "Not found session timeout for {}", session_id);
+        return -1;
+    }
 }
 
 bool SvsKeeperServer::isLeader() const
