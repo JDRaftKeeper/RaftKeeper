@@ -86,6 +86,8 @@ public:
 
     void setSessionExpirationTime(int64_t session_id, int64_t expiration_time);
 
+    int64_t getSessionTimeout(int64_t session_id);
+
     bool isLeader() const;
 
     bool isLeaderAlive() const;

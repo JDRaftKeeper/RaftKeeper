@@ -533,6 +533,11 @@ void SvsKeeperServer::setSessionExpirationTime(int64_t session_id, int64_t expir
     state_machine->getStorage().setSessionExpirationTime(session_id, expiration_time);
 }
 
+int64_t SvsKeeperServer::getSessionTimeout(int64_t session_id)
+{
+    return state_machine->getStorage().session_and_timeout.find(session_id)->second;
+}
+
 bool SvsKeeperServer::isLeader() const
 {
     return raft_instance->is_leader();

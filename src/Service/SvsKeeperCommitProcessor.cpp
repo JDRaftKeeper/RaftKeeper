@@ -89,7 +89,7 @@ void SvsKeeperCommitProcessor::run()
                                         {
                                             break;
                                         }
-                                        else if (uint64_t(request_it->request->xid) == xid)
+                                        else if (uint64_t(request_it->request->xid) == xid || (request_it->request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
                                         {
                                             request = *request_it;
                                             request_it = requests.erase(request_it);
@@ -107,21 +107,11 @@ void SvsKeeperCommitProcessor::run()
                                 }
                             }
 
-                            if (request || error_request.opnum == Coordination::OpNum::Close)
+                            if (request)
                             {
-                                ZooKeeperResponsePtr response;
-                                if (request)
-                                {
-                                    response = request->request->makeResponse();
-                                    response->xid = request->request->xid;
-                                    response->zxid = 0;
-                                }
-                                else
-                                {
-                                    response = std::make_shared<ZooKeeperCloseResponse>();
-                                    response->xid = Coordination::CLOSE_XID;
-                                    response->zxid = 0;
-                                }
+                                ZooKeeperResponsePtr response = request->request->makeResponse();
+                                response->xid = request->request->xid;
+                                response->zxid = 0;
 
                                 auto accepted = error_request.accepted;
                                 auto error_code = error_request.error_code;
@@ -129,9 +119,9 @@ void SvsKeeperCommitProcessor::run()
                                 response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                                  : Coordination::Error::ZCONNECTIONLOSS;
 
-                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request->session_id, response});
+                                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{int64_t(session_id), response});
 
-                                LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, Coordination::toString(request->request->getOpNum()));
+                                LOG_ERROR(log, "Make error response for session {}, xid {}, opNum {}", session_id, response->xid, error_request.opnum);
 
                                 if (!accepted)
                                     LOG_ERROR(log, "Request batch is not accepted");
@@ -256,18 +246,6 @@ void SvsKeeperCommitProcessor::run()
                                     }
                                 }
                             }
-                            else
-                            {
-                                /// close request never appear in current_session_pending_requests
-                                if (committed_request.request->getOpNum() != Coordination::OpNum::Close)
-                                {
-                                    LOG_WARNING(log, "current_session_pending_requests is empty, maybe request in request queue. session {} committed request xid {} {}",
-                                                committed_request.session_id,
-                                                committed_request.request->xid,
-                                                committed_request.request->toString());
-                                    break;
-                                }
-                            }
 
                             if (has_read_request || found_in_error)
                                 break;
@@ -279,8 +257,9 @@ void SvsKeeperCommitProcessor::run()
                             for (auto it = current_session_pending_requests.begin(); it != current_session_pending_requests.end();)
                             {
                                 auto xid = it->request->xid;
+                                auto opnum = it->request->getOpNum();
                                 it = current_session_pending_requests.erase(it);
-                                if (xid == committed_request.request->xid)
+                                if (xid == committed_request.request->xid || (opnum == Coordination::OpNum::Close && committed_request.request->getOpNum() == Coordination::OpNum::Close))
                                 {
                                     break;
                                 }
