@@ -141,7 +141,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                     LOG_INFO(log, "register forward from server {} client {}", server_id, client_id);
 
-                    service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, {ForwardProtocol::Hello, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid});
+                    service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, {ForwardProtocol::Hello, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error});
 
                     req_body_buf.reset();
                     current_package.is_done = true;
@@ -371,8 +371,7 @@ std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnection
 
 void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
 {
-//    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
-
+    LOG_TRACE(log, "Send response {}", response.toString());
     WriteBufferFromFiFoBuffer buf;
     response.write(buf);
 
