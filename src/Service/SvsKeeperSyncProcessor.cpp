@@ -28,7 +28,7 @@ bool SvsKeeperSyncProcessor::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_re
         {
             if (request_session.isForwardRequest())
             {
-                ForwardResponse response{Result, result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid};
+                ForwardResponse response{Result, result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, Coordination::OpNum::Error};
                 service_keeper_storage_dispatcher->setAppendEntryResponse(request_session.server_id, request_session.client_id, response);
             }
             else

@@ -44,9 +44,7 @@ private:
 
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 
-    std::vector<std::shared_ptr<std::mutex>> mutexes;
-
-    std::mutex session_xid_request_mutex;
+    std::vector<std::unique_ptr<std::mutex>> mutexes;
 
     /// session, xid, request
     using SessionXidRequest = std::unordered_map<int64_t, std::map<int64_t , Request>>;

@@ -101,13 +101,15 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                 std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
                 for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
                 {
+                    LOG_TRACE(log, "process session {} whether timeout, requests {}", it->first, it->second.size());
                     for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
                     {
                         using namespace std::chrono;
                         int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                         int64_t timeout = server->getSessionTimeout(it->first);
-                        if ((requests_it->second.time + timeout) > now) /// timeout
+                        if ((requests_it->second.time + timeout) < now || timeout < 0) /// timeout
                         {
+                            LOG_WARNING(log, "session {}, xid {} is timeout, request time {}, now {}, timeout {}", it->first, requests_it->first, requests_it->second.time, now, timeout);
                             svskeeper_commit_processor->onError(
                                 false,
                                 nuraft::cmd_result_code::TIMEOUT,
@@ -143,15 +145,25 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
 
                     if (response.protocol == Result && !response.accepted && response.session_id != ForwardResponse::non_session_id)
                     {
-                        LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
-                        svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid, response.opnum);
+                        LOG_WARNING(
+                            log,
+                            "Recive forward response session {}, xid {}, error code {}",
+                            response.session_id,
+                            response.xid,
+                            response.error_code);
+                        svskeeper_commit_processor->onError(
+                            response.accepted,
+                            nuraft::cmd_result_code(response.error_code),
+                            response.session_id,
+                            response.xid,
+                            response.opnum);
                     }
 
                     auto session_xid_request = thread_requests.find(thread_idx)->second;
-                    if (response.protocol == Result && session_xid_request.contains(response.session_id))
                     {
+                        std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
+                        if (response.protocol == Result && session_xid_request.contains(response.session_id))
                         {
-                            std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
                             session_xid_request.find(response.session_id)->second.erase(response.xid);
                         }
                     }
@@ -209,11 +221,11 @@ void SvsKeeperFollowerProcessor::shutdown()
 void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_)
 {
     thread_count = thread_count_;
-    mutexes.resize(thread_count);
+    mutexes.reserve(thread_count);
 
     for (size_t i = 0; i < thread_count; i++)
     {
-        mutexes.emplace_back(std::make_shared<std::mutex>());
+        mutexes.emplace_back(std::make_unique<std::mutex>());
     }
 
     session_sync_period_ms = session_sync_period_ms_;
@@ -221,6 +233,12 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_pt
     service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count);
+
+    for (size_t i = 0; i < thread_count; i++)
+    {
+        thread_requests[i];
+    }
+
     for (size_t i = 0; i < thread_count; i++)
     {
         request_thread->trySchedule([this, i] { run(i); });
@@ -230,11 +248,6 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_pt
     for (size_t i = 0; i < thread_count; i++)
     {
         response_thread->trySchedule([this, i] { runRecive(i); });
-    }
-
-    for (size_t i = 0; i < thread_count; i++)
-    {
-        thread_requests[i];
     }
 }
 
