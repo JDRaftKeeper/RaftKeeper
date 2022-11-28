@@ -32,6 +32,10 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     auto client = server->getLeaderClient(thread_idx);
                     if (client)
                     {
+                        {
+                            std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
+                            thread_requests.find(thread_idx)->second[request_for_session.session_id].emplace(request_for_session.request->xid, request_for_session);
+                        }
                         client->send(request_for_session);
                     }
                     else
@@ -91,6 +95,40 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
     {
         try
         {
+            /// timeout?
+            {
+                auto session_xid_request = thread_requests.find(thread_idx)->second;
+                std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
+                for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
+                {
+                    for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
+                    {
+                        using namespace std::chrono;
+                        int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                        int64_t timeout = server->getSessionTimeout(it->first);
+                        if ((requests_it->second.time + timeout) > now) /// timeout
+                        {
+                            svskeeper_commit_processor->onError(
+                                false,
+                                nuraft::cmd_result_code::TIMEOUT,
+                                it->first,
+                                requests_it->first,
+                                requests_it->second.request->getOpNum());
+                            it->second.erase(requests_it);
+                        }
+                        else
+                        {
+                            ++requests_it;
+                        }
+                    }
+
+                    if (it->second.empty())
+                        session_xid_request.erase(it);
+                    else
+                        ++it;
+                }
+            }
+
             UInt64 max_wait = session_sync_period_ms;
             ForwardResponse response;
             if (!server->isLeader() && server->isLeaderAlive())
@@ -107,6 +145,15 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                     {
                         LOG_WARNING(log, "Recive forward response session {}, xid {}, error code {}", response.session_id, response.xid, response.error_code);
                         svskeeper_commit_processor->onError(response.accepted, nuraft::cmd_result_code(response.error_code), response.session_id, response.xid, response.opnum);
+                    }
+
+                    auto session_xid_request = thread_requests.find(thread_idx)->second;
+                    if (response.protocol == Result && session_xid_request.contains(response.session_id))
+                    {
+                        {
+                            std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
+                            session_xid_request.find(response.session_id)->second.erase(response.xid);
+                        }
                     }
                 }
                 else
@@ -162,6 +209,8 @@ void SvsKeeperFollowerProcessor::shutdown()
 void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_)
 {
     thread_count = thread_count_;
+    mutexes.resize(thread_count);
+
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
     service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
@@ -176,6 +225,11 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_pt
     for (size_t i = 0; i < thread_count; i++)
     {
         response_thread->trySchedule([this, i] { runRecive(i); });
+    }
+
+    for (size_t i = 0; i < thread_count; i++)
+    {
+        thread_requests[i];
     }
 }
 

@@ -65,7 +65,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                     svskeeper_sync_processor.processRequest(request_for_session);
                 }
 
-                if (containsSession(request_for_session.session_id) && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
+                if (containsSession(request_for_session.session_id))
                 {
                     LOG_TRACE(
                         log,
