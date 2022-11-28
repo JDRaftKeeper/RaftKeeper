@@ -33,7 +33,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     if (client)
                     {
                         {
-                            std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
+                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
                             thread_requests.find(thread_idx)->second[request_for_session.session_id].emplace(request_for_session.request->xid, request_for_session);
                         }
                         client->send(request_for_session);
@@ -98,7 +98,7 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
             /// timeout?
             {
                 auto session_xid_request = thread_requests.find(thread_idx)->second;
-                std::lock_guard<std::mutex> lock(mutexes[thread_idx]);
+                std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
                 for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
                 {
                     for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
@@ -210,6 +210,11 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_pt
 {
     thread_count = thread_count_;
     mutexes.resize(thread_count);
+
+    for (size_t i = 0; i < thread_count; i++)
+    {
+        mutexes.emplace_back(std::make_shared<std::mutex>());
+    }
 
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
