@@ -44,7 +44,7 @@ private:
 
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
 
-    std::vector<std::mutex> mutexes;
+    std::vector<std::shared_ptr<std::mutex>> mutexes;
 
     std::mutex session_xid_request_mutex;
 
