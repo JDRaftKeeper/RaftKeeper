@@ -32,10 +32,10 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     auto client = server->getLeaderClient(thread_idx);
                     if (client)
                     {
-                        {
-                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
-                            thread_requests.find(thread_idx)->second[request_for_session.session_id].emplace(request_for_session.request->xid, request_for_session);
-                        }
+//                        {
+//                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
+//                            thread_requests.find(thread_idx)->second[request_for_session.session_id].emplace(request_for_session.request->xid, request_for_session);
+//                        }
                         client->send(request_for_session);
                     }
                     else
@@ -96,44 +96,44 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
         try
         {
             /// timeout?
-            {
-                auto & session_xid_request = thread_requests.find(thread_idx)->second;
-//                LOG_TRACE(log, "session_xid_request size {}", session_xid_request.size());
-                std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
-                for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
-                {
-//                    LOG_TRACE(log, "process session {} whether timeout, requests {}", it->first, it->second.size());
-                    for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
-                    {
-                        using namespace std::chrono;
-                        int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                        int64_t timeout = server->getSessionTimeout(it->first);
-                        if ((requests_it->second.time + timeout) < now || timeout < 0) /// timeout
-                        {
-                            LOG_WARNING(log, "session {}, xid {} is timeout, request time {}, now {}, timeout {}", it->first, requests_it->first, requests_it->second.time, now, timeout);
-                            svskeeper_commit_processor->onError(
-                                false,
-                                nuraft::cmd_result_code::TIMEOUT,
-                                it->first,
-                                requests_it->first,
-                                requests_it->second.request->getOpNum());
-                            it->second.erase(requests_it++);
-//                            LOG_TRACE(log, "After erase requests size {}", it->second.size());
-                        }
-                        else
-                        {
-                            ++requests_it;
-                        }
-                    }
-
-                    if (it->second.empty())
-                        it = session_xid_request.erase(it);
-                    else
-                        ++it;
-
-//                    LOG_TRACE(log, "After one loop session_xid_request size {}", session_xid_request.size());
-                }
-            }
+//            {
+//                auto & session_xid_request = thread_requests.find(thread_idx)->second;
+////                LOG_TRACE(log, "session_xid_request size {}", session_xid_request.size());
+//                std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
+//                for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
+//                {
+////                    LOG_TRACE(log, "process session {} whether timeout, requests {}", it->first, it->second.size());
+//                    for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
+//                    {
+//                        using namespace std::chrono;
+//                        int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+//                        int64_t timeout = server->getSessionTimeout(it->first);
+//                        if ((requests_it->second.time + timeout) < now || timeout < 0) /// timeout
+//                        {
+//                            LOG_WARNING(log, "session {}, xid {} is timeout, request time {}, now {}, timeout {}", it->first, requests_it->first, requests_it->second.time, now, timeout);
+//                            svskeeper_commit_processor->onError(
+//                                false,
+//                                nuraft::cmd_result_code::TIMEOUT,
+//                                it->first,
+//                                requests_it->first,
+//                                requests_it->second.request->getOpNum());
+//                            it->second.erase(requests_it++);
+////                            LOG_TRACE(log, "After erase requests size {}", it->second.size());
+//                        }
+//                        else
+//                        {
+//                            ++requests_it;
+//                        }
+//                    }
+//
+//                    if (it->second.empty())
+//                        it = session_xid_request.erase(it);
+//                    else
+//                        ++it;
+//
+////                    LOG_TRACE(log, "After one loop session_xid_request size {}", session_xid_request.size());
+//                }
+//            }
 
             UInt64 max_wait = session_sync_period_ms;
             ForwardResponse response;
@@ -142,8 +142,6 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                 auto client = server->getLeaderClient(thread_idx);
                 if (client && client->isConnected())
                 {
-//                    LOG_TRACE(log, "isLeaderAlive...");
-
                     if (!client->poll(max_wait * 1000)) /// TODO sleep
                         continue;
 
@@ -165,17 +163,17 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                             response.opnum);
                     }
 
-                    if (response.protocol == Result)
-                    {
-                        auto & session_xid_request = thread_requests.find(thread_idx)->second;
-                        {
-                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
-                            if (session_xid_request.contains(response.session_id))
-                            {
-                                session_xid_request.find(response.session_id)->second.erase(response.xid);
-                            }
-                        }
-                    }
+//                    if (response.protocol == Result)
+//                    {
+//                        auto & session_xid_request = thread_requests.find(thread_idx)->second;
+//                        {
+//                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
+//                            if (session_xid_request.contains(response.session_id))
+//                            {
+//                                session_xid_request.find(response.session_id)->second.erase(response.xid);
+//                            }
+//                        }
+//                    }
                 }
                 else
                 {
@@ -184,19 +182,16 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                     else if (!client->isConnected())
                         LOG_WARNING(log, "client not connected");
 
-//                    LOG_TRACE(log, "DO sleep {}", session_sync_period_ms);
                     std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
                 }
             }
             else
             {
-//                LOG_TRACE(log, "TODO sleep {}", session_sync_period_ms);
                 std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
             }
         }
         catch (...)
         {
-//            LOG_TRACE(log, "catch TODO sleep {}", session_sync_period_ms);
             std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
         }
     }
@@ -238,12 +233,12 @@ void SvsKeeperFollowerProcessor::shutdown()
 void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_)
 {
     thread_count = thread_count_;
-    mutexes.reserve(thread_count);
-
-    for (size_t i = 0; i < thread_count; i++)
-    {
-        mutexes.emplace_back(std::make_unique<std::mutex>());
-    }
+//    mutexes.reserve(thread_count);
+//
+//    for (size_t i = 0; i < thread_count; i++)
+//    {
+//        mutexes.emplace_back(std::make_unique<std::mutex>());
+//    }
 
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
@@ -251,10 +246,10 @@ void SvsKeeperFollowerProcessor::initialize(size_t thread_count_, std::shared_pt
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count);
 
-    for (size_t i = 0; i < thread_count; i++)
-    {
-        thread_requests[i];
-    }
+//    for (size_t i = 0; i < thread_count; i++)
+//    {
+//        thread_requests[i];
+//    }
 
     for (size_t i = 0; i < thread_count; i++)
     {
