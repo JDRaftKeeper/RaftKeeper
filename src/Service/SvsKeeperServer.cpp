@@ -99,7 +99,7 @@ void SvsKeeperServer::startup()
     params.auto_forwarding_ = coordination_settings->auto_forwarding;
     params.auto_forwarding_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
     params.auto_forwarding_max_connections_ = coordination_and_settings->thread_count;
-    params.return_method_ = nuraft::raft_params::async_handler;
+    params.return_method_ = nuraft::raft_params::blocking;
     params.parallel_log_appending_ = coordination_settings->async_fsync;
 
     nuraft::asio_service::options asio_opts{};
