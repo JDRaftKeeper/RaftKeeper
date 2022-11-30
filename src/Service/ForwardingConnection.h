@@ -93,6 +93,11 @@ public:
 
     bool poll(UInt64 max_wait);
 
+    bool isConnected() const
+    {
+        return connected;
+    }
+
     ~ForwardingConnection()
     {
         try

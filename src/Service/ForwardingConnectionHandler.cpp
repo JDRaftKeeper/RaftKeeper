@@ -291,8 +291,27 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
             return size_to_sent < SENT_BUFFER_SIZE;
         });
 
+        auto func = [this](int32_t nSize)
+        {
+            String str;
+            int32_t i, j, nResult;
+            for ( i = 0; i < nSize; ++i )
+            {
+                for ( j = 7; j >= 0; j-- )
+                {
+                    nResult = (send_buf)[i] & int32_t(pow( 2, j ));
+                    nResult = ( 0 != nResult );
+                    str += std::to_string(nResult);
+                }
+            }
+            LOG_TRACE(log, "send_buf {}", str);
+        };
+        func(send_buf.used());
+
         /// 2. send data
         size_t sent = socket_.sendBytes(send_buf);
+
+        LOG_TRACE(log, "sent size {}", sent);
 
         /// 3. remove sent responses
 
@@ -377,6 +396,26 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
 
     /// TODO handle timeout
     responses->push(buf.getBuffer());
+
+    LOG_TRACE(log, "Send response buffer size {}", buf.getBuffer()->used());
+
+    auto func = [this](ptr<FIFOBuffer> pBuffer, int32_t nSize )
+    {
+        String str;
+        int32_t i, j, nResult;
+        for ( i = 0; i < nSize; ++i )
+        {
+            for ( j = 7; j >= 0; j-- )
+            {
+                nResult = (*pBuffer)[i] & int32_t(pow( 2, j ));
+                nResult = ( 0 != nResult );
+                str += std::to_string(nResult);
+            }
+        }
+        LOG_TRACE(log, "Send response buffer {}", str);
+    };
+    func(buf.getBuffer(), buf.getBuffer()->used());
+
 
 //    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
