@@ -85,7 +85,7 @@ void SvsKeeperCommitProcessor::run()
                                     for (auto request_it = requests.begin(); request_it != requests.end();)
                                     {
                                         LOG_TRACE(log, "session {} pending request xid {}, target error xid {}", session_id, request_it->request->xid, xid);
-                                        if (uint64_t(request_it->request->xid) <= xid)
+                                        if (uint64_t(request_it->request->xid) < xid)
                                         {
                                             break;
                                         }
@@ -319,6 +319,42 @@ void SvsKeeperCommitProcessor::processReadRequests(size_t thread_idx)
             else
             {
                 break;
+            }
+        }
+
+        if (requests.empty())
+            it = pending_requests.erase(it);
+        else
+            ++it;
+    }
+
+    /// process local every session, timeout? The request has not committed for a long time, there may be bad nodes, the number of quorum is not up to, and follower message forwarding may be lost.
+    /// If the number of arbitration is reached after the sessiontimeout time, the submission can only be made. At this time, the session has expired and the submission has no effect. If the service hangs up while waiting to reach the quorum quantity, this log will be rolled back when restarting.
+    /// test_servicekeeper_two_nodes_cluster/test.py::test_read_write_two_nodes_with_blocade - Failed: Timeout >300.0s
+    for (auto it = pending_requests.begin(); it != pending_requests.end();)
+    {
+        auto & requests = it->second;
+        for (auto requests_it = requests.begin(); requests_it != requests.end();)
+        {
+            /// read request
+            using namespace std::chrono;
+            int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+            int64_t timeout = server->getSessionTimeout(it->first);
+            if ((requests_it->time + timeout) < now || timeout < 0) /// timeout
+            {
+                LOG_WARNING(log, "session {}, xid {} is timeout, request time {}, now {}, timeout {}", it->first, requests_it->request->xid, requests_it->time, now, timeout);
+                auto response = requests_it->request->makeResponse();
+                response->xid = requests_it->request->xid;
+                response->zxid = 0;
+
+                response->error = Coordination::Error::ZCONNECTIONLOSS;
+
+                responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{int64_t(it->first), response});
+                requests_it = requests.erase(requests_it);
+            }
+            else
+            {
+                ++requests_it;
             }
         }
 

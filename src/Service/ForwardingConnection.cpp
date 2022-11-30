@@ -39,8 +39,8 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             sendHandshake();
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
-            receiveHandshake();
-            LOG_TRACE(log, "received handshake {}", endpoint);
+//            receiveHandshake();
+//            LOG_TRACE(log, "received handshake {}", endpoint);
 
             connected = true;
             LOG_TRACE(log, "connect succ {}", endpoint);
@@ -115,20 +115,50 @@ bool ForwardingConnection::recive(ForwardResponse & response)
     /// 2. Receiving network packets failed, which cannot determine whether the opposite end is accepted.
     try
     {
+
+        auto func = [this](char* buf, int32_t nSize)
+        {
+            String str;
+            int32_t i, j, nResult;
+            for ( i = 0; i < nSize; ++i )
+            {
+                for ( j = 7; j >= 0; j-- )
+                {
+                    nResult = (buf)[i] & int32_t(pow( 2, j ));
+                    nResult = ( 0 != nResult );
+                    str += std::to_string(nResult);
+                }
+            }
+            LOG_TRACE(log, "in_buf {}", str);
+        };
+
+        func(in->position(), 1);
         int8_t type;
         Coordination::read(type, *in);
         response.protocol = ForwardProtocol(type);
+        LOG_TRACE(log, "Recived forward response type {}", type);
 
+        func(in->position(), 1);
         Coordination::read(response.accepted, *in);
+        LOG_TRACE(log, "Recived forward response accepted {}", response.accepted);
 
+        func(in->position(), 4);
         int32_t code;
         Coordination::read(code, *in);
         response.error_code = code;
+        LOG_TRACE(log, "Recived forward response error_code {}", code);
 
+        func(in->position(), 8);
         Coordination::read(response.session_id, *in);
+        LOG_TRACE(log, "Recived forward response session_id {}", response.session_id);
 
+        func(in->position(), 8);
         Coordination::read(response.xid, *in);
+        LOG_TRACE(log, "Recived forward response xid {}", response.xid);
+
+        func(in->position(), 4);
         Coordination::read(response.opnum, *in);
+        LOG_TRACE(log, "Recived forward response opnum {}", response.opnum);
 
         LOG_TRACE(log, "Recived forward response {}", response.toString());
 
@@ -205,6 +235,9 @@ void ForwardingConnection::receiveHandshake()
 
     int64_t xid;
     Coordination::read(xid, *in);
+
+    int32_t opnum;
+    Coordination::read(opnum, *in);
 }
 
 

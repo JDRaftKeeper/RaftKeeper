@@ -97,11 +97,12 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
         {
             /// timeout?
             {
-                auto session_xid_request = thread_requests.find(thread_idx)->second;
+                auto & session_xid_request = thread_requests.find(thread_idx)->second;
+//                LOG_TRACE(log, "session_xid_request size {}", session_xid_request.size());
                 std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
                 for (auto it = session_xid_request.begin(); it != session_xid_request.end();)
                 {
-                    LOG_TRACE(log, "process session {} whether timeout, requests {}", it->first, it->second.size());
+//                    LOG_TRACE(log, "process session {} whether timeout, requests {}", it->first, it->second.size());
                     for (auto requests_it = it->second.begin(); requests_it != it->second.end();)
                     {
                         using namespace std::chrono;
@@ -116,7 +117,8 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                                 it->first,
                                 requests_it->first,
                                 requests_it->second.request->getOpNum());
-                            it->second.erase(requests_it);
+                            it->second.erase(requests_it++);
+//                            LOG_TRACE(log, "After erase requests size {}", it->second.size());
                         }
                         else
                         {
@@ -125,9 +127,11 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                     }
 
                     if (it->second.empty())
-                        session_xid_request.erase(it);
+                        it = session_xid_request.erase(it);
                     else
                         ++it;
+
+//                    LOG_TRACE(log, "After one loop session_xid_request size {}", session_xid_request.size());
                 }
             }
 
@@ -136,9 +140,11 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 auto client = server->getLeaderClient(thread_idx);
-                if (client)
+                if (client && client->isConnected())
                 {
-                    if (!client->poll(max_wait))
+//                    LOG_TRACE(log, "isLeaderAlive...");
+
+                    if (!client->poll(max_wait * 1000)) /// TODO sleep
                         continue;
 
                     client->recive(response);
@@ -159,28 +165,39 @@ void SvsKeeperFollowerProcessor::runRecive(size_t thread_idx)
                             response.opnum);
                     }
 
-                    auto session_xid_request = thread_requests.find(thread_idx)->second;
+                    if (response.protocol == Result)
                     {
-                        std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
-                        if (response.protocol == Result && session_xid_request.contains(response.session_id))
+                        auto & session_xid_request = thread_requests.find(thread_idx)->second;
                         {
-                            session_xid_request.find(response.session_id)->second.erase(response.xid);
+                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
+                            if (session_xid_request.contains(response.session_id))
+                            {
+                                session_xid_request.find(response.session_id)->second.erase(response.xid);
+                            }
                         }
                     }
                 }
                 else
                 {
-                    LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                    if (!client)
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                    else if (!client->isConnected())
+                        LOG_WARNING(log, "client not connected");
+
+//                    LOG_TRACE(log, "DO sleep {}", session_sync_period_ms);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
                 }
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+//                LOG_TRACE(log, "TODO sleep {}", session_sync_period_ms);
+                std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
             }
         }
         catch (...)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+//            LOG_TRACE(log, "catch TODO sleep {}", session_sync_period_ms);
+            std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
         }
     }
 }
