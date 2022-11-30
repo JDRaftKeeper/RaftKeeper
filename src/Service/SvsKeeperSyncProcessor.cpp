@@ -18,26 +18,20 @@ bool SvsKeeperSyncProcessor::waitResultAndHandleError(nuraft::ptr<nuraft::cmd_re
 
     bool result_accepted = prev_result->get_accepted();
 
-    if (result_accepted && prev_result->get_result_code() == nuraft::cmd_result_code::OK)
+    for (auto & request_session : prev_batch)
     {
-        return true;
-    }
-    else
-    {
-        for (auto & request_session : prev_batch)
+        if (request_session.isForwardRequest())
         {
-            if (request_session.isForwardRequest())
-            {
-                ForwardResponse response{Result, result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, Coordination::OpNum::Error};
-                service_keeper_storage_dispatcher->setAppendEntryResponse(request_session.server_id, request_session.client_id, response);
-            }
-            else
-            {
-                svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
-            }
+            ForwardResponse response{Result, result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, request_session.request->getOpNum()};
+            service_keeper_storage_dispatcher->setAppendEntryResponse(request_session.server_id, request_session.client_id, response);
         }
-        return false;
+        else if (!(result_accepted && prev_result->get_result_code() == nuraft::cmd_result_code::OK))
+        {
+            svskeeper_commit_processor->onError(result_accepted, prev_result->get_result_code(), request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
+        }
     }
+
+    return result_accepted && prev_result->get_result_code() == nuraft::cmd_result_code::OK;
 }
 
 void SvsKeeperSyncProcessor::run(size_t thread_idx)
