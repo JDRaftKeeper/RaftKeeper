@@ -27,7 +27,7 @@ struct ForwardResponse
     static constexpr int64_t non_session_id = -1;
     static constexpr int64_t non_xid = -1;
 
-    ForwardProtocol protocol{Unknown};
+    ForwardProtocol protocol{-1};
     bool accepted{true};
     int32_t error_code{nuraft::cmd_result_code::OK};
     int64_t session_id{-1};

@@ -11,9 +11,10 @@ from helpers.network import PartitionManager
 
 from kazoo.client import KazooClient, KazooState
 
-SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 cluster1 = ClickHouseServiceCluster(__file__)
-node1 = cluster1.add_instance('node', main_configs=['configs/enable_test_keeper_old.xml', 'configs/log_conf.xml'], stay_alive=True, use_old_bin=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_service_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
+node3 = cluster1.add_instance('node3', main_configs=['configs/enable_service_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
 
 
 @pytest.fixture(scope="module")
@@ -29,12 +30,12 @@ def started_cluster():
 def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
-def wait_node(cluster, node):
+def wait_node(node):
     for _ in range(100):
         zk = None
         try:
             # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
-            zk = get_fake_zk(cluster, node.name, timeout=30.0)
+            zk = get_fake_zk(node, timeout=30.0)
             zk.get("/")
             print("node", node.name, "ready")
             break
@@ -48,23 +49,17 @@ def wait_node(cluster, node):
     else:
         raise Exception("Can't wait node", node.name, "to become ready")
 
+def wait_nodes(node1, node2, node3):
+    for node in [node1, node2, node3]:
+        wait_node(node)
 
-def get_fake_zk(cluster, nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(nodename) + ":5102", timeout=timeout)
-    def reset_listener(state):
-        nonlocal _fake_zk_instance
-        print("Fake zk callback called for state", state)
-        if state != KazooState.CONNECTED:
-            _fake_zk_instance._reset()
-
-    _fake_zk_instance.add_listener(reset_listener)
+def get_fake_zk(node, timeout=60.0):
+    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(node.name) + ":5102", timeout=timeout)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
-
 def compare_stats(stat1, stat2, path):
-    # new version getSessionId add zxid
-    assert stat1.czxid == stat2.czxid, "path " + path + " cxzids not equal for stats: " + str(stat1.czxid) + " != " + str(stat2.zxid)
+    assert stat1.czxid == stat2.czxid, "path " + path + " cxzids not equal for stats: " + str(stat1.czxid) + " != " + str(stat2.czxid)
     assert stat1.mzxid == stat2.mzxid, "path " + path + " mxzids not equal for stats: " + str(stat1.mzxid) + " != " + str(stat2.mzxid)
     assert stat1.version == stat2.version, "path " + path + " versions not equal for stats: " + str(stat1.version) + " != " + str(stat2.version)
     assert stat1.cversion == stat2.cversion, "path " + path + " cversions not equal for stats: " + str(stat1.cversion) + " != " + str(stat2.cversion)
@@ -84,79 +79,105 @@ def dump_states(zk1, d, path="/"):
     for children in first_children:
         dump_states(zk1, d, os.path.join(path, children))
 
-def test_data(started_cluster):
+
+def test_restart(started_cluster):
 
     try:
-        # cluster1.start()
-        wait_node(cluster1, node1)
-        node1_zk = get_fake_zk(cluster1, "node")
+        wait_nodes(node1, node2, node3)
 
-        node1_zk.create("/test_restart_node", b"hello")
+        fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
-        for i in range(10000):
-            node1_zk.create("/test_restart_node/" + str(i), b"hello")
-
-        get_fake_zk(cluster1, "node")
+        fake_zks[0].create("/test_restart_node", b"hello")
 
         for i in range(10000):
-            node1_zk.set("/test_restart_node/" + str(i), b"hello111")
+            fake_zk = random.choice(fake_zks)
+            fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
-        get_fake_zk(cluster1, "node")
+        get_fake_zk(node1)
+
+        for i in range(10000):
+            fake_zk = random.choice(fake_zks)
+            fake_zk.set("/test_restart_node/" + str(i), b"hello111")
+
+        get_fake_zk(node2)
 
         for i in range(100):
-            node1_zk.delete("/test_restart_node/" + str(i))
+            fake_zk = random.choice(fake_zks)
+            fake_zk.delete("/test_restart_node/" + str(i))
 
-        get_fake_zk(cluster1, "node")
+        get_fake_zk(node3)
 
-        node1_zk.create("/test_restart_node1", b"hello")
-
-        for i in range(10000):
-            node1_zk.create("/test_restart_node1/" + str(i), b"hello")
-
-        get_fake_zk(cluster1, "node")
-
-        node1_zk.create("/test_restart_node2", b"hello")
+        fake_zks[1].create("/test_restart_node1", b"hello")
 
         for i in range(10000):
-            t = node1_zk.transaction()
+            fake_zk = random.choice(fake_zks)
+            fake_zk.create("/test_restart_node1/" + str(i), b"hello")
+
+        get_fake_zk(node1)
+
+        fake_zks[2].create("/test_restart_node2", b"hello")
+
+        for i in range(10000):
+            fake_zk = random.choice(fake_zks)
+            t = fake_zk.transaction()
             t.create("/test_restart_node2/q" + str(i))
             t.delete("/test_restart_node2/a" + str(i))
             t.create("/test_restart_node2/x" + str(i))
             t.commit()
 
+        fake_zk = random.choice(fake_zks)
         d = {}
-        dump_states(node1_zk, d)
-
-        output = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output)
-
-        output1 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse_old"], user='root')
-        print("ps ax | grep clickhouse output: ", output1)
+        dump_states(fake_zk, d)
 
         node1.stop_clickhouse()
-        node1.copy_file_to_container(os.path.join(SCRIPT_DIR, "configs/enable_test_keeper.xml"), '/etc/clickhouse-server/config.xml')
+        node2.stop_clickhouse()
+        node3.stop_clickhouse()
 
-        node1.use_old_bin=False
+        node1.start_clickhouse(start_wait=False)
+        node2.start_clickhouse(start_wait=False)
+        node3.start_clickhouse(start_wait=False)
 
-        node1.start_clickhouse()
-        wait_node(cluster1, node1)
+        wait_nodes(node1, node2, node3)
 
-        output2 = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output2)
+        fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
-        output3 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output3)
+        for i in range(9900):
+            fake_zk = random.choice(fake_zks)
+            assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
 
-        node2_zk = get_fake_zk(cluster1, "node")
+        for i in range(10000):
+            fake_zk = random.choice(fake_zks)
+            assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
+
+        fake_zk = random.choice(fake_zks)
+        children = fake_zk.get_children("/test_restart_node2")
+
+        assert children == []
 
         dd = {}
-        dump_states(node2_zk, dd)
+        dump_states(fake_zk, dd)
+
+        fake_zk = random.choice(fake_zks)
+
+        ddd = {}
+        dump_states(fake_zk, ddd)
 
         assert len(d) == len(dd)
+        assert len(d) == len(ddd)
         for k,v in d.items():
             if k not in ("/"): # / not same ?
                 assert v[0] == dd[k][0]
+                assert v[0] == ddd[k][0]
                 compare_stats(v[1], dd[k][1], k)
+                compare_stats(v[1], ddd[k][1], k)
 
     finally:
-        cluster1.shutdown()
+        try:
+            for zk_conn in fake_zks:
+                try:
+                    zk_conn.stop()
+                    zk_conn.close()
+                except:
+                    pass
+        except:
+            pass
