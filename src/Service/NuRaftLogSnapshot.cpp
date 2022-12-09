@@ -659,7 +659,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
     size_t read_size = 0;
     SnapshotBatchHeader header;
     UInt32 checksum = 0;
-    SnapshotVersion version_ = version;
+    SnapshotVersion version_ = SnapshotVersion::None;
     while (!snap_fs->eof())
     {
         size_t cur_read_size = read_size;
@@ -686,8 +686,13 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
         }
         else
         {
+            if (version_ == SnapshotVersion::None)
+            {
+                version_ = SnapshotVersion::V0;
+                LOG_INFO(log, "obj_path {}, didn't read version, set to V0", obj_path);
+            }
+
             LOG_INFO(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
-            version_ = SnapshotVersion::V0;
             snap_fs->seekg(cur_read_size);
             read_size = cur_read_size;
         }
@@ -758,7 +763,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(node->is_sequental, in);
                         Coordination::read(node->stat, in);
                         auto ephemeral_owner = node->stat.ephemeralOwner;
-                        LOG_TRACE(log, "Load snapshot read key {}", key);
+                        LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
                         storage.container.emplace(key, std::move(node));
 
                         if (ephemeral_owner != 0)

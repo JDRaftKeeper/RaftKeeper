@@ -53,6 +53,11 @@ public:
 
     void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 operation_timeout_ms_);
 
+    size_t commitQueueSize()
+    {
+        return committed_queue.size();
+    }
+
 private:
     ptr<RequestsQueue> requests_queue;
 

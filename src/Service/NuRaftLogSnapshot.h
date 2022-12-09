@@ -21,6 +21,7 @@ enum SnapshotVersion : uint8_t
 {
     V0 = 0,
     V1 = 1, /// with ACL map, and last_log_term for file name
+    None = 255,
 };
 
 static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V1;

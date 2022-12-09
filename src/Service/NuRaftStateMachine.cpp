@@ -678,6 +678,17 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 {
     if (!coordination_settings->async_snapshot)
     {
+        size_t wait_times = 0;
+        while (svskeeper_commit_processor && svskeeper_commit_processor->commitQueueSize() != 0)
+        {
+            /// wait commit queue empty
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            if (++wait_times % 1000 == 0)
+            {
+                LOG_WARNING(log, "Wait commit queue to empty 1s");
+            }
+        }
+
         Stopwatch stopwatch;
         in_snapshot = true;
 
