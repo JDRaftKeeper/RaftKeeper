@@ -370,8 +370,18 @@ struct SvsKeeperStorageCreateRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Create, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Create, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Create, node_acls, empty_auth_ids);
+        }
     }
 
     std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(
@@ -553,8 +563,18 @@ struct SvsKeeperStorageGetRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Read, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
@@ -601,8 +621,18 @@ struct SvsKeeperStorageRemoveRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Delete, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Delete, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Delete, node_acls, empty_auth_ids);
+        }
     }
 
 
@@ -749,8 +779,18 @@ struct SvsKeeperStorageSetRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Write, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Write, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Write, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
@@ -845,8 +885,18 @@ struct SvsKeeperStorageListRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Read, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
@@ -917,8 +967,18 @@ struct SvsKeeperStorageCheckRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Read, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Read, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
@@ -979,8 +1039,17 @@ struct SvsKeeperStorageSetACLRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        return checkACL(Coordination::ACL::Admin, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            return checkACL(Coordination::ACL::Admin, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Admin, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
@@ -1045,9 +1114,18 @@ struct SvsKeeperStorageGetACLRequest final : public SvsKeeperStorageRequest
             return true;
 
         std::shared_lock r_lock(storage.auth_mutex);
-        const auto & session_auths = storage.session_and_auth[session_id];
-        /// LOL, GetACL require more permissions, then SetACL...
-        return checkACL(Coordination::ACL::Admin | Coordination::ACL::Read, node_acls, session_auths);
+        auto it = storage.session_and_auth.find(session_id);
+        if (it != storage.session_and_auth.end())
+        {
+            const auto & session_auths = it->second;
+            /// LOL, GetACL require more permissions, then SetACL...
+            return checkACL(Coordination::ACL::Admin | Coordination::ACL::Read, node_acls, session_auths);
+        }
+        else
+        {
+            std::vector<Coordination::AuthID> empty_auth_ids;
+            return checkACL(Coordination::ACL::Admin | Coordination::ACL::Read, node_acls, empty_auth_ids);
+        }
     }
 
     using SvsKeeperStorageRequest::SvsKeeperStorageRequest;
