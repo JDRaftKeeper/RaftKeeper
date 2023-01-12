@@ -94,6 +94,7 @@ private:
 
     ptr<cluster_config> cur_cluster_config;
 
+    /// TODO move clients to SvsKeeperFollowerProcessor
     mutable std::mutex clients_mutex;
     mutable std::unordered_map<UInt32, std::vector<ptr<ForwardingConnection>>> clients;
 

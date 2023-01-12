@@ -1,15 +1,15 @@
 #define USE_NIO_FOR_KEEPER
 #ifdef USE_NIO_FOR_KEEPER
-#include <Service/ForwardingConnectionHandler.h>
+#    include <Service/ForwardingConnectionHandler.h>
 
-#include <Service/FourLetterCommand.h>
-#include <Service/formatHex.h>
-#include <Poco/Net/NetException.h>
-#include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Common/setThreadName.h>
-#include <Service/ForwardingConnection.h>
+#    include <Service/ForwardingConnection.h>
+#    include <Service/FourLetterCommand.h>
+#    include <Service/formatHex.h>
+#    include <Poco/Net/NetException.h>
+#    include <Common/Stopwatch.h>
+#    include <Common/ZooKeeper/ZooKeeperCommon.h>
+#    include <Common/ZooKeeper/ZooKeeperIO.h>
+#    include <Common/setThreadName.h>
 
 namespace DB
 {
@@ -28,30 +28,45 @@ using Poco::NObserver;
 
 
 ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor)
-    : log(&Logger::get("ForwardingConnectionHandler")), socket_(socket), reactor_(reactor)
+    : log(&Logger::get("ForwardingConnectionHandler"))
+    , socket_(socket)
+    , reactor_(reactor)
     , global_context(global_context_)
     , service_keeper_storage_dispatcher(global_context.getSvsKeeperStorageDispatcher())
     , operation_timeout(
-          0, global_context.getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS) * 1000)
+          0,
+          global_context.getConfigRef().getUInt(
+              "service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
+              * 1000)
     , session_timeout(
-          0, global_context.getConfigRef().getUInt("service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
+          0,
+          global_context.getConfigRef().getUInt(
+              "service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
+              * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
 {
     LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
 
-    reactor_.addEventHandler(socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
-    reactor_.addEventHandler(socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
-    reactor_.addEventHandler(socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
+    reactor_.addEventHandler(
+        socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
+    reactor_.addEventHandler(
+        socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
+    reactor_.addEventHandler(
+        socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
 }
 
 ForwardingConnectionHandler::~ForwardingConnectionHandler()
 {
     try
     {
-        reactor_.removeEventHandler(socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
-        reactor_.removeEventHandler(socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
-        reactor_.removeEventHandler(socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
-        reactor_.removeEventHandler(socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
+        reactor_.removeEventHandler(
+            socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
+        reactor_.removeEventHandler(
+            socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+        reactor_.removeEventHandler(
+            socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
+        reactor_.removeEventHandler(
+            socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
@@ -70,7 +85,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             return;
         }
 
-        while(socket_.available())
+        while (socket_.available())
         {
             LOG_TRACE(log, "forwarding handler socket available");
 
@@ -90,22 +105,16 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(forward_protocol, read_buf);
                 req_header_buf.drain(req_header_buf.used());
-                current_package.protocol = ForwardProtocol(forward_protocol);
+                current_package.protocol = static_cast<PkgType>(forward_protocol);
 
-                LOG_TRACE(log, "recive {}", current_package.protocol);
+                LOG_TRACE(log, "receive {}", current_package.protocol);
 
                 WriteBufferFromFiFoBuffer out;
                 switch (forward_protocol)
                 {
-                    case ForwardProtocol::Hello:
-                        current_package.is_done = false;
-                        break;
-                    case ForwardProtocol::Ping:
-                    {
-                        current_package.is_done = false;
-                        break;
-                    }
-                    case ForwardProtocol::Data:
+                    case PkgType::Handshake:
+                    case PkgType::Session:
+                    case PkgType::Data:
                         current_package.is_done = false;
                         break;
                     default:
@@ -115,7 +124,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if unlikely(current_package.protocol == ForwardProtocol::Hello)
+                if unlikely (current_package.protocol == PkgType::Handshake)
                 {
                     if (!req_body_buf)
                     {
@@ -132,23 +141,29 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     Coordination::read(client_id, body);
 
                     /// register session response callback
-                    auto response_callback = [this](const ForwardResponse & response)
-                    {
-                        sendResponse(response);
-                    };
+                    auto response_callback = [this](const ForwardResponse & response) { sendResponse(response); };
 
                     service_keeper_storage_dispatcher->registerForward({server_id, client_id}, response_callback);
 
                     LOG_INFO(log, "register forward from server {} client {}", server_id, client_id);
 
-                    service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, {ForwardProtocol::Hello, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error});
+                    service_keeper_storage_dispatcher->sendAppendEntryResponse(
+                        server_id,
+                        client_id,
+                        {PkgType::Handshake,
+                         true,
+                         nuraft::cmd_result_code::OK,
+                         ForwardResponse::non_session_id,
+                         ForwardResponse::non_xid,
+                         Coordination::OpNum::Error});
 
                     req_body_buf.reset();
                     current_package.is_done = true;
                 }
-                else if (current_package.protocol == ForwardProtocol::Data)
+                else if (current_package.protocol == PkgType::Data)
                 {
-                    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> session_xid_opnum{{ForwardResponse::non_session_id, ForwardResponse::non_xid}, Coordination::OpNum::Error};
+                    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> session_xid_opnum{
+                        {ForwardResponse::non_session_id, ForwardResponse::non_xid}, Coordination::OpNum::Error};
                     try
                     {
                         if (!req_body_buf) /// new data package
@@ -182,12 +197,18 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     }
                     catch (...)
                     {
-                        ForwardResponse response{ForwardProtocol::Result, false, nuraft::cmd_result_code::CANCELLED, session_xid_opnum.first.first, session_xid_opnum.first.second, session_xid_opnum.second};
-                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        ForwardResponse response{
+                            PkgType::Result,
+                            false,
+                            nuraft::cmd_result_code::CANCELLED,
+                            session_xid_opnum.first.first,
+                            session_xid_opnum.first.second,
+                            session_xid_opnum.second};
+                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing request.");
                     }
                 }
-                else if (current_package.protocol == ForwardProtocol::Ping)
+                else if (current_package.protocol == PkgType::Session)
                 {
                     try
                     {
@@ -232,13 +253,25 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         req_body_buf.reset();
                         current_package.is_done = true;
 
-                        ForwardResponse response{ForwardProtocol::Ping, true, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
-                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        ForwardResponse response{
+                            PkgType::Session,
+                            true,
+                            nuraft::cmd_result_code::OK,
+                            ForwardResponse::non_session_id,
+                            ForwardResponse::non_xid,
+                            Coordination::OpNum::Error};
+                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                     }
                     catch (...)
                     {
-                        ForwardResponse response{ForwardProtocol::Ping, false, nuraft::cmd_result_code::OK, ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
-                        service_keeper_storage_dispatcher->setAppendEntryResponse(server_id, client_id, response);
+                        ForwardResponse response{
+                            PkgType::Session,
+                            false,
+                            nuraft::cmd_result_code::OK,
+                            ForwardResponse::non_session_id,
+                            ForwardResponse::non_xid,
+                            Coordination::OpNum::Error};
+                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing ping request.");
                     }
                 }
@@ -261,7 +294,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
 {
     try
     {
-//        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
+        //        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
 
         if (responses->size() == 0 && send_buf.used() == 0)
             return;
@@ -270,7 +303,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this] (const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
                 /// add whole resp to send_buf
@@ -297,13 +330,13 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         /// 3. remove sent responses
 
         ptr<FIFOBuffer> resp;
-        while(responses->peek(resp) && sent > 0)
+        while (responses->peek(resp) && sent > 0)
         {
             if (sent >= resp->used())
             {
                 sent -= resp->used();
                 responses->remove();
-//                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
+                //                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -319,7 +352,8 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         {
             LOG_TRACE(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
             reactor_.removeEventHandler(
-                socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+                socket_,
+                NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
         }
     }
     catch (...)
@@ -337,7 +371,7 @@ void ForwardingConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotifi
 
 void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-//    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
+    //    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
     destroyMe();
 }
 
@@ -361,7 +395,8 @@ std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnection
 
     request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
 
-    LOG_TRACE(log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
+    LOG_TRACE(
+        log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
     if (!service_keeper_storage_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
@@ -378,12 +413,16 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
     /// TODO handle timeout
     responses->push(buf.getBuffer());
 
-//    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
+    //    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
     reactor_.addEventHandler(
         socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_TRACE(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
+    LOG_TRACE(
+        log,
+        "Poll trigger wakeup-- poco thread name {}, actually thread name {}",
+        Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
+        getThreadName());
 
     reactor_.wakeUp();
 }
