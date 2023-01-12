@@ -1,11 +1,11 @@
 #include <Service/SvsKeeperDispatcher.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
+#include <Service/formatHex.h>
+#include <Poco/NumberFormatter.h>
 #include <Common/DNSResolver.h>
+#include <Common/checkStackSize.h>
 #include <Common/isLocalAddress.h>
 #include <Common/setThreadName.h>
-#include <Common/checkStackSize.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
-#include <Poco/NumberFormatter.h>
-#include <Service/formatHex.h>
 
 namespace DB
 {
@@ -21,8 +21,11 @@ namespace fs = std::filesystem;
 using Poco::NumberFormatter;
 
 SvsKeeperDispatcher::SvsKeeperDispatcher()
-    : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>()), log(&Poco::Logger::get("SvsKeeperDispatcher"))
-    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(responses_queue)), svskeeper_sync_processor(svskeeper_commit_processor), follower_request_processor(svskeeper_commit_processor)
+    : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>())
+    , log(&Poco::Logger::get("SvsKeeperDispatcher"))
+    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(responses_queue))
+    , svskeeper_sync_processor(svskeeper_commit_processor)
+    , follower_request_processor(svskeeper_commit_processor)
 {
 }
 
@@ -40,9 +43,10 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
     {
         SvsKeeperStorage::RequestForSession request_for_session;
 
-        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+        UInt64 max_wait
+            = static_cast<uint64_t>(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
 
-        if (requests_queue->tryPop(thread_index, request_for_session, max_wait))
+        if (requests_queue->tryPop(thread_index, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait)))
         {
             //            LOG_TRACE(log, "1 requests_queue tryPop session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
 
@@ -75,10 +79,13 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         request_for_session.request->getOpNum());
                     svskeeper_commit_processor->processRequest(request_for_session);
                 }
+                else
+                {
+                    LOG_WARNING(log, "not contains session {}", toHexString(request_for_session.session_id));
+                }
             }
             catch (...)
             {
-
                 tryLogCurrentException(__PRETTY_FUNCTION__);
             }
         }
@@ -152,14 +159,20 @@ void SvsKeeperDispatcher::setResponse(int64_t session_id, const Coordination::Zo
         session_to_response_callback.erase(session_writer);
 }
 
-void SvsKeeperDispatcher::setAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response)
+void SvsKeeperDispatcher::sendAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
     auto forward_response_writer = forward_to_response_callback.find({server_id, client_id});
     if (forward_response_writer == forward_to_response_callback.end())
         return;
 
-    LOG_TRACE(log, "[setAppendEntryResponse]server_id {}, client_id {}, session {}, xid {}", server_id, client_id, toHexString(response.session_id), response.xid);
+    LOG_TRACE(
+        log,
+        "[sendAppendEntryResponse]server_id {}, client_id {}, session {}, xid {}",
+        server_id,
+        client_id,
+        toHexString(response.session_id),
+        response.xid);
     forward_response_writer->second(response);
 }
 
@@ -187,7 +200,12 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     using namespace std::chrono;
     request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    LOG_TRACE(log, "[putRequest]SessionID/xid #{}#{},opnum {}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
+    LOG_TRACE(
+        log,
+        "[putRequest]SessionID/xid #{}#{},opnum {}",
+        toHexString(session_id),
+        request->xid,
+        Coordination::toString(request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
@@ -197,13 +215,18 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
         if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
-    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
-        throw Exception("Cannot push request to queue within operation timeout, requests_queue size {}", requests_queue->size(), ErrorCodes::TIMEOUT_EXCEEDED);
+    else if (!requests_queue->tryPush(
+                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+        throw Exception(
+            "Cannot push request to queue within operation timeout, requests_queue size {}",
+            requests_queue->size(),
+            ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 
 
-bool SvsKeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
+bool SvsKeeperDispatcher::putForwardingRequest(
+    size_t server_id, size_t client_id, const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
 {
     SvsKeeperStorage::RequestForSession request_info;
     request_info.request = request;
@@ -214,7 +237,14 @@ bool SvsKeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_i
     request_info.server_id = server_id;
     request_info.client_id = client_id;
 
-    LOG_TRACE(log, "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}", server_id, client_id, toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
+    LOG_TRACE(
+        log,
+        "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}",
+        server_id,
+        client_id,
+        toHexString(session_id),
+        request->xid,
+        Coordination::toString(request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
@@ -224,7 +254,8 @@ bool SvsKeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_i
         if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
-    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+    else if (!requests_queue->tryPush(
+                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
@@ -269,9 +300,11 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
 
     if (session_consistent)
     {
-        UInt64 session_sync_period_ms = configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()/2;
+        UInt64 session_sync_period_ms
+            = configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds() / 2;
         follower_request_processor.initialize(thread_count, server, shared_from_this(), session_sync_period_ms);
-        svskeeper_sync_processor.initialize(1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
+        svskeeper_sync_processor.initialize(
+            1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
         requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     }
     else
@@ -392,7 +425,11 @@ void SvsKeeperDispatcher::registerForward(ServerForClient server_client, Forward
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
     if (!forward_to_response_callback.try_emplace(server_client, callback).second)
-        throw Exception(DB::ErrorCodes::LOGICAL_ERROR, "Server {} client {} already registered in dispatcher", server_client.first, server_client.second);
+        throw Exception(
+            DB::ErrorCodes::LOGICAL_ERROR,
+            "Server {} client {} already registered in dispatcher",
+            server_client.first,
+            server_client.second);
 }
 
 void SvsKeeperDispatcher::sessionCleanerTask()
@@ -407,7 +444,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
         {
             if (isLeader())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+                std::this_thread::sleep_for(std::chrono::milliseconds(
+                    configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
 
                 auto dead_sessions = server->getDeadSessions();
                 if (!dead_sessions.empty())
@@ -436,7 +474,8 @@ void SvsKeeperDispatcher::sessionCleanerTask()
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+                std::this_thread::sleep_for(std::chrono::milliseconds(
+                    configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
             }
         }
         catch (...)
@@ -486,7 +525,10 @@ void SvsKeeperDispatcher::updateConfigurationThread()
                 {
                     done = server->waitConfigurationUpdate(action);
                     if (!done)
-                        LOG_WARNING(log, "Cannot wait for configuration update, maybe we become leader, or maybe update is invalid, will try to wait one more time");
+                        LOG_WARNING(
+                            log,
+                            "Cannot wait for configuration update, maybe we become leader, or maybe update is invalid, will try to wait "
+                            "one more time");
                 }
             }
         }
@@ -514,7 +556,7 @@ bool SvsKeeperDispatcher::containsSession(int64_t session_id)
     return session_it != session_to_response_callback.end();
 }
 
-void SvsKeeperDispatcher::localSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
+void SvsKeeperDispatcher::filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
     std::lock_guard lock(session_to_response_callback_mutex);
     for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)

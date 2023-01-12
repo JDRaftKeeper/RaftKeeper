@@ -68,10 +68,10 @@ private:
 
     FIFOBuffer req_body_len_buf = FIFOBuffer(4);
 
-    /// ForwardProtocol and is_done
+    /// PkgType and is_done
     struct CurrentPackage
     {
-        ForwardProtocol protocol;
+        PkgType protocol;
         bool is_done;
     };
     CurrentPackage current_package{Unknown, true};

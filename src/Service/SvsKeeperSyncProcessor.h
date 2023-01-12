@@ -11,6 +11,7 @@ class SvsKeeperSyncProcessor
 {
 using Request = SvsKeeperStorage::RequestForSession;
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
+using NuRaftResult = nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>>;
 
 public:
     SvsKeeperSyncProcessor(std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
@@ -20,7 +21,7 @@ public:
 
     void processRequest(Request request_for_session);
 
-    bool waitResultAndHandleError(nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch);
+    bool waitResultAndHandleError(NuRaftResult prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch);
 
     void run(size_t thread_idx);
 
@@ -41,9 +42,9 @@ private:
 
     std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
 
-    UInt64 operation_timeout_ms{10000};
+    UInt64 operation_timeout_ms;
 
-    UInt64 max_batch_size{1000};
+    UInt64 max_batch_size;
 };
 
 }

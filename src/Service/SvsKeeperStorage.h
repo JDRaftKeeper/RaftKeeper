@@ -304,7 +304,7 @@ public:
     std::unordered_map<int64_t, int64_t> sessionToExpirationTime()
     {
         std::lock_guard lock(session_mutex);
-        auto & ret = session_expiry_queue.sessionToExpirationTime();
+        const auto & ret = session_expiry_queue.sessionToExpirationTime();
         return ret;
     }
 

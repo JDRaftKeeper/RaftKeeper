@@ -136,7 +136,7 @@ public:
 
     bool containsSession(int64_t session_id);
 
-    void localSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
+    void filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     /// from follower
     void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
@@ -153,7 +153,7 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
-    void setAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response);
+    void sendAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response);
 
     /// Are we leader
     bool isLeader() const
