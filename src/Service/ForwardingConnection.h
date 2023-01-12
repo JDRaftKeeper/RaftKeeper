@@ -13,12 +13,13 @@
 namespace DB
 {
 
-enum ForwardProtocol : int8_t
+enum PkgType : int8_t
 {
     Unknown = -1,
-    Hello = 1,
-    Ping = 2,
+    Handshake = 1,
+    Session = 2,
     Data = 3,
+    /// TODO remove Result
     Result = 4
 };
 
@@ -27,9 +28,13 @@ struct ForwardResponse
     static constexpr int64_t non_session_id = -1;
     static constexpr int64_t non_xid = -1;
 
-    ForwardProtocol protocol{-1};
+    PkgType protocol{-1};
+
+    /// result info
     bool accepted{true};
     int32_t error_code{nuraft::cmd_result_code::OK};
+
+    /// source info
     int64_t session_id{-1};
     int64_t xid{-1};
     Coordination::OpNum opnum{Coordination::OpNum::Error};
@@ -50,11 +55,11 @@ struct ForwardResponse
 
         switch (protocol)
         {
-            case Hello:
-                res += "Hello";
+            case Handshake:
+                res += "Handshake";
                 break;
-            case Ping:
-                res += "Ping";
+            case Session:
+                res += "Session";
                 break;
             case Data:
                 res += "Data";
@@ -80,16 +85,16 @@ class ForwardingConnection
 public:
     ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout_ms) : my_server_id(server_id_), thread_id(thread_id_), endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingConnection")) {}
 
-    void connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout);
+    void connect(Poco::Timespan connection_timeout);
     void send(SvsKeeperStorage::RequestForSession request_for_session);
-    bool recive(ForwardResponse & response);
+    bool receive(ForwardResponse & response);
     void disconnect();
 
     void sendHandshake();
 
     void receiveHandshake();
 
-    void sendPing(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
+    void sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     bool poll(UInt64 max_wait);
 

@@ -30,7 +30,7 @@ public:
 
     void shutdown();
 
-    void runRecive(size_t thread_idx);
+    void runReceive(size_t thread_idx);
 
     void initialize(size_t thread_count_, std::shared_ptr<SvsKeeperServer> server_, std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_, UInt64 session_sync_period_ms_);
 

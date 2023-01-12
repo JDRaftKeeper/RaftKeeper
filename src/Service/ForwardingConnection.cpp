@@ -13,8 +13,9 @@ namespace ErrorCodes
     extern const int RAFT_ERROR;
 }
 
-void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Timespan connection_timeout)
+void ForwardingConnection::connect(Poco::Timespan connection_timeout)
 {
+    Poco::Net::SocketAddress address{endpoint};
     static constexpr size_t num_tries = 3;
 
     WriteBufferFromOwnString fail_reasons;
@@ -39,6 +40,7 @@ void ForwardingConnection::connect(Poco::Net::SocketAddress & address, Poco::Tim
             sendHandshake();
             LOG_TRACE(log, "sent handshake {}", endpoint);
 
+            // TODO receiveHandshake
 //            receiveHandshake();
 //            LOG_TRACE(log, "received handshake {}", endpoint);
 
@@ -59,6 +61,7 @@ void ForwardingConnection::disconnect()
     {
         socket.close();
         connected = false;
+        errno = 0;
     }
 }
 
@@ -66,8 +69,7 @@ void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_
 {
     if (!connected)
     {
-        Poco::Net::SocketAddress add{endpoint};
-        connect(add, operation_timeout.totalMilliseconds() / 3);
+        connect(operation_timeout.totalMilliseconds() / 3);
     }
 
     if (!connected)
@@ -79,7 +81,7 @@ void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_
 
     try
     {
-        Coordination::write(ForwardProtocol::Data, *out);
+        Coordination::write(PkgType::Data, *out);
         WriteBufferFromOwnString buf;
         Coordination::write(request_for_session.session_id, buf);
         Coordination::write(request_for_session.request->xid, buf);
@@ -101,11 +103,10 @@ bool ForwardingConnection::poll(UInt64 max_wait)
 {
     if (!connected)
         return false;
-
     return in->poll(max_wait);
 }
 
-bool ForwardingConnection::recive(ForwardResponse & response)
+bool ForwardingConnection::receive(ForwardResponse & response)
 {
     if (!connected)
         return false;
@@ -117,7 +118,7 @@ bool ForwardingConnection::recive(ForwardResponse & response)
     {
         int8_t type;
         Coordination::read(type, *in);
-        response.protocol = ForwardProtocol(type);
+        response.protocol = static_cast<PkgType>(type);
 
         Coordination::read(response.accepted, *in);
 
@@ -126,9 +127,7 @@ bool ForwardingConnection::recive(ForwardResponse & response)
         response.error_code = code;
 
         Coordination::read(response.session_id, *in);
-
         Coordination::read(response.xid, *in);
-
         Coordination::read(response.opnum, *in);
 
         return true;
@@ -142,12 +141,11 @@ bool ForwardingConnection::recive(ForwardResponse & response)
     }
 }
 
-void ForwardingConnection::sendPing(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
+void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
     if (!connected)
     {
-        Poco::Net::SocketAddress add{endpoint};
-        connect(add, operation_timeout.totalMilliseconds() / 3);
+        connect(operation_timeout.totalMilliseconds() / 3);
     }
 
     if (!connected)
@@ -159,9 +157,9 @@ void ForwardingConnection::sendPing(const std::unordered_map<int64_t, int64_t> &
 
     try
     {
-        Coordination::write(ForwardProtocol::Ping, *out);
-        Coordination::write(int32_t(session_to_expiration_time.size()), *out);
-        for (auto & session_expiration_time : session_to_expiration_time)
+        Coordination::write(PkgType::Session, *out);
+        Coordination::write(static_cast<int32_t>(session_to_expiration_time.size()), *out);
+        for (const auto & session_expiration_time : session_to_expiration_time)
         {
             LOG_TRACE(log, "Send session {}, expiration time {}", session_expiration_time.first, session_expiration_time.second);
             Coordination::write(session_expiration_time.first, *out);
@@ -180,8 +178,9 @@ void ForwardingConnection::sendPing(const std::unordered_map<int64_t, int64_t> &
 
 void ForwardingConnection::sendHandshake()
 {
-    Coordination::write(ForwardProtocol::Hello, *out);
+    Coordination::write(PkgType::Handshake, *out);
     Coordination::write(my_server_id, *out);
+    // TODO log
     Coordination::write(thread_id, *out);
     out->next();
 }
@@ -191,7 +190,7 @@ void ForwardingConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);
-    assert(type == ForwardProtocol::Hello);
+    assert(type == PkgType::Handshake);
 
     bool accepted;
     Coordination::read(accepted, *in);
