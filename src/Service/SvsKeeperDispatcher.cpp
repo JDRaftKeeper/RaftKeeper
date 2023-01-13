@@ -23,7 +23,7 @@ using Poco::NumberFormatter;
 SvsKeeperDispatcher::SvsKeeperDispatcher()
     : configuration_and_settings(std::make_shared<KeeperConfigurationAndSettings>())
     , log(&Poco::Logger::get("SvsKeeperDispatcher"))
-    , svskeeper_commit_processor(std::make_shared<SvsKeeperCommitProcessor>(responses_queue))
+    , svskeeper_commit_processor(std::make_shared<RequestProcessor>(responses_queue))
     , svskeeper_sync_processor(svskeeper_commit_processor)
     , follower_request_processor(svskeeper_commit_processor)
 {
@@ -62,14 +62,14 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                     if (server->isLeader())
                         svskeeper_sync_processor.processRequest(request_for_session);
                     else
-                        follower_request_processor.processRequest(request_for_session);
+                        follower_request_processor.push(request_for_session);
                 }
                 else if (!request_for_session.request->isReadRequest() && !server->isLeaderAlive())
                 {
                     svskeeper_sync_processor.processRequest(request_for_session);
                 }
 
-                if (containsSession(request_for_session.session_id))
+                if (isLocalSession(request_for_session.session_id))
                 {
                     LOG_TRACE(
                         log,
@@ -77,7 +77,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         toHexString(request_for_session.session_id),
                         request_for_session.request->xid,
                         request_for_session.request->getOpNum());
-                    svskeeper_commit_processor->processRequest(request_for_session);
+                    svskeeper_commit_processor->push(request_for_session);
                 }
                 else
                 {
@@ -198,7 +198,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
     request_info.request = request;
     request_info.session_id = session_id;
     using namespace std::chrono;
-    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     LOG_TRACE(
         log,
@@ -232,7 +232,7 @@ bool SvsKeeperDispatcher::putForwardingRequest(
     request_info.request = request;
     request_info.session_id = session_id;
     using namespace std::chrono;
-    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     request_info.server_id = server_id;
     request_info.client_id = client_id;
@@ -462,7 +462,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     request_info.request = request;
                     request_info.session_id = dead_session;
                     using namespace std::chrono;
-                    request_info.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
                         std::lock_guard lock(push_request_mutex);
                         if (!requests_queue->push(std::move(request_info)))
@@ -548,7 +548,7 @@ void SvsKeeperDispatcher::finishSession(int64_t session_id)
         session_to_response_callback.erase(session_it);
 }
 
-bool SvsKeeperDispatcher::containsSession(int64_t session_id)
+bool SvsKeeperDispatcher::isLocalSession(int64_t session_id)
 {
     LOG_TRACE(log, "contains session {}", toHexString(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);

@@ -49,7 +49,7 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
     request->xid = 1;
 
     using namespace std::chrono;
-    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     //LOG_INFO(log, "index {}", index);
@@ -88,7 +88,7 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
     //request->acls = default_acls;
 
     using namespace std::chrono;
-    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     machine.commit(index, *(buf.get()));
@@ -110,7 +110,7 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
     request->path = key;
 
     using namespace std::chrono;
-    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     machine.commit(index, *(buf.get()));
@@ -172,7 +172,7 @@ TEST(RaftStateMachine, serializeAndParse)
     session_request.request = request;
 
     using namespace std::chrono;
-    session_request.time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
     SvsKeeperStorage::RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
