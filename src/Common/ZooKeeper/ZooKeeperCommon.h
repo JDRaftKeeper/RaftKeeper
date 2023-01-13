@@ -27,6 +27,7 @@ struct ZooKeeperResponse : virtual Response
     XID xid = 0;
     int64_t zxid;
 
+    /// used to calculate request latency
     UInt64 request_created_time_ms = 0;
 
     virtual ~ZooKeeperResponse() override = default;
@@ -57,7 +58,6 @@ struct ZooKeeperResponse : virtual Response
 
 using ZooKeeperResponsePtr = std::shared_ptr<ZooKeeperResponse>;
 
-/// Exposed in header file for Yandex.Metrica code.
 struct ZooKeeperRequest : virtual Request
 {
     XID xid = 0;

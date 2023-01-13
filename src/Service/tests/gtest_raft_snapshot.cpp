@@ -67,7 +67,7 @@ ptr<buffer> closeSessionLog(int64_t session_id)
     request_info.request = request;
     request_info.session_id = session_id;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    request_info.time = time;
+    request_info.create_time = time;
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(request_info);
     return buf;
 }
@@ -93,7 +93,7 @@ ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::st
     request->xid = 1;
 
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    session_request->time = time;
+    session_request->create_time = time;
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;
@@ -119,7 +119,7 @@ setLog(int64_t session_id, const std::string & key, const std::string value, con
     request->xid = 1;
 
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    session_request->time = time;
+    session_request->create_time = time;
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;
@@ -143,7 +143,7 @@ removeLog(int64_t session_id, const std::string & key)
     request->xid = 1;
 
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    session_request->time = time;
+    session_request->create_time = time;
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(*session_request);
     return buf;

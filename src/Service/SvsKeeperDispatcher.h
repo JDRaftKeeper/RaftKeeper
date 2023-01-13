@@ -7,23 +7,21 @@
 
 
 #include <functional>
+#include <Service/Keeper4LWInfo.h>
+#include <Service/KeeperConnectionStats.h>
+#include <Service/NuRaftStateMachine.h>
+#include <Service/RequestAccumulator.h>
+#include <Service/RequestForwarder.h>
+#include <Service/RequestProcessor.h>
+#include <Service/RequestsQueue.h>
 #include <Service/SvsKeeperServer.h>
 #include <Service/SvsKeeperSettings.h>
+#include <Poco/FIFOBuffer.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/Exception.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
-#include <Service/NuRaftStateMachine.h>
-#include <Service/Keeper4LWInfo.h>
-#include <Service/KeeperConnectionStats.h>
-#include <Service/NuRaftStateMachine.h>
-#include <Service/SvsKeeperSettings.h>
-#include <Service/RequestsQueue.h>
-#include <Service/SvsKeeperSyncProcessor.h>
-#include <Service/SvsKeeperCommitProcessor.h>
-#include <Service/SvsKeeperFollowerProcessor.h>
-#include <Poco/FIFOBuffer.h>
 
 #define USE_NIO_FOR_KEEPER
 
@@ -94,11 +92,11 @@ private:
 
     Poco::Logger * log;
 
-    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor;
+    std::shared_ptr<RequestProcessor> svskeeper_commit_processor;
 
-    SvsKeeperSyncProcessor svskeeper_sync_processor;
+    RequestAccumulator svskeeper_sync_processor;
 
-    SvsKeeperFollowerProcessor follower_request_processor;
+    RequestForwarder follower_request_processor;
 
 private:
     void requestThread();
@@ -134,7 +132,7 @@ public:
     /// Call if we don't need any responses for this session no more (session was expired)
     void finishSession(int64_t session_id);
 
-    bool containsSession(int64_t session_id);
+    bool isLocalSession(int64_t session_id);
 
     void filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 

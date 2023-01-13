@@ -5,15 +5,15 @@
 #include <mutex>
 #include <string>
 #include <math.h>
+#include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
+#include <Service/RequestProcessor.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <Service/proto/Log.pb.h>
 #include <Poco/File.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Service/NuRaftFileLogStore.h>
 #include <Common/Stopwatch.h>
-#include <Service/SvsKeeperCommitProcessor.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
 
 
 #ifdef __clang__
@@ -60,7 +60,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     ptr<log_store> logstore,
     std::string superdigest,
     UInt32 object_node_size,
-    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
+    std::shared_ptr<RequestProcessor> svskeeper_commit_processor_)
     : coordination_settings(coordination_settings_)
     , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
     , responses_queue(responses_queue_)
@@ -278,7 +278,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                     /// replay nodes
                     auto & request = (*batch.request_vec)[i];
                     LOG_TRACE(log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
-                    storage.processRequest(responses_queue, request->request, request->session_id, request->time, {}, true, true);
+                    storage.processRequest(responses_queue, request->request, request->session_id, request->create_time, {}, true, true);
                     if (request->session_id > storage.session_id_counter)
                     {
                         LOG_WARNING(
@@ -358,11 +358,11 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
 
     if (buffer.eof())
     {
-        request_for_session->time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+        request_for_session->create_time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     }
     else
     {
-        readIntBinary(request_for_session->time, buffer);
+        readIntBinary(request_for_session->create_time, buffer);
     }
 
     return request_for_session;
@@ -426,9 +426,9 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
     request_for_session.request->readImpl(buffer);
 
     if (!buffer.eof())
-        readIntBinary(request_for_session.time, buffer);
+        readIntBinary(request_for_session.create_time, buffer);
     else /// backward compatibility
-        request_for_session.time
+        request_for_session.create_time
             = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
@@ -443,7 +443,7 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(SvsKeeperStorage::RequestForSes
     /// TODO unify digital encoding mode, see parseRequest
     writeIntBinary(session_request.session_id, out);
     session_request.request->write(out);
-    Coordination::write(session_request.time, out);
+    Coordination::write(session_request.create_time, out);
     return out.getBuffer();
 }
 
@@ -538,9 +538,9 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             toHexString(request_for_session.session_id),
             request_for_session.request->xid, request_for_session.request->toString());
 
-        if (request_for_session.time > 0)
+        if (request_for_session.create_time > 0)
         {
-            Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.time;
+            Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.create_time;
             if (elapsed > 1000)
                 LOG_WARNING(log, "Commit log {} request process time {}ms, session {} xid {} req type {}", log_idx, elapsed, request_for_session.session_id, request_for_session.request->xid, Coordination::toString(request_for_session.request->getOpNum()));
         }
@@ -551,7 +551,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         }
         else
         {
-            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.time, {}, true, ignore_response);
+            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.create_time, {}, true, ignore_response);
         }
 
         last_committed_idx = log_idx;
@@ -568,7 +568,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
 
 void NuRaftStateMachine::processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session)
 {
-    storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.time);
+    storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.create_time);
 }
 
 std::vector<int64_t> NuRaftStateMachine::getDeadSessions()

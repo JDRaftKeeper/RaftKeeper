@@ -1,14 +1,14 @@
 #define USE_NIO_FOR_KEEPER
 #ifdef USE_NIO_FOR_KEEPER
-#include "SvsConnectionHandler.h"
+#    include "SvsConnectionHandler.h"
 
-#include <Service/FourLetterCommand.h>
-#include <Service/formatHex.h>
-#include <Poco/Net/NetException.h>
-#include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Common/setThreadName.h>
+#    include <Service/FourLetterCommand.h>
+#    include <Service/formatHex.h>
+#    include <Poco/Net/NetException.h>
+#    include <Common/Stopwatch.h>
+#    include <Common/ZooKeeper/ZooKeeperCommon.h>
+#    include <Common/ZooKeeper/ZooKeeperIO.h>
+#    include <Common/setThreadName.h>
 
 namespace DB
 {
@@ -60,22 +60,32 @@ void SvsConnectionHandler::resetConnsStats()
 }
 
 SvsConnectionHandler::SvsConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor)
-    : log(&Logger::get("SvsConnectionHandler")), socket_(socket), reactor_(reactor)
+    : log(&Logger::get("SvsConnectionHandler"))
+    , socket_(socket)
+    , reactor_(reactor)
     , global_context(global_context_)
     , service_keeper_storage_dispatcher(global_context.getSvsKeeperStorageDispatcher())
     , operation_timeout(
-          0, global_context.getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS) * 1000)
+          0,
+          global_context.getConfigRef().getUInt(
+              "service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
+              * 1000)
     , session_timeout(
-          0, global_context.getConfigRef().getUInt("service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
+          0,
+          global_context.getConfigRef().getUInt(
+              "service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
+              * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
     LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
     registerConnection(this);
 
-    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
+    reactor_.addEventHandler(
+        socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
     reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
-    reactor_.addEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
+    reactor_.addEventHandler(
+        socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
 }
 
 SvsConnectionHandler::~SvsConnectionHandler()
@@ -88,10 +98,14 @@ SvsConnectionHandler::~SvsConnectionHandler()
 
         unregisterConnection(this);
 
-        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
-        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
-        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
-        reactor_.removeEventHandler(socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
+        reactor_.removeEventHandler(
+            socket_, NObserver<SvsConnectionHandler, ReadableNotification>(*this, &SvsConnectionHandler::onSocketReadable));
+        reactor_.removeEventHandler(
+            socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
+        reactor_.removeEventHandler(
+            socket_, NObserver<SvsConnectionHandler, ErrorNotification>(*this, &SvsConnectionHandler::onSocketError));
+        reactor_.removeEventHandler(
+            socket_, NObserver<SvsConnectionHandler, ShutdownNotification>(*this, &SvsConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
@@ -110,7 +124,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
             return;
         }
 
-        while(socket_.available())
+        while (socket_.available())
         {
             /// 1. Request header
             if (!next_req_header_read_done)
@@ -168,8 +182,13 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
 
             packageReceived();
 
-            LOG_TRACE(log, "session {} read request done, body length : {}, req_body_buf used {}", toHexString(session_id), body_len, req_body_buf->used());
-            poco_assert_msg(int32_t (req_body_buf->used()) == body_len, "Request body length is not consistent.");
+            LOG_TRACE(
+                log,
+                "session {} read request done, body length : {}, req_body_buf used {}",
+                toHexString(session_id),
+                body_len,
+                req_body_buf->used());
+            poco_assert_msg(int32_t(req_body_buf->used()) == body_len, "Request body length is not consistent.");
 
             /// 3. handshake
             if (unlikely(!handshake_done))
@@ -201,9 +220,7 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
                 }
 
                 /// register session response callback
-                auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) {
-                    sendResponse(response);
-                };
+                auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) { sendResponse(response); };
                 service_keeper_storage_dispatcher->registerSession(session_id, response_callback, handshake_result.is_reconnected);
 
                 /// start session timeout timer
@@ -247,12 +264,14 @@ void SvsConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> 
     }
     catch (Poco::Net::NetException &)
     {
-        tryLogCurrentException(log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id)));
+        tryLogCurrentException(
+            log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
     catch (...)
     {
-        tryLogCurrentException(log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id)));
+        tryLogCurrentException(
+            log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id)));
         destroyMe();
     }
 }
@@ -270,7 +289,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this] (const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
             if (resp == is_close)
                 return false;
 
@@ -300,7 +319,7 @@ void SvsConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> 
         /// 3. remove sent responses
 
         ptr<FIFOBuffer> resp;
-        while(responses->peek(resp) && sent > 0)
+        while (responses->peek(resp) && sent > 0)
         {
             if (sent >= resp->used())
             {
@@ -418,7 +437,6 @@ void SvsConnectionHandler::resetStats()
 
 ConnectRequest SvsConnectionHandler::receiveHandshake(int32_t handshake_req_len)
 {
-
     int32_t protocol_version;
     int64_t last_zxid_seen;
     int32_t timeout_ms;
@@ -484,9 +502,7 @@ SvsConnectionHandler::HandShakeResult SvsConnectionHandler::handleHandshake(Conn
             {
                 /// session expired, set timeout <=0
                 LOG_WARNING(
-                    log,
-                    "Client try to reconnects but session {} is already expired",
-                    toHexString(connect_req.previous_session_id));
+                    log, "Client try to reconnects but session {} is already expired", toHexString(connect_req.previous_session_id));
                 session_expired = true;
                 connect_success = false;
             }
@@ -599,7 +615,13 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     Coordination::read(opnum, body);
 
     if (opnum != Coordination::OpNum::Heartbeat)
-        LOG_DEBUG(log, "Receive request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
+        LOG_DEBUG(
+            log,
+            "Receive request: session {}, xid {}, length {}, opnum {}",
+            toHexString(session_id),
+            xid,
+            length,
+            Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
@@ -612,7 +634,7 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     return std::make_pair(opnum, xid);
 }
 
-void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr& response)
+void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & response)
 {
     LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
 
@@ -637,7 +659,11 @@ void SvsConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr
     reactor_.addEventHandler(
         socket_, NObserver<SvsConnectionHandler, WritableNotification>(*this, &SvsConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_TRACE(log, "Poll trigger wakeup-- poco thread name {}, actually thread name {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", getThreadName());
+    LOG_TRACE(
+        log,
+        "Poll trigger wakeup-- poco thread name {}, actually thread name {}",
+        Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
+        getThreadName());
 
     reactor_.wakeUp();
 }
@@ -671,7 +697,13 @@ void SvsConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr 
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
             if (elapsed > 1000)
-                LOG_WARNING(log, "Request process time {}ms, session {} xid {} req type {}", elapsed, session_id, response->xid, Coordination::toString(response->getOpNum()));
+                LOG_WARNING(
+                    log,
+                    "Request process time {}ms, session {} xid {} req type {}",
+                    elapsed,
+                    toHexString(session_id),
+                    response->xid,
+                    Coordination::toString(response->getOpNum()));
         }
         service_keeper_storage_dispatcher->updateKeeperStatLatency(elapsed);
 

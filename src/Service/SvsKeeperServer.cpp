@@ -48,7 +48,7 @@ SvsKeeperServer::SvsKeeperServer(
     const KeeperConfigurationAndSettingsPtr & coordination_settings_,
     const Poco::Util::AbstractConfiguration & config_,
     SvsKeeperResponsesQueue & responses_queue_,
-    std::shared_ptr<SvsKeeperCommitProcessor> svskeeper_commit_processor_)
+    std::shared_ptr<RequestProcessor> svskeeper_commit_processor_)
     : server_id(coordination_settings_->server_id)
     , coordination_and_settings(coordination_settings_)
     , config(config_)
@@ -402,10 +402,10 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
 {
     LOG_DEBUG(log, "process the batch requests {}", request_batch.size());
     std::vector<ptr<buffer>> entries;
-    for (auto & request_session : request_batch)
+    for (const auto & request_session : request_batch)
     {
         LOG_TRACE(log, "push request to entries session {}, xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
-        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.time, request_session.request));
+        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.create_time, request_session.request));
     }
     /// append_entries write reuqest
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
