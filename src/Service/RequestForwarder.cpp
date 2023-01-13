@@ -1,21 +1,21 @@
 
+#include <Service/RequestForwarder.h>
 #include <Service/SvsKeeperDispatcher.h>
-#include <Service/SvsKeeperFollowerProcessor.h>
 
 namespace DB
 {
 
-void SvsKeeperFollowerProcessor::processRequest(Request request_for_session)
+void RequestForwarder::push(Request request_for_session)
 {
     requests_queue->push(request_for_session);
 }
 
-void SvsKeeperFollowerProcessor::run(size_t thread_idx)
+void RequestForwarder::run(RunnerId runner_id)
 {
     while (!shutdown_called)
     {
         UInt64 max_wait = session_sync_period_ms;
-        if (session_sync_idx == thread_idx)
+        if (session_sync_idx == runner_id)
         {
             auto elapsed_milliseconds = session_sync_time_watch.elapsedMilliseconds();
             max_wait = elapsed_milliseconds >= session_sync_period_ms ? 0 : session_sync_period_ms - elapsed_milliseconds;
@@ -23,13 +23,13 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
 
         SvsKeeperStorage::RequestForSession request_for_session;
 
-        if (requests_queue->tryPop(thread_idx, request_for_session, max_wait))
+        if (requests_queue->tryPop(runner_id, request_for_session, max_wait))
         {
             try
             {
                 if (!server->isLeader() && server->isLeaderAlive())
                 {
-                    auto client = server->getLeaderClient(thread_idx);
+                    auto client = server->getLeaderClient(runner_id);
                     if (client)
                     {
                         //                        {
@@ -40,7 +40,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     }
                     else
                     {
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
                     }
                 }
                 else
@@ -48,7 +48,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             }
             catch (...)
             {
-                svskeeper_commit_processor->onError(
+                request_processor->onError(
                     false,
                     nuraft::cmd_result_code::FAILED,
                     request_for_session.session_id,
@@ -57,14 +57,14 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
             }
         }
 
-        if (session_sync_idx == thread_idx && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
+        if (session_sync_idx == runner_id && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
         {
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 /// send sessions
                 try
                 {
-                    auto client = server->getLeaderClient(thread_idx);
+                    auto client = server->getLeaderClient(runner_id);
                     if (client)
                     {
                         /// TODO if keeper nodes time has large gap something will be wrong.
@@ -76,7 +76,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
                     }
                     else
                     {
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
                     }
                 }
                 catch (...)
@@ -92,7 +92,7 @@ void SvsKeeperFollowerProcessor::run(size_t thread_idx)
     }
 }
 
-void SvsKeeperFollowerProcessor::runReceive(size_t thread_idx)
+void RequestForwarder::runReceive(RunnerId runner_id)
 {
     while (!shutdown_called)
     {
@@ -102,7 +102,7 @@ void SvsKeeperFollowerProcessor::runReceive(size_t thread_idx)
             ForwardResponse response;
             if (!server->isLeader() && server->isLeaderAlive())
             {
-                auto client = server->getLeaderClient(thread_idx);
+                auto client = server->getLeaderClient(runner_id);
                 if (client && client->isConnected())
                 {
                     if (!client->poll(max_wait * 1000))
@@ -121,7 +121,7 @@ void SvsKeeperFollowerProcessor::runReceive(size_t thread_idx)
                                 response.session_id,
                                 response.xid,
                                 response.error_code);
-                            svskeeper_commit_processor->onError(
+                            request_processor->onError(
                                 response.accepted,
                                 static_cast<nuraft::cmd_result_code>(response.error_code),
                                 response.session_id,
@@ -151,7 +151,7 @@ void SvsKeeperFollowerProcessor::runReceive(size_t thread_idx)
                 else
                 {
                     if (!client)
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), thread_idx);
+                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
                     else if (!client->isConnected())
                         LOG_WARNING(log, "client not connected");
 
@@ -170,7 +170,7 @@ void SvsKeeperFollowerProcessor::runReceive(size_t thread_idx)
     }
 }
 
-void SvsKeeperFollowerProcessor::shutdown()
+void RequestForwarder::shutdown()
 {
     if (shutdown_called)
         return;
@@ -197,7 +197,7 @@ void SvsKeeperFollowerProcessor::shutdown()
         }
         catch (...)
         {
-            svskeeper_commit_processor->onError(
+            request_processor->onError(
                 false,
                 nuraft::cmd_result_code::CANCELLED,
                 request_for_session.session_id,
@@ -207,7 +207,7 @@ void SvsKeeperFollowerProcessor::shutdown()
     }
 }
 
-void SvsKeeperFollowerProcessor::initialize(
+void RequestForwarder::initialize(
     size_t thread_count_,
     std::shared_ptr<SvsKeeperServer> server_,
     std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
@@ -226,9 +226,9 @@ void SvsKeeperFollowerProcessor::initialize(
     }
 
     response_thread = std::make_shared<ThreadPool>(thread_count);
-    for (size_t i = 0; i < thread_count; i++)
+    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
     {
-        response_thread->trySchedule([this, i] { runReceive(i); });
+        response_thread->trySchedule([this, runner_id] { runReceive(runner_id); });
     }
 }
 
