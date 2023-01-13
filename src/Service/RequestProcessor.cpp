@@ -46,11 +46,11 @@ void RequestProcessor::run()
             size_t committed_request_size = committed_queue.size();
 
             /// 2. process read request, multi thread
-            for (size_t i = 0; i < thread_count; i++)
+            for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
             {
-                request_thread->trySchedule([this, i] {
-                    moveRequestToPendingQueue(i);
-                    processReadRequests(i);
+                request_thread->trySchedule([this, runner_id] {
+                    moveRequestToPendingQueue(runner_id);
+                    processReadRequests(runner_id);
                 });
             }
             request_thread->wait();
