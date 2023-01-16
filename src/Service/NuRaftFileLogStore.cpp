@@ -127,7 +127,7 @@ NuRaftFileLogStore::NuRaftFileLogStore(
 
     if (segment_store->lastLogIndex() < 1)
     {
-        /// no log entry exists, return a dummy constant entry with value set to null and term set to zero
+        /// no log entry exists, return a dummy constant entry with value set to null and term set to  zero
         last_log_entry = cs_new<log_entry>(0, nuraft::buffer::alloc(0));
     }
     else
@@ -147,8 +147,7 @@ void NuRaftFileLogStore::shutdown()
 
     if (force_sync && async_fsync)
     {
-        async_fsync_event->set(); /// notify?
-
+        async_fsync_event->set();
         if (fsync_thread.joinable())
             fsync_thread.join();
     }
@@ -156,6 +155,7 @@ void NuRaftFileLogStore::shutdown()
 
 NuRaftFileLogStore::~NuRaftFileLogStore()
 {
+    shutdown();
 }
 
 void NuRaftFileLogStore::fsyncThread()
