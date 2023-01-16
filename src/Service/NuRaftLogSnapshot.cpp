@@ -115,7 +115,7 @@ int openFileForRead(std::string & obj_path)
 std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
 {
     if (!batch)
-        return {0, std::numeric_limits<UInt32>::max()};
+        batch = cs_new<SnapshotBatchPB>();
 
     std::string str_buf;
     batch->SerializeToString(&str_buf);
@@ -668,10 +668,10 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
         read_size += 8;
         if (isFileHeader(magic))
         {
-            LOG_INFO(log, "obj_path {}, read file header", obj_path);
             char * buf = reinterpret_cast<char *>(&version_);
             snap_fs->read(buf, sizeof(uint8_t));
             read_size += 1;
+            LOG_INFO(log, "obj_path {}, read file header, version {}", obj_path, uint8_t(version_));
         }
         else if (isFileTail(magic))
         {
@@ -707,7 +707,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
 
         if (!snap_fs->read(body_buf, header.data_length))
         {
-            LOG_ERROR(log, "Cant read snapshot object file {}, only {} could be read", obj_path, snap_fs->gcount());
+            LOG_ERROR(log, "Cant read snapshot object file {} size {}, only {} could be read", obj_path, header.data_length, snap_fs->gcount());
             delete[] body_buf;
             return false;
         }
