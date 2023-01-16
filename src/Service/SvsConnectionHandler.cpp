@@ -627,8 +627,6 @@ std::pair<Coordination::OpNum, Coordination::XID> SvsConnectionHandler::receiveR
     request->xid = xid;
     request->readImpl(body);
 
-    request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
-
     if (!service_keeper_storage_dispatcher->putRequest(request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
     return std::make_pair(opnum, xid);

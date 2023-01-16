@@ -457,7 +457,6 @@ void SvsKeeperDispatcher::sessionCleanerTask()
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;
-                    request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
                     SvsKeeperStorage::RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;

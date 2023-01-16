@@ -68,9 +68,6 @@ struct ZooKeeperRequest : virtual Request
 
     bool restored_from_zookeeper_log = false;
 
-    /// TODO remove
-    UInt64 request_created_time_us = 0;
-
     ZooKeeperRequest() = default;
     ZooKeeperRequest(const ZooKeeperRequest &) = default;
     virtual ~ZooKeeperRequest() override = default;
