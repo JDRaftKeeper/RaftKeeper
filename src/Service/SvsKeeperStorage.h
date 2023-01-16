@@ -179,6 +179,7 @@ public:
     {
         int64_t session_id;
         Coordination::ZooKeeperRequestPtr request;
+        /// millisecond
         int64_t create_time{};
 
         /// for forward request
