@@ -29,6 +29,8 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
+    storage.addSessionID(session_id, 30000);
+
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "/" + key;
     request->data = value;

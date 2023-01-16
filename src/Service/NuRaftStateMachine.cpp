@@ -98,7 +98,7 @@ NuRaftStateMachine::NuRaftStateMachine(
         last_committed_idx = 0;
     }
 
-    LOG_INFO(log, "Replay snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
+    LOG_INFO(log, "Load snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
 
     //[ batch_start_index, batch_end_index )
     ulong batch_start_index = 0;
@@ -128,95 +128,102 @@ NuRaftStateMachine::NuRaftStateMachine(
         ThreadPool object_thread_pool(REPLAY_THREAD_NUM);
         for (UInt32 thread_idx = 0; thread_idx < REPLAY_THREAD_NUM; thread_idx++)
         {
-            object_thread_pool.trySchedule(
-                [this, thread_idx, last_log_index, &load_mutex, &log_queue, &batch_start_index, &batch_end_index, &logstore] {
-                    Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-                    while (batch_start_index < last_log_index)
+            object_thread_pool.trySchedule([this,
+                                            thread_idx,
+                                            last_log_index,
+                                            &load_mutex,
+                                            &log_queue,
+                                            &batch_start_index,
+                                            &batch_end_index,
+                                            &logstore] {
+                Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+                while (batch_start_index < last_log_index)
+                {
+                    while (log_queue.size() >= 10)
                     {
-                        while (log_queue.size() >= 10)
-                        {
-                            LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
-                            sleep(1);
-                            //load_cond.wait();
-                        }
-
-                        //0.3 * 10000 = 3M
-                        batch_end_index = batch_start_index + 10000;
-                        if (batch_end_index > last_log_index + 1)
-                            batch_end_index = last_log_index + 1;
-
-                        LOG_INFO(
-                            thread_log,
-                            "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
-                            thread_idx,
-                            batch_start_index,
-                            batch_end_index);
-
-                        ReplayLogBatch batch;
-                        batch.log_vec = dynamic_cast<NuRaftFileLogStore *>(logstore.get())->log_entries_version_ext(batch_start_index, batch_end_index, 0);
-
-                        batch.batch_start_index = batch_start_index;
-                        batch.batch_end_index = batch_end_index;
-                        batch.request_vec = cs_new<std::vector<ptr<SvsKeeperStorage::RequestForSession>>>();
-
-                        int idx = 0;
-                        for (auto entry : *(batch.log_vec))
-                        {
-                            if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
-                            {
-                                batch.request_vec->push_back(nullptr);
-                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
-                                continue;
-                            }
-
-                            if (isNewSessionRequest(entry.entry->get_buf()))
-                            {
-                                batch.request_vec->push_back(nullptr);
-//                                /// replay session
-//                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
-//                                int64_t session_id = storage.getSessionID(session_timeout_ms);
-//                                LOG_TRACE(
-//                                    log,
-//                                    "Replay log create session, session_id {} with timeout {} from log",
-//                                    session_id,
-//                                    session_timeout_ms);
-                            }
-                            else if (isUpdateSessionRequest(entry.entry->get_buf()))
-                            {
-                                batch.request_vec->push_back(nullptr);
-                                /// replay update session
-//                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
-//                                int64_t session_id = data_serializer.get_i64();
-//                                int64_t session_timeout_ms = data_serializer.get_i64();
-//
-//                                storage.updateSessionTimeout(session_id, session_timeout_ms);
-//                                LOG_TRACE(
-//                                    log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
-                            }
-                            else
-                            {
-                                /// replay nodes
-                                ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
-                                LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
-
-                                batch.request_vec->push_back(ptr_request);
-                            }
-                            idx++;
-                        }
-
-                        {
-                            std::lock_guard queue_lock(load_mutex);
-                            log_queue.push(batch);
-                        }
-                        LOG_INFO(
-                            thread_log,
-                            "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
-                            thread_idx,
-                            batch_start_index,
-                            batch_end_index);
-                        batch_start_index = batch_end_index;
+                        LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
+                        sleep(1);
+                        //load_cond.wait();
                     }
-                });
+
+                    //0.3 * 10000 = 3M
+                    batch_end_index = batch_start_index + 10000;
+                    if (batch_end_index > last_log_index + 1)
+                        batch_end_index = last_log_index + 1;
+
+                    LOG_INFO(
+                        thread_log,
+                        "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
+                        thread_idx,
+                        batch_start_index,
+                        batch_end_index);
+
+                    ReplayLogBatch batch;
+                    batch.log_vec = dynamic_cast<NuRaftFileLogStore *>(logstore.get())
+                                        ->log_entries_version_ext(batch_start_index, batch_end_index, 0);
+
+                    batch.batch_start_index = batch_start_index;
+                    batch.batch_end_index = batch_end_index;
+                    batch.request_vec = cs_new<std::vector<ptr<SvsKeeperStorage::RequestForSession>>>();
+
+                    int idx = 0;
+                    for (auto entry : *(batch.log_vec))
+                    {
+                        if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
+                        {
+                            batch.request_vec->push_back(nullptr);
+                            LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
+                            continue;
+                        }
+
+                        if (isNewSessionRequest(entry.entry->get_buf()))
+                        {
+                            batch.request_vec->push_back(nullptr);
+                            //                                /// replay session
+                            //                                int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
+                            //                                int64_t session_id = storage.getSessionID(session_timeout_ms);
+                            //                                LOG_TRACE(
+                            //                                    log,
+                            //                                    "Replay log create session, session_id {} with timeout {} from log",
+                            //                                    session_id,
+                            //                                    session_timeout_ms);
+                        }
+                        else if (isUpdateSessionRequest(entry.entry->get_buf()))
+                        {
+                            batch.request_vec->push_back(nullptr);
+                            /// replay update session
+                            //                                nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
+                            //                                int64_t session_id = data_serializer.get_i64();
+                            //                                int64_t session_timeout_ms = data_serializer.get_i64();
+                            //
+                            //                                storage.updateSessionTimeout(session_id, session_timeout_ms);
+                            //                                LOG_TRACE(
+                            //                                    log, "Replay log update session op, session_id {} with timeout {}", session_id, session_timeout_ms);
+                        }
+                        else
+                        {
+                            /// replay nodes
+                            ptr<SvsKeeperStorage::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
+                            LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
+
+                            batch.request_vec->push_back(ptr_request);
+                        }
+                        idx++;
+                    }
+
+                    {
+                        std::lock_guard queue_lock(load_mutex);
+                        log_queue.push(batch);
+                    }
+                    LOG_INFO(
+                        thread_log,
+                        "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
+                        thread_idx,
+                        batch_start_index,
+                        batch_end_index);
+                    batch_start_index = batch_end_index;
+                }
+            });
         }
 
         while (log_queue.size() > 0 || batch_start_index < last_log_index)
@@ -256,11 +263,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                     /// replay session
                     int64_t session_timeout_ms = entry.entry->get_buf().get_ulong();
                     int64_t session_id = storage.getSessionID(session_timeout_ms);
-                    LOG_TRACE(
-                        log,
-                        "Replay log create session {} with timeout {} from log",
-                        toHexString(session_id),
-                        session_timeout_ms);
+                    LOG_TRACE(log, "Replay log create session {} with timeout {} from log", toHexString(session_id), session_timeout_ms);
                 }
                 else if (isUpdateSessionRequest(entry.entry->get_buf()))
                 {
@@ -270,14 +273,14 @@ NuRaftStateMachine::NuRaftStateMachine(
                     int64_t session_timeout_ms = data_serializer.get_i64();
 
                     storage.updateSessionTimeout(session_id, session_timeout_ms);
-                    LOG_TRACE(
-                        log, "Replay log update session {} with timeout {}", toHexString(session_id), session_timeout_ms);
+                    LOG_TRACE(log, "Replay log update session {} with timeout {}", toHexString(session_id), session_timeout_ms);
                 }
                 else
                 {
                     /// replay nodes
                     auto & request = (*batch.request_vec)[i];
-                    LOG_TRACE(log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
+                    LOG_TRACE(
+                        log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
                     storage.processRequest(responses_queue, request->request, request->session_id, request->create_time, {}, true, true);
                     if (request->session_id > storage.session_id_counter)
                     {
@@ -396,10 +399,7 @@ void NuRaftStateMachine::snapThread()
             snap_count.fetch_add(1);
             snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
 
-            LOG_INFO(
-                log,
-                "Create snapshot time cost {} ms",
-                stopwatch.elapsedMilliseconds());
+            LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -426,13 +426,19 @@ SvsKeeperStorage::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buf
     request_for_session.request->readImpl(buffer);
 
     if (!buffer.eof())
-        readIntBinary(request_for_session.create_time, buffer);
+        Coordination::read(request_for_session.create_time, buffer);
     else /// backward compatibility
         request_for_session.create_time
             = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
-    LOG_TRACE(log, "Parsed request session id {}, length {}, xid {}, opnum {}", toHexString(request_for_session.session_id), length, xid, Coordination::toString(opnum));
+    LOG_TRACE(
+        log,
+        "Parsed request session id {}, length {}, xid {}, opnum {}",
+        toHexString(request_for_session.session_id),
+        length,
+        xid,
+        Coordination::toString(opnum));
 
     return request_for_session;
 }
@@ -464,10 +470,10 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data, bool ignore_response)
 {
     //2^19 = 524,288
-//    if (log_idx << 45 == 0)
-//    {
-        LOG_DEBUG(log, "Begin commit log index {}", log_idx);
-//    }
+    //    if (log_idx << 45 == 0)
+    //    {
+    LOG_DEBUG(log, "Begin commit log index {}", log_idx);
+    //    }
 
     if (isNewSessionRequest(data))
     {
@@ -491,7 +497,10 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             }
             else
             {
-                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", toHexString(session_id));
+                LOG_DEBUG(
+                    log,
+                    "Not found callback for session id {}, maybe time out or before wait or not allocate from local",
+                    toHexString(session_id));
             }
         }
 
@@ -521,7 +530,10 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             }
             else
             {
-                LOG_DEBUG(log, "Not found callback for session id {}, maybe time out or before wait or not allocate from local", toHexString(session_id));
+                LOG_DEBUG(
+                    log,
+                    "Not found callback for session id {}, maybe time out or before wait or not allocate from local",
+                    toHexString(session_id));
             }
         }
 
@@ -536,13 +548,21 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             "Commit log index {}, session {}, xid {}, request {}",
             log_idx,
             toHexString(request_for_session.session_id),
-            request_for_session.request->xid, request_for_session.request->toString());
+            request_for_session.request->xid,
+            request_for_session.request->toString());
 
         if (request_for_session.create_time > 0)
         {
             Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.create_time;
             if (elapsed > 1000)
-                LOG_WARNING(log, "Commit log {} request process time {}ms, session {} xid {} req type {}", log_idx, elapsed, request_for_session.session_id, request_for_session.request->xid, Coordination::toString(request_for_session.request->getOpNum()));
+                LOG_WARNING(
+                    log,
+                    "Commit log {} request process time {}ms, session {} xid {} req type {}",
+                    log_idx,
+                    elapsed,
+                    request_for_session.session_id,
+                    request_for_session.request->xid,
+                    Coordination::toString(request_for_session.request->getOpNum()));
         }
 
         if (svskeeper_commit_processor)
@@ -551,7 +571,14 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         }
         else
         {
-            storage.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.create_time, {}, true, ignore_response);
+            storage.processRequest(
+                responses_queue,
+                request_for_session.request,
+                request_for_session.session_id,
+                request_for_session.create_time,
+                {},
+                true,
+                ignore_response);
         }
 
         last_committed_idx = log_idx;
@@ -692,11 +719,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         Stopwatch stopwatch;
         in_snapshot = true;
 
-        LOG_WARNING(
-            log,
-            "Create snapshot last_log_term {}, last_log_idx {}",
-            s.get_last_log_term(),
-            s.get_last_log_idx());
+        LOG_WARNING(log, "Create snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
 
         create_snapshot(s, storage.zxid, storage.session_id_counter);
         ptr<std::exception> except(nullptr);
@@ -709,10 +732,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         snap_count.fetch_add(1);
         snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
 
-        LOG_INFO(
-            log,
-            "Create snapshot time cost {} ms",
-            stopwatch.elapsedMilliseconds());
+        LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
     }
     else
     {
@@ -724,7 +744,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         auto t3 = Poco::Timestamp().epochMicroseconds();
         snap_task = std::make_shared<SnapTask>(snap_copy, storage.zxid, storage.session_id_counter, when_done);
         auto t4 = Poco::Timestamp().epochMicroseconds();
-        LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2-t1), (t3-t2), (t4-t3));
+        LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2 - t1), (t3 - t2), (t4 - t3));
     }
 }
 
