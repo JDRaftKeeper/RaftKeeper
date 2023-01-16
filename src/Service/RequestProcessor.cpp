@@ -437,6 +437,7 @@ void RequestProcessor::shutdown()
         auto response = request_for_session.request->makeResponse();
         response->xid = request_for_session.request->xid;
         response->zxid = 0;
+        response->request_created_time_ms = request_for_session.create_time;
         response->error = Coordination::Error::ZSESSIONEXPIRED;
         responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
     }
