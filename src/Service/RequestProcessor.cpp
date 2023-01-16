@@ -402,7 +402,7 @@ void RequestProcessor::applyRequest(const RequestForSession & request) const
         {
             auto response = request.request->makeResponse();
 
-            response->request_created_time_ms = request.request->request_created_time_us;
+            response->request_created_time_ms = request.create_time;
             response->xid = request.request->xid;
             response->zxid = 0;
             response->error = Coordination::Error::ZCONNECTIONLOSS;

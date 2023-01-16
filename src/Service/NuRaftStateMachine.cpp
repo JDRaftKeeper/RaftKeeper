@@ -365,7 +365,7 @@ ptr<SvsKeeperStorage::RequestForSession> NuRaftStateMachine::createRequestSessio
     }
     else
     {
-        readIntBinary(request_for_session->create_time, buffer);
+        Coordination::read(request_for_session->create_time, buffer);
     }
 
     return request_for_session;
