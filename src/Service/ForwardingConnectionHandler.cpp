@@ -393,8 +393,6 @@ std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnection
     request->xid = xid;
     request->readImpl(body);
 
-    request->request_created_time_us = Poco::Timestamp().epochMicroseconds();
-
     LOG_TRACE(
         log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
