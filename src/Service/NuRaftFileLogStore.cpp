@@ -147,8 +147,7 @@ void NuRaftFileLogStore::shutdown()
 
     if (force_sync && async_fsync)
     {
-        async_fsync_event->set(); /// notify?
-
+        async_fsync_event->set();
         if (fsync_thread.joinable())
             fsync_thread.join();
     }
@@ -156,6 +155,7 @@ void NuRaftFileLogStore::shutdown()
 
 NuRaftFileLogStore::~NuRaftFileLogStore()
 {
+    shutdown();
 }
 
 void NuRaftFileLogStore::fsyncThread()
