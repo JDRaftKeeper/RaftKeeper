@@ -97,12 +97,13 @@ void RequestProcessor::processCommittedRequest(size_t count)
         if (committed_queue.peek(committed_request))
         {
             auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(committed_request.session_id))->second;
-            auto & pending_requests_for_session = pending_requests_for_thread[committed_request.session_id];
-            
+
             LOG_DEBUG(
                 log,
                 "current_session_pending_requests size {} committed_request opNum {}, session {} xid {} request {}",
-                pending_requests_for_session.size(),
+                pending_requests_for_thread.contains(committed_request.session_id)
+                    ? pending_requests_for_thread[committed_request.session_id].size()
+                    : 0,
                 Coordination::toString(committed_request.request->getOpNum()),
                 toHexString(committed_request.session_id),
                 committed_request.request->xid,
@@ -132,6 +133,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
             {
                 bool has_read_request = false;
                 bool found_error = false;
+                auto & pending_requests_for_session = pending_requests_for_thread[committed_request.session_id];
                 if (!pending_requests_for_session.empty())
                 {
                     LOG_DEBUG(
