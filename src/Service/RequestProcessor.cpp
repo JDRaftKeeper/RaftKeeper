@@ -244,8 +244,20 @@ void RequestProcessor::processErrorRequest()
             
             LOG_WARNING(log, "error {} session {}, xid {}", error_request.error_code, toHexString(session_id), xid);
 
+            auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(session_id))->second;
+
             if (!service_keeper_storage_dispatcher->isLocalSession(session_id))
             {
+                if (pending_requests_for_thread.contains(session_id))
+                {
+                    LOG_WARNING(
+                        log,
+                        "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
+                        "Just delete from pending queue",
+                        toHexString(session_id));
+                    pending_requests_for_thread.erase(session_id);
+                }
+
                 LOG_WARNING(log, "Not my session error, session {}, xid {}", toHexString(session_id), xid);
                 it = errors.erase(it);
             }
@@ -263,7 +275,6 @@ void RequestProcessor::processErrorRequest()
                 }
                 else
                 {
-                    auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(session_id))->second;
                     auto session_requests = pending_requests_for_thread.find(session_id);
 
                     if (session_requests != pending_requests_for_thread.end())

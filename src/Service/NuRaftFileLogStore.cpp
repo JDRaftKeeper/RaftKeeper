@@ -165,7 +165,6 @@ void NuRaftFileLogStore::fsyncThread()
     while (!shutdown_called)
     {
         async_fsync_event->wait();
-        if (shutdown_called) break;
 
         UInt64 last_flush_index = segment_store->flush();
         if (last_flush_index)
