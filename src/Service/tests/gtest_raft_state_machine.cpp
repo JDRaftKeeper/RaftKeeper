@@ -27,6 +27,11 @@ void cleanAll() {
         snap.remove(true);
 }
 
+uint64_t createSession(NuRaftStateMachine & machine)
+{
+    return machine.getStorage().getSessionID(30000);
+}
+
 void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
 {
     //Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
@@ -39,6 +44,7 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
 
     UInt64 index = machine.last_commit_index() + 1;
     SvsKeeperStorage::RequestForSession session_request;
+    session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperCreateRequest>();
     session_request.request = request;
     request->path = key;
@@ -68,6 +74,7 @@ void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & 
 {
     createZNodeLog(machine, key, data, nullptr, 0);
 }
+
 void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
 {
     ACLs default_acls;
@@ -79,6 +86,7 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
 
     UInt64 index = machine.last_commit_index() + 1;
     SvsKeeperStorage::RequestForSession session_request;
+    session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperSetRequest>();
     session_request.request = request;
     request->path = key;
@@ -105,6 +113,7 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
 
     UInt64 index = machine.last_commit_index() + 1;
     SvsKeeperStorage::RequestForSession session_request;
+    session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request.request = request;
     request->path = key;
