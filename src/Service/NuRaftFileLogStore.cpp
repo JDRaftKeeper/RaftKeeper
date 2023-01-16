@@ -165,14 +165,14 @@ void NuRaftFileLogStore::fsyncThread()
     while (!shutdown_called)
     {
         async_fsync_event->wait();
-
         if (shutdown_called) break;
 
         UInt64 last_flush_index = segment_store->flush();
         if (last_flush_index)
         {
             disk_last_durable_index = last_flush_index;
-            raft_instance->notify_log_append_completion(true);
+            if (raft_instance) /// For test
+                raft_instance->notify_log_append_completion(true);
         }
     }
 }
