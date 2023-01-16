@@ -313,7 +313,7 @@ namespace
         DB::WriteBufferFromNuraftBuffer buf;
         DB::writeIntBinary(session_id, buf);
         request->write(buf);
-        DB::writeIntBinary(time, buf);
+        Coordination::write(time, buf);
         return buf.getBuffer();
     }
 #endif
@@ -407,7 +407,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> SvsKeeperServer::putRequestBatch(const std:
         LOG_TRACE(log, "push request to entries session {}, xid {}, opnum {}", request_session.session_id, request_session.request->xid, request_session.request->getOpNum());
         entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.create_time, request_session.request));
     }
-    /// append_entries write reuqest
+    /// append_entries write request
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
     return result;
 }
