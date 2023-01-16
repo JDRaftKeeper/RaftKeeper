@@ -741,6 +741,8 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     LOG_INFO(log, "create snapshot with fuzzy log complete");
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
     SvsKeeperResponsesQueue ano_queue;
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
 
