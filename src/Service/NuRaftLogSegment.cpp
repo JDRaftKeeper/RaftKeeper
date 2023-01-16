@@ -1400,7 +1400,7 @@ int LogSegmentStore::loadSegments()
         else
         {
             last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-            //LOG_INFO(log, "Open segment last index {} {}", open_segment->lastIndex(), last_log_index);
+            LOG_INFO(log, "Open segment last index {} {}", open_segment->lastIndex(), last_log_index);
         }
     }
     if (last_log_index == 0)
