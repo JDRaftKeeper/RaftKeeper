@@ -7,6 +7,7 @@
 #include <Service/SvsKeeperSettings.h>
 #include <Service/SvsKeeperStorage.h>
 #include <libnuraft/nuraft.hxx>
+#include <Service/Keeper4LWInfo.h>
 
 namespace DB
 {
@@ -133,8 +134,13 @@ public:
     bool waitConfigurationUpdate(const ConfigUpdateAction & task);
 
     /// Manually create snapshot.
-    /// Return true if creation is scheduled or return false
-    bool createSnapshot();
+    /// Return last committed log index.
+    uint64_t createSnapshot();
+
+    /// Raft log information
+    KeeperLogInfo getKeeperLogInfo();
+
+    bool requestLeader();
 };
 
 }
