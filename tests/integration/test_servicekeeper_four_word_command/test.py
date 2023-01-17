@@ -119,6 +119,11 @@ def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
             client.close()
 
 
+def is_leader(node):
+    data = send_4lw_cmd(node.name, 'stat')
+    return 'Mode: follower' in data
+
+
 def reset_conn_stats(node_name=node1.name):
     client = None
     try:
@@ -611,3 +616,79 @@ def test_cmd_wchp(started_cluster):
     finally:
         destroy_zk_client(zk)
 
+
+def test_cmd_csnp(started_cluster):
+    zk = None
+    try:
+        wait_nodes()
+        zk = get_fake_zk(node1.name, timeout=30.0)
+        data = send_4lw_cmd(cmd="csnp")
+
+        print("csnp output -------------------------------------")
+        print(data)
+
+        try:
+            int(data)
+            assert True
+        except ValueError:
+            assert False
+    finally:
+        destroy_zk_client(zk)
+
+
+def test_cmd_lgif(started_cluster):
+    zk = None
+    try:
+        wait_nodes()
+        clear_znodes()
+
+        zk = get_fake_zk(node1.name, timeout=30.0)
+        do_some_action(zk, create_cnt=100)
+
+        data = send_4lw_cmd(cmd="lgif")
+
+        print("lgif output -------------------------------------")
+        print(data)
+
+        reader = csv.reader(data.split("\n"), delimiter="\t")
+        result = {}
+
+        for row in reader:
+            if len(row) != 0:
+                result[row[0]] = row[1]
+
+        assert int(result["first_log_idx"]) == 1
+        assert int(result["first_log_term"]) == 1
+        assert int(result["last_log_idx"]) >= 1
+        assert int(result["last_log_term"]) == 1
+        assert int(result["last_committed_log_idx"]) >= 1
+        assert int(result["leader_committed_log_idx"]) >= 1
+        assert int(result["target_committed_log_idx"]) >= 1
+        assert int(result["last_snapshot_idx"]) >= 1
+    finally:
+        destroy_zk_client(zk)
+
+
+def test_cmd_rqld(started_cluster):
+    wait_nodes()
+    # node2 can not be leader
+    for node in [node1, node3]:
+        data = send_4lw_cmd(cmd="rqld")
+        assert data == "Sent leadership request to leader."
+
+        print("rqld output -------------------------------------")
+        print(data)
+
+        if not is_leader(node):
+            # pull wait to become leader
+            retry = 0
+            # TODO not a restrict way
+            while not is_leader(node) and retry < 30:
+                time.sleep(1)
+                retry += 1
+            if retry == 30:
+                print(
+                    node.name
+                    + " does not become leader after 30s, maybe there is something wrong."
+                )
+        assert is_leader(node)

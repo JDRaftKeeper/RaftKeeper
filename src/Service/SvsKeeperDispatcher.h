@@ -212,9 +212,19 @@ public:
     void requestThreadAtomicConsistency(size_t thread_index);
     void requestThreadFakeZooKeeper(size_t thread_index);
 
-    bool createSnapshot()
+    uint64_t createSnapshot()
     {
         return server->createSnapshot();
+    }
+
+    KeeperLogInfo getKeeperLogInfo()
+    {
+        return server->getKeeperLogInfo();
+    }
+
+    bool requestLeader()
+    {
+        return server->requestLeader();
     }
 };
 
