@@ -317,4 +317,39 @@ struct CreateSnapshotCommand : public IFourLetterCommand
     ~CreateSnapshotCommand() override = default;
 };
 
+/** Raft log information:
+ *     first_log_idx 1
+ *     first_log_term   1
+ *     last_log_idx 101
+ *     last_log_term    1
+ *     last_committed_idx   100
+ *     leader_committed_log_idx 101
+ *     target_committed_log_idx 101
+ *     last_snapshot_idx    50
+ */
+struct LogInfoCommand : public IFourLetterCommand
+{
+    explicit LogInfoCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "lgif"; }
+    String run() override;
+    ~LogInfoCommand() override = default;
+};
+
+/// Request to be leader.
+struct RequestLeaderCommand : public IFourLetterCommand
+{
+    explicit RequestLeaderCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "rqld"; }
+    String run() override;
+    ~RequestLeaderCommand() override = default;
+};
+
 }

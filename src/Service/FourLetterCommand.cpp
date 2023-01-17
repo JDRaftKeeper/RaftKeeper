@@ -15,6 +15,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/Operators.h>
 #include <Poco/String.h>
+#include <Service/Keeper4LWInfo.h>
 
 #include <unistd.h>
 
@@ -137,6 +138,12 @@ void FourLetterCommandFactory::registerCommands(SvsKeeperDispatcher & keeper_dis
 
         FourLetterCommandPtr create_snapshot_command = std::make_shared<CreateSnapshotCommand>(keeper_dispatcher);
         factory.registerCommand(create_snapshot_command);
+
+        FourLetterCommandPtr log_info_command = std::make_shared<LogInfoCommand>(keeper_dispatcher);
+        factory.registerCommand(log_info_command);
+
+        FourLetterCommandPtr request_leader_command = std::make_shared<RequestLeaderCommand>(keeper_dispatcher);
+        factory.registerCommand(request_leader_command);
 
         factory.initializeWhiteList(keeper_dispatcher);
         factory.setInitialize(true);
@@ -431,7 +438,36 @@ String IsReadOnlyCommand::run()
 
 String CreateSnapshotCommand::run()
 {
-    return keeper_dispatcher.createSnapshot() ? "Snapshot creation scheduled." : "Fail to scheduled snapshot creation.";
+    auto log_index = keeper_dispatcher.createSnapshot();
+    return log_index > 0 ? std::to_string(log_index) : "Failed to schedule snapshot creation task.";
+}
+
+String LogInfoCommand::run()
+{
+    KeeperLogInfo log_info = keeper_dispatcher.getKeeperLogInfo();
+    StringBuffer ret;
+
+    auto append = [&ret] (String key, uint64_t value) -> void
+    {
+        writeText(key, ret);
+        writeText('\t', ret);
+        writeText(std::to_string(value), ret);
+        writeText('\n', ret);
+    };
+    append("first_log_idx", log_info.first_log_idx);
+    append("first_log_term", log_info.first_log_idx);
+    append("last_log_idx", log_info.last_log_idx);
+    append("last_log_term", log_info.last_log_term);
+    append("last_committed_log_idx", log_info.last_committed_log_idx);
+    append("leader_committed_log_idx", log_info.leader_committed_log_idx);
+    append("target_committed_log_idx", log_info.target_committed_log_idx);
+    append("last_snapshot_idx", log_info.last_snapshot_idx);
+    return ret.str();
+}
+
+String RequestLeaderCommand::run()
+{
+    return keeper_dispatcher.requestLeader() ? "Sent leadership request to leader." : "Failed to send leadership request to leader.";
 }
 
 }
