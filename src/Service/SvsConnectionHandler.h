@@ -14,10 +14,13 @@
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
 
+#include <unordered_set>
 #include <Service/ConnCommon.h>
 #include <Service/SvsSocketAcceptor.h>
 #include <Service/SvsSocketReactor.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
+#include "IO/WriteBufferFromString.h"
+#include "KeeperConnectionStats.h"
 
 
 namespace DB
@@ -85,14 +88,14 @@ private:
     static constexpr size_t SENT_BUFFER_SIZE = 1024;
     FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
-    ptr<FIFOBuffer> is_close = nullptr;
+    std::shared_ptr<FIFOBuffer> is_close = nullptr;
 
     Logger * log;
 
     StreamSocket socket_;
     SocketReactor & reactor_;
 
-    ptr<FIFOBuffer> req_body_buf;
+    std::shared_ptr<FIFOBuffer> req_body_buf;
     FIFOBuffer req_header_buf = FIFOBuffer(4);
 
     /// request body length

@@ -6,7 +6,6 @@
 #include <IO/WriteBufferFromString.h>
 #include <IO/WriteHelpers.h>
 #include <Common/HashTable/Hash.h>
-#include <Interpreters/InternalTextLogsQueue.h>
 #include <Common/CurrentThread.h>
 #include <common/getThreadId.h>
 #include <common/terminalColors.h>

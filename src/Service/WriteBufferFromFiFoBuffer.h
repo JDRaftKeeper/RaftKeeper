@@ -1,8 +1,8 @@
 #pragma once
 
+#include <Core/Types.h>
 #include <IO/WriteBuffer.h>
 #include <Poco/FIFOBuffer.h>
-#include <Service/Types.h>
 
 namespace DB
 {
@@ -15,7 +15,7 @@ private:
     static constexpr size_t initial_size = 32;
     static constexpr size_t size_multiplier = 2;
 
-    ptr<FIFOBuffer> buffer;
+    std::shared_ptr<FIFOBuffer> buffer;
     bool is_finished = false;
 
     void nextImpl() override;
@@ -24,7 +24,7 @@ public:
     explicit WriteBufferFromFiFoBuffer(size_t size = initial_size);
 
     void finalize() override final;
-    ptr<FIFOBuffer> getBuffer();
+    std::shared_ptr<FIFOBuffer> getBuffer();
     bool isFinished() const { return is_finished; }
 
     ~WriteBufferFromFiFoBuffer() override;

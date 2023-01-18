@@ -6,7 +6,6 @@
 #include "Poco/Timestamp.h"
 #include "Poco/Util/Application.h"
 #include "Poco/Util/ServerApplication.h"
-#include <Poco/Net/SecureServerSocket.h>
 #include <daemon/BaseDaemon.h>
 
 using Poco::Util::Application;

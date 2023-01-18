@@ -1,18 +1,21 @@
 #include "Service.h"
 #include <memory>
-#include <Access/AccessControlManager.h>
+#include <Core/Context.h>
 #include <IO/UseSSL.h>
-#include <Interpreters/ProcessList.h>
 #include <Server/ProtocolServerAdapter.h>
+#include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
+#include <Service/SvsConnectionHandler.h>
+#include <Service/SvsSocketAcceptor.h>
+#include <Service/SvsSocketReactor.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/HelpFormatter.h>
 #include <Poco/Version.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/Macros.h>
 #include <Common/SensitiveDataMasker.h>
+#include <Common/ThreadFuzzer.h>
 #include <Common/ThreadProfileEvents.h>
 #include <Common/ThreadStatus.h>
 #include <Common/ZooKeeper/ZooKeeper.h>
@@ -20,15 +23,6 @@
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getMappedArea.h>
-#include <Common/ThreadFuzzer.h>
-#include <common/coverage.h>
-#include <common/logger_useful.h>
-#include <ext/scope_guard.h>
-#include <Service/ServiceTCPHandlerFactory.h>
-#include <Service/SvsSocketReactor.h>
-#include <Service/SvsSocketAcceptor.h>
-#include <Service/SvsConnectionHandler.h>
-#include <Service/ForwardingConnectionHandler.h>
 #include <common/ErrorHandlers.h>
 
 #define USE_NIO_FOR_KEEPER
@@ -145,7 +139,6 @@ int waitServersToFinish(std::vector<DB::ProtocolServerAdapter> & servers, size_t
 
 int Service::main(const std::vector<std::string> & /*args*/)
 {
-
     static ServerErrorHandler error_handler;
     Poco::ErrorHandler::set(&error_handler);
     Poco::Logger * log = &logger();
@@ -177,20 +170,22 @@ int Service::main(const std::vector<std::string> & /*args*/)
             rlim.rlim_cur = config().getUInt("max_open_files", rlim.rlim_max);
             int rc = setrlimit(RLIMIT_NOFILE, &rlim);
             if (rc != 0)
-                LOG_WARNING(log, "Cannot set max number of file descriptors to {}. Try to specify max_open_files according to your system limits. error: {}", rlim.rlim_cur, strerror(errno));
+                LOG_WARNING(
+                    log,
+                    "Cannot set max number of file descriptors to {}. Try to specify max_open_files according to your system limits. "
+                    "error: {}",
+                    rlim.rlim_cur,
+                    strerror(errno));
             else
                 LOG_DEBUG(log, "Set max number of file descriptors to {} (was {}).", rlim.rlim_cur, old);
         }
     }
 
-    auto shared_context = Context::createShared();
-    auto global_context = std::make_unique<Context>(Context::createGlobal(shared_context.get()));
-    [[maybe_unused]]const Settings & settings = global_context->getSettingsRef();
-    global_context_ptr = global_context.get();
-
+    auto & global_context = Context::get();
+    
     auto servers = std::make_shared<std::vector<ProtocolServerAdapter>>();
-    ptr<SvsSocketReactor<SocketReactor>> nio_server;
-    ptr<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>> nio_server_acceptor;
+    std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_server;
+    std::shared_ptr<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>> nio_server_acceptor;
 
 #ifndef USE_NIO_FOR_KEEPER
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
@@ -203,8 +198,8 @@ int Service::main(const std::vector<std::string> & /*args*/)
     //Init global thread pool
     GlobalThreadPool::initialize(config().getUInt("max_thread_pool_size", 10000));
 
-    global_context->initializeServiceKeeperStorageDispatcher();
-    FourLetterCommandFactory::registerCommands(*global_context->getSvsKeeperStorageDispatcher());
+    global_context.initializeServiceKeeperStorageDispatcher();
+    FourLetterCommandFactory::registerCommands(*global_context.getSvsKeeperStorageDispatcher());
 
     const char * port_name = "service.service_port";
     createServer(listen_host, port_name, listen_try, [&](UInt16 port) {
@@ -212,11 +207,14 @@ int Service::main(const std::vector<std::string> & /*args*/)
         Poco::Net::ServerSocket socket(port);
         socket.setBlocking(false);
 
-        Poco::Timespan timeout(global_context->getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000) * 1000);
+        Poco::Timespan timeout(
+            global_context.getConfigRef().getUInt(
+                "service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
+            * 1000);
         nio_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
         /// TODO add io thread count to config
         nio_server_acceptor = std::make_shared<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>>(
-            "NIO-HANDLER", *global_context, socket, *nio_server, timeout);
+            "NIO-HANDLER", global_context, socket, *nio_server, timeout);
         LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
 #else
             Poco::Net::ServerSocket socket;
@@ -237,13 +235,13 @@ int Service::main(const std::vector<std::string> & /*args*/)
             {
                 String level_str = config().getString("text_log.level", "");
                 int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
-                setTextLog(global_context->getTextLog(), level);
+                setTextLog(global_context.getTextLog(), level);
             }
 #endif
     });
 
-    ptr<SvsSocketReactor<SocketReactor>> nio_forwarding_server;
-    ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> nio_forwarding_server_acceptor;
+    std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_forwarding_server;
+    std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> nio_forwarding_server_acceptor;
 
 #ifndef USE_NIO_FOR_KEEPER
     Poco::ThreadPool server_pool(10, config().getUInt("max_connections", 1024));
@@ -253,17 +251,20 @@ int Service::main(const std::vector<std::string> & /*args*/)
     {
         const char * forwarding_port_name = "service.forwarding_port";
         createServer(listen_host, forwarding_port_name, listen_try, [&](UInt16 port) {
-    #ifdef USE_NIO_FOR_KEEPER
+#ifdef USE_NIO_FOR_KEEPER
             Poco::Net::ServerSocket socket(port);
             socket.setBlocking(false);
 
-            Poco::Timespan timeout(global_context->getConfigRef().getUInt("service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000) * 1000);
+            Poco::Timespan timeout(
+                global_context.getConfigRef().getUInt(
+                    "service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
+                * 1000);
             nio_forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
             /// TODO add io thread count to config
             nio_forwarding_server_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-                "NIO-HANDLER", *global_context, socket, *nio_forwarding_server, timeout);
+                "NIO-HANDLER", global_context, socket, *nio_forwarding_server, timeout);
             LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
-    #else
+#else
                 Poco::Net::ServerSocket socket;
                 auto address = socketBindListen(socket, listen_host, port);
                 socket.setReceiveTimeout(settings.receive_timeout);
@@ -282,9 +283,9 @@ int Service::main(const std::vector<std::string> & /*args*/)
                 {
                     String level_str = config().getString("text_log.level", "");
                     int level = level_str.empty() ? INT_MAX : Poco::Logger::parseLevel(level_str);
-                    setTextLog(global_context->getTextLog(), level);
+                    setTextLog(global_context.getTextLog(), level);
                 }
-    #endif
+#endif
         });
     }
 
@@ -297,12 +298,11 @@ int Service::main(const std::vector<std::string> & /*args*/)
         config().getString("path", ""),
         std::move(unused_cache),
         unused_event,
-        [&](ConfigurationPtr config, bool /* initial_loading */)
-        {
+        [&](ConfigurationPtr config, bool /* initial_loading */) {
             if (config->has("service"))
-                global_context->updateServiceKeeperConfiguration(*config);
+                global_context.updateServiceKeeperConfiguration(*config);
         },
-        /* already_loaded = */ false);  /// Reload it right now (initial loading)
+        /* already_loaded = */ false); /// Reload it right now (initial loading)
 
     buildLoggers(config(), logger());
     main_config_reloader->start();
@@ -317,7 +317,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
         is_cancelled = true;
 
         /// shutdown storage dispatcher
-        global_context->shutdownServiceKeeperStorageDispatcher();
+        global_context.shutdownServiceKeeperStorageDispatcher();
 
         nio_server->stop();
         nio_forwarding_server->stop();
@@ -346,7 +346,7 @@ int Service::main(const std::vector<std::string> & /*args*/)
             LOG_INFO(log, "Closed all listening sockets.");
 
         /// shutdown storage dispatcher
-        global_context->shutdownServiceKeeperStorageDispatcher();
+        global_context.shutdownServiceKeeperStorageDispatcher();
 
         if (current_connections)
             current_connections = waitServersToFinish(*servers, config().getInt("shutdown_wait_unfinished", 5));

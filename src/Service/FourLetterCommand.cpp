@@ -1,7 +1,6 @@
 #include <Service/FourLetterCommand.h>
 
 #include <Service/SvsKeeperDispatcher.h>
-#include <Service/ServiceTCPHandler.h>
 #include <Service/SvsConnectionHandler.h>
 #include <common/logger_useful.h>
 #include <Poco/Environment.h>

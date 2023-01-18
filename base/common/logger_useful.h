@@ -21,11 +21,9 @@ namespace
 ///  and the latter arguments treat as values to substitute.
 /// If only one argument is provided, it is threat as message without substitutions.
 
-#define LOG_IMPL(logger, priority, PRIORITY, ...) do                              \
+#define LOG_IMPL(logger, PRIORITY, ...) do                                        \
 {                                                                                 \
-    const bool is_clients_log = (DB::CurrentThread::getGroup() != nullptr) &&     \
-        (DB::CurrentThread::getGroup()->client_logs_level >= (priority));         \
-    if ((logger)->is((PRIORITY)) || is_clients_log)                               \
+    if ((logger)->is((PRIORITY)))                                                 \
     {                                                                             \
         std::string formatted_message = numArgs(__VA_ARGS__) > 1 ? fmt::format(__VA_ARGS__) : firstArg(__VA_ARGS__); \
         if (auto channel = (logger)->getChannel())                                \
@@ -42,18 +40,17 @@ namespace
 } while (false)
 
 
-#define LOG_TRACE(logger, ...)   LOG_IMPL(logger, DB::LogsLevel::trace, Poco::Message::PRIO_TRACE, __VA_ARGS__)
-#define LOG_DEBUG(logger, ...)   LOG_IMPL(logger, DB::LogsLevel::debug, Poco::Message::PRIO_DEBUG, __VA_ARGS__)
-#define LOG_INFO(logger, ...)    LOG_IMPL(logger, DB::LogsLevel::information, Poco::Message::PRIO_INFORMATION, __VA_ARGS__)
-#define LOG_WARNING(logger, ...) LOG_IMPL(logger, DB::LogsLevel::warning, Poco::Message::PRIO_WARNING, __VA_ARGS__)
-#define LOG_ERROR(logger, ...)   LOG_IMPL(logger, DB::LogsLevel::error, Poco::Message::PRIO_ERROR, __VA_ARGS__)
-#define LOG_FATAL(logger, ...)   LOG_IMPL(logger, DB::LogsLevel::error, Poco::Message::PRIO_FATAL, __VA_ARGS__)
+#define LOG_TRACE(logger, ...)   LOG_IMPL(logger, Poco::Message::PRIO_TRACE, __VA_ARGS__)
+#define LOG_DEBUG(logger, ...)   LOG_IMPL(logger, Poco::Message::PRIO_DEBUG, __VA_ARGS__)
+#define LOG_INFO(logger, ...)    LOG_IMPL(logger, Poco::Message::PRIO_INFORMATION, __VA_ARGS__)
+#define LOG_WARNING(logger, ...) LOG_IMPL(logger, Poco::Message::PRIO_WARNING, __VA_ARGS__)
+#define LOG_ERROR(logger, ...)   LOG_IMPL(logger, Poco::Message::PRIO_ERROR, __VA_ARGS__)
+#define LOG_FATAL(logger, ...)   LOG_IMPL(logger, Poco::Message::PRIO_FATAL, __VA_ARGS__)
 
 
 /// Compatibility for external projects.
 #if defined(ARCADIA_BUILD)
     using Poco::Logger;
     using Poco::Message;
-    using DB::LogsLevel;
     using DB::CurrentThread;
 #endif

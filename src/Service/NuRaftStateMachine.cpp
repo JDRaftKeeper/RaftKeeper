@@ -62,7 +62,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     UInt32 object_node_size,
     std::shared_ptr<RequestProcessor> svskeeper_commit_processor_)
     : coordination_settings(coordination_settings_)
-    , storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds(), superdigest)
+    , storage(coordination_settings->dead_session_check_period_ms, superdigest)
     , responses_queue(responses_queue_)
     , svskeeper_commit_processor(svskeeper_commit_processor_)
     , new_session_id_callback_mutex(new_session_id_callback_mutex_)

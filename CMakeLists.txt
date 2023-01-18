@@ -241,9 +241,9 @@ else()
     message(STATUS "Disabling compiler -pipe option (have only ${AVAILABLE_PHYSICAL_MEMORY} mb of memory)")
 endif()
 
-if(NOT DISABLE_CPU_OPTIMIZE)
-    include(cmake/cpu_features.cmake)
-endif()
+#if(NOT DISABLE_CPU_OPTIMIZE)
+#    include(cmake/cpu_features.cmake)
+#endif()
 
 option(ARCH_NATIVE "Add -march=native compiler flag")
 
@@ -454,77 +454,77 @@ include (GNUInstallDirs)
 include (cmake/contrib_finder.cmake)
 
 find_contrib_lib(double-conversion) # Must be before parquet
-include (cmake/find/ssl.cmake)
-include (cmake/find/ldap.cmake) # after ssl
-include (cmake/find/icu.cmake)
-include (cmake/find/zlib.cmake)
-include (cmake/find/zstd.cmake)
-include (cmake/find/ltdl.cmake) # for odbc
+#include (cmake/find/ssl.cmake)
+#include (cmake/find/ldap.cmake) # after ssl
+#include (cmake/find/icu.cmake)
+#include (cmake/find/zlib.cmake)
+#include (cmake/find/zstd.cmake)
+#include (cmake/find/ltdl.cmake) # for odbc
 # openssl, zlib before poco
-include (cmake/find/sparsehash.cmake)
+#include (cmake/find/sparsehash.cmake)
 include (cmake/find/re2.cmake)
-include (cmake/find/krb5.cmake)
-include (cmake/find/libgsasl.cmake)
-include (cmake/find/cyrus-sasl.cmake)
-include (cmake/find/rdkafka.cmake)
-include (cmake/find/amqpcpp.cmake)
-include (cmake/find/capnp.cmake)
-include (cmake/find/llvm.cmake)
-include (cmake/find/termcap.cmake) # for external static llvm
-include (cmake/find/h3.cmake)
-include (cmake/find/libxml2.cmake)
-include (cmake/find/brotli.cmake)
+#include (cmake/find/krb5.cmake)
+#include (cmake/find/libgsasl.cmake)
+#include (cmake/find/cyrus-sasl.cmake)
+#include (cmake/find/rdkafka.cmake)
+#include (cmake/find/amqpcpp.cmake)
+#include (cmake/find/capnp.cmake)
+#include (cmake/find/llvm.cmake)
+#include (cmake/find/termcap.cmake) # for external static llvm
+#include (cmake/find/h3.cmake)
+#include (cmake/find/libxml2.cmake)
+#include (cmake/find/brotli.cmake)
 include (cmake/find/protobuf.cmake)
-include (cmake/find/grpc.cmake)
-include (cmake/find/pdqsort.cmake)
-include (cmake/find/miniselect.cmake)
-include (cmake/find/hdfs3.cmake) # uses protobuf
+##include (cmake/find/grpc.cmake)
+#include (cmake/find/pdqsort.cmake)
+#include (cmake/find/miniselect.cmake)
+#include (cmake/find/hdfs3.cmake) # uses protobuf
 include (cmake/find/poco.cmake)
-include (cmake/find/curl.cmake)
-include (cmake/find/s3.cmake)
-include (cmake/find/base64.cmake)
-include (cmake/find/parquet.cmake)
-include (cmake/find/simdjson.cmake)
-include (cmake/find/fast_float.cmake)
-include (cmake/find/rapidjson.cmake)
-include (cmake/find/fastops.cmake)
-include (cmake/find/odbc.cmake)
-include (cmake/find/rocksdb.cmake)
-include (cmake/find/libpqxx.cmake)
+#include (cmake/find/curl.cmake)
+#include (cmake/find/s3.cmake)
+#include (cmake/find/base64.cmake)
+#include (cmake/find/parquet.cmake)
+#include (cmake/find/simdjson.cmake)
+#include (cmake/find/fast_float.cmake)
+#include (cmake/find/rapidjson.cmake)
+#include (cmake/find/fastops.cmake)
+#include (cmake/find/odbc.cmake)
+#include (cmake/find/rocksdb.cmake)
+#include (cmake/find/libpqxx.cmake)
 include (cmake/find/nuraft.cmake)
-include (cmake/find/concurrentqueue.cmake)
+#include (cmake/find/concurrentqueue.cmake)
 
+#
+#if(NOT USE_INTERNAL_PARQUET_LIBRARY)
+#    set (ENABLE_ORC OFF CACHE INTERNAL "")
+#endif()
+#include (cmake/find/orc.cmake)
 
-if(NOT USE_INTERNAL_PARQUET_LIBRARY)
-    set (ENABLE_ORC OFF CACHE INTERNAL "")
-endif()
-include (cmake/find/orc.cmake)
-
-include (cmake/find/avro.cmake)
-include (cmake/find/msgpack.cmake)
-include (cmake/find/cassandra.cmake)
-include (cmake/find/sentry.cmake)
-include (cmake/find/stats.cmake)
+#include (cmake/find/avro.cmake)
+#include (cmake/find/msgpack.cmake)
+#include (cmake/find/cassandra.cmake)
+#include (cmake/find/sentry.cmake)
+#include (cmake/find/stats.cmake)
 
 set (USE_INTERNAL_CITYHASH_LIBRARY ON CACHE INTERNAL "")
 find_contrib_lib(cityhash)
 
-find_contrib_lib(farmhash)
+#find_contrib_lib(farmhash)
 
 if (ENABLE_TESTS)
     include (cmake/find/gtest.cmake)
 endif ()
 
 # Need to process before "contrib" dir:
-include (cmake/find/mysqlclient.cmake)
+#include (cmake/find/mysqlclient.cmake)
 
 # When testing for memory leaks with Valgrind, don't link tcmalloc or jemalloc.
 
-include (cmake/print_flags.cmake)
+#include (cmake/print_flags.cmake)
 
-if (TARGET global-group)
-    install (EXPORT global DESTINATION cmake)
-endif ()
+#if (TARGET global-group)
+#    install (EXPORT global DESTINATION cmake)
+#endif ()
 
 add_subdirectory (contrib EXCLUDE_FROM_ALL)
 

@@ -39,94 +39,20 @@ if (COMPILER_GCC)
     add_definitions ("-fno-tree-loop-distribute-patterns")
 endif ()
 
-add_subdirectory (Access)
-add_subdirectory (Columns)
 add_subdirectory (Common)
 add_subdirectory (Core)
-add_subdirectory (DataStreams)
-add_subdirectory (DataTypes)
-add_subdirectory (Dictionaries)
-add_subdirectory (Disks)
-add_subdirectory (Storages)
-add_subdirectory (Parsers)
-add_subdirectory (Parsers/New)
 add_subdirectory (IO)
-add_subdirectory (Functions)
-add_subdirectory (Interpreters)
-add_subdirectory (AggregateFunctions)
-add_subdirectory (Client)
-add_subdirectory (TableFunctions)
-add_subdirectory (Processors)
-add_subdirectory (Formats)
-add_subdirectory (Compression)
-add_subdirectory (Server)
-if (USE_NURAFT)
-add_subdirectory (Coordination)
-endif()
 add_subdirectory (Service)
 
 set(dbms_headers)
-set(dbms_sources)
+set(dbms_sources Core/Defines.h Core/Context.cpp Core/Context.h Common/Names.h)
 
 add_headers_and_sources(clickhouse_common_io Common)
-add_headers_and_sources(clickhouse_common_io Common/HashTable)
 add_headers_and_sources(clickhouse_common_io IO)
-add_headers_and_sources(clickhouse_common_io IO/S3)
 list (REMOVE_ITEM clickhouse_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
-
-if(USE_RDKAFKA)
-    add_headers_and_sources(dbms Storages/Kafka)
-endif()
-
-if (USE_AMQPCPP)
-    add_headers_and_sources(dbms Storages/RabbitMQ)
-endif()
-
-if (USE_LIBPQXX)
-    add_headers_and_sources(dbms Databases/PostgreSQL)
-    add_headers_and_sources(dbms Storages/PostgreSQL)
-endif()
-
-if (USE_ROCKSDB)
-    add_headers_and_sources(dbms Storages/RocksDB)
-endif()
-
-if (USE_AWS_S3)
-    add_headers_and_sources(dbms Common/S3)
-    add_headers_and_sources(dbms Disks/S3)
-endif()
-
-if (USE_HDFS)
-    add_headers_and_sources(dbms Storages/HDFS)
-endif()
 
 list (APPEND clickhouse_common_io_sources ${CONFIG_BUILD})
 list (APPEND clickhouse_common_io_headers ${CONFIG_VERSION} ${CONFIG_COMMON})
-
-list (APPEND dbms_sources Functions/IFunction.cpp Functions/FunctionFactory.cpp Functions/FunctionHelpers.cpp Functions/extractTimeZoneFromFunctionArguments.cpp Functions/replicate.cpp Functions/FunctionsLogical.cpp)
-list (APPEND dbms_headers Functions/IFunctionImpl.h Functions/FunctionFactory.h Functions/FunctionHelpers.h Functions/extractTimeZoneFromFunctionArguments.h Functions/replicate.h Functions/FunctionsLogical.h)
-
-list (APPEND dbms_sources
-    AggregateFunctions/AggregateFunctionFactory.cpp
-    AggregateFunctions/AggregateFunctionCombinatorFactory.cpp
-    AggregateFunctions/AggregateFunctionState.cpp
-    AggregateFunctions/AggregateFunctionCount.cpp
-    AggregateFunctions/parseAggregateFunctionParameters.cpp)
-
-list (APPEND dbms_headers
-    AggregateFunctions/IAggregateFunction.h
-    AggregateFunctions/IAggregateFunctionCombinator.h
-    AggregateFunctions/AggregateFunctionFactory.h
-    AggregateFunctions/AggregateFunctionCombinatorFactory.h
-    AggregateFunctions/AggregateFunctionState.h
-    AggregateFunctions/AggregateFunctionCount.cpp
-    AggregateFunctions/FactoryHelpers.h
-    AggregateFunctions/parseAggregateFunctionParameters.h)
-
-list (APPEND dbms_sources TableFunctions/ITableFunction.cpp TableFunctions/TableFunctionFactory.cpp)
-list (APPEND dbms_headers TableFunctions/ITableFunction.h   TableFunctions/TableFunctionFactory.h)
-list (APPEND dbms_sources Dictionaries/DictionaryFactory.cpp Dictionaries/DictionarySourceFactory.cpp Dictionaries/DictionaryStructure.cpp  Dictionaries/getDictionaryConfigurationFromAST.cpp)
-list (APPEND dbms_headers Dictionaries/DictionaryFactory.h   Dictionaries/DictionarySourceFactory.h   Dictionaries/DictionaryStructure.h Dictionaries/getDictionaryConfigurationFromAST.h)
 
 if (NOT ENABLE_SSL)
     list (REMOVE_ITEM clickhouse_common_io_sources Common/OpenSSLHelpers.cpp)
@@ -164,42 +90,8 @@ macro(add_object_library name common_path)
     endif ()
 endmacro()
 
-add_object_library(clickhouse_access Access)
 add_object_library(clickhouse_core Core)
-add_object_library(clickhouse_core_mysql Core/MySQL)
-add_object_library(clickhouse_compression Compression)
-add_object_library(clickhouse_datastreams DataStreams)
-add_object_library(clickhouse_datatypes DataTypes)
-add_object_library(clickhouse_databases Databases)
-add_object_library(clickhouse_databases_mysql Databases/MySQL)
-add_object_library(clickhouse_disks Disks)
-add_object_library(clickhouse_interpreters Interpreters)
-add_object_library(clickhouse_interpreters_mysql Interpreters/MySQL)
-add_object_library(clickhouse_interpreters_clusterproxy Interpreters/ClusterProxy)
-add_object_library(clickhouse_columns Columns)
-add_object_library(clickhouse_storages Storages)
-add_object_library(clickhouse_storages_distributed Storages/Distributed)
-add_object_library(clickhouse_storages_mergetree Storages/MergeTree)
-add_object_library(clickhouse_storages_liveview Storages/LiveView)
-add_object_library(clickhouse_client Client)
-add_object_library(clickhouse_server Server)
 add_object_library(clickhouse_service Service)
-add_object_library(clickhouse_server_http Server/HTTP)
-add_object_library(clickhouse_formats Formats)
-add_object_library(clickhouse_processors Processors)
-add_object_library(clickhouse_processors_executors Processors/Executors)
-add_object_library(clickhouse_processors_formats Processors/Formats)
-add_object_library(clickhouse_processors_formats_impl Processors/Formats/Impl)
-add_object_library(clickhouse_processors_transforms Processors/Transforms)
-add_object_library(clickhouse_processors_sources Processors/Sources)
-add_object_library(clickhouse_processors_merges Processors/Merges)
-add_object_library(clickhouse_processors_merges_algorithms Processors/Merges/Algorithms)
-add_object_library(clickhouse_processors_queryplan Processors/QueryPlan)
-add_object_library(clickhouse_processors_queryplan_optimizations Processors/QueryPlan/Optimizations)
-
-if (USE_NURAFT)
-    add_object_library(clickhouse_coordination Coordination)
-endif()
 
 set (DBMS_COMMON_LIBRARIES)
 # libgcc_s does not provide an implementation of an atomics library. Instead,
@@ -209,9 +101,11 @@ if ((NOT USE_LIBCXX) AND COMPILER_CLANG AND OS_LINUX)
 endif()
 
 if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
+    message(STATUS "MAKE_STATIC_LIBRARIES = true, dbms_headers : ${dbms_headers} , dbms_sources : ${dbms_sources}")
     add_library (dbms STATIC ${dbms_headers} ${dbms_sources})
-    target_link_libraries (dbms PRIVATE clickhouse_parsers_new jemalloc libdivide ${DBMS_COMMON_LIBRARIES})
+    target_link_libraries (dbms PRIVATE jemalloc libdivide ${DBMS_COMMON_LIBRARIES})
     set (all_modules dbms)
+    message(STATUS "all_modules ${all_modules}")
 else()
     add_library (dbms SHARED ${dbms_headers} ${dbms_sources})
     target_link_libraries (dbms PUBLIC ${all_modules} ${DBMS_COMMON_LIBRARIES})
@@ -241,26 +135,26 @@ if (USE_EMBEDDED_COMPILER)
     dbms_target_include_directories (SYSTEM BEFORE PUBLIC ${LLVM_INCLUDE_DIRS})
 endif ()
 
-if (CMAKE_BUILD_TYPE_UC STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE_UC STREQUAL "RELWITHDEBINFO" OR CMAKE_BUILD_TYPE_UC STREQUAL "MINSIZEREL")
-    # Won't generate debug info for files with heavy template instantiation to achieve faster linking and lower size.
-    set_source_files_properties(
-        Dictionaries/FlatDictionary.cpp
-        Dictionaries/HashedDictionary.cpp
-        Dictionaries/CacheDictionary.cpp
-        Dictionaries/IPAddressDictionary.cpp
-        Dictionaries/RangeHashedDictionary.cpp
-        Dictionaries/ComplexKeyHashedDictionary.cpp
-        Dictionaries/ComplexKeyCacheDictionary.cpp
-        Dictionaries/ComplexKeyCacheDictionary_generate1.cpp
-        Dictionaries/ComplexKeyCacheDictionary_generate2.cpp
-        Dictionaries/ComplexKeyCacheDictionary_generate3.cpp
-        Dictionaries/ODBCBlockInputStream.cpp
-        Dictionaries/HTTPDictionarySource.cpp
-        Dictionaries/LibraryDictionarySource.cpp
-        Dictionaries/ExecutableDictionarySource.cpp
-        Dictionaries/ClickHouseDictionarySource.cpp
-        PROPERTIES COMPILE_FLAGS -g0)
-endif ()
+#if (CMAKE_BUILD_TYPE_UC STREQUAL "RELEASE" OR CMAKE_BUILD_TYPE_UC STREQUAL "RELWITHDEBINFO" OR CMAKE_BUILD_TYPE_UC STREQUAL "MINSIZEREL")
+#    # Won't generate debug info for files with heavy template instantiation to achieve faster linking and lower size.
+#    set_source_files_properties(
+#        Dictionaries/FlatDictionary.cpp
+#        Dictionaries/HashedDictionary.cpp
+#        Dictionaries/CacheDictionary.cpp
+#        Dictionaries/IPAddressDictionary.cpp
+#        Dictionaries/RangeHashedDictionary.cpp
+#        Dictionaries/ComplexKeyHashedDictionary.cpp
+#        Dictionaries/ComplexKeyCacheDictionary.cpp
+#        Dictionaries/ComplexKeyCacheDictionary_generate1.cpp
+#        Dictionaries/ComplexKeyCacheDictionary_generate2.cpp
+#        Dictionaries/ComplexKeyCacheDictionary_generate3.cpp
+#        Dictionaries/ODBCBlockInputStream.cpp
+#        Dictionaries/HTTPDictionarySource.cpp
+#        Dictionaries/LibraryDictionarySource.cpp
+#        Dictionaries/ExecutableDictionarySource.cpp
+#        Dictionaries/ClickHouseDictionarySource.cpp
+#        PROPERTIES COMPILE_FLAGS -g0)
+#endif ()
 
 # Otherwise it will slow down stack traces printing too much.
 set_source_files_properties(
@@ -303,12 +197,12 @@ target_link_libraries(clickhouse_common_io
 
 
 
-if (USE_RDKAFKA)
-    dbms_target_link_libraries(PRIVATE ${CPPKAFKA_LIBRARY} ${RDKAFKA_LIBRARY})
-    if(NOT USE_INTERNAL_RDKAFKA_LIBRARY)
-        dbms_target_include_directories(SYSTEM BEFORE PRIVATE ${RDKAFKA_INCLUDE_DIR})
-    endif()
-endif()
+#if (USE_RDKAFKA)
+#    dbms_target_link_libraries(PRIVATE ${CPPKAFKA_LIBRARY} ${RDKAFKA_LIBRARY})
+#    if(NOT USE_INTERNAL_RDKAFKA_LIBRARY)
+#        dbms_target_include_directories(SYSTEM BEFORE PRIVATE ${RDKAFKA_INCLUDE_DIR})
+#    endif()
+#endif()
 
 if (USE_AMQPCPP)
     dbms_target_link_libraries(PUBLIC amqp-cpp)
@@ -322,9 +216,26 @@ if (USE_KRB5)
     dbms_target_link_libraries(PRIVATE ${KRB5_LIBRARY})
 endif()
 
-if (USE_NURAFT OR USE_JD_NURAFT)
-    dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
-endif()
+message(STATUS "NURAFT_LIBRARY ${NURAFT_LIBRARY} ${NURAFT_INCLUDE_DIR}")
+#include_directories(/data1/home/wujianchao/project/jd/clickhouse/contrib/NuRaft/include)
+dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
+#target_link_libraries (dbms PUBLIC ${NURAFT_LIBRARY})
+#dbms_target_include_directories(PUBLIC ${NURAFT_INCLUDE_DIR})
+
+get_target_property(DBMS_INCLUDE_DIRECTORIES dbms INCLUDE_DIRECTORIES)
+get_target_property(DBMS_LINK_LIBRARIES dbms LINK_LIBRARIES)
+message(STATUS "DBMS_INCLUDE_DIRECTORIES : ${DBMS_INCLUDE_DIRECTORIES}")
+message(STATUS "DBMS_LINK_LIBRARIES : ${DBMS_LINK_LIBRARIES}")
+
+get_target_property(RAFT_INCLUDE_DIRECTORIES ${NURAFT_LIBRARY} INCLUDE_DIRECTORIES)
+get_target_property(RAFT_LINK_LIBRARIES ${NURAFT_LIBRARY} LINK_LIBRARIES)
+message(STATUS "RAFT_INCLUDE_DIRECTORIES : ${RAFT_INCLUDE_DIRECTORIES}")
+message(STATUS "RAFT_LINK_LIBRARIES : ${RAFT_LINK_LIBRARIES}")
+
+get_target_property(RAFT_INTERFACE_INCLUDE_DIRECTORIES ${NURAFT_LIBRARY} INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(RAFT_INTERFACE_LINK_LIBRARIES ${NURAFT_LIBRARY} INTERFACE_LINK_LIBRARIES)
+message(STATUS "RAFT_INTERFACE_INCLUDE_DIRECTORIES : ${RAFT_INTERFACE_INCLUDE_DIRECTORIES}")
+message(STATUS "RAFT_INTERFACE_LINK_LIBRARIES : ${RAFT_INTERFACE_LINK_LIBRARIES}")
 
 if (USE_CONCURRENTQUEUE)
     dbms_target_link_libraries(PUBLIC ${CONCURRENTQUEUE_LIBRARY})
@@ -419,25 +330,9 @@ if (USE_GRPC)
     dbms_target_link_libraries (PUBLIC clickhouse_grpc_protos)
 endif()
 
-if (USE_HDFS)
-    dbms_target_link_libraries(PRIVATE ${HDFS3_LIBRARY})
-    dbms_target_include_directories (SYSTEM BEFORE PUBLIC ${HDFS3_INCLUDE_DIR})
-endif()
-
-if (USE_AWS_S3)
-    target_link_libraries (clickhouse_common_io PUBLIC ${AWS_S3_LIBRARY})
-    target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${AWS_S3_CORE_INCLUDE_DIR})
-    target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${AWS_S3_INCLUDE_DIR})
-endif()
-
 if (USE_BROTLI)
     target_link_libraries (clickhouse_common_io PRIVATE ${BROTLI_LIBRARY})
     target_include_directories (clickhouse_common_io SYSTEM BEFORE PRIVATE ${BROTLI_INCLUDE_DIR})
-endif()
-
-if (USE_CASSANDRA)
-    dbms_target_link_libraries(PUBLIC ${CASSANDRA_LIBRARY})
-    dbms_target_include_directories (SYSTEM BEFORE PUBLIC ${CASS_INCLUDE_DIR})
 endif()
 
 target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${DOUBLE_CONVERSION_INCLUDE_DIR})
@@ -448,16 +343,6 @@ endif()
 
 target_link_libraries (clickhouse_common_io PUBLIC ${FAST_FLOAT_LIBRARY})
 target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${FAST_FLOAT_INCLUDE_DIR})
-
-if (USE_ORC)
-    dbms_target_link_libraries(PUBLIC ${ORC_LIBRARIES})
-    dbms_target_include_directories(SYSTEM BEFORE PUBLIC ${ORC_INCLUDE_DIR} ${CMAKE_BINARY_DIR}/contrib/orc/c++/include)
-endif ()
-
-if (USE_ROCKSDB)
-    dbms_target_link_libraries(PUBLIC ${ROCKSDB_LIBRARY})
-    dbms_target_include_directories(SYSTEM BEFORE PUBLIC ${ROCKSDB_INCLUDE_DIR})
-endif()
 
 if (USE_LIBPQXX)
     dbms_target_link_libraries(PUBLIC ${LIBPQXX_LIBRARY})
@@ -487,9 +372,7 @@ if (ENABLE_TESTS AND USE_GTEST)
     )
 
     target_link_libraries(unit_tests_dbms PRIVATE ${GTEST_BOTH_LIBRARIES}
-        clickhouse_functions
-        clickhouse_aggregate_functions
-        clickhouse_parsers dbms
+        dbms
         clickhouse_common_zookeeper
         string_utils
         clickhouse_service_protos

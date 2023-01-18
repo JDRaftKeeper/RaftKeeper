@@ -90,14 +90,14 @@ void SvsKeeperServer::startup()
     */
     auto coordination_settings = coordination_and_settings->coordination_settings;
     nuraft::raft_params params;
-    params.heart_beat_interval_ = coordination_settings->heart_beat_interval_ms.totalMilliseconds();
-    params.election_timeout_lower_bound_ = coordination_settings->election_timeout_lower_bound_ms.totalMilliseconds();
-    params.election_timeout_upper_bound_ = coordination_settings->election_timeout_upper_bound_ms.totalMilliseconds();
+    params.heart_beat_interval_ = coordination_settings->heart_beat_interval_ms;
+    params.election_timeout_lower_bound_ = coordination_settings->election_timeout_lower_bound_ms;
+    params.election_timeout_upper_bound_ = coordination_settings->election_timeout_upper_bound_ms;
     params.reserved_log_items_ = coordination_settings->reserved_log_items;
     params.snapshot_distance_ = coordination_settings->snapshot_distance;
-    params.client_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
+    params.client_req_timeout_ = coordination_settings->operation_timeout_ms;
     params.auto_forwarding_ = coordination_settings->auto_forwarding;
-    params.auto_forwarding_req_timeout_ = coordination_settings->operation_timeout_ms.totalMilliseconds();
+    params.auto_forwarding_req_timeout_ = coordination_settings->operation_timeout_ms;
     params.auto_forwarding_max_connections_ = coordination_and_settings->thread_count;
     params.return_method_ = nuraft::raft_params::blocking;
     params.parallel_log_appending_ = coordination_settings->async_fsync;
@@ -299,7 +299,7 @@ void SvsKeeperServer::shutdown()
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
 
-    if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout.totalSeconds()))
+    if (!launcher.shutdown(coordination_and_settings->coordination_settings->shutdown_timeout))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
     LOG_INFO(log, "Shut down keeper server done!");
 }
@@ -605,7 +605,7 @@ nuraft::cb_func::ReturnCode SvsKeeperServer::callbackFunc(nuraft::cb_func::Type 
 void SvsKeeperServer::waitInit()
 {
     std::unique_lock lock(initialized_mutex);
-    int64_t timeout = coordination_and_settings->coordination_settings->startup_timeout.totalMilliseconds();
+    int64_t timeout = coordination_and_settings->coordination_settings->startup_timeout;
     if (!initialized_cv.wait_for(lock, std::chrono::milliseconds(timeout), [&] { return initialized_flag.load(); }))
         throw Exception(ErrorCodes::RAFT_ERROR, "Failed to wait RAFT initialization");
 }

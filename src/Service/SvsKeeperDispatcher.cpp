@@ -43,8 +43,7 @@ void SvsKeeperDispatcher::requestThreadFakeZk(size_t thread_index)
     {
         SvsKeeperStorage::RequestForSession request_for_session;
 
-        UInt64 max_wait
-            = static_cast<uint64_t>(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+        UInt64 max_wait = configuration_and_settings->coordination_settings->operation_timeout_ms;
 
         if (requests_queue->tryPop(thread_index, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait)))
         {
@@ -99,7 +98,7 @@ void SvsKeeperDispatcher::requestThread()
     {
         SvsKeeperStorage::RequestForSession request;
 
-        UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+        UInt64 max_wait = configuration_and_settings->coordination_settings->operation_timeout_ms;
         /// TO prevent long time stopping
         max_wait = std::max(max_wait, static_cast<UInt64>(1000));
 
@@ -125,7 +124,7 @@ void SvsKeeperDispatcher::responseThread()
     setThreadName("SerKeeperRspT");
 
     SvsKeeperStorage::ResponseForSession response_for_session;
-    UInt64 max_wait = UInt64(configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds());
+    UInt64 max_wait = configuration_and_settings->coordination_settings->operation_timeout_ms;
 
     while (!shutdown_called)
     {
@@ -216,7 +215,7 @@ bool SvsKeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & r
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
     else if (!requests_queue->tryPush(
-                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms))
         throw Exception(
             "Cannot push request to queue within operation timeout, requests_queue size {}",
             requests_queue->size(),
@@ -255,7 +254,7 @@ bool SvsKeeperDispatcher::putForwardingRequest(
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
     else if (!requests_queue->tryPush(
-                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds()))
+                 std::move(request_info), configuration_and_settings->coordination_settings->operation_timeout_ms))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
@@ -268,7 +267,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     bool session_consistent = configuration_and_settings->coordination_settings->session_consistent;
 
     size_t thread_count = configuration_and_settings->thread_count;
-    UInt64 operation_timeout_ms = configuration_and_settings->coordination_settings->operation_timeout_ms.totalMilliseconds();
+    UInt64 operation_timeout_ms = configuration_and_settings->coordination_settings->operation_timeout_ms;
 
     if (session_consistent)
     {
@@ -301,7 +300,7 @@ void SvsKeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & c
     if (session_consistent)
     {
         UInt64 session_sync_period_ms
-            = configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds() / 2;
+            = configuration_and_settings->coordination_settings->dead_session_check_period_ms / 2;
         follower_request_processor.initialize(thread_count, server, shared_from_this(), session_sync_period_ms);
         svskeeper_sync_processor.initialize(
             1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->coordination_settings->max_batch_size);
@@ -445,7 +444,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
             if (isLeader())
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(
-                    configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+                    configuration_and_settings->coordination_settings->dead_session_check_period_ms));
 
                 auto dead_sessions = server->getDeadSessions();
                 if (!dead_sessions.empty())
@@ -474,7 +473,7 @@ void SvsKeeperDispatcher::sessionCleanerTask()
             else
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(
-                    configuration_and_settings->coordination_settings->dead_session_check_period_ms.totalMilliseconds()));
+                    configuration_and_settings->coordination_settings->dead_session_check_period_ms));
             }
         }
         catch (...)

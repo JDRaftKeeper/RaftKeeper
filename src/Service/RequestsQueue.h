@@ -3,11 +3,9 @@
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Service/NuRaftStateMachine.h>
 #include <boost/lockfree/queue.hpp>
-#include <blockingconcurrentqueue.h>
 
 namespace DB
 {
-using namespace moodycamel;
 
 struct RequestsQueue
 {
