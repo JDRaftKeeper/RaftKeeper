@@ -3,7 +3,6 @@
 #include <Common/QueryProfiler.h>
 #include <Common/ThreadStatus.h>
 #include <common/errnoToString.h>
-#include <Interpreters/OpenTelemetrySpanLog.h>
 
 #include <Poco/Logger.h>
 #include <common/getThreadId.h>
@@ -101,7 +100,7 @@ ThreadStatus::~ThreadStatus()
 
 #if !defined(ARCADIA_BUILD)
     /// It may cause segfault if query_context was destroyed, but was not detached
-    assert((!query_context && query_id.empty()) || (query_context && query_id == query_context->getCurrentQueryId()));
+    assert((!query_context && query_id.empty()));
 #endif
 
     if (deleter)
@@ -137,8 +136,7 @@ void ThreadStatus::assertState(const std::initializer_list<int> & permitted_stat
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected thread state {}", getCurrentState());
 }
 
-void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue,
-                                               LogsLevel client_logs_level)
+void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue)
 {
     logs_queue_ptr = logs_queue;
 
@@ -147,7 +145,6 @@ void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & 
 
     std::lock_guard lock(thread_group->mutex);
     thread_group->logs_queue_ptr = logs_queue;
-    thread_group->client_logs_level = client_logs_level;
 }
 
 void ThreadStatus::setFatalErrorCallback(std::function<void()> callback)

@@ -57,7 +57,7 @@ void WriteBufferFromFiFoBuffer::finalize()
     set(nullptr, 0);
 }
 
-ptr<FIFOBuffer> WriteBufferFromFiFoBuffer::getBuffer()
+std::shared_ptr<FIFOBuffer> WriteBufferFromFiFoBuffer::getBuffer()
 {
     finalize();
     return buffer;

@@ -11,9 +11,9 @@ if (NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/NuRaft/CMakeLists.txt")
     return()
 endif ()
 
-set (USE_JD_NURAFT 1)
+#set (USE_JD_NURAFT 1)
 set (NURAFT_LIBRARY nuraft)
 set (NURAFT_INCLUDE_DIR "${ClickHouse_SOURCE_DIR}/contrib/NuRaft/include")
 
-set (USE_NURAFT 0)
-message (STATUS "Using NuRaft=${USE_JD_NURAFT}: ${NURAFT_INCLUDE_DIR} : ${NURAFT_LIBRARY}")
+set (USE_NURAFT 1)
+message (STATUS "Using NuRaft=${USE_NURAFT}: ${NURAFT_INCLUDE_DIR} : ${NURAFT_LIBRARY}")

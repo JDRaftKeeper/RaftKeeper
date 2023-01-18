@@ -2,7 +2,6 @@
 #include <optional>
 #include <boost/program_options.hpp>
 
-//#include <Coordination/KeeperSnapshotManager.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ZooKeeperDataReader.h>
 #include <Common/TerminalSize.h>

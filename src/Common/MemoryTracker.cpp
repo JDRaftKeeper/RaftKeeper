@@ -1,7 +1,6 @@
 #include "MemoryTracker.h"
 
 #include <IO/WriteHelpers.h>
-#include "Common/TraceCollector.h"
 #include <Common/Exception.h>
 #include <Common/formatReadable.h>
 #include <common/logger_useful.h>
@@ -197,15 +196,7 @@ void MemoryTracker::alloc(Int64 size)
     if (unlikely(current_profiler_limit && will_be > current_profiler_limit))
     {
         BlockerInThread untrack_lock(VariableContext::Global);
-        DB::TraceCollector::collect(DB::TraceType::Memory, StackTrace(), size);
         setOrRaiseProfilerLimit((will_be + profiler_step - 1) / profiler_step * profiler_step);
-    }
-
-    std::bernoulli_distribution sample(sample_probability);
-    if (unlikely(sample_probability && sample(thread_local_rng)))
-    {
-        BlockerInThread untrack_lock(VariableContext::Global);
-        DB::TraceCollector::collect(DB::TraceType::MemorySample, StackTrace(), size);
     }
 
     if (unlikely(current_hard_limit && will_be > current_hard_limit) && memoryTrackerCanThrow(level, false))
@@ -252,13 +243,6 @@ void MemoryTracker::free(Int64 size)
         if (auto * loaded_next = parent.load(std::memory_order_relaxed))
             loaded_next->free(size);
         return;
-    }
-
-    std::bernoulli_distribution sample(sample_probability);
-    if (unlikely(sample_probability && sample(thread_local_rng)))
-    {
-        BlockerInThread untrack_lock(VariableContext::Global);
-        DB::TraceCollector::collect(DB::TraceType::MemorySample, StackTrace(), -size);
     }
 
     Int64 accounted_size = size;

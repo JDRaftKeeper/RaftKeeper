@@ -13,7 +13,6 @@
 #include <common/StringRef.h>
 #include <common/wide_integer_to_string.h>
 
-#include <Core/DecimalFunctions.h>
 #include <Core/Types.h>
 #include <Core/UUID.h>
 
@@ -21,7 +20,6 @@
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/UInt128.h>
 
-#include <IO/CompressionMethod.h>
 #include <IO/WriteBuffer.h>
 #include <IO/WriteIntText.h>
 #include <IO/VarInt.h>
@@ -37,8 +35,6 @@
 #ifdef __clang__
 #pragma clang diagnostic pop
 #endif
-
-#include <Formats/FormatSettings.h>
 
 
 namespace DB
@@ -274,90 +270,6 @@ inline void writeString(const StringRef & ref, WriteBuffer & buf)
 #define writeCString(s, buf) \
     (buf).write((s), strlen(s))
 
-/** Writes a string for use in the JSON format:
- *  - the string is written in double quotes
- *  - slash character '/' is escaped for compatibility with JavaScript
- *  - bytes from the range 0x00-0x1F except `\b', '\f', '\n', '\r', '\t' are escaped as \u00XX
- *  - code points U+2028 and U+2029 (byte sequences in UTF-8: e2 80 a8, e2 80 a9) are escaped as \u2028 and \u2029
- *  - it is assumed that string is in UTF-8, the invalid UTF-8 is not processed
- *  - all other non-ASCII characters remain as is
- */
-inline void writeJSONString(const char * begin, const char * end, WriteBuffer & buf, const FormatSettings & settings)
-{
-    writeChar('"', buf);
-    for (const char * it = begin; it != end; ++it)
-    {
-        switch (*it)
-        {
-            case '\b':
-                writeChar('\\', buf);
-                writeChar('b', buf);
-                break;
-            case '\f':
-                writeChar('\\', buf);
-                writeChar('f', buf);
-                break;
-            case '\n':
-                writeChar('\\', buf);
-                writeChar('n', buf);
-                break;
-            case '\r':
-                writeChar('\\', buf);
-                writeChar('r', buf);
-                break;
-            case '\t':
-                writeChar('\\', buf);
-                writeChar('t', buf);
-                break;
-            case '\\':
-                writeChar('\\', buf);
-                writeChar('\\', buf);
-                break;
-            case '/':
-                if (settings.json.escape_forward_slashes)
-                    writeChar('\\', buf);
-                writeChar('/', buf);
-                break;
-            case '"':
-                writeChar('\\', buf);
-                writeChar('"', buf);
-                break;
-            default:
-                UInt8 c = *it;
-                if (c <= 0x1F)
-                {
-                    /// Escaping of ASCII control characters.
-
-                    UInt8 higher_half = c >> 4;
-                    UInt8 lower_half = c & 0xF;
-
-                    writeCString("\\u00", buf);
-                    writeChar('0' + higher_half, buf);
-
-                    if (lower_half <= 9)
-                        writeChar('0' + lower_half, buf);
-                    else
-                        writeChar('A' + lower_half - 10, buf);
-                }
-                else if (end - it >= 3 && it[0] == '\xE2' && it[1] == '\x80' && (it[2] == '\xA8' || it[2] == '\xA9'))
-                {
-                    /// This is for compatibility with JavaScript, because unescaped line separators are prohibited in string literals,
-                    ///  and these code points are alternative line separators.
-
-                    if (it[2] == '\xA8')
-                        writeCString("\\u2028", buf);
-                    if (it[2] == '\xA9')
-                        writeCString("\\u2029", buf);
-
-                    /// Byte sequence is 3 bytes long. We have additional two bytes to skip.
-                    it += 2;
-                }
-                else
-                    writeChar(*it, buf);
-        }
-    }
-    writeChar('"', buf);
-}
 
 
 /** Will escape quote_character and a list of special characters('\b', '\f', '\n', '\r', '\t', '\0', '\\').
@@ -429,23 +341,6 @@ void writeAnyEscapedString(const char * begin, const char * end, WriteBuffer & b
         }
     }
 }
-
-
-inline void writeJSONString(const StringRef & s, WriteBuffer & buf, const FormatSettings & settings)
-{
-    writeJSONString(s.data, s.data + s.size, buf, settings);
-}
-
-inline void writeJSONString(const std::string_view & s, WriteBuffer & buf, const FormatSettings & settings)
-{
-    writeJSONString(StringRef{s}, buf, settings);
-}
-
-inline void writeJSONString(const String & s, WriteBuffer & buf, const FormatSettings & settings)
-{
-    writeJSONString(StringRef{s}, buf, settings);
-}
-
 
 template <char c>
 void writeAnyEscapedString(const String & s, WriteBuffer & buf)
@@ -706,20 +601,6 @@ inline void writeUUIDText(const UUID & uuid, WriteBuffer & buf)
     buf.write(s, sizeof(s));
 }
 
-template<typename DecimalType>
-inline void writeDecimalTypeFractionalText(typename DecimalType::NativeType fractional, UInt32 scale, WriteBuffer & buf)
-{
-    static constexpr UInt32 MaxScale = DecimalUtils::max_precision<DecimalType>;
-
-    char data[20] = {'0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'};
-    static_assert(sizeof(data) >= MaxScale);
-
-    for (Int32 pos = scale - 1; pos >= 0 && fractional; --pos, fractional /= DateTime64(10))
-        data[pos] += fractional % DateTime64(10);
-
-    writeString(&data[0], static_cast<size_t>(scale), buf);
-}
-
 static const char digits100[201] =
     "00010203040506070809"
     "10111213141516171819"
@@ -827,79 +708,6 @@ inline void writeDateTimeText(time_t datetime, WriteBuffer & buf, const DateLUTI
             date_lut.toHour(datetime), date_lut.toMinute(datetime), date_lut.toSecond(datetime)), buf);
 }
 
-/// In the format YYYY-MM-DD HH:MM:SS.NNNNNNNNN, according to the specified time zone.
-template <char date_delimeter = '-', char time_delimeter = ':', char between_date_time_delimiter = ' ', char fractional_time_delimiter = '.'>
-inline void writeDateTimeText(DateTime64 datetime64, UInt32 scale, WriteBuffer & buf, const DateLUTImpl & date_lut = DateLUT::instance())
-{
-    static constexpr UInt32 MaxScale = DecimalUtils::max_precision<DateTime64>;
-    scale = scale > MaxScale ? MaxScale : scale;
-
-    auto components = DecimalUtils::split(datetime64, scale);
-    const auto & values = date_lut.getValues(components.whole);
-    writeDateTimeText<date_delimeter, time_delimeter, between_date_time_delimiter>(
-        LocalDateTime(values.year, values.month, values.day_of_month,
-            date_lut.toHour(components.whole), date_lut.toMinute(components.whole), date_lut.toSecond(components.whole)), buf);
-
-    if (scale > 0)
-    {
-        buf.write(fractional_time_delimiter);
-        writeDecimalTypeFractionalText<DateTime64>(components.fractional, scale, buf);
-    }
-}
-
-/// In the RFC 1123 format: "Tue, 03 Dec 2019 00:11:50 GMT". You must provide GMT DateLUT.
-/// This is needed for HTTP requests.
-inline void writeDateTimeTextRFC1123(time_t datetime, WriteBuffer & buf, const DateLUTImpl & date_lut)
-{
-    const auto & values = date_lut.getValues(datetime);
-
-    static const char week_days[3 * 8 + 1] = "XXX" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun";
-    static const char months[3 * 13 + 1] = "XXX" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec";
-
-    buf.write(&week_days[values.day_of_week * 3], 3);
-    buf.write(", ", 2);
-    buf.write(&digits100[values.day_of_month * 2], 2);
-    buf.write(' ');
-    buf.write(&months[values.month * 3], 3);
-    buf.write(' ');
-    buf.write(&digits100[values.year / 100 * 2], 2);
-    buf.write(&digits100[values.year % 100 * 2], 2);
-    buf.write(' ');
-    buf.write(&digits100[date_lut.toHour(datetime) * 2], 2);
-    buf.write(':');
-    buf.write(&digits100[date_lut.toMinute(datetime) * 2], 2);
-    buf.write(':');
-    buf.write(&digits100[date_lut.toSecond(datetime) * 2], 2);
-    buf.write(" GMT", 4);
-}
-
-inline void writeDateTimeTextISO(time_t datetime, WriteBuffer & buf, const DateLUTImpl & utc_time_zone)
-{
-    writeDateTimeText<'-', ':', 'T'>(datetime, buf, utc_time_zone);
-    buf.write('Z');
-}
-
-inline void writeDateTimeTextISO(DateTime64 datetime64, UInt32 scale, WriteBuffer & buf, const DateLUTImpl & utc_time_zone)
-{
-    writeDateTimeText<'-', ':', 'T'>(datetime64, scale, buf, utc_time_zone);
-    buf.write('Z');
-}
-
-inline void writeDateTimeUnixTimestamp(DateTime64 datetime64, UInt32 scale, WriteBuffer & buf)
-{
-    static constexpr UInt32 MaxScale = DecimalUtils::max_precision<DateTime64>;
-    scale = scale > MaxScale ? MaxScale : scale;
-
-    auto components = DecimalUtils::split(datetime64, scale);
-    writeIntText(components.whole, buf);
-
-    if (scale > 0) //-V547
-    {
-        buf.write('.');
-        writeDecimalTypeFractionalText<DateTime64>(components.fractional, scale, buf);
-    }
-}
-
 /// Methods for output in binary format.
 template <typename T>
 inline std::enable_if_t<is_arithmetic_v<T>, void>
@@ -976,30 +784,6 @@ String decimalFractional(const T & x, UInt32 scale)
     for (Int32 pos = scale - 1; pos >= 0; --pos, value /= 10)
         str[pos] += static_cast<char>(value % 10);
     return str;
-}
-
-template <typename T>
-void writeText(Decimal<T> x, UInt32 scale, WriteBuffer & ostr)
-{
-    T part = DecimalUtils::getWholePart(x, scale);
-
-    if (x.value < 0 && part == 0)
-    {
-        writeChar('-', ostr); /// avoid crop leading minus when whole part is zero
-    }
-
-    if constexpr (std::is_same_v<T, Int256>)
-        writeText(part, ostr);
-    else
-        writeIntText(part, ostr);
-
-    if (scale)
-    {
-        writeChar('.', ostr);
-        part = DecimalUtils::getFractionalPart(x, scale);
-        String fractional = decimalFractional(part, scale);
-        ostr.write(fractional.data(), scale);
-    }
 }
 
 /// String, date, datetime are in single quotes with C-style escaping. Numbers - without.

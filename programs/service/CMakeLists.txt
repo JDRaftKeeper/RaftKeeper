@@ -4,15 +4,8 @@ set (CLICKHOUSE_SERVICE_SOURCES
  
 set (CLICKHOUSE_SERVICE_LINK
     PRIVATE
-        clickhouse_aggregate_functions
         clickhouse_common_config
         clickhouse_common_io
-        clickhouse_common_zookeeper
-        clickhouse_dictionaries
-        clickhouse_functions
-        clickhouse_parsers
-        clickhouse_storages_system
-        clickhouse_table_functions
         string_utils
     
         ${LINK_RESOURCE_LIB}

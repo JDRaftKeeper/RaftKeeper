@@ -7,7 +7,7 @@
 #include <Poco/SharedPtr.h>
 #include <vector>
 
-#include <Interpreters/Context.h>
+#include <Core/Context.h>
 #include <Service/SvsSocketReactor.h>
 
 

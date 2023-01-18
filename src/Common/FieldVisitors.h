@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Core/DecimalFunctions.h>
 #include <Core/Field.h>
 #include <common/demangle.h>
 #include <Common/NaNUtils.h>
@@ -78,10 +77,6 @@ public:
     String operator() (const Array & x) const;
     String operator() (const Tuple & x) const;
     String operator() (const Map & x) const;
-    String operator() (const DecimalField<Decimal32> & x) const;
-    String operator() (const DecimalField<Decimal64> & x) const;
-    String operator() (const DecimalField<Decimal128> & x) const;
-    String operator() (const DecimalField<Decimal256> & x) const;
     String operator() (const AggregateFunctionStateData & x) const;
 
     String operator() (const UInt256 & x) const;
@@ -102,10 +97,6 @@ public:
     void operator() (const Array & x, WriteBuffer & buf) const;
     void operator() (const Tuple & x, WriteBuffer & buf) const;
     void operator() (const Map & x, WriteBuffer & buf) const;
-    void operator() (const DecimalField<Decimal32> & x, WriteBuffer & buf) const;
-    void operator() (const DecimalField<Decimal64> & x, WriteBuffer & buf) const;
-    void operator() (const DecimalField<Decimal128> & x, WriteBuffer & buf) const;
-    void operator() (const DecimalField<Decimal256> & x, WriteBuffer & buf) const;
     void operator() (const AggregateFunctionStateData & x, WriteBuffer & buf) const;
 
     void operator() (const UInt256 & x, WriteBuffer & buf) const;
@@ -127,10 +118,6 @@ public:
     String operator() (const Array & x) const;
     String operator() (const Tuple & x) const;
     String operator() (const Map & x) const;
-    String operator() (const DecimalField<Decimal32> & x) const;
-    String operator() (const DecimalField<Decimal64> & x) const;
-    String operator() (const DecimalField<Decimal128> & x) const;
-    String operator() (const DecimalField<Decimal256> & x) const;
     String operator() (const AggregateFunctionStateData & x) const;
 
     String operator() (const UInt256 & x) const;
@@ -198,30 +185,6 @@ public:
         throw Exception("Cannot convert UInt128 to " + demangle(typeid(T).name()), ErrorCodes::CANNOT_CONVERT_TYPE);
     }
 
-    template <typename U>
-    T operator() (const DecimalField<U> & x) const
-    {
-        if constexpr (std::is_floating_point_v<T>)
-            return x.getValue(). template convertTo<T>() / x.getScaleMultiplier(). template convertTo<T>();
-        else if constexpr (std::is_same_v<T, UInt128>)
-        {
-            /// TODO: remove with old UInt128 type
-            if constexpr (sizeof(U) < 16)
-            {
-                return UInt128(0, (x.getValue() / x.getScaleMultiplier()).value);
-            }
-            else if constexpr (sizeof(U) == 16)
-            {
-                auto tmp = (x.getValue() / x.getScaleMultiplier()).value;
-                return UInt128(tmp >> 64, UInt64(tmp));
-            }
-            else
-                throw Exception("No conversion to old UInt128 from " + demangle(typeid(U).name()), ErrorCodes::NOT_IMPLEMENTED);
-        }
-        else
-            return (x.getValue() / x.getScaleMultiplier()). template convertTo<T>();
-    }
-
     T operator() (const AggregateFunctionStateData &) const
     {
         throw Exception("Cannot convert AggregateFunctionStateData to " + demangle(typeid(T).name()), ErrorCodes::CANNOT_CONVERT_TYPE);
@@ -258,10 +221,6 @@ public:
     void operator() (const Array & x) const;
     void operator() (const Tuple & x) const;
     void operator() (const Map & x) const;
-    void operator() (const DecimalField<Decimal32> & x) const;
-    void operator() (const DecimalField<Decimal64> & x) const;
-    void operator() (const DecimalField<Decimal128> & x) const;
-    void operator() (const DecimalField<Decimal256> & x) const;
     void operator() (const AggregateFunctionStateData & x) const;
 
     void operator() (const UInt256 & x) const;
@@ -270,10 +229,6 @@ public:
 
 
 template <typename T> constexpr bool isDecimalField() { return false; }
-template <> constexpr bool isDecimalField<DecimalField<Decimal32>>() { return true; }
-template <> constexpr bool isDecimalField<DecimalField<Decimal64>>() { return true; }
-template <> constexpr bool isDecimalField<DecimalField<Decimal128>>() { return true; }
-template <> constexpr bool isDecimalField<DecimalField<Decimal256>>() { return true; }
 
 
 /** Implements `+=` operation.
@@ -308,13 +263,6 @@ public:
     {
         x += get<Int128>(rhs);
         return x != Int128(0);
-    }
-
-    template <typename T>
-    bool operator() (DecimalField<T> & x) const
-    {
-        x += get<DecimalField<T>>(rhs);
-        return x.getValue() != T(0);
     }
 
     template <typename T, typename = std::enable_if_t<is_big_int_v<T>> >

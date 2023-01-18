@@ -1,7 +1,6 @@
 #include "Loggers.h"
 
 #include <iostream>
-#include <Poco/SyslogChannel.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include "OwnFormattingChannel.h"
 #include "OwnPatternFormatter.h"
@@ -27,18 +26,8 @@ static std::string createDirectory(const std::string & file)
     return path.toString();
 };
 
-void Loggers::setTextLog(std::shared_ptr<DB::TextLog> log, int max_priority)
+void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Logger & logger, const std::string &)
 {
-    text_log = log;
-    text_log_max_priority = max_priority;
-}
-
-void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Logger & logger /*_root*/, const std::string & cmd_name)
-{
-    if (split)
-        if (auto log = text_log.lock())
-            split->addTextLog(log, text_log_max_priority);
-
     auto current_logger = config.getString("logger", "");
     if (config_logger == current_logger)
         return;
@@ -49,7 +38,7 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
 
     /// Split logs to ordinary log, error log, syslog and console.
     /// Use extended interface of Channel for more comprehensive logging.
-    split = new DB::OwnSplitChannel();
+    split = new Poco::SplitterChannel();
 
     auto log_level = config.getString("logger.level", "trace");
     const auto log_path = config.getString("logger.log", "");
@@ -96,41 +85,6 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
         errorlog->setLevel(Poco::Message::PRIO_NOTICE);
         errorlog->open();
         split->addChannel(errorlog);
-    }
-
-    /// "dynamic_layer_selection" is needed only for Yandex.Metrika, that share part of ClickHouse code.
-    /// We don't need this configuration parameter.
-
-    if (config.getBool("logger.use_syslog", false) || config.getBool("dynamic_layer_selection", false))
-    {
-        //const std::string & cmd_name = commandName();
-
-        if (config.has("logger.syslog.address"))
-        {
-            syslog_channel = new Poco::Net::RemoteSyslogChannel();
-            // syslog address
-            syslog_channel->setProperty(Poco::Net::RemoteSyslogChannel::PROP_LOGHOST, config.getString("logger.syslog.address"));
-            if (config.has("logger.syslog.hostname"))
-            {
-                syslog_channel->setProperty(Poco::Net::RemoteSyslogChannel::PROP_HOST, config.getString("logger.syslog.hostname"));
-            }
-            syslog_channel->setProperty(Poco::Net::RemoteSyslogChannel::PROP_FORMAT, config.getString("logger.syslog.format", "syslog"));
-            syslog_channel->setProperty(
-                Poco::Net::RemoteSyslogChannel::PROP_FACILITY, config.getString("logger.syslog.facility", "LOG_USER"));
-        }
-        else
-        {
-            syslog_channel = new Poco::SyslogChannel();
-            syslog_channel->setProperty(Poco::SyslogChannel::PROP_NAME, cmd_name);
-            syslog_channel->setProperty(Poco::SyslogChannel::PROP_OPTIONS, config.getString("logger.syslog.options", "LOG_CONS|LOG_PID"));
-            syslog_channel->setProperty(Poco::SyslogChannel::PROP_FACILITY, config.getString("logger.syslog.facility", "LOG_DAEMON"));
-        }
-        syslog_channel->open();
-
-        Poco::AutoPtr<OwnPatternFormatter> pf = new OwnPatternFormatter(this, OwnPatternFormatter::ADD_LAYER_TAG);
-
-        Poco::AutoPtr<DB::OwnFormattingChannel> log = new DB::OwnFormattingChannel(pf, syslog_channel);
-        split->addChannel(log);
     }
 
     bool should_log_to_console = isatty(STDIN_FILENO) || isatty(STDERR_FILENO);

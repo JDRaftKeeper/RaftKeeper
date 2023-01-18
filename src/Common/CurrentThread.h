@@ -42,8 +42,7 @@ public:
     static ThreadGroupStatusPtr getGroup();
 
     /// A logs queue used by TCPHandler to pass logs to a client
-    static void attachInternalTextLogsQueue(const std::shared_ptr<InternalTextLogsQueue> & logs_queue,
-                                            LogsLevel client_logs_level);
+    static void attachInternalTextLogsQueue(const std::shared_ptr<InternalTextLogsQueue> & logs_queue);
     static std::shared_ptr<InternalTextLogsQueue> getInternalTextLogsQueue();
 
     static void setFatalErrorCallback(std::function<void()> callback);
@@ -75,7 +74,7 @@ public:
     /// Returns a non-empty string if the thread is attached to a query
     static StringRef getQueryId()
     {
-        if (unlikely(!current_thread))
+        if (!current_thread)
             return {};
         return current_thread->getQueryId();
     }

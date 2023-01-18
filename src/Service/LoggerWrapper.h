@@ -2,33 +2,68 @@
 
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 #include <common/logger_useful.h>
-#include <Core/SettingsEnums.h>
 
 namespace DB
 {
 
+namespace ErrorCodes
+{
+    extern const int INVALID_LOG_LEVEL;
+}
+using LogLevel = Poco::Message::Priority;
+
+LogLevel parseLogLevel(const String & level)
+{
+    LogLevel log_level;
+    if (level == "trace")
+        log_level = LogLevel::PRIO_TRACE;
+    else if (level == "debug")
+        log_level = LogLevel::PRIO_DEBUG;
+    else if (level == "information")
+        log_level = LogLevel::PRIO_INFORMATION;
+    else if (level == "warning")
+        log_level = LogLevel::PRIO_WARNING;
+    else if (level == "error")
+        log_level = LogLevel::PRIO_ERROR;
+    else if (level == "fatal")
+        log_level = LogLevel::PRIO_FATAL;
+    else
+        throw Exception("Valid log level values: 'trace', 'debug', 'information', 'warning', 'error', 'fatal'", ErrorCodes::INVALID_LOG_LEVEL);
+    return log_level;
+}
+
+String logLevelToString(LogLevel level)
+{
+    String log_level;
+    if (level == LogLevel::PRIO_TRACE)
+        log_level = "trace";
+    else if (level == LogLevel::PRIO_DEBUG)
+        log_level = "debug";
+    else if (level == LogLevel::PRIO_INFORMATION)
+        log_level = "information";
+    else if (level == LogLevel::PRIO_WARNING)
+        log_level = "warning";
+    else if (level == LogLevel::PRIO_ERROR)
+        log_level = "error";
+    else if (level == LogLevel::PRIO_FATAL)
+        log_level = "fatal";
+    else
+        throw Exception("Valid log level", ErrorCodes::INVALID_LOG_LEVEL);
+    return log_level;
+}
+
 class LoggerWrapper : public nuraft::logger
 {
 private:
-
-    static inline const std::unordered_map<LogsLevel, Poco::Message::Priority> LEVELS =
-        {
-            {LogsLevel::trace, Poco::Message::Priority::PRIO_TRACE},
-            {LogsLevel::debug, Poco::Message::Priority::PRIO_DEBUG},
-            {LogsLevel::information, Poco::Message::PRIO_INFORMATION},
-            {LogsLevel::warning, Poco::Message::PRIO_WARNING},
-            {LogsLevel::error, Poco::Message::PRIO_ERROR},
-            {LogsLevel::fatal, Poco::Message::PRIO_FATAL}
-        };
-    static inline const int LEVEL_MAX = static_cast<int>(LogsLevel::trace);
-    static inline const int LEVEL_MIN = static_cast<int>(LogsLevel::none);
+    static inline const int LEVEL_MAX = static_cast<int>(LogLevel::PRIO_TRACE);
+    static inline const int LEVEL_MIN = static_cast<int>(LogLevel::PRIO_FATAL);
 
 public:
-    LoggerWrapper(const std::string & name, LogsLevel level_)
+    LoggerWrapper(const std::string & name, LogLevel level_)
         : log(&Poco::Logger::get(name))
         , level(level_)
     {
-        log->setLevel(static_cast<int>(LEVELS.at(level)));
+        log->setLevel(static_cast<int>(level));
     }
 
     void put_details(
@@ -38,26 +73,23 @@ public:
         size_t /* line_number */,
         const std::string & msg) override
     {
-        LogsLevel db_level = static_cast<LogsLevel>(level_);
-        LOG_IMPL(log, db_level, LEVELS.at(db_level), msg);
+        LOG_IMPL(log, static_cast<LogLevel>(level_), msg);
     }
 
     void set_level(int level_) override
     {
         level_ = std::min(LEVEL_MAX, std::max(LEVEL_MIN, level_));
-        level = static_cast<LogsLevel>(level_);
-        log->setLevel(static_cast<int>(LEVELS.at(level)));
+        log->setLevel(static_cast<LogLevel>(level_));
     }
 
     int get_level() override
     {
-        LogsLevel lvl = level;
-        return static_cast<int>(lvl);
+        return static_cast<int>(level);
     }
 
 private:
     Poco::Logger * log;
-    std::atomic<LogsLevel> level;
+    std::atomic<LogLevel> level;
 };
 
 }
