@@ -2,7 +2,7 @@
 #include <common/SimpleCache.h>
 #include <Common/Exception.h>
 #include <Common/ProfileEvents.h>
-#include <Core/Names.h>
+#include <Common/Names.h>
 #include <common/types.h>
 #include <Poco/Net/IPAddress.h>
 #include <Poco/Net/DNS.h>

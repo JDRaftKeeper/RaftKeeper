@@ -121,7 +121,7 @@ def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
 
 def is_leader(node):
     data = send_4lw_cmd(node.name, 'stat')
-    return 'Mode: follower' in data
+    return 'Mode: leader' in data
 
 
 def reset_conn_stats(node_name=node1.name):

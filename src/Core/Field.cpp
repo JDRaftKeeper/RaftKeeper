@@ -5,7 +5,7 @@
 #include <IO/ReadBufferFromString.h>
 #include <IO/readDecimalText.h>
 #include <Core/Field.h>
-#include <Core/DecimalComparison.h>
+//#include <Core/DecimalComparison.h>
 #include <Common/FieldVisitors.h>
 
 
@@ -166,32 +166,6 @@ void writeText(const Map & x, WriteBuffer & buf)
     writeFieldText(DB::Field(x), buf);
 }
 
-template <typename T>
-void readQuoted(DecimalField<T> & x, ReadBuffer & buf)
-{
-    assertChar('\'', buf);
-    T value;
-    UInt32 scale;
-    int32_t exponent;
-    uint32_t max_digits = static_cast<uint32_t>(-1);
-    readDigits<true>(buf, value, max_digits, exponent, true);
-    if (exponent > 0)
-    {
-        scale = 0;
-        if (common::mulOverflow(value.value, DecimalUtils::scaleMultiplier<T>(exponent), value.value))
-            throw Exception("Decimal math overflow", ErrorCodes::DECIMAL_OVERFLOW);
-    }
-    else
-        scale = -exponent;
-    assertChar('\'', buf);
-    x = DecimalField<T>{value, scale};
-}
-
-template void readQuoted<Decimal32>(DecimalField<Decimal32> & x, ReadBuffer & buf);
-template void readQuoted<Decimal64>(DecimalField<Decimal64> & x, ReadBuffer & buf);
-template void readQuoted<Decimal128>(DecimalField<Decimal128> & x, ReadBuffer & buf);
-template void readQuoted<Decimal256>(DecimalField<Decimal256> & x, ReadBuffer & buf);
-
 void writeFieldText(const Field & x, WriteBuffer & buf)
 {
     DB::String res = Field::dispatch(DB::FieldVisitorToString(), x);
@@ -257,42 +231,6 @@ Field Field::restoreFromDump(const std::string_view & dump_)
     {
         Float64 value = parseFromString<Float64>(dump.substr(prefix.length()));
         return value;
-    }
-
-    prefix = std::string_view{"Decimal32_"};
-    if (dump_.starts_with(prefix))
-    {
-        DecimalField<Decimal32> decimal;
-        ReadBufferFromString buf{dump.substr(prefix.length())};
-        readQuoted(decimal, buf);
-        return decimal;
-    }
-
-    prefix = std::string_view{"Decimal64_"};
-    if (dump_.starts_with(prefix))
-    {
-        DecimalField<Decimal64> decimal;
-        ReadBufferFromString buf{dump.substr(prefix.length())};
-        readQuoted(decimal, buf);
-        return decimal;
-    }
-
-    prefix = std::string_view{"Decimal128_"};
-    if (dump_.starts_with(prefix))
-    {
-        DecimalField<Decimal128> decimal;
-        ReadBufferFromString buf{dump.substr(prefix.length())};
-        readQuoted(decimal, buf);
-        return decimal;
-    }
-
-    prefix = std::string_view{"Decimal256_"};
-    if (dump_.starts_with(prefix))
-    {
-        DecimalField<Decimal256> decimal;
-        ReadBufferFromString buf{dump.substr(prefix.length())};
-        readQuoted(decimal, buf);
-        return decimal;
     }
 
     prefix = std::string_view{"UUID_"};
@@ -407,48 +345,6 @@ Field Field::restoreFromDump(const std::string_view & dump_)
     show_error();
     __builtin_unreachable();
 }
-
-
-template <typename T>
-static bool decEqual(T x, T y, UInt32 x_scale, UInt32 y_scale)
-{
-    using Comparator = DecimalComparison<T, T, EqualsOp>;
-    return Comparator::compare(x, y, x_scale, y_scale);
-}
-
-template <typename T>
-static bool decLess(T x, T y, UInt32 x_scale, UInt32 y_scale)
-{
-    using Comparator = DecimalComparison<T, T, LessOp>;
-    return Comparator::compare(x, y, x_scale, y_scale);
-}
-
-template <typename T>
-static bool decLessOrEqual(T x, T y, UInt32 x_scale, UInt32 y_scale)
-{
-    using Comparator = DecimalComparison<T, T, LessOrEqualsOp>;
-    return Comparator::compare(x, y, x_scale, y_scale);
-}
-
-template <> bool decimalEqual(Decimal32 x, Decimal32 y, UInt32 x_scale, UInt32 y_scale) { return decEqual(x, y, x_scale, y_scale); }
-template <> bool decimalLess(Decimal32 x, Decimal32 y, UInt32 x_scale, UInt32 y_scale) { return decLess(x, y, x_scale, y_scale); }
-template <> bool decimalLessOrEqual(Decimal32 x, Decimal32 y, UInt32 x_scale, UInt32 y_scale) { return decLessOrEqual(x, y, x_scale, y_scale); }
-
-template <> bool decimalEqual(Decimal64 x, Decimal64 y, UInt32 x_scale, UInt32 y_scale) { return decEqual(x, y, x_scale, y_scale); }
-template <> bool decimalLess(Decimal64 x, Decimal64 y, UInt32 x_scale, UInt32 y_scale) { return decLess(x, y, x_scale, y_scale); }
-template <> bool decimalLessOrEqual(Decimal64 x, Decimal64 y, UInt32 x_scale, UInt32 y_scale) { return decLessOrEqual(x, y, x_scale, y_scale); }
-
-template <> bool decimalEqual(Decimal128 x, Decimal128 y, UInt32 x_scale, UInt32 y_scale) { return decEqual(x, y, x_scale, y_scale); }
-template <> bool decimalLess(Decimal128 x, Decimal128 y, UInt32 x_scale, UInt32 y_scale) { return decLess(x, y, x_scale, y_scale); }
-template <> bool decimalLessOrEqual(Decimal128 x, Decimal128 y, UInt32 x_scale, UInt32 y_scale) { return decLessOrEqual(x, y, x_scale, y_scale); }
-
-template <> bool decimalEqual(Decimal256 x, Decimal256 y, UInt32 x_scale, UInt32 y_scale) { return decEqual(x, y, x_scale, y_scale); }
-template <> bool decimalLess(Decimal256 x, Decimal256 y, UInt32 x_scale, UInt32 y_scale) { return decLess(x, y, x_scale, y_scale); }
-template <> bool decimalLessOrEqual(Decimal256 x, Decimal256 y, UInt32 x_scale, UInt32 y_scale) { return decLessOrEqual(x, y, x_scale, y_scale); }
-
-template <> bool decimalEqual(DateTime64 x, DateTime64 y, UInt32 x_scale, UInt32 y_scale) { return decEqual(x, y, x_scale, y_scale); }
-template <> bool decimalLess(DateTime64 x, DateTime64 y, UInt32 x_scale, UInt32 y_scale) { return decLess(x, y, x_scale, y_scale); }
-template <> bool decimalLessOrEqual(DateTime64 x, DateTime64 y, UInt32 x_scale, UInt32 y_scale) { return decLessOrEqual(x, y, x_scale, y_scale); }
 
 inline void writeText(const Null &, WriteBuffer & buf)
 {

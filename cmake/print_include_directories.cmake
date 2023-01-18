@@ -10,11 +10,11 @@ list(APPEND dirs ${dirs1})
 get_property (dirs1 TARGET common PROPERTY INCLUDE_DIRECTORIES)
 list(APPEND dirs ${dirs1})
 
-get_property (dirs1 TARGET cityhash PROPERTY INCLUDE_DIRECTORIES)
-list(APPEND dirs ${dirs1})
-
-get_property (dirs1 TARGET roaring PROPERTY INCLUDE_DIRECTORIES)
-list(APPEND dirs ${dirs1})
+#get_property (dirs1 TARGET cityhash PROPERTY INCLUDE_DIRECTORIES)
+#list(APPEND dirs ${dirs1})
+#
+#get_property (dirs1 TARGET roaring PROPERTY INCLUDE_DIRECTORIES)
+#list(APPEND dirs ${dirs1})
 
 if (TARGET double-conversion)
     get_property (dirs1 TARGET double-conversion PROPERTY INCLUDE_DIRECTORIES)

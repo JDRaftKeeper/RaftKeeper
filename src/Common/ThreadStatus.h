@@ -5,10 +5,6 @@
 #include <Common/MemoryTracker.h>
 #include <Common/OpenTelemetryTraceContext.h>
 
-#include <Core/SettingsEnums.h>
-
-#include <IO/Progress.h>
-
 #include <memory>
 #include <map>
 #include <mutex>
@@ -69,8 +65,6 @@ public:
     /// The first thread created this thread group
     UInt64 master_thread_id = 0;
 
-    LogsLevel client_logs_level = LogsLevel::none;
-
     String query;
     UInt64 normalized_query_hash;
 };
@@ -104,8 +98,6 @@ public:
     Int64 untracked_memory_limit = 4 * 1024 * 1024;
 
     /// Statistics of read and write rows/bytes
-    Progress progress_in;
-    Progress progress_out;
 
     using Deleter = std::function<void()>;
     Deleter deleter;
@@ -194,8 +186,7 @@ public:
         return thread_state == Died ? nullptr : logs_queue_ptr.lock();
     }
 
-    void attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue,
-                                     LogsLevel client_logs_level);
+    void attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue);
 
     /// Callback that is used to trigger sending fatal error messages to client.
     void setFatalErrorCallback(std::function<void()> callback);

@@ -1,5 +1,4 @@
 #include <Common/StatusInfo.h>
-#include <Interpreters/ExternalLoader.h>
 
 /// Available status. Add something here as you wish.
 #define APPLY_FOR_STATUS(M) \
@@ -44,9 +43,6 @@ namespace CurrentStatusInfo
     {
         static const std::vector<std::pair<String, Int8>> enum_values [] =
         {
-        #define M(NAME, DOCUMENTATION, ENUM) ENUM,
-            APPLY_FOR_STATUS(M)
-        #undef M
         };
         return enum_values[event];
     }

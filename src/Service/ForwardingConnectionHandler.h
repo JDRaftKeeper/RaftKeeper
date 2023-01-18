@@ -18,6 +18,8 @@
 #include <Service/SvsSocketAcceptor.h>
 #include <Service/SvsSocketReactor.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
+#include <unordered_set>
+#include <Service/ForwardingConnection.h>
 
 
 namespace DB
@@ -63,7 +65,7 @@ private:
     StreamSocket socket_;
     SocketReactor & reactor_;
 
-    ptr<FIFOBuffer> req_body_buf;
+    std::shared_ptr<FIFOBuffer> req_body_buf;
     FIFOBuffer req_header_buf = FIFOBuffer(1);
 
     FIFOBuffer req_body_len_buf = FIFOBuffer(4);

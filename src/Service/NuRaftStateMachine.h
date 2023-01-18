@@ -20,7 +20,7 @@ namespace DB
 using nuraft::async_result;
 using nuraft::buffer;
 using nuraft::cs_new;
-using nuraft::ptr;
+//using nuraft::ptr;
 
 using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
 

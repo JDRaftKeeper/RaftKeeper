@@ -6,6 +6,8 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/resource.h>
+#include <Common/setThreadName.h>
+#include <thread>
 #if defined(__linux__)
     #include <sys/prctl.h>
 #endif
@@ -281,7 +283,7 @@ private:
         if (thread_ptr)
         {
             if (auto logs_queue = thread_ptr->getInternalTextLogsQueue())
-                DB::CurrentThread::attachInternalTextLogsQueue(logs_queue, DB::LogsLevel::trace);
+                DB::CurrentThread::attachInternalTextLogsQueue(logs_queue);
         }
 
         LOG_FATAL(log, "########################################");

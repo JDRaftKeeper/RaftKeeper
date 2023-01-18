@@ -433,7 +433,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
     SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms);
 
     /// session 1
     storage.getSessionID(3000);
@@ -513,7 +513,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 21 + 3);
 
-    SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms);
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
 

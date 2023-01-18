@@ -1,9 +1,9 @@
-#include <Core/Settings.h>
 #include <Service/Defines.h>
 #include <Service/SvsKeeperSettings.h>
 #include <common/logger_useful.h>
 #include <IO/WriteHelpers.h>
 #include <filesystem>
+
 
 namespace DB
 {
@@ -11,8 +11,6 @@ namespace ErrorCodes
 {
 extern const int UNKNOWN_SETTING;
 }
-
-IMPLEMENT_SETTINGS_TRAITS(SvsKeeperSettingsTraits, SVS_LIST_OF_COORDINATION_SETTINGS)
 
 void SvsKeeperSettings::loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config)
 {
@@ -24,8 +22,37 @@ void SvsKeeperSettings::loadFromConfig(const String & config_elem, const Poco::U
 
     try
     {
-        for (const String & key : config_keys)
-            set(key, config.getString(config_elem + "." + key));
+        auto get_key = [&config_elem] (String key)-> String
+        {
+            return config_elem + "." + key;
+        };
+
+        session_timeout_ms = config.getUInt(get_key("session_timeout_ms"), Coordination::DEFAULT_SESSION_TIMEOUT_MS);
+        operation_timeout_ms = config.getUInt(get_key("operation_timeout_ms"), Coordination::DEFAULT_OPERATION_TIMEOUT_MS);
+        dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 1000);
+        dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 1000);
+        heart_beat_interval_ms = config.getUInt(get_key("heart_beat_interval_ms"), 500);
+        election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), 10000);
+        election_timeout_upper_bound_ms = config.getUInt(get_key("election_timeout_upper_bound_ms"), 20000);
+        reserved_log_items = config.getUInt(get_key("reserved_log_items"), 10000000);
+        snapshot_distance = config.getUInt(get_key("snapshot_distance"), 3000000);
+        max_stored_snapshots = config.getUInt(get_key("max_stored_snapshots"), 5);
+        auto_forwarding = config.getBool(get_key("auto_forwarding"), true);
+        shutdown_timeout = config.getUInt(get_key("shutdown_timeout"), 5000);
+        startup_timeout = config.getUInt(get_key("startup_timeout"), 6000000);
+
+        String log_level = config.getString(get_key("raft_logs_level"), "information");
+        raft_logs_level = parseLogLevel(log_level);
+        rotate_log_storage_interval = config.getUInt(get_key("rotate_log_storage_interval"), 100000);
+        nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), 32);
+        fresh_log_gap = config.getUInt(get_key("stafresh_log_gaprtup_timeout"), 200);
+        configuration_change_tries_count = config.getUInt(get_key("configuration_change_tries_count"), 30);
+        force_sync = config.getBool(get_key("force_sync"), true);
+        max_batch_size = config.getUInt(get_key("max_batch_size"), 1000);
+        fsync_interval = config.getUInt(get_key("fsync_interval"), 1);
+        async_fsync = config.getBool(get_key("async_fsync"), true);
+        session_consistent = config.getBool(get_key("session_consistent"), true);
+        async_snapshot = config.getBool(get_key("async_snapshot"), false);
     }
     catch (Exception & e)
     {
@@ -44,7 +71,6 @@ KeeperConfigurationAndSettings::KeeperConfigurationAndSettings()
 , coordination_settings(std::make_shared<SvsKeeperSettings>())
 {
 }
-
 
 void KeeperConfigurationAndSettings::dump(WriteBufferFromOwnString & buf) const
 {
@@ -132,7 +158,7 @@ void KeeperConfigurationAndSettings::dump(WriteBufferFromOwnString & buf) const
     write_int(uint64_t(coordination_settings->startup_timeout));
 
     writeText("raft_logs_level=", buf);
-    writeText(coordination_settings->raft_logs_level.toString(), buf);
+    writeText(logLevelToString(coordination_settings->raft_logs_level), buf);
     buf.write('\n');
     writeText("rotate_log_storage_interval=", buf);
     write_int(coordination_settings->rotate_log_storage_interval);

@@ -15,7 +15,6 @@
 #include <common/arithmeticOverflow.h>
 
 #include <Core/Types.h>
-#include <Core/DecimalFunctions.h>
 #include <Core/UUID.h>
 
 #include <Common/Exception.h>
@@ -24,17 +23,10 @@
 #include <Common/UInt128.h>
 #include <Common/intExp.h>
 
-#include <Formats/FormatSettings.h>
-
-#include <IO/CompressionMethod.h>
 #include <IO/ReadBuffer.h>
 #include <IO/ReadBufferFromMemory.h>
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/VarInt.h>
-
-#include <DataTypes/DataTypeDateTime.h>
-
-#include <double-conversion/double-conversion.h>
 
 
 /// 1 GiB
@@ -482,8 +474,6 @@ void readStringUntilWhitespace(String & s, ReadBuffer & buf);
   * - if string is in quotes, then it will be read until closing quote,
   *   but sequences of two consecutive quotes are parsed as single quote inside string;
   */
-void readCSVString(String & s, ReadBuffer & buf, const FormatSettings::CSV & settings);
-
 
 /// Read and append result to array of characters.
 template <typename Vector>
@@ -506,9 +496,6 @@ void readBackQuotedStringInto(Vector & s, ReadBuffer & buf);
 
 template <typename Vector>
 void readStringUntilEOFInto(Vector & s, ReadBuffer & buf);
-
-template <typename Vector>
-void readCSVStringInto(Vector & s, ReadBuffer & buf, const FormatSettings::CSV & settings);
 
 /// ReturnType is either bool or void. If bool, the function will return false instead of throwing an exception.
 template <typename Vector, typename ReturnType = void>
@@ -738,79 +725,6 @@ inline ReturnType readDateTimeTextImpl(time_t & datetime, ReadBuffer & buf, cons
         return readDateTimeTextFallback<ReturnType>(datetime, buf, date_lut);
 }
 
-template <typename ReturnType>
-inline ReturnType readDateTimeTextImpl(DateTime64 & datetime64, UInt32 scale, ReadBuffer & buf, const DateLUTImpl & date_lut)
-{
-    time_t whole;
-    if (!readDateTimeTextImpl<bool>(whole, buf, date_lut))
-    {
-        return ReturnType(false);
-    }
-
-    DB::DecimalUtils::DecimalComponents<DateTime64::NativeType> components{static_cast<DateTime64::NativeType>(whole), 0};
-
-    if (!buf.eof() && *buf.position() == '.')
-    {
-        ++buf.position();
-
-        /// Read digits, up to 'scale' positions.
-        for (size_t i = 0; i < scale; ++i)
-        {
-            if (!buf.eof() && isNumericASCII(*buf.position()))
-            {
-                components.fractional *= 10;
-                components.fractional += *buf.position() - '0';
-                ++buf.position();
-            }
-            else
-            {
-                /// Adjust to scale.
-                components.fractional *= 10;
-            }
-        }
-
-        /// Ignore digits that are out of precision.
-        while (!buf.eof() && isNumericASCII(*buf.position()))
-            ++buf.position();
-    }
-    else if (scale && (whole >= 1000000000LL * scale))
-    {
-        /// Unix timestamp with subsecond precision, already scaled to integer.
-        /// For disambiguation we support only time since 2001-09-09 01:46:40 UTC and less than 30 000 years in future.
-
-        for (size_t i = 0; i < scale; ++i)
-        {
-            components.fractional *= 10;
-            components.fractional += components.whole % 10;
-            components.whole /= 10;
-        }
-    }
-
-    datetime64 = DecimalUtils::decimalFromComponents<DateTime64>(components, scale);
-
-    return ReturnType(true);
-}
-
-inline void readDateTimeText(time_t & datetime, ReadBuffer & buf, const DateLUTImpl & date_lut = DateLUT::instance())
-{
-    readDateTimeTextImpl<void>(datetime, buf, date_lut);
-}
-
-inline void readDateTime64Text(DateTime64 & datetime64, UInt32 scale, ReadBuffer & buf, const DateLUTImpl & date_lut = DateLUT::instance())
-{
-    readDateTimeTextImpl<void>(datetime64, scale, buf, date_lut);
-}
-
-inline bool tryReadDateTimeText(time_t & datetime, ReadBuffer & buf, const DateLUTImpl & date_lut = DateLUT::instance())
-{
-    return readDateTimeTextImpl<bool>(datetime, buf, date_lut);
-}
-
-inline bool tryReadDateTime64Text(DateTime64 & datetime64, UInt32 scale, ReadBuffer & buf, const DateLUTImpl & date_lut = DateLUT::instance())
-{
-    return readDateTimeTextImpl<bool>(datetime64, scale, buf, date_lut);
-}
-
 inline void readDateTimeText(LocalDateTime & datetime, ReadBuffer & buf)
 {
     char s[19];
@@ -947,42 +861,6 @@ inline void readDoubleQuoted(LocalDateTime & x, ReadBuffer & buf)
     assertChar('"', buf);
 }
 
-
-/// CSV, for numbers, dates: quotes are optional, no special escaping rules.
-template <typename T>
-inline void readCSVSimple(T & x, ReadBuffer & buf)
-{
-    if (buf.eof())
-        throwReadAfterEOF();
-
-    char maybe_quote = *buf.position();
-
-    if (maybe_quote == '\'' || maybe_quote == '\"')
-        ++buf.position();
-
-    readText(x, buf);
-
-    if (maybe_quote == '\'' || maybe_quote == '\"')
-        assertChar(maybe_quote, buf);
-}
-
-template <typename T>
-inline std::enable_if_t<is_arithmetic_v<T>, void>
-readCSV(T & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
-
-inline void readCSV(String & x, ReadBuffer & buf, const FormatSettings::CSV & settings) { readCSVString(x, buf, settings); }
-inline void readCSV(LocalDate & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
-inline void readCSV(LocalDateTime & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
-inline void readCSV(UUID & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
-[[noreturn]] inline void readCSV(UInt128 &, ReadBuffer &)
-{
-    /** Because UInt128 isn't a natural type, without arithmetic operator and only use as an intermediary type -for UUID-
-     *  it should never arrive here. But because we used the DataTypeNumber class we should have at least a definition of it.
-     */
-    throw Exception("UInt128 cannot be read as a text", ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
-}
-inline void readCSV(UInt256 & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
-inline void readCSV(Int256 & x, ReadBuffer & buf) { readCSVSimple(x, buf); }
 
 template <typename T>
 void readBinary(std::vector<T> & x, ReadBuffer & buf)

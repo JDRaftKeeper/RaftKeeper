@@ -3,7 +3,6 @@
 #include <IO/WriteHelpers.h>
 #include <Common/Exception.h>
 #include <Common/StackTrace.h>
-#include <Common/TraceCollector.h>
 #include <Common/thread_local_rng.h>
 #include <common/logger_useful.h>
 #include <common/phdr_cache.h>
@@ -26,7 +25,7 @@ namespace
     thread_local size_t write_trace_iteration = 0;
 #endif
 
-    void writeTraceInfo(TraceType trace_type, int /* sig */, siginfo_t * info, void * context)
+    void writeTraceInfo(int /* sig */, siginfo_t * info, void * context)
     {
         auto saved_errno = errno;   /// We must restore previous value of errno in signal handler.
 
@@ -58,8 +57,6 @@ namespace
 
         const auto signal_context = *reinterpret_cast<ucontext_t *>(context);
         const StackTrace stack_trace(signal_context);
-
-        TraceCollector::collect(trace_type, stack_trace, 0);
 
         errno = saved_errno;
     }
@@ -182,7 +179,7 @@ QueryProfilerReal::QueryProfilerReal(const UInt64 thread_id, const UInt32 period
 void QueryProfilerReal::signalHandler(int sig, siginfo_t * info, void * context)
 {
     DENY_ALLOCATIONS_IN_SCOPE;
-    writeTraceInfo(TraceType::Real, sig, info, context);
+    writeTraceInfo(sig, info, context);
 }
 
 QueryProfilerCpu::QueryProfilerCpu(const UInt64 thread_id, const UInt32 period)
@@ -192,7 +189,7 @@ QueryProfilerCpu::QueryProfilerCpu(const UInt64 thread_id, const UInt32 period)
 void QueryProfilerCpu::signalHandler(int sig, siginfo_t * info, void * context)
 {
     DENY_ALLOCATIONS_IN_SCOPE;
-    writeTraceInfo(TraceType::CPU, sig, info, context);
+    writeTraceInfo(sig, info, context);
 }
 
 }
