@@ -1,9 +1,3 @@
-option(ENABLE_NURAFT "Enable NuRaft" ${ENABLE_LIBRARIES})
-
-if (NOT ENABLE_NURAFT)
-    return()
-endif()
-
 if (NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/NuRaft/CMakeLists.txt")
     message (WARNING "submodule contrib/NuRaft is missing. to fix try run: \n git submodule update --init --recursive")
     message (${RECONFIGURE_MESSAGE_LEVEL} "Can't find internal NuRaft library")
