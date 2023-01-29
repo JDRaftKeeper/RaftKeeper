@@ -104,7 +104,8 @@ if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
     message(STATUS "MAKE_STATIC_LIBRARIES = true, dbms_headers : ${dbms_headers} , dbms_sources : ${dbms_sources}")
     add_library (dbms STATIC ${dbms_headers} ${dbms_sources})
     message(STATUS "DBMS_COMMON_LIBRARIES = ${DBMS_COMMON_LIBRARIES}")
-    target_link_libraries (dbms PRIVATE jemalloc libdivide ${DBMS_COMMON_LIBRARIES})
+#    target_link_libraries (dbms PRIVATE jemalloc libdivide ${DBMS_COMMON_LIBRARIES})
+    target_link_libraries (dbms PRIVATE jemalloc ${DBMS_COMMON_LIBRARIES})
     set (all_modules dbms)
     message(STATUS "all_modules ${all_modules}")
 endif ()
@@ -178,15 +179,15 @@ endif()
 target_link_libraries(clickhouse_common_io
         PRIVATE
             ${EXECINFO_LIBRARIES}
-            cpuid
+#            cpuid
         PUBLIC
             boost::program_options
             boost::system
             ${CITYHASH_LIBRARIES}
-            ${ZLIB_LIBRARIES}
+#            ${ZLIB_LIBRARIES}
             pcg_random
             Poco::Foundation
-            roaring
+#            roaring
 )
 
 
@@ -251,14 +252,14 @@ dbms_target_link_libraries (
         boost::program_options
         clickhouse_common_config
         clickhouse_common_zookeeper
-        clickhouse_dictionaries_embedded
-        clickhouse_parsers
-        lz4
-        Poco::JSON
-        Poco::MongoDB
+#        clickhouse_dictionaries_embedded
+#        clickhouse_parsers
+#        lz4
+#        Poco::JSON
+#        Poco::MongoDB
         string_utils
     PUBLIC
-        ${MYSQLXX_LIBRARY}
+#        ${MYSQLXX_LIBRARY}
         boost::system
         clickhouse_common_io
 )
@@ -278,12 +279,12 @@ if (ZSTD_LIBRARY)
     endif ()
 endif()
 
-set (LZMA_LIBRARY liblzma)
-set (LZMA_INCLUDE_DIR ${ClickHouse_SOURCE_DIR}/contrib/xz/src/liblzma/api)
-if (LZMA_LIBRARY)
-    target_link_libraries (clickhouse_common_io PUBLIC ${LZMA_LIBRARY})
-    target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${LZMA_INCLUDE_DIR})
-endif()
+#set (LZMA_LIBRARY liblzma)
+#set (LZMA_INCLUDE_DIR ${ClickHouse_SOURCE_DIR}/contrib/xz/src/liblzma/api)
+#if (LZMA_LIBRARY)
+#    target_link_libraries (clickhouse_common_io PUBLIC ${LZMA_LIBRARY})
+#    target_include_directories (clickhouse_common_io SYSTEM BEFORE PUBLIC ${LZMA_INCLUDE_DIR})
+#endif()
 
 if (USE_ICU)
     dbms_target_link_libraries (PRIVATE ${ICU_LIBRARIES})
