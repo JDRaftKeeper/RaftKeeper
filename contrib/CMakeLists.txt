@@ -44,15 +44,15 @@ add_subdirectory (jemalloc-cmake)
 #add_subdirectory (libmetrohash)
 #add_subdirectory (lz4-cmake)
 #add_subdirectory (murmurhash)
-add_subdirectory (replxx-cmake)
-add_subdirectory (unixodbc-cmake)
+#add_subdirectory (replxx-cmake)
+#add_subdirectory (unixodbc-cmake)
 #add_subdirectory (xz)
 add_subdirectory (poco-cmake)
 #add_subdirectory (croaring-cmake)
 
-if (USE_INTERNAL_DOUBLE_CONVERSION_LIBRARY)
+#if (USE_INTERNAL_DOUBLE_CONVERSION_LIBRARY)
     add_subdirectory (double-conversion-cmake)
-endif ()
+#endif ()
 
 # TODO: refactor the contrib libraries below this comment.
 
@@ -60,57 +60,58 @@ endif ()
 #    add_subdirectory (zstd-cmake)
 #endif ()
 
-if (USE_INTERNAL_RE2_LIBRARY)
+#if (USE_INTERNAL_RE2_LIBRARY)
     set(RE2_BUILD_TESTING 0 CACHE INTERNAL "")
     add_subdirectory (re2)
     add_subdirectory (re2_st)
-endif ()
+#endif ()
 
-if (USE_INTERNAL_CITYHASH_LIBRARY)
+#if (USE_INTERNAL_CITYHASH_LIBRARY)
     add_subdirectory (cityhash102)
-endif ()
+#endif ()
 
 #if (USE_INTERNAL_FARMHASH_LIBRARY)
 #    add_subdirectory (libfarmhash)
 #endif ()
 
 #if (USE_INTERNAL_ZLIB_LIBRARY)
-#    set (ZLIB_ENABLE_TESTS 0 CACHE INTERNAL "")
-#    set (SKIP_INSTALL_ALL 1 CACHE INTERNAL "")
-#    set (ZLIB_COMPAT 1 CACHE INTERNAL "") # also enables WITH_GZFILEOP
-#    set (WITH_NATIVE_INSTRUCTIONS ${ARCH_NATIVE} CACHE INTERNAL "")
-#    if (OS_FREEBSD OR ARCH_I386)
-#        set (WITH_OPTIM 0 CACHE INTERNAL "") # Bug in assembler
-#    endif ()
-#    if (ARCH_AARCH64)
-#        set(WITH_NEON 1 CACHE INTERNAL "")
-#        set(WITH_ACLE 1 CACHE INTERNAL "")
-#    endif ()
-#
-#    add_subdirectory (${INTERNAL_ZLIB_NAME})
-#    # We should use same defines when including zlib.h as used when zlib compiled
-#    target_compile_definitions (zlib PUBLIC ZLIB_COMPAT WITH_GZFILEOP)
-#    if (TARGET zlibstatic)
-#        target_compile_definitions (zlibstatic PUBLIC ZLIB_COMPAT WITH_GZFILEOP)
-#    endif ()
-#    if (ARCH_AMD64 OR ARCH_AARCH64)
-#        target_compile_definitions (zlib PUBLIC X86_64 UNALIGNED_OK)
-#        if (TARGET zlibstatic)
-#            target_compile_definitions (zlibstatic PUBLIC X86_64 UNALIGNED_OK)
-#        endif ()
-#    endif ()
+    set (ZLIB_ENABLE_TESTS 0 CACHE INTERNAL "")
+    set (SKIP_INSTALL_ALL 1 CACHE INTERNAL "")
+    set (ZLIB_COMPAT 1 CACHE INTERNAL "") # also enables WITH_GZFILEOP
+    set (WITH_NATIVE_INSTRUCTIONS ${ARCH_NATIVE} CACHE INTERNAL "")
+    if (OS_FREEBSD OR ARCH_I386)
+        set (WITH_OPTIM 0 CACHE INTERNAL "") # Bug in assembler
+    endif ()
+    if (ARCH_AARCH64)
+        set(WITH_NEON 1 CACHE INTERNAL "")
+        set(WITH_ACLE 1 CACHE INTERNAL "")
+    endif ()
+
+    message(STATUS "INTERNAL_ZLIB_NAME = ${INTERNAL_ZLIB_NAME}")
+    add_subdirectory (${INTERNAL_ZLIB_NAME})
+    # We should use same defines when including zlib.h as used when zlib compiled
+    target_compile_definitions (zlib PUBLIC ZLIB_COMPAT WITH_GZFILEOP)
+    if (TARGET zlibstatic)
+        target_compile_definitions (zlibstatic PUBLIC ZLIB_COMPAT WITH_GZFILEOP)
+    endif ()
+    if (ARCH_AMD64 OR ARCH_AARCH64)
+        target_compile_definitions (zlib PUBLIC X86_64 UNALIGNED_OK)
+        if (TARGET zlibstatic)
+            target_compile_definitions (zlibstatic PUBLIC X86_64 UNALIGNED_OK)
+        endif ()
+    endif ()
 #endif ()
 
 #if (USE_INTERNAL_H3_LIBRARY)
 #    add_subdirectory(h3-cmake)
 #endif ()
 
-if (USE_INTERNAL_SSL_LIBRARY)
+#if (USE_INTERNAL_SSL_LIBRARY)
     add_subdirectory (boringssl-cmake)
 
     add_library(OpenSSL::Crypto ALIAS crypto)
     add_library(OpenSSL::SSL ALIAS ssl)
-endif ()
+#endif ()
 
 #if (USE_INTERNAL_LDAP_LIBRARY)
 #    add_subdirectory (openldap-cmake)
@@ -156,16 +157,16 @@ endif ()
 #    add_subdirectory(avro-cmake)
 #endif()
 
-if(USE_INTERNAL_GTEST_LIBRARY)
+#if(USE_INTERNAL_GTEST_LIBRARY)
     set(GOOGLETEST_VERSION 1.10.0) # master
     # Google Test from sources
     add_subdirectory(${ClickHouse_SOURCE_DIR}/contrib/googletest/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
     # avoid problems with <regexp.h>
     target_compile_definitions (gtest INTERFACE GTEST_HAS_POSIX_RE=0)
-elseif(GTEST_SRC_DIR)
-    add_subdirectory(${GTEST_SRC_DIR}/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
-    target_compile_definitions(gtest INTERFACE GTEST_HAS_POSIX_RE=0)
-endif()
+#elseif(GTEST_SRC_DIR)
+#    add_subdirectory(${GTEST_SRC_DIR}/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
+#    target_compile_definitions(gtest INTERFACE GTEST_HAS_POSIX_RE=0)
+#endif()
 
 #if (USE_EMBEDDED_COMPILER AND USE_INTERNAL_LLVM_LIBRARY)
 #    # ld: unknown option: --color-diagnostics
@@ -192,9 +193,9 @@ endif()
 #    add_subdirectory(libgsasl)
 #endif()
 
-if (USE_INTERNAL_LIBXML2_LIBRARY)
+#if (USE_INTERNAL_LIBXML2_LIBRARY)
     add_subdirectory(libxml2-cmake)
-endif ()
+#endif ()
 
 #if (USE_INTERNAL_BROTLI_LIBRARY)
 #    add_subdirectory(brotli-cmake)
@@ -274,6 +275,6 @@ add_subdirectory (fmtlib-cmake)
 #endif()
 
 add_subdirectory(nuraft-cmake)
-add_subdirectory(concurrentqueue-cmake)
-#add_subdirectory(fast_float)
+#add_subdirectory(concurrentqueue-cmake)
+add_subdirectory(fast_float)
 

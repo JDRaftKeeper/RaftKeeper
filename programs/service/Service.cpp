@@ -2,7 +2,6 @@
 #include <memory>
 #include <Core/Context.h>
 #include <IO/UseSSL.h>
-#include <Server/ProtocolServerAdapter.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
 #include <Service/SvsConnectionHandler.h>
@@ -114,29 +113,6 @@ int Service::run()
 }
 
 
-int waitServersToFinish(std::vector<DB::ProtocolServerAdapter> & servers, size_t seconds_to_wait)
-{
-    const int sleep_max_ms = 1000 * seconds_to_wait;
-    const int sleep_one_ms = 100;
-    int sleep_current_ms = 0;
-    int current_connections = 0;
-    while (sleep_current_ms < sleep_max_ms)
-    {
-        current_connections = 0;
-        for (auto & server : servers)
-        {
-            server.stop();
-            current_connections += server.currentConnections();
-        }
-        if (!current_connections)
-            break;
-        sleep_current_ms += sleep_one_ms;
-        std::this_thread::sleep_for(std::chrono::milliseconds(sleep_one_ms));
-    }
-    return current_connections;
-}
-
-
 int Service::main(const std::vector<std::string> & /*args*/)
 {
     static ServerErrorHandler error_handler;
@@ -183,7 +159,6 @@ int Service::main(const std::vector<std::string> & /*args*/)
 
     auto & global_context = Context::get();
     
-    auto servers = std::make_shared<std::vector<ProtocolServerAdapter>>();
     std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_server;
     std::shared_ptr<SvsSocketAcceptor<SvsConnectionHandler, SocketReactor>> nio_server_acceptor;
 

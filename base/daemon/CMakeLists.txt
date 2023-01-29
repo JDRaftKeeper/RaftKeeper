@@ -1,7 +1,5 @@
 add_library (daemon
     BaseDaemon.cpp
-    GraphiteWriter.cpp
-    SentryWriter.cpp
 )
 
 target_include_directories (daemon PUBLIC ..)

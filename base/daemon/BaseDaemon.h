@@ -19,7 +19,6 @@
 #include <common/types.h>
 #include <common/logger_useful.h>
 #include <common/getThreadId.h>
-#include <daemon/GraphiteWriter.h>
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/StatusFile.h>
 #include <loggers/Loggers.h>
@@ -76,41 +75,6 @@ public:
     /// return none if daemon doesn't exist, reference to the daemon otherwise
     static std::optional<std::reference_wrapper<BaseDaemon>> tryGetInstance() { return tryGetInstance<BaseDaemon>(); }
 
-    /// В Graphite компоненты пути(папки) разделяются точкой.
-    /// У нас принят путь формата root_path.hostname_yandex_ru.key
-    /// root_path по умолчанию one_min
-    /// key - лучше группировать по смыслу. Например "meminfo.cached" или "meminfo.free", "meminfo.total"
-    template <class T>
-    void writeToGraphite(const std::string & key, const T & value, const std::string & config_name = DEFAULT_GRAPHITE_CONFIG_NAME, time_t timestamp = 0, const std::string & custom_root_path = "")
-    {
-        auto *writer = getGraphiteWriter(config_name);
-        if (writer)
-            writer->write(key, value, timestamp, custom_root_path);
-    }
-
-    template <class T>
-    void writeToGraphite(const GraphiteWriter::KeyValueVector<T> & key_vals, const std::string & config_name = DEFAULT_GRAPHITE_CONFIG_NAME, time_t timestamp = 0, const std::string & custom_root_path = "")
-    {
-        auto *writer = getGraphiteWriter(config_name);
-        if (writer)
-            writer->write(key_vals, timestamp, custom_root_path);
-    }
-
-    template <class T>
-    void writeToGraphite(const GraphiteWriter::KeyValueVector<T> & key_vals, const std::chrono::system_clock::time_point & current_time, const std::string & custom_root_path)
-    {
-        auto *writer = getGraphiteWriter();
-        if (writer)
-            writer->write(key_vals, std::chrono::system_clock::to_time_t(current_time), custom_root_path);
-    }
-
-    GraphiteWriter * getGraphiteWriter(const std::string & config_name = DEFAULT_GRAPHITE_CONFIG_NAME)
-    {
-        if (graphite_writers.count(config_name))
-            return graphite_writers[config_name].get();
-        return nullptr;
-    }
-
     /// close all process FDs except
     /// 0-2 -- stdin, stdout, stderr
     /// also doesn't close global internal pipes for signal handling
@@ -158,8 +122,6 @@ protected:
     /// A thread that acts on HUP and USR1 signal (close logs).
     Poco::Thread signal_listener_thread;
     std::unique_ptr<Poco::Runnable> signal_listener;
-
-    std::map<std::string, std::unique_ptr<GraphiteWriter>> graphite_writers;
 
     std::mutex signal_handler_mutex;
     std::condition_variable signal_event;
