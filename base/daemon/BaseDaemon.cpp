@@ -1,5 +1,4 @@
 #include <daemon/BaseDaemon.h>
-#include <daemon/SentryWriter.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -356,10 +355,6 @@ private:
         /// Write crash to system.crash_log table if available.
         if (collectCrashLog)
             collectCrashLog(sig, thread_num, query_id, stack_trace);
-
-        /// Send crash report to developers (if configured)
-        if (sig != SanitizerTrap)
-            SentryWriter::onFault(sig, error_message, stack_trace);
 
         /// When everything is done, we will try to send these error messages to client.
         if (thread_ptr)
@@ -720,10 +715,6 @@ void BaseDaemon::initialize(Application & self)
     logRevision();
     debugIncreaseOOMScore();
 
-    for (const auto & key : DB::getMultipleKeysFromConfig(config(), "", "graphite"))
-    {
-        graphite_writers.emplace(key, std::make_unique<GraphiteWriter>(key));
-    }
 }
 
 
@@ -780,7 +771,6 @@ static void blockSignals(const std::vector<int> & signals)
 
 void BaseDaemon::initializeTerminationAndSignalProcessing()
 {
-    SentryWriter::initialize(config());
     std::set_terminate(terminate_handler);
 
     /// We want to avoid SIGPIPE when working with sockets and pipes, and just handle return value/errno instead.

@@ -35,7 +35,7 @@ void Context::setConfig(const ConfigurationPtr & config_)
     config = config_;
 }
 
-std::shared_ptr<SvsKeeperDispatcher> & Context::getSvsKeeperStorageDispatcher() const
+std::shared_ptr<SvsKeeperDispatcher> Context::getSvsKeeperStorageDispatcher() const
 {
     return dispatcher;
 }

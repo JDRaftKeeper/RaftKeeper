@@ -22,9 +22,10 @@ set (SRCS
     StringRef.cpp
 )
 
-if (ENABLE_REPLXX)
-    list (APPEND SRCS ReplxxLineReader.cpp)
-elseif (ENABLE_READLINE)
+#if (ENABLE_REPLXX)
+#    list (APPEND SRCS ReplxxLineReader.cpp)
+#elseif (ENABLE_READLINE)
+if (ENABLE_READLINE)
     list (APPEND SRCS ReadlineLineReader.cpp)
 endif ()
 
@@ -79,7 +80,7 @@ target_link_libraries (common
         Poco::Net::SSL
         Poco::Util
         Poco::Foundation
-        replxx
+#        replxx
         cctz
         fmt
 )

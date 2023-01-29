@@ -33,7 +33,7 @@ if (OS_LINUX)
 
     foreach(RESOURCE_FILE config.xml users.xml embedded.xml play.html)
         set(RESOURCE_OBJ ${RESOURCE_FILE}.o)
-        set(RESOURCE_OBJS ${RESOURCE_OBJS} ${RESOURCE_OBJ})
+        set(RESOURCE_OBJS ${RESOURCE_OBJS} ${RESOURCE_OBJ} IServer.h)
 
         # https://stackoverflow.com/questions/14776463/compile-and-add-an-object-file-from-a-binary-with-cmake
         add_custom_command(OUTPUT ${RESOURCE_OBJ}

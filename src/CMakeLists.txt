@@ -184,7 +184,7 @@ target_link_libraries(clickhouse_common_io
             boost::program_options
             boost::system
             ${CITYHASH_LIBRARIES}
-#            ${ZLIB_LIBRARIES}
+            ${ZLIB_LIBRARIES}
             pcg_random
             Poco::Foundation
 #            roaring
@@ -237,9 +237,9 @@ get_target_property(RAFT_INTERFACE_LINK_LIBRARIES ${NURAFT_LIBRARY} INTERFACE_LI
 message(STATUS "RAFT_INTERFACE_INCLUDE_DIRECTORIES : ${RAFT_INTERFACE_INCLUDE_DIRECTORIES}")
 message(STATUS "RAFT_INTERFACE_LINK_LIBRARIES : ${RAFT_INTERFACE_LINK_LIBRARIES}")
 
-if (USE_CONCURRENTQUEUE)
-    dbms_target_link_libraries(PUBLIC ${CONCURRENTQUEUE_LIBRARY})
-endif()
+#if (USE_CONCURRENTQUEUE)
+#    dbms_target_link_libraries(PUBLIC ${CONCURRENTQUEUE_LIBRARY})
+#endif()
 
 
 if(RE2_INCLUDE_DIR)

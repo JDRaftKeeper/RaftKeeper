@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Server/IServer.h>
+#include "IServer.h"
 #include "Poco/Net/ServerSocket.h"
 #include "Poco/Net/TCPServer.h"
 #include "Poco/Timestamp.h"

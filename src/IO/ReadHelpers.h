@@ -447,8 +447,6 @@ void readQuotedStringWithSQLStyle(String & s, ReadBuffer & buf);
 void readDoubleQuotedString(String & s, ReadBuffer & buf);
 void readDoubleQuotedStringWithSQLStyle(String & s, ReadBuffer & buf);
 
-void readJSONString(String & s, ReadBuffer & buf);
-
 void readBackQuotedString(String & s, ReadBuffer & buf);
 void readBackQuotedStringWithSQLStyle(String & s, ReadBuffer & buf);
 
@@ -497,15 +495,6 @@ void readBackQuotedStringInto(Vector & s, ReadBuffer & buf);
 template <typename Vector>
 void readStringUntilEOFInto(Vector & s, ReadBuffer & buf);
 
-/// ReturnType is either bool or void. If bool, the function will return false instead of throwing an exception.
-template <typename Vector, typename ReturnType = void>
-ReturnType readJSONStringInto(Vector & s, ReadBuffer & buf);
-
-template <typename Vector>
-bool tryReadJSONStringInto(Vector & s, ReadBuffer & buf)
-{
-    return readJSONStringInto<Vector, bool>(s, buf);
-}
 
 template <typename Vector>
 void readStringUntilWhitespaceInto(Vector & s, ReadBuffer & buf);
@@ -939,10 +928,6 @@ inline void skipWhitespaceIfAny(ReadBuffer & buf, bool one_line = false)
         while (!buf.eof() && isWhitespaceASCIIOneLine(*buf.position()))
             ++buf.position();
 }
-
-/// Skips json value.
-void skipJSONField(ReadBuffer & buf, const StringRef & name_of_field);
-
 
 /** Read serialized exception.
   * During serialization/deserialization some information is lost
