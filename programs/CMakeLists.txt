@@ -128,6 +128,8 @@ else ()
     target_link_libraries (clickhouse PRIVATE clickhouse_common_io string_utils ${HARMFUL_LIB})
     target_include_directories (clickhouse PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
+    message(STATUS "CLICKHOUSE_ONE_SHARED = ${CLICKHOUSE_ONE_SHARED}")
+    message(STATUS "CLICKHOUSE_SPLIT_BINARY = ${CLICKHOUSE_SPLIT_BINARY}")
     clickhouse_target_link_split_lib(clickhouse service)
 
 #    if (ENABLE_CLICKHOUSE_INSTALL)

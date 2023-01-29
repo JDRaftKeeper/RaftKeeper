@@ -12,7 +12,7 @@ namespace ErrorCodes
 }
 using LogLevel = Poco::Message::Priority;
 
-LogLevel parseLogLevel(const String & level)
+inline LogLevel parseLogLevel(const String & level)
 {
     LogLevel log_level;
     if (level == "trace")
@@ -32,7 +32,7 @@ LogLevel parseLogLevel(const String & level)
     return log_level;
 }
 
-String logLevelToString(LogLevel level)
+inline String logLevelToString(LogLevel level)
 {
     String log_level;
     if (level == LogLevel::PRIO_TRACE)

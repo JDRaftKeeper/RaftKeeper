@@ -17,6 +17,9 @@ set (CLICKHOUSE_SERVICE_LINK
 # Always use internal readpassphrase
 list(APPEND CLICKHOUSE_SERVICE_LINK PRIVATE readpassphrase)
 
+message(STATUS "CLICKHOUSE_SERVICE_LINK = ${CLICKHOUSE_SERVICE_LINK}")
+message(STATUS "CLICKHOUSE_SERVICE_SOURCES = ${CLICKHOUSE_SERVICE_SOURCES}")
+message(STATUS "CLICKHOUSE_SERVICE_INCLUDE = ${CLICKHOUSE_SERVICE_INCLUDE}")
 clickhouse_program_add(service)
 
 install(FILES config.xml users.xml DESTINATION ${CLICKHOUSE_ETC_DIR}/clickhouse-service COMPONENT clickhouse)
