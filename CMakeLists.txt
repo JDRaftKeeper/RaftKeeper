@@ -522,9 +522,10 @@ endif ()
 
 #include (cmake/print_flags.cmake)
 
-#if (TARGET global-group)
-#    install (EXPORT global DESTINATION cmake)
-#endif ()
+if (TARGET global-group)
+    message(STATUS "Has TARGET global-group")
+    install (EXPORT global DESTINATION cmake)
+endif ()
 
 add_subdirectory (contrib EXCLUDE_FROM_ALL)
 
@@ -562,7 +563,7 @@ add_subdirectory (base)
 add_subdirectory (src)
 add_subdirectory (programs)
 add_subdirectory (tests)
-add_subdirectory (utils)
+#add_subdirectory (utils)
 
 include (cmake/print_include_directories.cmake)
 
