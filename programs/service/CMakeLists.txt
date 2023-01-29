@@ -7,7 +7,7 @@ set (CLICKHOUSE_SERVICE_LINK
         clickhouse_common_config
         clickhouse_common_io
         string_utils
-    
+        ${NURAFT_LIBRARY}
         ${LINK_RESOURCE_LIB}
     
     PUBLIC
