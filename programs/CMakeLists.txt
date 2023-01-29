@@ -130,9 +130,9 @@ else ()
 
     clickhouse_target_link_split_lib(clickhouse service)
 
-    if (ENABLE_CLICKHOUSE_INSTALL)
-        clickhouse_target_link_split_lib(clickhouse install)
-    endif ()
+#    if (ENABLE_CLICKHOUSE_INSTALL)
+#        clickhouse_target_link_split_lib(clickhouse install)
+#    endif ()
 
     clickhouse_target_link_split_lib(clickhouse service-converter)
 
