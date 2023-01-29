@@ -8,7 +8,3 @@ add_subdirectory (loggers)
 add_subdirectory (pcg-random)
 add_subdirectory (widechar_width)
 add_subdirectory (readpassphrase)
-
-if (USE_MYSQL)
-    add_subdirectory (mysqlxx)
-endif ()

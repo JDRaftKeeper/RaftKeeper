@@ -11,8 +11,7 @@ option (ENABLE_CLICKHOUSE_ALL "Enable all ClickHouse modes by default" ON)
 if (CLICKHOUSE_SPLIT_BINARY)
     option(ENABLE_CLICKHOUSE_INSTALL "Install ClickHouse without .deb/.rpm/.tgz packages (having the binary only)" OFF)
 else ()
-    option(ENABLE_CLICKHOUSE_INSTALL "Install ClickHouse without .deb/.rpm/.tgz packages (having the binary only)"
-        ${ENABLE_CLICKHOUSE_ALL})
+    option(ENABLE_CLICKHOUSE_INSTALL "Install ClickHouse without .deb/.rpm/.tgz packages (having the binary only)" OFF)
 endif ()
 
 option (ENABLE_CLICKHOUSE_SERVICE "Service mode (main mode)" ${ENABLE_CLICKHOUSE_ALL})
@@ -42,6 +41,7 @@ if(NOT (MAKE_STATIC_LIBRARIES OR SPLIT_SHARED_LIBRARIES))
     set(CLICKHOUSE_ONE_SHARED ON)
 endif()
 
+message(STATUS "ConfigIncludePath = ${ConfigIncludePath}")
 configure_file (config_tools.h.in ${ConfigIncludePath}/config_tools.h)
 
 macro(clickhouse_target_link_split_lib target name)

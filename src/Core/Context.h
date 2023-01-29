@@ -43,7 +43,7 @@ public:
     void setConfig(const ConfigurationPtr & config);
     const Poco::Util::AbstractConfiguration & getConfigRef() const;
 
-    std::shared_ptr<SvsKeeperDispatcher> & getSvsKeeperStorageDispatcher() const;
+    std::shared_ptr<SvsKeeperDispatcher> getSvsKeeperStorageDispatcher() const;
     void initializeServiceKeeperStorageDispatcher();
     void shutdownServiceKeeperStorageDispatcher();
     void updateServiceKeeperConfiguration(const Poco::Util::AbstractConfiguration & config);
@@ -55,12 +55,10 @@ public:
     void shutdown();
 
 private:
-    Context();
-
-    void initGlobal();
+    Context() = default;
 
     mutable std::recursive_mutex dispatcher_mutex;
-    std::shared_ptr<SvsKeeperDispatcher> & dispatcher;
+    std::shared_ptr<SvsKeeperDispatcher> dispatcher;
 
     mutable std::recursive_mutex config_mutex;
     ConfigurationPtr config;
