@@ -7,6 +7,7 @@
 #include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
 #include <Common/ThreadPool.h>
+#include <Service/Settings.h>
 
 namespace RK
 {
@@ -45,18 +46,16 @@ public :
     NuRaftFileLogStore(
          const std::string & log_dir,
          bool force_new = false,
-         bool force_sync_ = true,
-         bool async_fsync_ = true,
-         UInt64 fsync_interval_ = 1);
+         FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
+         UInt64 log_fsync_interval_ = 1000);
 
     NuRaftFileLogStore(
         const std::string & log_dir,
         bool force_new,
         UInt32 max_log_size_,
         UInt32 max_segment_count_,
-        bool force_sync_ = true,
-        bool async_fsync_ = true,
-        UInt64 fsync_interval_ = 1);
+        FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
+        UInt64 log_fsync_interval_ = 1000);
 
     ~NuRaftFileLogStore() override;
 
@@ -124,9 +123,8 @@ private:
     ptr<log_entry> last_log_entry;
 //    std::atomic<UInt32> to_flush_count {};
     /// TODO simplify configuration
-    bool force_sync;
-    bool async_fsync;
-    UInt64 fsync_interval{1};
+    FsyncMode log_fsync_mode;
+    UInt64 log_fsync_interval;
     UInt64 to_flush_count{0};
     ThreadFromGlobalPool fsync_thread;
     std::atomic<bool> shutdown_called{false};

@@ -81,8 +81,8 @@ void KeeperServer::startup()
     params.snapshot_distance_ = raft_settings->snapshot_distance;
     params.client_req_timeout_ = raft_settings->operation_timeout_ms;
     params.return_method_ = nuraft::raft_params::blocking;
-    params.parallel_log_appending_ = raft_settings->async_fsync;
-    params.auto_forwarding_ = true; // TODO
+    params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
+    params.auto_forwarding_ = true;
 
     nuraft::asio_service::options asio_opts{};
     asio_opts.thread_pool_size_ = raft_settings->nuraft_thread_size;
@@ -105,7 +105,7 @@ void KeeperServer::startup()
         throw Exception(ErrorCodes::RAFT_ERROR, "Cannot allocate RAFT instance");
 
     /// used raft_instance notify_log_append_completion
-    if (raft_settings->async_fsync)
+    if (raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
         dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
 

@@ -10,6 +10,23 @@
 namespace RK
 {
 
+/// Raft log fsync mode.
+enum FsyncMode
+{
+    /// The leader can do log replication and log persisting in parallel, thus it can reduce the latency of write operation path.
+    /// In this mode data is safety.
+    FSYNC_PARALLEL,
+    /// The leader and follower do log persisting synchronously. In this mode data is safety.
+    FSYNC,
+    /// The leader and follower do log persisting asynchronously and in batch. In this mode data is less safety.
+    FSYNC_BATCH
+};
+
+namespace FsyncModeNS {
+FsyncMode parseFsyncMode(const String & in);
+String toString(FsyncMode mode);
+}
+
 struct RaftSettings;
 using RaftSettingsPtr = std::shared_ptr<RaftSettings>;
 
@@ -89,14 +106,12 @@ struct RaftSettings
     UInt64 fresh_log_gap;
     /// How many times we will try to apply configuration change (add/remove server) to the cluster
     UInt64 configuration_change_tries_count;
-    /// Call fsync on each change in RAFT changelog
-    bool force_sync;
     /// Max batch size for append_entries
     UInt64 max_batch_size;
+    /// Raft log fsync mode
+    FsyncMode log_fsync_mode;
     /// How many logs do once fsync when async_fsync is false
-    UInt64 fsync_interval;
-    /// If `true`, users can let the leader append logs parallel with their replication
-    bool async_fsync;
+    UInt64 log_fsync_interval;
     /// Request-response will follow the session xid order
     bool session_consistent;
     /// Whether async snapshot
