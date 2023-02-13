@@ -2,6 +2,8 @@
     <keeper>
         <my_id>1</my_id>
         <host>node3</host>
+        <log_dir>/var/lib/raftkeeper/data/raft_log</log_dir>
+        <snapshot_dir>/var/lib/raftkeeper/data/raft_snapshot</snapshot_dir>
         <snapshot_start_time>7200</snapshot_start_time>
         <snapshot_create_interval>86400</snapshot_create_interval>
         <forwarding_port>8102</forwarding_port>
