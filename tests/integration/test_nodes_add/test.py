@@ -47,7 +47,7 @@ def test_nodes_add(started_cluster):
 
     p = Pool(3)
     node2.stop_raftkeeper()
-    node2.exec_in_container(['bash', '-c', 'rm -fr /var/lib/clickhouse/coordination/raft_log/* /var/lib/clickhouse/coordination/raft_snapshot/*'])
+    node2.exec_in_container(['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_2.xml"), "/etc/raftkeeper-server/config.d/enable_keeper2.xml")
     waiter = p.apply_async(start, (node2,))
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"), "/etc/raftkeeper-server/config.d/enable_keeper1.xml")

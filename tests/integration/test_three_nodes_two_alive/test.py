@@ -60,9 +60,6 @@ def test_start_offline(started_cluster):
         time.sleep(3)
         p.map(start, [node2, node3])
 
-        assert node2.contains_in_log("Cannot connect to ZooKeeper (or Keeper) before internal Keeper start")
-        assert node3.contains_in_log("Cannot connect to ZooKeeper (or Keeper) before internal Keeper start")
-
         node2_zk = get_fake_zk("node2")
         node2_zk.create("/c", b"data")
 
@@ -84,9 +81,6 @@ def test_start_non_existing(started_cluster):
         time.sleep(3)
         p.map(start, [node2, node1])
 
-        assert node1.contains_in_log("Cannot connect to ZooKeeper (or Keeper) before internal Keeper start")
-        assert node2.contains_in_log("Cannot connect to ZooKeeper (or Keeper) before internal Keeper start")
-
         node2_zk = get_fake_zk("node2")
         node2_zk.create("/test_non_exising", b"data")
     finally:
@@ -102,5 +96,4 @@ def test_restart_third_node(started_cluster):
 
     node3.restart_raftkeeper()
 
-    assert node3.contains_in_log("Connected to ZooKeeper (or Keeper) before internal Keeper start")
     node1_zk.delete("/test_restart")
