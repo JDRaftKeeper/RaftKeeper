@@ -127,11 +127,11 @@ def test_data(started_cluster):
         d = {}
         dump_states(node1_zk, d)
 
-        output = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output)
+        output = node1.exec_in_container(["bash", "-c", "ps ax | grep raftkeeper"], user='root')
+        print("ps ax | grep raftkeeper output: ", output)
 
-        output1 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse_old"], user='root')
-        print("ps ax | grep clickhouse output: ", output1)
+        output1 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/raftkeeper_old"], user='root')
+        print("ps ax | grep raftkeeper output: ", output1)
 
         node1.stop_raftkeeper()
         node1.copy_file_to_container(os.path.join(SCRIPT_DIR, "configs/enable_test_keeper.xml"), '/etc/raftkeeper-server/config.xml')
@@ -141,11 +141,11 @@ def test_data(started_cluster):
         node1.start_raftkeeper()
         wait_node(cluster1, node1)
 
-        output2 = node1.exec_in_container(["bash", "-c", "ps ax | grep clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output2)
+        output2 = node1.exec_in_container(["bash", "-c", "ps ax | grep raftkeeper"], user='root')
+        print("ps ax | grep raftkeeper output: ", output2)
 
-        output3 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/clickhouse"], user='root')
-        print("ps ax | grep clickhouse output: ", output3)
+        output3 = node1.exec_in_container(["bash", "-c", "md5sum /usr/bin/raftkeeper"], user='root')
+        print("ps ax | grep raftkeeper output: ", output3)
 
         node2_zk = get_fake_zk(cluster1, "node")
 
