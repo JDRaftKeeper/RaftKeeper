@@ -61,7 +61,7 @@ def test_node_replace(started_cluster):
         assert zk_conn3.exists("test_four_" + str(i)) is not None
 
     node4.stop_raftkeeper()
-    node4.exec_in_container(['bash', '-c', 'rm -fr /var/lib/clickhouse/coordination/raft_log/* /var/lib/clickhouse/coordination/raft_snapshot/*'])
+    node4.exec_in_container(['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
     node4.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_4.xml"), "/etc/raftkeeper-server/config.d/enable_keeper4.xml")
     p = Pool(3)
     waiter = p.apply_async(start, (node4,))
