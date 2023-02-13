@@ -161,9 +161,10 @@ int Server::main(const std::vector<std::string> & /*args*/)
     global_context.initializeDispatcher();
     FourLetterCommandFactory::registerCommands(*global_context.getDispatcher());
 
-    const char * port_name = "keeper.port";
-    createServer(listen_host, config().getInt(port_name, 8101), listen_try, [&](UInt16 port) {
-        Poco::Net::ServerSocket socket(port);
+    /// start server
+    int32_t port = config().getInt("keeper.port", 8101);
+    createServer(listen_host, port, listen_try, [&](UInt16 listen_port) {
+        Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
         Poco::Timespan timeout(
@@ -174,16 +175,18 @@ int Server::main(const std::vector<std::string> & /*args*/)
         /// TODO add io thread count to config
         nio_server_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
             "NIO-HANDLER", global_context, socket, *nio_server, timeout);
-        LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
+        LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
     });
 
     std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_forwarding_server;
     std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> nio_forwarding_server_acceptor;
 
 
-    const char * forwarding_port_name = "keeper.forwarding_port";
-    createServer(listen_host, config().getInt(forwarding_port_name, 8102), listen_try, [&](UInt16 port) {
-        Poco::Net::ServerSocket socket(port);
+    /// start forwarding server
+    /// TODO ignore it when cluster has one node.
+    int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
+    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port) {
+        Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
         Poco::Timespan timeout(
@@ -194,7 +197,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         /// TODO add io thread count to config
         nio_forwarding_server_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
             "NIO-HANDLER", global_context, socket, *nio_forwarding_server, timeout);
-        LOG_INFO(log, "Listening for connections on {}", socket.address().toString());
+        LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
     });
 
     zkutil::EventPtr unused_event = std::make_shared<Poco::Event>();
@@ -214,7 +217,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
     buildLoggers(config(), logger());
     main_config_reloader->start();
-    LOG_INFO(log, "Ready for connections.");
+    LOG_INFO(log, "RaftKeeper started!");
 
     SCOPE_EXIT({
         LOG_DEBUG(log, "Received termination signal.");
@@ -226,7 +229,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         /// shutdown dispatcher
         global_context.shutdownDispatcher();
 
-        LOG_INFO(log, "Will shutdown forcefully.");
+        LOG_INFO(log, "RaftKeeper shutdown forcefully.");
         _exit(Application::EXIT_OK);
     });
 
