@@ -3,7 +3,7 @@
 #include <IO/Operators.h>
 #include <IO/WriteHelpers.h>
 #include <Service/ConnectionHandler.h>
-#include <Service/Defines.h>
+#include <Common/config_version.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperDispatcher.h>
 #include <Poco/Environment.h>
@@ -225,7 +225,7 @@ ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     const auto & state_machine = keeper_dispatcher.getStateMachine();
 
     StringBuffer ret;
-    print(ret, "version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
+    print(ret, "version", VERSION_FULL);
 
     print(ret, "avg_latency", stats.getAvgLatency());
     print(ret, "max_latency", stats.getMaxLatency());
@@ -306,7 +306,7 @@ String ServerStatCommand::run()
     ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
-    write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
+    write("RaftKeeper version", VERSION_FULL);
 
     StringBuffer latency;
     latency << stats.getMinLatency() << "/" << stats.getAvgLatency() << "/" << stats.getMaxLatency();
@@ -332,7 +332,7 @@ String StatCommand::run()
     ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
-    write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
+    write("RaftKeeper version", VERSION_FULL);
 
     buf << "Clients:\n";
     ConnectionHandler::dumpConnections(buf, true);
@@ -402,7 +402,7 @@ String EnviCommand::run()
 
     StringBuffer buf;
     buf << "Environment:\n";
-    buf << "raft.service.version=" << (String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH) << '\n';
+    buf << "raftkeeper.version=" << VERSION_FULL << '\n';
 
     buf << "host.name=" << Environment::nodeName() << '\n';
     buf << "os.name=" << Environment::osDisplayName() << '\n';

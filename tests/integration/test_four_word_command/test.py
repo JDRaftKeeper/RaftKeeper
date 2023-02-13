@@ -350,7 +350,7 @@ def test_cmd_srvr(started_cluster):
             if len(row) != 0:
                 result[row[0].strip()] = row[1].strip()
 
-        assert 'Raft Service version' in result
+        assert 'RaftKeeper version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '11'
         assert result['Sent'] == '10'
@@ -388,7 +388,7 @@ def test_cmd_stat(started_cluster):
             if len(row) != 0:
                 result[row[0].strip()] = row[1].strip()
 
-        assert 'Raft Service version' in result
+        assert 'RaftKeeper version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '11'
         assert result['Sent'] == '10'
