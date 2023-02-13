@@ -4,7 +4,7 @@
 #include <IO/ReadBuffer.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Allows to read from another ReadBuffer no more than the specified number of bytes.

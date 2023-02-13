@@ -311,7 +311,7 @@ Event end() { return END; }
 
 void increment(Event event, Count amount)
 {
-    DB::CurrentThread::getProfileEvents().increment(event, amount);
+    RK::CurrentThread::getProfileEvents().increment(event, amount);
 }
 
 }

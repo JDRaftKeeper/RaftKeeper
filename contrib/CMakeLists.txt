@@ -126,7 +126,7 @@ add_subdirectory (poco-cmake)
 #
 #    add_subdirectory(snappy)
 #
-#    set (SNAPPY_INCLUDE_DIR "${ClickHouse_SOURCE_DIR}/contrib/snappy")
+#    set (SNAPPY_INCLUDE_DIR "${RaftKeeper_SOURCE_DIR}/contrib/snappy")
 #endif()
 
 #if (USE_INTERNAL_PARQUET_LIBRARY)
@@ -160,7 +160,7 @@ add_subdirectory (poco-cmake)
 #if(USE_INTERNAL_GTEST_LIBRARY)
     set(GOOGLETEST_VERSION 1.10.0) # master
     # Google Test from sources
-    add_subdirectory(${ClickHouse_SOURCE_DIR}/contrib/googletest/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
+    add_subdirectory(${RaftKeeper_SOURCE_DIR}/contrib/googletest/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
     # avoid problems with <regexp.h>
     target_compile_definitions (gtest INTERFACE GTEST_HAS_POSIX_RE=0)
 #elseif(GTEST_SRC_DIR)

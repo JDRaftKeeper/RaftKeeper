@@ -18,10 +18,10 @@ int main(int argc, char ** argv)
     {
         size_t n = 10;
         using T = std::string;
-        DB::AutoArray<T> arr(n);
+        RK::AutoArray<T> arr(n);
 
         for (size_t i = 0; i < arr.size(); ++i)
-            arr[i] = "Hello, world! " + DB::toString(i);
+            arr[i] = "Hello, world! " + RK::toString(i);
 
         for (auto & elem : arr)
             std::cerr << elem << std::endl;
@@ -32,12 +32,12 @@ int main(int argc, char ** argv)
     {
         size_t n = 10;
         using T = std::string;
-        using Arr = DB::AutoArray<T>;
+        using Arr = RK::AutoArray<T>;
         Arr arr;
 
         arr.resize(n);
         for (size_t i = 0; i < arr.size(); ++i)
-            arr[i] = "Hello, world! " + DB::toString(i);
+            arr[i] = "Hello, world! " + RK::toString(i);
 
         for (auto & elem : arr)
             std::cerr << elem << std::endl;
@@ -58,7 +58,7 @@ int main(int argc, char ** argv)
         size_t n = 10;
         size_t keys = 10;
         using T = std::string;
-        using Arr = DB::AutoArray<T>;
+        using Arr = RK::AutoArray<T>;
         using Map = std::map<Arr, T>;
         Map map;
 
@@ -66,9 +66,9 @@ int main(int argc, char ** argv)
         {
             Arr key(n);
             for (size_t j = 0; j < n; ++j)
-                key[j] = DB::toString(rng());
+                key[j] = RK::toString(rng());
 
-            map[std::move(key)] = "Hello, world! " + DB::toString(i);
+            map[std::move(key)] = "Hello, world! " + RK::toString(i);
         }
 
         for (const auto & kv : map)
@@ -102,7 +102,7 @@ int main(int argc, char ** argv)
         size_t n = 10;
         size_t keys = 10;
         using T = std::string;
-        using Arr = DB::AutoArray<T>;
+        using Arr = RK::AutoArray<T>;
         using Vec = std::vector<Arr>;
         Vec vec;
 
@@ -110,7 +110,7 @@ int main(int argc, char ** argv)
         {
             Arr key(n);
             for (size_t j = 0; j < n; ++j)
-                key[j] = DB::toString(rng());
+                key[j] = RK::toString(rng());
 
             vec.push_back(std::move(key));
         }
@@ -141,7 +141,7 @@ int main(int argc, char ** argv)
         size_t n = 5;
         size_t map_size = 1000000;
 
-        using T = DB::Field;
+        using T = RK::Field;
         T field = std::string("Hello, world");
 
         using Arr = std::vector<T>;
@@ -174,14 +174,14 @@ int main(int argc, char ** argv)
 
     {
         size_t n = 10000;
-        using Arr = DB::AutoArray<std::string>;
+        using Arr = RK::AutoArray<std::string>;
         Arr arr1(n);
         Arr arr2(n);
 
         for (size_t i = 0; i < n; ++i)
         {
-            arr1[i] = "Hello, world! " + DB::toString(i);
-            arr2[i] = "Goodbye, world! " + DB::toString(i);
+            arr1[i] = "Hello, world! " + RK::toString(i);
+            arr2[i] = "Goodbye, world! " + RK::toString(i);
         }
 
         arr2 = std::move(arr1);

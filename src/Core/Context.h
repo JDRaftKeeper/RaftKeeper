@@ -12,17 +12,16 @@
 #include <Poco/Util/AbstractConfiguration.h>
 
 #if !defined(ARCADIA_BUILD)
-#    include "config_core.h"
+#    include <Core/config_core.h>
 #endif
 
 
-namespace DB
+namespace RK
 {
 
-struct ContextShared;
 class Context;
 
-class SvsKeeperDispatcher;
+class KeeperDispatcher;
 using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
 
 /** A set of known objects that can be used in the query.
@@ -43,9 +42,9 @@ public:
     void setConfig(const ConfigurationPtr & config);
     const Poco::Util::AbstractConfiguration & getConfigRef() const;
 
-    std::shared_ptr<SvsKeeperDispatcher> getSvsKeeperStorageDispatcher() const;
-    void initializeServiceKeeperStorageDispatcher();
-    void shutdownServiceKeeperStorageDispatcher();
+    std::shared_ptr<KeeperDispatcher> getDispatcher() const;
+    void initializeDispatcher();
+    void shutdownDispatcher();
     void updateServiceKeeperConfiguration(const Poco::Util::AbstractConfiguration & config);
 
     using ConfigReloadCallback = std::function<void()>;
@@ -58,7 +57,7 @@ private:
     Context() = default;
 
     mutable std::recursive_mutex dispatcher_mutex;
-    std::shared_ptr<SvsKeeperDispatcher> dispatcher;
+    std::shared_ptr<KeeperDispatcher> dispatcher;
 
     mutable std::recursive_mutex config_mutex;
     ConfigurationPtr config;

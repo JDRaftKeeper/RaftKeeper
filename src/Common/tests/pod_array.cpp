@@ -16,7 +16,7 @@ while (false)
 
 static void test1()
 {
-    using namespace DB;
+    using namespace RK;
 
     static constexpr size_t initial_bytes = 32;
     using Array = PODArray<UInt64, initial_bytes,
@@ -137,7 +137,7 @@ static void test1()
 
 static void test2()
 {
-    using namespace DB;
+    using namespace RK;
 
     static constexpr size_t initial_bytes = 32;
     using Array = PODArray<UInt64, initial_bytes,
@@ -387,7 +387,7 @@ static void test2()
 
 static void test3()
 {
-    using namespace DB;
+    using namespace RK;
 
     static constexpr size_t initial_bytes = 32;
     using Array = PODArray<UInt64, initial_bytes,

@@ -10,7 +10,7 @@
 #include <Poco/Net/RemoteSyslogChannel.h>
 #include <Poco/Path.h>
 
-namespace DB
+namespace RK
 {
     class SensitiveDataMasker;
 }
@@ -41,7 +41,7 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
     split = new Poco::SplitterChannel();
 
     auto log_level = config.getString("logger.level", "trace");
-    const auto log_path = config.getString("logger.log", "");
+    const auto log_path = config.getString("logger.path", "");
     if (!log_path.empty())
     {
         createDirectory(log_path);
@@ -53,50 +53,50 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
         log_file->setProperty(Poco::FileChannel::PROP_ROTATION, config.getRawString("logger.size", "100M"));
         log_file->setProperty(Poco::FileChannel::PROP_ARCHIVE, "number");
         log_file->setProperty(Poco::FileChannel::PROP_COMPRESS, config.getRawString("logger.compress", "true"));
-        log_file->setProperty(Poco::FileChannel::PROP_PURGECOUNT, config.getRawString("logger.count", "1"));
+        log_file->setProperty(Poco::FileChannel::PROP_PURGECOUNT, config.getRawString("logger.count", "10"));
         log_file->setProperty(Poco::FileChannel::PROP_FLUSH, config.getRawString("logger.flush", "true"));
         log_file->setProperty(Poco::FileChannel::PROP_ROTATEONOPEN, config.getRawString("logger.rotateOnOpen", "false"));
         log_file->open();
 
         Poco::AutoPtr<OwnPatternFormatter> pf = new OwnPatternFormatter(this);
 
-        Poco::AutoPtr<DB::OwnFormattingChannel> log = new DB::OwnFormattingChannel(pf, log_file);
+        Poco::AutoPtr<RK::OwnFormattingChannel> log = new RK::OwnFormattingChannel(pf, log_file);
         split->addChannel(log);
     }
 
-    const auto errorlog_path = config.getString("logger.errorlog", "");
-    if (!errorlog_path.empty())
+    const auto err_log_path = config.getString("logger.err_log_path", "");
+    if (!err_log_path.empty())
     {
-        createDirectory(errorlog_path);
-        std::cerr << "Logging errors to " << errorlog_path << std::endl;
+        createDirectory(err_log_path);
+        std::cerr << "Logging errors to " << err_log_path << std::endl;
 
         error_log_file = new Poco::FileChannel;
-        error_log_file->setProperty(Poco::FileChannel::PROP_PATH, Poco::Path(errorlog_path).absolute().toString());
+        error_log_file->setProperty(Poco::FileChannel::PROP_PATH, Poco::Path(err_log_path).absolute().toString());
         error_log_file->setProperty(Poco::FileChannel::PROP_ROTATION, config.getRawString("logger.size", "100M"));
         error_log_file->setProperty(Poco::FileChannel::PROP_ARCHIVE, "number");
         error_log_file->setProperty(Poco::FileChannel::PROP_COMPRESS, config.getRawString("logger.compress", "true"));
-        error_log_file->setProperty(Poco::FileChannel::PROP_PURGECOUNT, config.getRawString("logger.count", "1"));
+        error_log_file->setProperty(Poco::FileChannel::PROP_PURGECOUNT, config.getRawString("logger.count", "10"));
         error_log_file->setProperty(Poco::FileChannel::PROP_FLUSH, config.getRawString("logger.flush", "true"));
         error_log_file->setProperty(Poco::FileChannel::PROP_ROTATEONOPEN, config.getRawString("logger.rotateOnOpen", "false"));
 
         Poco::AutoPtr<OwnPatternFormatter> pf = new OwnPatternFormatter(this);
 
-        Poco::AutoPtr<DB::OwnFormattingChannel> errorlog = new DB::OwnFormattingChannel(pf, error_log_file);
-        errorlog->setLevel(Poco::Message::PRIO_NOTICE);
-        errorlog->open();
-        split->addChannel(errorlog);
+        Poco::AutoPtr<RK::OwnFormattingChannel> error_log = new RK::OwnFormattingChannel(pf, error_log_file);
+        error_log->setLevel(Poco::Message::PRIO_NOTICE);
+        error_log->open();
+        split->addChannel(error_log);
     }
 
     bool should_log_to_console = isatty(STDIN_FILENO) || isatty(STDERR_FILENO);
     bool color_logs_by_default = isatty(STDERR_FILENO);
 
-    if (config.getBool("logger.console", false)
-        || (!config.hasProperty("logger.console") && !is_daemon && should_log_to_console))
+    if (config.getBool("logger.log_to_console", true)
+        || (!config.hasProperty("logger.log_to_console") && !is_daemon && should_log_to_console))
     {
         bool color_enabled = config.getBool("logger.color_terminal", color_logs_by_default);
 
         Poco::AutoPtr<OwnPatternFormatter> pf = new OwnPatternFormatter(this, OwnPatternFormatter::ADD_NOTHING, color_enabled);
-        Poco::AutoPtr<DB::OwnFormattingChannel> log = new DB::OwnFormattingChannel(pf, new Poco::ConsoleChannel);
+        Poco::AutoPtr<RK::OwnFormattingChannel> log = new RK::OwnFormattingChannel(pf, new Poco::ConsoleChannel);
         logger.warning("Logging " + log_level + " to console");
         split->addChannel(log);
     }

@@ -15,7 +15,7 @@ try
         return 1;
     }
 
-    size_t num_threads = DB::parse<size_t>(argv[1]);
+    size_t num_threads = RK::parse<size_t>(argv[1]);
     std::vector<std::thread> threads;
     for (size_t i = 0; i < num_threads; ++i)
     {

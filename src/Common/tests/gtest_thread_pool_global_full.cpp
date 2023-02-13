@@ -34,7 +34,7 @@ TEST(ThreadPool, GlobalFull1)
 
     for (size_t i = capacity; i < num_jobs; ++i)
     {
-        EXPECT_THROW(pool.scheduleOrThrowOnError(func), DB::Exception);
+        EXPECT_THROW(pool.scheduleOrThrowOnError(func), RK::Exception);
         ++counter;
     }
 
@@ -70,7 +70,7 @@ TEST(ThreadPool, GlobalFull2)
         pool.scheduleOrThrowOnError(func);
 
     ThreadPool another_pool(1);
-    EXPECT_THROW(another_pool.scheduleOrThrowOnError(func), DB::Exception);
+    EXPECT_THROW(another_pool.scheduleOrThrowOnError(func), RK::Exception);
 
     ++counter;
 

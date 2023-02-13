@@ -28,7 +28,7 @@ namespace fs = std::filesystem;
 
 using namespace Poco::XML;
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -81,7 +81,7 @@ ConfigProcessor::ConfigProcessor(
     if (log_to_console && !Poco::Logger::has("ConfigProcessor"))
     {
         channel_ptr = new Poco::ConsoleChannel;
-        log = &Poco::Logger::create("ConfigProcessor", channel_ptr.get(), Poco::Message::PRIO_TRACE);
+        log = &Poco::Logger::create("ConfigProcessor", channel_ptr, Poco::Message::PRIO_TRACE);
     }
     else
     {
@@ -354,7 +354,7 @@ void ConfigProcessor::doIncludesRecursive(
     {
         auto get_incl_node = [&](const std::string & name)
         {
-            return include_from ? include_from->getNodeByPath("yandex/" + name) : nullptr;
+            return include_from ? include_from->getNodeByPath("raftkeeper/" + name) : nullptr;
         };
 
         process_include(attr_nodes["incl"], get_incl_node, "Include not found: ");
@@ -502,7 +502,7 @@ XMLDocumentPtr ConfigProcessor::processConfig(
     std::unordered_set<std::string> contributing_zk_paths;
     try
     {
-        Node * node = config->getNodeByPath("yandex/include_from");
+        Node * node = config->getNodeByPath("raftkeeper/include_from");
         XMLDocumentPtr include_from;
         std::string include_from_path;
         if (node)

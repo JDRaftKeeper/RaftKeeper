@@ -5,7 +5,7 @@
 #include <common/types.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Parse address from string, that can contain host with or without port.

@@ -44,11 +44,11 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    size_t cache_size = DB::parse<size_t>(argv[1]);
-    size_t num_threads = DB::parse<size_t>(argv[2]);
-    size_t num_iterations = DB::parse<size_t>(argv[3]);
-    size_t region_max_size = DB::parse<size_t>(argv[4]);
-    size_t max_key = DB::parse<size_t>(argv[5]);
+    size_t cache_size = RK::parse<size_t>(argv[1]);
+    size_t num_threads = RK::parse<size_t>(argv[2]);
+    size_t num_iterations = RK::parse<size_t>(argv[3]);
+    size_t region_max_size = RK::parse<size_t>(argv[4]);
+    size_t max_key = RK::parse<size_t>(argv[5]);
 
     using Cache = ArrayCache<int, int>;
     Cache cache(cache_size);

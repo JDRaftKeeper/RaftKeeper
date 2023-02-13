@@ -34,7 +34,7 @@
   */
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -55,12 +55,12 @@ namespace ErrorCodes
 struct HashTableNoState
 {
     /// Serialization, in binary and text form.
-    void write(DB::WriteBuffer &) const         {}
-    void writeText(DB::WriteBuffer &) const     {}
+    void write(RK::WriteBuffer &) const         {}
+    void writeText(RK::WriteBuffer &) const     {}
 
     /// Deserialization, in binary and text form.
-    void read(DB::ReadBuffer &)                 {}
-    void readText(DB::ReadBuffer &)             {}
+    void read(RK::ReadBuffer &)                 {}
+    void readText(RK::ReadBuffer &)             {}
 };
 
 
@@ -198,12 +198,12 @@ struct HashTableCell
     void setMapped(const value_type & /*value*/) {}
 
     /// Serialization, in binary and text form.
-    void write(DB::WriteBuffer & wb) const         { DB::writeBinary(key, wb); }
-    void writeText(DB::WriteBuffer & wb) const     { DB::writeDoubleQuoted(key, wb); }
+    void write(RK::WriteBuffer & wb) const         { RK::writeBinary(key, wb); }
+    void writeText(RK::WriteBuffer & wb) const     { RK::writeDoubleQuoted(key, wb); }
 
     /// Deserialization, in binary and text form.
-    void read(DB::ReadBuffer & rb)        { DB::readBinary(key, rb); }
-    void readText(DB::ReadBuffer & rb)    { DB::readDoubleQuoted(key, rb); }
+    void read(RK::ReadBuffer & rb)        { RK::readBinary(key, rb); }
+    void readText(RK::ReadBuffer & rb)    { RK::readDoubleQuoted(key, rb); }
 
     /// When cell pointer is moved during erase, reinsert or resize operations
 
@@ -333,7 +333,7 @@ template <typename Cell>
 struct ZeroValueStorage<false, Cell>
 {
     bool hasZero() const { return false; }
-    void setHasZero() { throw DB::Exception("HashTable: logical error", DB::ErrorCodes::LOGICAL_ERROR); }
+    void setHasZero() { throw RK::Exception("HashTable: logical error", RK::ErrorCodes::LOGICAL_ERROR); }
     void clearHasZero() {}
 
     Cell * zeroValue()             { return nullptr; }
@@ -712,7 +712,7 @@ public:
     class Reader final : private Cell::State
     {
     public:
-        Reader(DB::ReadBuffer & in_)
+        Reader(RK::ReadBuffer & in_)
             : in(in_)
         {
         }
@@ -725,7 +725,7 @@ public:
             if (!is_initialized)
             {
                 Cell::State::read(in);
-                DB::readVarUInt(size, in);
+                RK::readVarUInt(size, in);
                 is_initialized = true;
             }
 
@@ -744,13 +744,13 @@ public:
         inline const value_type & get() const
         {
             if (!is_initialized || is_eof)
-                throw DB::Exception("No available data", DB::ErrorCodes::NO_AVAILABLE_DATA);
+                throw RK::Exception("No available data", RK::ErrorCodes::NO_AVAILABLE_DATA);
 
             return cell.getValue();
         }
 
     private:
-        DB::ReadBuffer & in;
+        RK::ReadBuffer & in;
         Cell cell;
         size_t read_count = 0;
         size_t size = 0;
@@ -1161,10 +1161,10 @@ public:
     }
 
 
-    void write(DB::WriteBuffer & wb) const
+    void write(RK::WriteBuffer & wb) const
     {
         Cell::State::write(wb);
-        DB::writeVarUInt(m_size, wb);
+        RK::writeVarUInt(m_size, wb);
 
         if (this->hasZero())
             this->zeroValue()->write(wb);
@@ -1177,14 +1177,14 @@ public:
                 ptr->write(wb);
     }
 
-    void writeText(DB::WriteBuffer & wb) const
+    void writeText(RK::WriteBuffer & wb) const
     {
         Cell::State::writeText(wb);
-        DB::writeText(m_size, wb);
+        RK::writeText(m_size, wb);
 
         if (this->hasZero())
         {
-            DB::writeChar(',', wb);
+            RK::writeChar(',', wb);
             this->zeroValue()->writeText(wb);
         }
 
@@ -1195,13 +1195,13 @@ public:
         {
             if (!ptr->isZero(*this))
             {
-                DB::writeChar(',', wb);
+                RK::writeChar(',', wb);
                 ptr->writeText(wb);
             }
         }
     }
 
-    void read(DB::ReadBuffer & rb)
+    void read(RK::ReadBuffer & rb)
     {
         Cell::State::read(rb);
 
@@ -1210,7 +1210,7 @@ public:
         m_size = 0;
 
         size_t new_size = 0;
-        DB::readVarUInt(new_size, rb);
+        RK::readVarUInt(new_size, rb);
 
         free();
         Grower new_grower = grower;
@@ -1225,7 +1225,7 @@ public:
         }
     }
 
-    void readText(DB::ReadBuffer & rb)
+    void readText(RK::ReadBuffer & rb)
     {
         Cell::State::readText(rb);
 
@@ -1234,7 +1234,7 @@ public:
         m_size = 0;
 
         size_t new_size = 0;
-        DB::readText(new_size, rb);
+        RK::readText(new_size, rb);
 
         free();
         Grower new_grower = grower;
@@ -1244,7 +1244,7 @@ public:
         for (size_t i = 0; i < new_size; ++i)
         {
             Cell x;
-            DB::assertChar(',', rb);
+            RK::assertChar(',', rb);
             x.readText(rb);
             insert(x.getValue());
         }

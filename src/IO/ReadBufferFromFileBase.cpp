@@ -1,6 +1,6 @@
 #include <IO/ReadBufferFromFileBase.h>
 
-namespace DB
+namespace RK
 {
 
 ReadBufferFromFileBase::ReadBufferFromFileBase() : BufferWithOwnMemory<SeekableReadBuffer>(0)

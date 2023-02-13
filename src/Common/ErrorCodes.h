@@ -11,7 +11,7 @@
   * See also Exception.cpp for incrementing part.
   */
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

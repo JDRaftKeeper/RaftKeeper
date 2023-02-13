@@ -7,7 +7,7 @@ if (GLIBC_COMPATIBILITY)
     check_include_file("sys/random.h" HAVE_SYS_RANDOM_H)
 
     if(COMPILER_CLANG)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-requires-header")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-requires-header -Wno-unused-but-set-variable")
     endif()
 
     add_headers_and_sources(glibc_compatibility .)
@@ -28,9 +28,9 @@ if (GLIBC_COMPATIBILITY)
     endif()
 
     if (NOT ARCH_ARM)
-        # clickhouse_memcpy don't support ARCH_ARM, see https://github.com/ClickHouse/ClickHouse/issues/18951
-        add_library (clickhouse_memcpy OBJECT
-            ${ClickHouse_SOURCE_DIR}/contrib/FastMemcpy/memcpy_wrapper.c
+        # raftkeeper_memcpy don't support ARCH_ARM, see https://github.com/ClickHouse/ClickHouse/issues/18951
+        add_library (raftkeeper_memcpy OBJECT
+            ${RaftKeeper_SOURCE_DIR}/contrib/FastMemcpy/memcpy_wrapper.c
         )
     endif()
 

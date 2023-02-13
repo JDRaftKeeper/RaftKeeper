@@ -11,25 +11,25 @@ int main(int, char **)
 {
     try
     {
-        DB::ReadBufferFromFile in("test");
+        RK::ReadBufferFromFile in("test");
 
-        DB::Int64 a = 0;
-        DB::Float64 b = 0;
-        DB::String c, d;
+        RK::Int64 a = 0;
+        RK::Float64 b = 0;
+        RK::String c, d;
 
         size_t i = 0;
         while (!in.eof())
         {
-            DB::readIntText(a, in);
+            RK::readIntText(a, in);
             in.ignore();
 
-            DB::readFloatText(b, in);
+            RK::readFloatText(b, in);
             in.ignore();
 
-            DB::readEscapedString(c, in);
+            RK::readEscapedString(c, in);
             in.ignore();
 
-            DB::readQuotedString(d, in);
+            RK::readQuotedString(d, in);
             in.ignore();
 
             ++i;
@@ -38,7 +38,7 @@ int main(int, char **)
         std::cout << a << ' ' << b << ' ' << c << '\t' << '\'' << d << '\'' << std::endl;
         std::cout << i << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

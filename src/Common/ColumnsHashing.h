@@ -16,7 +16,7 @@
 #include <Core/Defines.h>
 #include <memory>
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {

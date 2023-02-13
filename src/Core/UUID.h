@@ -4,7 +4,7 @@
 #include <common/strong_typedef.h>
 #include <Common/thread_local_rng.h>
 
-namespace DB
+namespace RK
 {
 
 STRONG_TYPEDEF(UInt128, UUID)

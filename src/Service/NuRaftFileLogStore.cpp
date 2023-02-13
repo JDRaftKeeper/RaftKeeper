@@ -4,7 +4,7 @@
 #include <Service/LogEntry.h>
 #include <Service/NuRaftFileLogStore.h>
 
-namespace DB
+namespace RK
 {
 using namespace nuraft;
 

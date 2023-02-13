@@ -15,7 +15,7 @@
 #include <common/strong_typedef.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

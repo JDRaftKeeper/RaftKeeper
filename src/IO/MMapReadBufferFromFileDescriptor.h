@@ -3,7 +3,7 @@
 #include <IO/ReadBufferFromFileBase.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** MMap range in a file and represent it as a ReadBuffer.

@@ -28,7 +28,7 @@
   */
 
 
-using namespace DB;
+using namespace RK;
 
 using Float = Float32;
 

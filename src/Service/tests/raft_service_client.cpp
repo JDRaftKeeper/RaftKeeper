@@ -18,11 +18,12 @@
 #include <common/argsToConfig.h>
 #include <common/find_symbols.h>
 #include <common/logger_useful.h>
+#include <boost/program_options.hpp>
 
 using namespace Coordination;
-using namespace DB;
+using namespace RK;
 
-namespace DB
+namespace RK
 {
 class TestServer : public Poco::Util::Application, public Loggers
 {
@@ -98,7 +99,7 @@ int main(int argc, char ** argv)
     std::cout << "thread_size " << thread_size << ", send_count " << send_count << ", key_size " << key_size << ", value_size "
               << value_size << std::endl;
 
-    DB::TestServer app;
+    RK::TestServer app;
     app.init(argc, argv);
     app.run();
 
@@ -170,7 +171,7 @@ int main(int argc, char ** argv)
                     ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);                
                     //LOG_DEBUG(thread_log, "Response code {}, errmsg {}, key {}", ret, errorMessage(ret), key_buf);
                 }
-                catch (DB::Exception & ex)
+                catch (RK::Exception & ex)
                 {
                     LOG_INFO(thread_log, "Response code {}, errmsg {}, key {}, exception {}", ret, errorMessage(ret), key_buf, ex.message());
                     sleep(1);

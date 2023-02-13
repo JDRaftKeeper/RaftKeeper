@@ -9,7 +9,7 @@
 #include <iomanip>
 
 
-namespace DB
+namespace RK
 {
 /* Transforms string from grep-wildcard-syntax ("{N..M}", "{a,b,c}" as in remote table function and "*", "?") to perl-regexp for using re2 library for matching
  * with such steps:

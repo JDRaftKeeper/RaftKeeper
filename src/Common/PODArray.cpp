@@ -1,6 +1,6 @@
 #include <Common/PODArray.h>
 
-namespace DB
+namespace RK
 {
 
 /// Used for left padding of PODArray when empty

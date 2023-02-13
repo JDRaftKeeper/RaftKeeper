@@ -16,7 +16,7 @@
 #include <IO/Operators.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

@@ -8,7 +8,7 @@
 #    include <common/types.h>
 
 
-namespace DB
+namespace RK
 {
 
 /// Encodes `text` and returns it.

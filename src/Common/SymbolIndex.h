@@ -9,7 +9,7 @@
 
 #include <Common/MultiVersion.h>
 
-namespace DB
+namespace RK
 {
 
 /** Allow to quickly find symbol name from address.

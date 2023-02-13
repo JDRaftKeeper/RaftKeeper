@@ -203,6 +203,6 @@ try
 }
 catch (...)
 {
-    std::cerr << DB::getCurrentExceptionMessage(__PRETTY_FUNCTION__) << '\n';
+    std::cerr << RK::getCurrentExceptionMessage(__PRETTY_FUNCTION__) << '\n';
     return 1;
 }

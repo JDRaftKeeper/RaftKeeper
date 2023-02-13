@@ -8,7 +8,7 @@
 #include <Common/BitHelpers.h>
 
 
-namespace DB
+namespace RK
 {
 
 

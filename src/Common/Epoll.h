@@ -6,7 +6,7 @@
 #include <boost/noncopyable.hpp>
 #include <Poco/Logger.h>
 
-namespace DB
+namespace RK
 {
 
 using AsyncCallback = std::function<void(int, const Poco::Timespan &, const std::string &)>;

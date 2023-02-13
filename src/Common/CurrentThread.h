@@ -15,7 +15,7 @@ class Counters;
 class MemoryTracker;
 
 
-namespace DB
+namespace RK
 {
 
 class Context;

@@ -38,7 +38,7 @@ struct Test
 
         try
         {
-            using Store = DB::CompactArray<UInt64, width, bucket_count>;
+            using Store = RK::CompactArray<UInt64, width, bucket_count>;
 
             Store store;
 
@@ -48,13 +48,13 @@ struct Test
             filename = createTmpPath("compact_array.bin");
 
             {
-                DB::WriteBufferFromFile wb(filename);
+                RK::WriteBufferFromFile wb(filename);
                 wb.write(reinterpret_cast<const char *>(&store), sizeof(store));
                 wb.close();
             }
 
             {
-                DB::ReadBufferFromFile rb(filename);
+                RK::ReadBufferFromFile rb(filename);
                 typename Store::Reader reader(rb);
                 while (reader.next())
                 {

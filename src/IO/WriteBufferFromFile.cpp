@@ -14,7 +14,7 @@ namespace ProfileEvents
     extern const Event FileOpen;
 }
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

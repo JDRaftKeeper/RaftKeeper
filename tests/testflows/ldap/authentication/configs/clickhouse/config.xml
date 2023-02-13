@@ -14,7 +14,7 @@
     </logger>
     <!--display_name>production</display_name--> <!-- It is the name that will be shown in the client -->
     <http_port>8123</http_port>
-    <tcp_port>9000</tcp_port>
+    <port>9000</port>
 
     <!-- For HTTPS and SSL over native protocol. -->
     <!--

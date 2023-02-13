@@ -7,7 +7,7 @@ namespace Poco::Util
     class AbstractConfiguration;
 }
 
-namespace DB
+namespace RK
 {
     /// Returns true if two configurations contains the same keys and values.
     bool isSameConfiguration(const Poco::Util::AbstractConfiguration & left,

@@ -4,15 +4,15 @@
 #include <string>
 #include <unordered_map>
 
-#include <Service/SvsKeeperDispatcher.h>
 #include <IO/WriteBufferFromString.h>
+#include <Service/KeeperDispatcher.h>
 
 #include <Common/config_version.h>
 
-namespace DB
+namespace RK
 {
 struct IFourLetterCommand;
-using FourLetterCommandPtr = std::shared_ptr<DB::IFourLetterCommand>;
+using FourLetterCommandPtr = std::shared_ptr<RK::IFourLetterCommand>;
 
 /// Just like zookeeper Four Letter Words commands, CH Keeper responds to a small set of commands.
 /// Each command is composed of four letters, these commands are useful to monitor and issue system problems.
@@ -20,8 +20,8 @@ using FourLetterCommandPtr = std::shared_ptr<DB::IFourLetterCommand>;
 struct IFourLetterCommand
 {
 public:
-    using StringBuffer = DB::WriteBufferFromOwnString;
-    explicit IFourLetterCommand(SvsKeeperDispatcher & keeper_dispatcher_);
+    using StringBuffer = RK::WriteBufferFromOwnString;
+    explicit IFourLetterCommand(KeeperDispatcher & keeper_dispatcher_);
 
     virtual String name() = 0;
     virtual String run() = 0;
@@ -33,7 +33,7 @@ public:
     static inline int32_t toCode(const String & name);
 
 protected:
-    SvsKeeperDispatcher & keeper_dispatcher;
+    KeeperDispatcher & keeper_dispatcher;
 };
 
 struct FourLetterCommandFactory : private boost::noncopyable
@@ -52,14 +52,14 @@ public:
 
     /// There is no need to make it thread safe, because registration is no initialization and get is after startup.
     void registerCommand(FourLetterCommandPtr & command);
-    void initializeWhiteList(SvsKeeperDispatcher & keeper_dispatcher);
+    void initializeWhiteList(KeeperDispatcher & keeper_dispatcher);
 
     void checkInitialization() const;
     bool isInitialized() const { return initialized; }
     void setInitialize(bool flag) { initialized = flag; }
 
     static FourLetterCommandFactory & instance();
-    static void registerCommands(SvsKeeperDispatcher & keeper_dispatcher);
+    static void registerCommands(KeeperDispatcher & keeper_dispatcher);
 
 private:
     std::atomic<bool> initialized = false;
@@ -76,7 +76,7 @@ private:
  */
 struct RuokCommand : public IFourLetterCommand
 {
-    explicit RuokCommand(SvsKeeperDispatcher & keeper_dispatcher_) : IFourLetterCommand(keeper_dispatcher_) { }
+    explicit RuokCommand(KeeperDispatcher & keeper_dispatcher_) : IFourLetterCommand(keeper_dispatcher_) { }
 
     String name() override { return "ruok"; }
     String run() override;
@@ -107,7 +107,7 @@ struct RuokCommand : public IFourLetterCommand
  */
 struct MonitorCommand : public IFourLetterCommand
 {
-    explicit MonitorCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit MonitorCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -119,7 +119,7 @@ struct MonitorCommand : public IFourLetterCommand
 
 struct StatResetCommand : public IFourLetterCommand
 {
-    explicit StatResetCommand(SvsKeeperDispatcher & keeper_dispatcher_) :
+    explicit StatResetCommand(KeeperDispatcher & keeper_dispatcher_) :
         IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -133,7 +133,7 @@ struct StatResetCommand : public IFourLetterCommand
 ///It is used to inform clients who execute none white listed four letter word commands.
 struct NopCommand : public IFourLetterCommand
 {
-    explicit NopCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit NopCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -145,7 +145,7 @@ struct NopCommand : public IFourLetterCommand
 
 struct ConfCommand : public IFourLetterCommand
 {
-    explicit ConfCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit ConfCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -159,7 +159,7 @@ struct ConfCommand : public IFourLetterCommand
 /// Includes information on numbers of packets received/sent, session id, operation latencies, last operation performed, etc...
 struct ConsCommand : public IFourLetterCommand
 {
-    explicit ConsCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit ConsCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -172,7 +172,7 @@ struct ConsCommand : public IFourLetterCommand
 /// Reset connection/session statistics for all connections.
 struct RestConnStatsCommand : public IFourLetterCommand
 {
-    explicit RestConnStatsCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit RestConnStatsCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -185,7 +185,7 @@ struct RestConnStatsCommand : public IFourLetterCommand
 /// Lists full details for the server.
 struct ServerStatCommand : public IFourLetterCommand
 {
-    explicit ServerStatCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit ServerStatCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -198,7 +198,7 @@ struct ServerStatCommand : public IFourLetterCommand
 /// Lists brief details for the server and connected clients.
 struct StatCommand : public IFourLetterCommand
 {
-    explicit StatCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit StatCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -211,7 +211,7 @@ struct StatCommand : public IFourLetterCommand
 /// Lists brief information on watches for the server.
 struct BriefWatchCommand : public IFourLetterCommand
 {
-    explicit BriefWatchCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit BriefWatchCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -226,7 +226,7 @@ struct BriefWatchCommand : public IFourLetterCommand
 /// Note, depending on the number of watches this operation may be expensive (ie impact server performance), use it carefully.
 struct WatchCommand : public IFourLetterCommand
 {
-    explicit WatchCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit WatchCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -241,7 +241,7 @@ struct WatchCommand : public IFourLetterCommand
 /// Note, depending on the number of watches this operation may be expensive (ie impact server performance), use it carefully.
 struct WatchByPathCommand : public IFourLetterCommand
 {
-    explicit WatchByPathCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit WatchByPathCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -254,7 +254,7 @@ struct WatchByPathCommand : public IFourLetterCommand
 /// Lists the outstanding sessions and ephemeral nodes. This only works on the leader.
 struct DumpCommand : public IFourLetterCommand
 {
-    explicit DumpCommand(SvsKeeperDispatcher & keeper_dispatcher_):
+    explicit DumpCommand(KeeperDispatcher & keeper_dispatcher_):
         IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -267,7 +267,7 @@ struct DumpCommand : public IFourLetterCommand
 /// Print details about serving environment
 struct EnviCommand : public IFourLetterCommand
 {
-    explicit EnviCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit EnviCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -280,7 +280,7 @@ struct EnviCommand : public IFourLetterCommand
 /// Shows the total size of snapshot and log files in bytes
 struct DataSizeCommand : public IFourLetterCommand
 {
-    explicit DataSizeCommand(SvsKeeperDispatcher & keeper_dispatcher_):
+    explicit DataSizeCommand(KeeperDispatcher & keeper_dispatcher_):
         IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -294,7 +294,7 @@ struct DataSizeCommand : public IFourLetterCommand
 /// The server will respond with "ro" if in read-only mode or "rw" if not in read-only mode.
 struct IsReadOnlyCommand : public IFourLetterCommand
 {
-    explicit IsReadOnlyCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit IsReadOnlyCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -307,7 +307,7 @@ struct IsReadOnlyCommand : public IFourLetterCommand
 /// Create snapshot manually
 struct CreateSnapshotCommand : public IFourLetterCommand
 {
-    explicit CreateSnapshotCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit CreateSnapshotCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -329,7 +329,7 @@ struct CreateSnapshotCommand : public IFourLetterCommand
  */
 struct LogInfoCommand : public IFourLetterCommand
 {
-    explicit LogInfoCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit LogInfoCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }
@@ -342,7 +342,7 @@ struct LogInfoCommand : public IFourLetterCommand
 /// Request to be leader.
 struct RequestLeaderCommand : public IFourLetterCommand
 {
-    explicit RequestLeaderCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+    explicit RequestLeaderCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
     {
     }

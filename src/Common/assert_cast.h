@@ -9,7 +9,7 @@
 #include <common/demangle.h>
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -41,11 +41,11 @@ To assert_cast(From && from)
     }
     catch (const std::exception & e)
     {
-        throw DB::Exception(e.what(), DB::ErrorCodes::LOGICAL_ERROR);
+        throw RK::Exception(e.what(), RK::ErrorCodes::LOGICAL_ERROR);
     }
 
-    throw DB::Exception("Bad cast from type " + demangle(typeid(from).name()) + " to " + demangle(typeid(To).name()),
-                        DB::ErrorCodes::LOGICAL_ERROR);
+    throw RK::Exception("Bad cast from type " + demangle(typeid(from).name()) + " to " + demangle(typeid(To).name()),
+                        RK::ErrorCodes::LOGICAL_ERROR);
 #else
     return static_cast<To>(from);
 #endif

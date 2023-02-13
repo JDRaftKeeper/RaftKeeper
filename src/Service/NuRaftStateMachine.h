@@ -6,23 +6,22 @@
 #include <unordered_map>
 #include <string.h>
 #include <time.h>
+#include <Service/KeeperStore.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/RaftTaskManager.h>
-#include <Service/SvsKeeperSettings.h>
-#include <Service/SvsKeeperStorage.h>
-#include <Service/SvsKeeperThreadSafeQueue.h>
+#include <Service/Settings.h>
+#include <Service/ThreadSafeQueue.h>
 #include <libnuraft/nuraft.hxx>
 #include <common/types.h>
 
 
-namespace DB
+namespace RK
 {
 using nuraft::async_result;
 using nuraft::buffer;
 using nuraft::cs_new;
-//using nuraft::ptr;
 
-using SvsKeeperResponsesQueue = SvsKeeperThreadSafeQueue<SvsKeeperStorage::ResponseForSession>;
+using SvsKeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
 
 class RequestProcessor;
 
@@ -31,7 +30,7 @@ class NuRaftStateMachine : public nuraft::state_machine
 public:
     NuRaftStateMachine(
         SvsKeeperResponsesQueue & responses_queue_,
-        const SvsKeeperSettingsPtr & coordination_settings_,
+        const RaftSettingsPtr & raft_settings_,
         std::string & snap_dir,
         UInt32 snap_begin_second,
         UInt32 snap_end_second,
@@ -39,12 +38,12 @@ public:
         UInt32 keep_max_snapshot_count,
         std::mutex & new_session_id_callback_mutex_,
         std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
-        ptr<nuraft::log_store> logstore = nullptr,
-        std::string superdigest = "",
+        ptr<nuraft::log_store> log_store_ = nullptr,
+        std::string super_digest = "",
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
-        std::shared_ptr<RequestProcessor> svskeeper_commit_processor_ = nullptr);
+        std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
-    ~NuRaftStateMachine() override { }
+    ~NuRaftStateMachine() override = default;
 
     ptr<buffer> pre_commit(const ulong log_idx, buffer & data) override;
     void rollback(const ulong log_idx, buffer & data) override;
@@ -91,10 +90,9 @@ public:
 
     KeeperNode & getNode(const std::string & path);
 
-    //NodeMap & getNodeMap() { return node_map; }
-    SvsKeeperStorage & getStorage() { return storage; }
+    KeeperStore & getStore() { return store; }
 
-    void processReadRequest(const SvsKeeperStorage::RequestForSession & request_for_session);
+    void processReadRequest(const KeeperStore::RequestForSession & request_for_session);
 
     std::vector<int64_t> getDeadSessions();
 
@@ -132,11 +130,11 @@ public:
 
     void shutdown();
 
-    static SvsKeeperStorage::RequestForSession parseRequest(nuraft::buffer & data);
-    static ptr<buffer> serializeRequest(SvsKeeperStorage::RequestForSession & request);
+    static KeeperStore::RequestForSession parseRequest(nuraft::buffer & data);
+    static ptr<buffer> serializeRequest(KeeperStore::RequestForSession & request);
 
 private:
-    ptr<SvsKeeperStorage::RequestForSession> createRequestSession(ptr<log_entry> & entry);
+    ptr<KeeperStore::RequestForSession> createRequestSession(ptr<log_entry> & entry);
     void snapThread();
 
     /// Only contains session_id
@@ -145,13 +143,13 @@ private:
     static bool isUpdateSessionRequest(nuraft::buffer & data);
 
     Poco::Logger * log;
-    SvsKeeperSettingsPtr coordination_settings;
+    RaftSettingsPtr raft_settings;
 
     //NodeMap node_map;
-    SvsKeeperStorage storage;
+    KeeperStore store;
     SvsKeeperResponsesQueue & responses_queue;
 
-    std::shared_ptr<RequestProcessor> svskeeper_commit_processor;
+    std::shared_ptr<RequestProcessor> request_processor;
 
     // Last committed Raft log number.
     std::atomic<uint64_t> last_committed_idx;

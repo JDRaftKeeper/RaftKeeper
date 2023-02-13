@@ -3,7 +3,7 @@
 #include <cstddef>
 
 
-namespace DB
+namespace RK
 {
 
 /** Struct containing a pipe with lazy initialization.

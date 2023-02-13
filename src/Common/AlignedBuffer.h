@@ -5,7 +5,7 @@
 #include <boost/noncopyable.hpp>
 
 
-namespace DB
+namespace RK
 {
 
 /** Aligned piece of memory.

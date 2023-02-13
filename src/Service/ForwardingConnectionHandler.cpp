@@ -1,5 +1,3 @@
-#define USE_NIO_FOR_KEEPER
-#ifdef USE_NIO_FOR_KEEPER
 #    include <Service/ForwardingConnectionHandler.h>
 
 #    include <Service/ForwardingConnection.h>
@@ -11,7 +9,7 @@
 #    include <Common/ZooKeeper/ZooKeeperIO.h>
 #    include <Common/setThreadName.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -32,16 +30,16 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
     , socket_(socket)
     , reactor_(reactor)
     , global_context(global_context_)
-    , service_keeper_storage_dispatcher(global_context.getSvsKeeperStorageDispatcher())
+    , keeper_dispatcher(global_context.getDispatcher())
     , operation_timeout(
           0,
           global_context.getConfigRef().getUInt(
-              "service.coordination_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
+              "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
               * 1000)
     , session_timeout(
           0,
           global_context.getConfigRef().getUInt(
-              "service.coordination_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
+              "keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
               * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
 {
@@ -143,11 +141,11 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     /// register session response callback
                     auto response_callback = [this](const ForwardResponse & response) { sendResponse(response); };
 
-                    service_keeper_storage_dispatcher->registerForward({server_id, client_id}, response_callback);
+                    keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
 
                     LOG_INFO(log, "register forward from server {} client {}", server_id, client_id);
 
-                    service_keeper_storage_dispatcher->sendAppendEntryResponse(
+                    keeper_dispatcher->sendAppendEntryResponse(
                         server_id,
                         client_id,
                         {PkgType::Handshake,
@@ -162,8 +160,8 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 }
                 else if (current_package.protocol == PkgType::Data)
                 {
-                    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> session_xid_opnum{
-                        {ForwardResponse::non_session_id, ForwardResponse::non_xid}, Coordination::OpNum::Error};
+                    std::tuple<int64_t, int64_t, Coordination::OpNum> session_xid_opnum{
+                        ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
                     try
                     {
                         if (!req_body_buf) /// new data package
@@ -201,10 +199,10 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             PkgType::Result,
                             false,
                             nuraft::cmd_result_code::CANCELLED,
-                            session_xid_opnum.first.first,
-                            session_xid_opnum.first.second,
-                            session_xid_opnum.second};
-                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                            std::get<0>(session_xid_opnum),
+                            std::get<1>(session_xid_opnum),
+                            std::get<2>(session_xid_opnum)};
+                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing request.");
                     }
                 }
@@ -247,7 +245,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                             LOG_TRACE(log, "Recv session {}, expiration time {}", session_id, expiration_time);
 
-                            service_keeper_storage_dispatcher->setSessionExpirationTime(session_id, expiration_time);
+                            keeper_dispatcher->setSessionExpirationTime(session_id, expiration_time);
                         }
 
                         req_body_buf.reset();
@@ -260,7 +258,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             ForwardResponse::non_session_id,
                             ForwardResponse::non_xid,
                             Coordination::OpNum::Error};
-                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                     }
                     catch (...)
                     {
@@ -271,7 +269,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             ForwardResponse::non_session_id,
                             ForwardResponse::non_xid,
                             Coordination::OpNum::Error};
-                        service_keeper_storage_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                         tryLogCurrentException(log, "Error processing ping request.");
                     }
                 }
@@ -376,7 +374,7 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 }
 
 
-std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnectionHandler::receiveRequest(int32_t length)
+std::tuple<int64_t, int64_t, Coordination::OpNum> ForwardingConnectionHandler::receiveRequest(int32_t length)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
 
@@ -396,10 +394,10 @@ std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> ForwardingConnection
     LOG_TRACE(
         log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
 
-    if (!service_keeper_storage_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
+    if (!keeper_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
 
-    return {{session_id, xid}, opnum};
+    return {session_id, xid, opnum};
 }
 
 void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
@@ -427,10 +425,8 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
 
 void ForwardingConnectionHandler::destroyMe()
 {
-    service_keeper_storage_dispatcher->unRegisterForward(server_id, client_id);
+    keeper_dispatcher->unRegisterForward(server_id, client_id);
     delete this;
 }
 
 }
-
-#endif

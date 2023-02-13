@@ -16,10 +16,10 @@ static void test(size_t data_size)
 
     CityHash_v1_0_2::uint128 reference = referenceHash(data, data_size);
 
-    DB::WriteBufferFromFile sink("/dev/null", 1 << 16);
+    RK::WriteBufferFromFile sink("/dev/null", 1 << 16);
 
     {
-        DB::HashingWriteBuffer buf(sink);
+        RK::HashingWriteBuffer buf(sink);
 
         for (size_t pos = 0; pos < data_size;)
         {
@@ -34,7 +34,7 @@ static void test(size_t data_size)
     }
 
     {
-        DB::HashingWriteBuffer buf(sink);
+        RK::HashingWriteBuffer buf(sink);
 
         for (size_t pos = 0; pos < data_size;)
         {
@@ -49,7 +49,7 @@ static void test(size_t data_size)
     }
 
     {
-        DB::HashingWriteBuffer buf(sink);
+        RK::HashingWriteBuffer buf(sink);
 
         for (size_t pos = 0; pos < data_size;)
         {
@@ -64,7 +64,7 @@ static void test(size_t data_size)
     }
 
     {
-        DB::HashingWriteBuffer buf(sink);
+        RK::HashingWriteBuffer buf(sink);
 
         buf.write(data, data_size);
 

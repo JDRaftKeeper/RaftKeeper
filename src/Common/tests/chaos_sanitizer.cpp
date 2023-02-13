@@ -17,9 +17,9 @@
   */
 int main(int argc, char ** argv)
 {
-    const size_t num_iterations = argc >= 2 ? DB::parse<size_t>(argv[1]) : 1000000000;
+    const size_t num_iterations = argc >= 2 ? RK::parse<size_t>(argv[1]) : 1000000000;
 
-    std::cerr << (DB::ThreadFuzzer::instance().isEffective() ? "ThreadFuzzer is enabled.\n" : "ThreadFuzzer is not enabled.\n");
+    std::cerr << (RK::ThreadFuzzer::instance().isEffective() ? "ThreadFuzzer is enabled.\n" : "ThreadFuzzer is not enabled.\n");
 
     std::atomic<size_t> counter1 = 0;
     std::atomic<size_t> counter2 = 0;

@@ -16,7 +16,7 @@ namespace CurrentMetrics
 #define O_DIRECT 00040000
 #endif
 
-namespace DB
+namespace RK
 {
 
 /** Accepts path to file and opens it, or pre-opened file descriptor.

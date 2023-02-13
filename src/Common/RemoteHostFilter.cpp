@@ -7,7 +7,7 @@
 #include <IO/WriteHelpers.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {

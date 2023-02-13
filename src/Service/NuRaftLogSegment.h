@@ -4,15 +4,15 @@
 #include <iostream>
 #include <map>
 #include <vector>
+#include <Service/KeeperCommon.h>
 #include <Service/LogEntry.h>
-#include <Service/NuRaftCommon.h>
 #include <Service/proto/Log.pb.h>
 #include <libnuraft/basic_types.hxx>
 #include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
 
 
-namespace DB
+namespace RK
 {
 using nuraft::int64;
 

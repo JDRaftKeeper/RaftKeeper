@@ -18,7 +18,7 @@
 using Poco::Net::Socket;
 using Poco::AutoPtr;
 
-namespace DB {
+namespace RK {
 
 class SocketReactor: public Poco::Runnable
 	/// This class, which is part of the Reactor pattern,

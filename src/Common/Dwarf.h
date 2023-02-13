@@ -30,7 +30,7 @@
 #include <vector>
 
 
-namespace DB
+namespace RK
 {
 
 class Elf;

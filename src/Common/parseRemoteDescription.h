@@ -1,7 +1,7 @@
 #pragma once
 #include <common/types.h>
 #include <vector>
-namespace DB
+namespace RK
 {
 /* Parse a string that generates shards and replicas. Separator - one of two characters | or ,
  *  depending on whether shards or replicas are generated.

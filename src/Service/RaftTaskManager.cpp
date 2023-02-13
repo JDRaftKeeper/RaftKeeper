@@ -1,11 +1,11 @@
 #include <fcntl.h>
 #include <stdio.h>
-#include <Service/NuRaftCommon.h>
+#include <Service/KeeperCommon.h>
 #include <Service/RaftTaskManager.h>
 #include <sys/uio.h>
 #include <Poco/File.h>
 
-namespace DB
+namespace RK
 {
 class CommittedTask : public BaseTask
 {

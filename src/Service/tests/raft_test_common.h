@@ -1,11 +1,11 @@
 #pragma once
 
+#include <Service/KeeperStore.h>
 #include <Service/NuRaftStateMachine.h>
-#include <Service/SvsKeeperStorage.h>
 #include <loggers/Loggers.h>
 #include <Poco/Util/Application.h>
 
-namespace DB
+namespace RK
 {
 //#define _RAFT_UNIT_TEST_
 
@@ -31,6 +31,6 @@ void createEntry(UInt64 term, LogOpTypePB op, std::string & key, std::string & d
 
 void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data);
 
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 1);
+void setNode(KeeperStore & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 1);
 
 }

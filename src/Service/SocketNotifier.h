@@ -7,7 +7,7 @@
 #include "Poco/Observer.h"
 #include <set>
 
-namespace DB {
+namespace RK {
 
 class SocketReactor;
 class SocketNotification;

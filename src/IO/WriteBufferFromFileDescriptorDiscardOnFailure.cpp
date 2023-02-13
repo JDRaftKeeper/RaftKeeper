@@ -5,7 +5,7 @@ namespace ProfileEvents
     extern const Event CannotWriteToWriteBufferDiscard;
 }
 
-namespace DB
+namespace RK
 {
 
 void WriteBufferFromFileDescriptorDiscardOnFailure::nextImpl()

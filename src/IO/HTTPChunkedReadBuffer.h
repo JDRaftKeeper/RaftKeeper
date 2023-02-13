@@ -3,7 +3,7 @@
 #include <IO/BufferWithOwnMemory.h>
 #include <IO/ReadBuffer.h>
 
-namespace DB
+namespace RK
 {
 
 /// Reads data with HTTP Chunked Transfer Encoding.

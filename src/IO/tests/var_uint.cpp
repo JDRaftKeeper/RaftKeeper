@@ -10,7 +10,7 @@
 
 static void parse_trash_string_as_uint_must_fail(const std::string & str)
 {
-    using namespace DB;
+    using namespace RK;
 
     unsigned x = 0xFF;
 
@@ -41,16 +41,16 @@ int main(int argc, char ** argv)
         return 1;
     }
 
-    DB::UInt64 x = DB::parse<UInt64>(argv[1]);
+    RK::UInt64 x = RK::parse<UInt64>(argv[1]);
     Poco::HexBinaryEncoder hex(std::cout);
-    DB::writeVarUInt(x, hex);
+    RK::writeVarUInt(x, hex);
     std::cout << std::endl;
 
     std::string s;
 
     {
-        DB::WriteBufferFromString wb(s);
-        DB::writeVarUInt(x, wb);
+        RK::WriteBufferFromString wb(s);
+        RK::writeVarUInt(x, wb);
         wb.next();
     }
 
@@ -60,15 +60,15 @@ int main(int argc, char ** argv)
     s.clear();
     s.resize(9);
 
-    s.resize(DB::writeVarUInt(x, s.data()) - s.data());
+    s.resize(RK::writeVarUInt(x, s.data()) - s.data());
 
     hex << s;
     std::cout << std::endl;
 
-    DB::UInt64 y = 0;
+    RK::UInt64 y = 0;
 
-    DB::ReadBufferFromString rb(s);
-    DB::readVarUInt(y, rb);
+    RK::ReadBufferFromString rb(s);
+    RK::readVarUInt(y, rb);
 
     std::cerr << "x: " << x << ", y: " << y << std::endl;
 

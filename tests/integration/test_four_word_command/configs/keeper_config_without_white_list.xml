@@ -1,0 +1,21 @@
+<raftkeeper>
+    <keeper>
+        <forwarding_port>8102</forwarding_port>
+        <port>8101</port>
+        <my_id>2</my_id>
+        <cluster>
+            <server>
+                <id>1</id>
+                <host>node1</host>
+            </server>
+            <server>
+                <id>2</id>
+                <host>node2</host>
+            </server>
+            <server>
+                <id>3</id>
+                <host>node3</host>
+            </server>
+        </cluster>
+    </keeper>
+</raftkeeper>

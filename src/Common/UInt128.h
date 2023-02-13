@@ -12,13 +12,13 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 
 /// For aggregation by SipHash, UUID type or concatenation of several fields.
 struct UInt128
 {
-/// Suppress gcc7 warnings: 'prev_key.DB::UInt128::low' may be used uninitialized in this function
+/// Suppress gcc7 warnings: 'prev_key.RK::UInt128::low' may be used uninitialized in this function
 #if !__clang__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -149,7 +149,7 @@ struct UInt128TrivialHash
 struct DummyUInt256
 {
 
-/// Suppress gcc7 warnings: 'prev_key.DB::UInt256::a' may be used uninitialized in this function
+/// Suppress gcc7 warnings: 'prev_key.RK::UInt256::a' may be used uninitialized in this function
 #if !__clang__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
@@ -219,23 +219,23 @@ struct UInt256HashCRC32 : public UInt256Hash {};
 
 }
 
-template <> struct is_signed<DB::UInt128>
+template <> struct is_signed<RK::UInt128>
 {
     static constexpr bool value = false;
 };
 
-template <> struct is_unsigned<DB::UInt128>
+template <> struct is_unsigned<RK::UInt128>
 {
     static constexpr bool value = true;
 };
 
-template <> struct is_integer<DB::UInt128>
+template <> struct is_integer<RK::UInt128>
 {
     static constexpr bool value = true;
 };
 
 // Operator +, -, /, *, % aren't implemented so it's not an arithmetic type
-template <> struct is_arithmetic<DB::UInt128>
+template <> struct is_arithmetic<RK::UInt128>
 {
     static constexpr bool value = false;
 };
@@ -243,21 +243,21 @@ template <> struct is_arithmetic<DB::UInt128>
 /// Overload hash for type casting
 namespace std
 {
-template <> struct hash<DB::UInt128>
+template <> struct hash<RK::UInt128>
 {
-    size_t operator()(const DB::UInt128 & u) const
+    size_t operator()(const RK::UInt128 & u) const
     {
         return CityHash_v1_0_2::Hash128to64({u.low, u.high});
     }
 };
 
 template<>
-class numeric_limits<DB::UInt128>
+class numeric_limits<RK::UInt128>
 {
 public:
     static constexpr bool is_specialized = true;
-    static constexpr bool is_signed = ::is_signed<DB::UInt128>::value;
-    static constexpr bool is_integer = ::is_integer<DB::UInt128>::value;
+    static constexpr bool is_signed = ::is_signed<RK::UInt128>::value;
+    static constexpr bool is_integer = ::is_integer<RK::UInt128>::value;
     static constexpr bool is_exact = true;
     static constexpr bool has_infinity = false;
     static constexpr bool has_quiet_NaN = false;
@@ -279,14 +279,14 @@ public:
     static constexpr bool traps = true;
     static constexpr bool tinyness_before = false;
 
-    static constexpr DB::UInt128 min() noexcept { return DB::UInt128(0, 0); }
+    static constexpr RK::UInt128 min() noexcept { return RK::UInt128(0, 0); }
 
-    static constexpr DB::UInt128 max() noexcept
+    static constexpr RK::UInt128 max() noexcept
     {
-        return DB::UInt128(std::numeric_limits<UInt64>::max(), std::numeric_limits<UInt64>::max());
+        return RK::UInt128(std::numeric_limits<UInt64>::max(), std::numeric_limits<UInt64>::max());
     }
 
-    static constexpr DB::UInt128 lowest() noexcept { return min(); }
+    static constexpr RK::UInt128 lowest() noexcept { return min(); }
 };
 
 }

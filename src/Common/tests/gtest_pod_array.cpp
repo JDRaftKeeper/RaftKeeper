@@ -2,7 +2,7 @@
 
 #include <Common/PODArray.h>
 
-using namespace DB;
+using namespace RK;
 
 TEST(Common, PODArrayInsert)
 {

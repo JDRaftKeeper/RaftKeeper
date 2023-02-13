@@ -14,7 +14,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 using nuraft::buffer;
 using nuraft::log_entry;

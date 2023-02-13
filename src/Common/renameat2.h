@@ -2,7 +2,7 @@
 #include <string>
 
 
-namespace DB
+namespace RK
 {
 
 /// Returns true, if the following functions supported by the system

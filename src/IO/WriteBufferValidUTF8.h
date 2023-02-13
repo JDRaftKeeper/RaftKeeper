@@ -4,7 +4,7 @@
 #include <IO/BufferWithOwnMemory.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Writes the data to another buffer, replacing the invalid UTF-8 sequences with the specified sequence.

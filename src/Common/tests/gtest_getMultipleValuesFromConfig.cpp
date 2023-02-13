@@ -5,20 +5,20 @@
 #include <gtest/gtest.h>
 
 
-using namespace DB;
+using namespace RK;
 
 TEST(Common, getMultipleValuesFromConfig)
 {
     std::istringstream      // STYLE_CHECK_ALLOW_STD_STRING_STREAM
         xml_isteam(R"END(<?xml version="1.0"?>
-<yandex>
+<raftkeeper>
     <first_level>
         <second_level>0</second_level>
         <second_level>1</second_level>
         <second_level>2</second_level>
         <second_level>3</second_level>
     </first_level>
-</yandex>)END");
+</raftkeeper>)END");
 
     Poco::AutoPtr<Poco::Util::XMLConfiguration> config = new Poco::Util::XMLConfiguration(xml_isteam);
     std::vector<std::string> answer = getMultipleValuesFromConfig(*config, "first_level", "second_level");

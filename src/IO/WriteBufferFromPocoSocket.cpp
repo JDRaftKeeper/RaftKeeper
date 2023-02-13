@@ -14,7 +14,7 @@ namespace ProfileEvents
 }
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

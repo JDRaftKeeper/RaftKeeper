@@ -11,7 +11,7 @@
 namespace Coordination
 {
 
-using namespace DB;
+using namespace RK;
 
 void write(size_t x, WriteBuffer & out);
 void write(int64_t x, WriteBuffer & out);

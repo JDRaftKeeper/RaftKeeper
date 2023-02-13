@@ -7,7 +7,7 @@
 #include "ConfigProcessor.h"
 
 
-namespace DB
+namespace RK
 {
 
 constexpr decltype(ConfigReloader::reload_interval) ConfigReloader::reload_interval;
@@ -49,7 +49,7 @@ ConfigReloader::~ConfigReloader()
     }
     catch (...)
     {
-        DB::tryLogCurrentException(__PRETTY_FUNCTION__);
+        RK::tryLogCurrentException(__PRETTY_FUNCTION__);
     }
 }
 

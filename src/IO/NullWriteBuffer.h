@@ -4,7 +4,7 @@
 #include <IO/BufferWithOwnMemory.h>
 #include <boost/noncopyable.hpp>
 
-namespace DB
+namespace RK
 {
 
 /// Simply do nothing, can be used to measure amount of written bytes.

@@ -6,7 +6,7 @@
 #include <Common/HashTable/SmallTable.h>
 
 
-namespace DB
+namespace RK
 {
 
 
@@ -99,7 +99,7 @@ public:
     }
 
     /// You can only call for an empty object.
-    void read(DB::ReadBuffer & in)
+    void read(RK::ReadBuffer & in)
     {
         bool is_large;
         readBinary(is_large, in);
@@ -113,7 +113,7 @@ public:
             small.read(in);
     }
 
-    void readAndMerge(DB::ReadBuffer & in)
+    void readAndMerge(RK::ReadBuffer & in)
     {
         bool is_rhs_large;
         readBinary(is_rhs_large, in);
@@ -131,7 +131,7 @@ public:
             large->readAndMerge(in);
     }
 
-    void write(DB::WriteBuffer & out) const
+    void write(RK::WriteBuffer & out) const
     {
         writeBinary(isLarge(), out);
 

@@ -13,7 +13,7 @@ endif()
 # sudo apt-get install libprotobuf-dev protobuf-compiler libprotoc-dev
 option(USE_INTERNAL_PROTOBUF_LIBRARY "Set to FALSE to use system protobuf instead of bundled. (Experimental. Set to OFF on your own risk)" ${NOT_UNBUNDLED})
 
-if(NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/protobuf/cmake/CMakeLists.txt")
+if(NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/protobuf/cmake/CMakeLists.txt")
   if(USE_INTERNAL_PROTOBUF_LIBRARY)
     message(WARNING "submodule contrib/protobuf is missing. to fix try run: \n git submodule update --init --recursive")
     message(${RECONFIGURE_MESSAGE_LEVEL} "Can't use internal protobuf")
@@ -37,12 +37,12 @@ if(NOT USE_INTERNAL_PROTOBUF_LIBRARY)
 endif()
 
 if(NOT EXTERNAL_PROTOBUF_LIBRARY_FOUND AND NOT MISSING_INTERNAL_PROTOBUF_LIBRARY)
-  set(Protobuf_INCLUDE_DIR "${ClickHouse_SOURCE_DIR}/contrib/protobuf/src")
+  set(Protobuf_INCLUDE_DIR "${RaftKeeper_SOURCE_DIR}/contrib/protobuf/src")
   set(Protobuf_LIBRARY libprotobuf)
   set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protoc>")
   set(Protobuf_PROTOC_LIBRARY libprotoc)
 
-  include("${ClickHouse_SOURCE_DIR}/contrib/protobuf-cmake/protobuf_generate.cmake")
+  include("${RaftKeeper_SOURCE_DIR}/contrib/protobuf-cmake/protobuf_generate.cmake")
 
   set(USE_INTERNAL_PROTOBUF_LIBRARY 1)
   set(USE_PROTOBUF 1)

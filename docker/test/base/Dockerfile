@@ -1,4 +1,4 @@
-# docker build -t yandex/clickhouse-test-base .
+# docker build -t raftkeeper/raftkeeper-test-base .
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive LLVM_VERSION=11
@@ -24,13 +24,6 @@ RUN apt-get update \
         software-properties-common \
         --yes --no-install-recommends
 
-# Special dpkg-deb (https://github.com/ClickHouse-Extras/dpkg) version which is able
-# to compress files using pigz (https://zlib.net/pigz/) instead of gzip.
-# Significantly increase deb packaging speed and compatible with old systems
-RUN curl -O https://clickhouse-builds.s3.yandex.net/utils/1/dpkg-deb \
-    && chmod +x dpkg-deb \
-    && cp dpkg-deb /usr/bin
-
 RUN apt-get update \
     && apt-get install \
         clang-${LLVM_VERSION} \
@@ -48,11 +41,10 @@ RUN apt-get update \
         tzdata \
         --yes --no-install-recommends
 
-# Sanitizer options for services (clickhouse-server)
 RUN echo "TSAN_OPTIONS='verbosity=1000 halt_on_error=1 history_size=7'" >> /etc/environment; \
   echo "UBSAN_OPTIONS='print_stacktrace=1'" >> /etc/environment; \
   echo "MSAN_OPTIONS='abort_on_error=1'" >> /etc/environment; \
-  echo "LSAN_OPTIONS='suppressions=/usr/share/clickhouse-test/config/lsan_suppressions.txt'" >> /etc/environment; \
+  echo "LSAN_OPTIONS='suppressions=/usr/share/raftkeeper-test/config/lsan_suppressions.txt'" >> /etc/environment; \
   ln -s /usr/lib/llvm-${LLVM_VERSION}/bin/llvm-symbolizer /usr/bin/llvm-symbolizer;
 # Sanitizer options for current shell (not current, but the one that will be spawned on "docker run")
 # (but w/o verbosity for TSAN, otherwise test.reference will not match)

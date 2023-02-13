@@ -2,7 +2,7 @@
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/escapeForFileName.h>
 
-namespace DB
+namespace RK
 {
 
 std::string escapeForFileName(const std::string & s)

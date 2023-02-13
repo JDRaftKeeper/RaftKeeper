@@ -19,7 +19,7 @@ namespace Poco
 }
 
 
-namespace DB
+namespace RK
 {
 
 class Context;

@@ -6,7 +6,7 @@
 #define MAX_SUBPATTERNS 1024
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -291,7 +291,7 @@ OptimizedRegularExpressionImpl<thread_safe>::OptimizedRegularExpressionImpl(cons
 
     /// Just three following options are supported
     if (options & (~(RE_CASELESS | RE_NO_CAPTURE | RE_DOT_NL)))
-        throw DB::Exception("OptimizedRegularExpression: Unsupported option.", DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+        throw RK::Exception("OptimizedRegularExpression: Unsupported option.", RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
 
     is_case_insensitive = options & RE_CASELESS;
     bool is_no_capture = options & RE_NO_CAPTURE;
@@ -315,21 +315,21 @@ OptimizedRegularExpressionImpl<thread_safe>::OptimizedRegularExpressionImpl(cons
         re2 = std::make_unique<RegexType>(regexp_, regexp_options);
         if (!re2->ok())
         {
-            throw DB::Exception("OptimizedRegularExpression: cannot compile re2: "
+            throw RK::Exception("OptimizedRegularExpression: cannot compile re2: "
                 + regexp_ + ", error: " + re2->error()
                 + ". Look at https://github.com/google/re2/wiki/Syntax "
                 "for reference. Please note that if you specify regex as an SQL "
                 "string literal, the slashes have to be additionally escaped. "
                 "For example, to match an opening brace, write '\\(' -- "
                 "the first slash is for SQL and the second one is for regex",
-                DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+                RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
         }
 
         if (!is_no_capture)
         {
             number_of_subpatterns = re2->NumberOfCapturingGroups();
             if (number_of_subpatterns > MAX_SUBPATTERNS)
-                throw DB::Exception("OptimizedRegularExpression: too many subpatterns in regexp: " + regexp_, DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+                throw RK::Exception("OptimizedRegularExpression: too many subpatterns in regexp: " + regexp_, RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
         }
     }
 
@@ -487,7 +487,7 @@ unsigned OptimizedRegularExpressionImpl<thread_safe>::match(const char * subject
                 return 0;
         }
 
-        DB::PODArrayWithStackMemory<StringPieceType, 128> pieces(limit);
+        RK::PODArrayWithStackMemory<StringPieceType, 128> pieces(limit);
 
         if (!re2->Match(StringPieceType(subject, subject_size), 0, subject_size, RegexType::UNANCHORED, pieces.data(), pieces.size()))
             return 0;

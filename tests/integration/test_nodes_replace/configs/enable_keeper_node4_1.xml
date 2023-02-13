@@ -1,0 +1,35 @@
+<raftkeeper>
+    <keeper>
+        <my_id>1</my_id>
+        <host>node1</host>
+        <snapshot_start_time>7200</snapshot_start_time>
+        <snapshot_create_interval>86400</snapshot_create_interval>
+        <forwarding_port>8102</forwarding_port>
+        <port>8101</port>
+        <internal_port>8103</internal_port>
+        <thread_count>16</thread_count>
+        <raft_settings>
+            <raft_logs_level>trace</raft_logs_level>
+            <nuraft_thread_size>32</nuraft_thread_size>
+            <session_timeout_ms>80000</session_timeout_ms>
+            <operation_timeout_ms>50000</operation_timeout_ms>
+        </raft_settings>
+
+        <cluster>
+            <server>
+                <id>1</id>
+                <host>node1</host>
+            </server>
+            <server>
+                <id>2</id>
+                <host>node2</host>
+            </server>
+            <server>
+                <id>4</id>
+                <host>node4</host>
+            </server>
+
+        </cluster>
+    </keeper>
+
+</raftkeeper>

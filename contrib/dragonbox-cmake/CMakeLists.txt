@@ -1,4 +1,4 @@
-set(LIBRARY_DIR "${ClickHouse_SOURCE_DIR}/contrib/dragonbox")
+set(LIBRARY_DIR "${RaftKeeper_SOURCE_DIR}/contrib/dragonbox")
 
 add_library(dragonbox_to_chars "${LIBRARY_DIR}/source/dragonbox_to_chars.cpp")
 

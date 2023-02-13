@@ -8,7 +8,7 @@
 #include <openssl/err.h>
 #include <openssl/sha.h>
 
-namespace DB
+namespace RK
 {
 #pragma GCC diagnostic warning "-Wold-style-cast"
 

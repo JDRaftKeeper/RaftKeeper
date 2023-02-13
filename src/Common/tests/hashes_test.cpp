@@ -5,7 +5,7 @@
 #include <Common/SipHash.h>
 #include <IO/ReadBufferFromFileDescriptor.h>
 #include <IO/ReadHelpers.h>
-#include "config_core.h"
+#include <Core/config_core.h>
 #if USE_SSL
 #   include <openssl/md5.h>
 #endif
@@ -22,13 +22,13 @@ int main(int, char **)
     {
         Stopwatch watch;
 
-        DB::ReadBufferFromFileDescriptor in(STDIN_FILENO);
+        RK::ReadBufferFromFileDescriptor in(STDIN_FILENO);
 
         while (!in.eof())
         {
             strings.push_back(std::string());
-            DB::readEscapedString(strings.back(), in);
-            DB::assertChar('\n', in);
+            RK::readEscapedString(strings.back(), in);
+            RK::assertChar('\n', in);
             bytes += strings.back().size() + 1;
         }
 

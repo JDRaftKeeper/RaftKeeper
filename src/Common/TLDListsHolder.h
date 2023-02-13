@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace DB
+namespace RK
 {
 
 /// Custom TLD List

@@ -22,7 +22,7 @@
 #include <Service/ForwardingConnection.h>
 
 
-namespace DB
+namespace RK
 {
 using Poco::Net::StreamSocket;
 
@@ -50,7 +50,7 @@ public:
 
 private:
 
-    std::pair<std::pair<int64_t, int64_t>, Coordination::OpNum> receiveRequest(int32_t length);
+    std::tuple<int64_t, int64_t, Coordination::OpNum> receiveRequest(int32_t length);
 
     void sendResponse(const ForwardResponse & response);
 
@@ -79,7 +79,7 @@ private:
     CurrentPackage current_package{Unknown, true};
 
     Context & global_context;
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     Poco::Timespan operation_timeout;
     Poco::Timespan session_timeout;

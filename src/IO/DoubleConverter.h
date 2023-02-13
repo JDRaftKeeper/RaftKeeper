@@ -13,7 +13,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 
 template <bool emit_decimal_point> struct DoubleToStringConverterFlags

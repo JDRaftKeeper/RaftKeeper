@@ -14,7 +14,7 @@
 #include <Common/randomSeed.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -206,9 +206,9 @@ PoolWithFailoverBase<TNestedPool>::get(size_t max_ignored_errors, bool fallback_
         max_ignored_errors, fallback_to_stale_replicas,
         try_get_entry, get_priority);
     if (results.empty() || results[0].entry.isNull())
-        throw DB::Exception(
+        throw RK::Exception(
                 "PoolWithFailoverBase::getMany() returned less than min_entries entries.",
-                DB::ErrorCodes::LOGICAL_ERROR);
+                RK::ErrorCodes::LOGICAL_ERROR);
     return results[0].entry;
 }
 
@@ -287,9 +287,9 @@ PoolWithFailoverBase<TNestedPool>::getMany(
     }
 
     if (usable_count < min_entries)
-        throw DB::NetException(
+        throw RK::NetException(
                 "All connection tries failed. Log: \n\n" + fail_messages + "\n",
-                DB::ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
+                RK::ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
 
     try_results.erase(
             std::remove_if(
@@ -320,10 +320,10 @@ PoolWithFailoverBase<TNestedPool>::getMany(
         try_results.resize(up_to_date_count);
     }
     else
-        throw DB::Exception(
+        throw RK::Exception(
                 "Could not find enough connections to up-to-date replicas. Got: " + std::to_string(up_to_date_count)
                 + ", needed: " + std::to_string(min_entries),
-                DB::ErrorCodes::ALL_REPLICAS_ARE_STALE);
+                RK::ErrorCodes::ALL_REPLICAS_ARE_STALE);
 
     return try_results;
 }

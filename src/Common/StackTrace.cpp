@@ -195,9 +195,9 @@ void StackTrace::symbolize(const StackTrace::FramePointers & frame_pointers, siz
 {
 #if defined(__ELF__) && !defined(__FreeBSD__) && !defined(ARCADIA_BUILD)
 
-    auto symbol_index_ptr = DB::SymbolIndex::instance();
-    const DB::SymbolIndex & symbol_index = *symbol_index_ptr;
-    std::unordered_map<std::string, DB::Dwarf> dwarfs;
+    auto symbol_index_ptr = RK::SymbolIndex::instance();
+    const RK::SymbolIndex & symbol_index = *symbol_index_ptr;
+    std::unordered_map<std::string, RK::Dwarf> dwarfs;
 
     for (size_t i = 0; i < offset; ++i)
     {
@@ -219,10 +219,10 @@ void StackTrace::symbolize(const StackTrace::FramePointers & frame_pointers, siz
             {
                 auto dwarf_it = dwarfs.try_emplace(object->name, object->elf).first;
 
-                DB::Dwarf::LocationInfo location;
-                std::vector<DB::Dwarf::SymbolizedFrame> inline_frames;
+                RK::Dwarf::LocationInfo location;
+                std::vector<RK::Dwarf::SymbolizedFrame> inline_frames;
                 if (dwarf_it->second.findAddress(
-                        uintptr_t(current_frame.physical_addr), location, DB::Dwarf::LocationInfoMode::FAST, inline_frames))
+                        uintptr_t(current_frame.physical_addr), location, RK::Dwarf::LocationInfoMode::FAST, inline_frames))
                 {
                     current_frame.file = location.file.toString();
                     current_frame.line = location.line;
@@ -326,16 +326,16 @@ static void toStringEveryLineImpl(
         return callback("<Empty trace>");
 
 #if defined(__ELF__) && !defined(__FreeBSD__)
-    auto symbol_index_ptr = DB::SymbolIndex::instance();
-    const DB::SymbolIndex & symbol_index = *symbol_index_ptr;
-    std::unordered_map<std::string, DB::Dwarf> dwarfs;
+    auto symbol_index_ptr = RK::SymbolIndex::instance();
+    const RK::SymbolIndex & symbol_index = *symbol_index_ptr;
+    std::unordered_map<std::string, RK::Dwarf> dwarfs;
 
     std::stringstream out;  // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     out.exceptions(std::ios::failbit);
 
     for (size_t i = offset; i < size; ++i)
     {
-        std::vector<DB::Dwarf::SymbolizedFrame> inline_frames;
+        std::vector<RK::Dwarf::SymbolizedFrame> inline_frames;
         const void * virtual_addr = frame_pointers[i];
         const auto * object = symbol_index.findObject(virtual_addr);
         uintptr_t virtual_offset = object ? uintptr_t(object->address_begin) : 0;
@@ -349,8 +349,8 @@ static void toStringEveryLineImpl(
             {
                 auto dwarf_it = dwarfs.try_emplace(object->name, object->elf).first;
 
-                DB::Dwarf::LocationInfo location;
-                auto mode = fatal ? DB::Dwarf::LocationInfoMode::FULL_WITH_INLINE : DB::Dwarf::LocationInfoMode::FAST;
+                RK::Dwarf::LocationInfo location;
+                auto mode = fatal ? RK::Dwarf::LocationInfoMode::FULL_WITH_INLINE : RK::Dwarf::LocationInfoMode::FAST;
                 if (dwarf_it->second.findAddress(uintptr_t(physical_addr), location, mode, inline_frames))
                     out << location.file.toString() << ":" << location.line << ": ";
             }

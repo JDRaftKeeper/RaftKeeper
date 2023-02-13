@@ -6,7 +6,7 @@
 #include <common/getThreadId.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -19,7 +19,7 @@ ExtendedLogMessage ExtendedLogMessage::getFrom(const Poco::Message & base)
 
     ::timeval tv;
     if (0 != gettimeofday(&tv, nullptr))
-        DB::throwFromErrno("Cannot gettimeofday", ErrorCodes::CANNOT_GETTIMEOFDAY);
+        RK::throwFromErrno("Cannot gettimeofday", ErrorCodes::CANNOT_GETTIMEOFDAY);
 
     msg_ext.time_seconds = static_cast<UInt32>(tv.tv_sec);
     msg_ext.time_microseconds = static_cast<UInt32>(tv.tv_usec);

@@ -1,7 +1,7 @@
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

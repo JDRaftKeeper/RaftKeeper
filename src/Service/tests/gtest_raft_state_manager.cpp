@@ -1,12 +1,12 @@
 //
-// Created by JackyWoo on 2021/2/23.
+// Created by JackyWoo on 2020/4/23.
 //
 
 #include <Service/NuRaftStateManager.h>
 #include<cstdio>
 #include <gtest/gtest.h>
 
-namespace DB
+namespace RK
 {
 using namespace nuraft;
 

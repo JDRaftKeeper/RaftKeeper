@@ -10,7 +10,7 @@
 #include <fcntl.h>
 
 
-namespace DB
+namespace RK
 {
 class ReadBufferFromFileBase : public BufferWithOwnMemory<SeekableReadBuffer>
 {

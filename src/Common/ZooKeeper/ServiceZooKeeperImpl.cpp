@@ -264,7 +264,7 @@ after:
 namespace Coordination
 {
 
-using namespace DB;
+using namespace RK;
 
 template <typename T>
 void ServiceZooKeeper::zkWrite(const T & x)
@@ -427,7 +427,7 @@ void ServiceZooKeeper::zkConnect(
                 {
                     zkSendHandshake();
                 }
-                catch (DB::Exception & e)
+                catch (RK::Exception & e)
                 {
                     e.addMessage("while sending handshake to ZooKeeper");
                     throw;
@@ -437,7 +437,7 @@ void ServiceZooKeeper::zkConnect(
                 {
                     zkReceiveHandshake();
                 }
-                catch (DB::Exception & e)
+                catch (RK::Exception & e)
                 {
                     e.addMessage("while receiving handshake from ZooKeeper");
                     throw;
@@ -525,7 +525,7 @@ void ServiceZooKeeper::serConnect(
                 {
                     serSendHandshake();
                 }
-                catch (DB::Exception & e)
+                catch (RK::Exception & e)
                 {
                     e.addMessage("while sending handshake to ZooKeeper");
                     throw;
@@ -535,7 +535,7 @@ void ServiceZooKeeper::serConnect(
                 {
                     serReceiveHandshake();
                 }
-                catch (DB::Exception & e)
+                catch (RK::Exception & e)
                 {
                     e.addMessage("while receiving handshake from ZooKeeper");
                     throw;
@@ -606,11 +606,11 @@ void ServiceZooKeeper::zkReceiveHandshake()
 
     zkRead(handshake_length);
     if (handshake_length != SERVER_HANDSHAKE_LENGTH)
-        throw Exception("Unexpected handshake length received: " + DB::toString(handshake_length), Error::ZMARSHALLINGERROR);
+        throw Exception("Unexpected handshake length received: " + RK::toString(handshake_length), Error::ZMARSHALLINGERROR);
 
     zkRead(protocol_version_read);
     if (protocol_version_read != ZOOKEEPER_PROTOCOL_VERSION)
-        throw Exception("Unexpected protocol version: " + DB::toString(protocol_version_read), Error::ZMARSHALLINGERROR);
+        throw Exception("Unexpected protocol version: " + RK::toString(protocol_version_read), Error::ZMARSHALLINGERROR);
 
     zkRead(timeout);
     if (timeout != session_timeout.totalMilliseconds())
@@ -650,11 +650,11 @@ void ServiceZooKeeper::serReceiveHandshake()
 
     serRead(handshake_length);
     if (handshake_length != SERVER_HANDSHAKE_LENGTH)
-        throw Exception("Unexpected handshake length received: " + DB::toString(handshake_length), Error::ZMARSHALLINGERROR);
+        throw Exception("Unexpected handshake length received: " + RK::toString(handshake_length), Error::ZMARSHALLINGERROR);
 
     serRead(protocol_version_read);
     if (protocol_version_read != ZOOKEEPER_PROTOCOL_VERSION)
-        throw Exception("Unexpected protocol version: " + DB::toString(protocol_version_read), Error::ZMARSHALLINGERROR);
+        throw Exception("Unexpected protocol version: " + RK::toString(protocol_version_read), Error::ZMARSHALLINGERROR);
 
     serRead(timeout);
     if (timeout != session_timeout.totalMilliseconds())
@@ -686,16 +686,16 @@ void ServiceZooKeeper::sendAuth(const String & scheme, const String & data)
     zkRead(err);
 
     if (read_xid != AUTH_XID)
-        throw Exception("Unexpected event received in reply to auth request: " + DB::toString(read_xid),
+        throw Exception("Unexpected event received in reply to auth request: " + RK::toString(read_xid),
                         Error::ZMARSHALLINGERROR);
 
     int32_t actual_length = zk_in->count() - count_before_event;
     if (length != actual_length)
-        throw Exception("Response length doesn't match. Expected: " + DB::toString(length) + ", actual: " + DB::toString(actual_length),
+        throw Exception("Response length doesn't match. Expected: " + RK::toString(length) + ", actual: " + RK::toString(actual_length),
                         Error::ZMARSHALLINGERROR);
 
     if (err != Error::ZOK)
-        throw Exception("Error received in reply to auth request. Code: " + DB::toString(int32_t(err)) + ". Message: " + String(errorMessage(err)),
+        throw Exception("Error received in reply to auth request. Code: " + RK::toString(int32_t(err)) + ". Message: " + String(errorMessage(err)),
                         Error::ZMARSHALLINGERROR);
 }
 
@@ -1040,7 +1040,7 @@ void ServiceZooKeeper::zkReceiveEvent()
 
             auto it = zk_operations.find(xid);
             if (it == zk_operations.end())
-                throw Exception("Received response for unknown xid " + DB::toString(xid), Error::ZRUNTIMEINCONSISTENCY);
+                throw Exception("Received response for unknown xid " + RK::toString(xid), Error::ZRUNTIMEINCONSISTENCY);
 
             /// After this point, we must invoke callback, that we've grabbed from 'operations'.
             /// Invariant: all callbacks are invoked either in case of success or in case of error.
@@ -1106,7 +1106,7 @@ void ServiceZooKeeper::zkReceiveEvent()
 
         int32_t actual_length = zk_in->count() - count_before_event;
         if (length != actual_length)
-            throw Exception("Response length doesn't match. Expected: " + DB::toString(length) + ", actual: " + DB::toString(actual_length), Error::ZMARSHALLINGERROR);
+            throw Exception("Response length doesn't match. Expected: " + RK::toString(length) + ", actual: " + RK::toString(actual_length), Error::ZMARSHALLINGERROR);
     }
     catch (...)
     {
@@ -1230,7 +1230,7 @@ void ServiceZooKeeper::serReceiveEvent()
 
             auto it = ser_operations.find(xid);
             if (it == ser_operations.end())
-                throw Exception("Received response for unknown xid " + DB::toString(xid), Error::ZRUNTIMEINCONSISTENCY);
+                throw Exception("Received response for unknown xid " + RK::toString(xid), Error::ZRUNTIMEINCONSISTENCY);
 
             /// After this point, we must invoke callback, that we've grabbed from 'operations'.
             /// Invariant: all callbacks are invoked either in case of success or in case of error.
@@ -1296,7 +1296,7 @@ void ServiceZooKeeper::serReceiveEvent()
 
         int32_t actual_length = ser_in->count() - count_before_event;
         if (length != actual_length)
-            throw Exception("Response length doesn't match. Expected: " + DB::toString(length) + ", actual: " + DB::toString(actual_length), Error::ZMARSHALLINGERROR);
+            throw Exception("Response length doesn't match. Expected: " + RK::toString(length) + ", actual: " + RK::toString(actual_length), Error::ZMARSHALLINGERROR);
     }
     catch (...)
     {

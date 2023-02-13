@@ -1,4 +1,4 @@
-<yandex>
+<raftkeeper>
     <timezone>Europe/Moscow</timezone>
     <listen_host>0.0.0.0</listen_host>
     <custom_settings_prefixes>custom_</custom_settings_prefixes>
@@ -7,4 +7,4 @@
 
     <!-- For tests which check compatibility with older versions. -->
     <users_config>users.xml</users_config>
-</yandex>
+</raftkeeper>

@@ -10,7 +10,7 @@
 #include <Common/ThreadPool.h>
 
 
-namespace DB
+namespace RK
 {
 
 class AIOContextPool : private boost::noncopyable

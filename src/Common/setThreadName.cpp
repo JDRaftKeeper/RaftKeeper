@@ -13,7 +13,7 @@
 #include <Common/setThreadName.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -26,7 +26,7 @@ void setThreadName(const char * name)
 {
 #ifndef NDEBUG
     if (strlen(name) > 15)
-        throw DB::Exception("Thread name cannot be longer than 15 bytes", DB::ErrorCodes::PTHREAD_ERROR);
+        throw RK::Exception("Thread name cannot be longer than 15 bytes", RK::ErrorCodes::PTHREAD_ERROR);
 #endif
 
 #if defined(OS_FREEBSD)
@@ -37,7 +37,7 @@ void setThreadName(const char * name)
 #else
     if (0 != prctl(PR_SET_NAME, name, 0, 0, 0))
 #endif
-        DB::throwFromErrno("Cannot set thread name with prctl(PR_SET_NAME, ...)", DB::ErrorCodes::PTHREAD_ERROR);
+        RK::throwFromErrno("Cannot set thread name with prctl(PR_SET_NAME, ...)", RK::ErrorCodes::PTHREAD_ERROR);
 }
 
 std::string getThreadName()
@@ -46,14 +46,14 @@ std::string getThreadName()
 
 #if defined(__APPLE__)
     if (pthread_getname_np(pthread_self(), name.data(), name.size()))
-        throw DB::Exception("Cannot get thread name with pthread_getname_np()", DB::ErrorCodes::PTHREAD_ERROR);
+        throw RK::Exception("Cannot get thread name with pthread_getname_np()", RK::ErrorCodes::PTHREAD_ERROR);
 #elif defined(__FreeBSD__)
 // TODO: make test. freebsd will have this function soon https://freshbsd.org/commit/freebsd/r337983
 //    if (pthread_get_name_np(pthread_self(), name.data(), name.size()))
-//        throw DB::Exception("Cannot get thread name with pthread_get_name_np()", DB::ErrorCodes::PTHREAD_ERROR);
+//        throw RK::Exception("Cannot get thread name with pthread_get_name_np()", RK::ErrorCodes::PTHREAD_ERROR);
 #else
     if (0 != prctl(PR_GET_NAME, name.data(), 0, 0, 0))
-        DB::throwFromErrno("Cannot get thread name with prctl(PR_GET_NAME)", DB::ErrorCodes::PTHREAD_ERROR);
+        RK::throwFromErrno("Cannot get thread name with prctl(PR_GET_NAME)", RK::ErrorCodes::PTHREAD_ERROR);
 #endif
 
     name.resize(std::strlen(name.data()));

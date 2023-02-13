@@ -5,7 +5,7 @@
 #include <Common/filesystemHelpers.h>
 
 
-namespace DB
+namespace RK
 {
 
 /// Rereadable WriteBuffer, could be used as disk buffer

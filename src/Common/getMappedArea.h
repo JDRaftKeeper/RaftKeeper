@@ -3,7 +3,7 @@
 #include <cstddef>
 
 
-namespace DB
+namespace RK
 {
 
 /// Find the address and size of the mapped memory region pointed by ptr.

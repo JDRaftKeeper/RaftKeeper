@@ -52,5 +52,5 @@ namespace
 #if defined(ARCADIA_BUILD)
     using Poco::Logger;
     using Poco::Message;
-    using DB::CurrentThread;
+    using RK::CurrentThread;
 #endif

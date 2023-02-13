@@ -1,11 +1,11 @@
 
+#include <Service/KeeperDispatcher.h>
 #include <Service/RequestForwarder.h>
-#include <Service/SvsKeeperDispatcher.h>
 
-namespace DB
+namespace RK
 {
 
-void RequestForwarder::push(Request request_for_session)
+void RequestForwarder::push(RequestForSession request_for_session)
 {
     requests_queue->push(request_for_session);
 }
@@ -21,7 +21,7 @@ void RequestForwarder::run(RunnerId runner_id)
             max_wait = elapsed_milliseconds >= session_sync_period_ms ? 0 : session_sync_period_ms - elapsed_milliseconds;
         }
 
-        SvsKeeperStorage::RequestForSession request_for_session;
+        KeeperStore::RequestForSession request_for_session;
 
         if (requests_queue->tryPop(runner_id, request_for_session, max_wait))
         {
@@ -68,8 +68,8 @@ void RequestForwarder::run(RunnerId runner_id)
                     if (client)
                     {
                         /// TODO if keeper nodes time has large gap something will be wrong.
-                        auto session_to_expiration_time = server->getKeeperStateMachine()->getStorage().sessionToExpirationTime();
-                        service_keeper_storage_dispatcher->filterLocalSessions(session_to_expiration_time);
+                        auto session_to_expiration_time = server->getKeeperStateMachine()->getStore().sessionToExpirationTime();
+                        keeper_dispatcher->filterLocalSessions(session_to_expiration_time);
                         LOG_DEBUG(log, "Has {} local sessions to send", session_to_expiration_time.size());
                         if (!session_to_expiration_time.empty())
                             client->sendSession(session_to_expiration_time);
@@ -180,7 +180,7 @@ void RequestForwarder::shutdown()
     request_thread->wait();
     response_thread->wait();
 
-    SvsKeeperStorage::RequestForSession request_for_session;
+    KeeperStore::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         try
@@ -209,14 +209,14 @@ void RequestForwarder::shutdown()
 
 void RequestForwarder::initialize(
     size_t thread_count_,
-    std::shared_ptr<SvsKeeperServer> server_,
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
+    std::shared_ptr<KeeperServer> server_,
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     UInt64 session_sync_period_ms_)
 {
     thread_count = thread_count_;
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
-    service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
+    keeper_dispatcher = keeper_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count);
 

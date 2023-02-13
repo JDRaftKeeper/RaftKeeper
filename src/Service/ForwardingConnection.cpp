@@ -3,7 +3,7 @@
 #include <IO/WriteHelpers.h>
 #include <Common/ZooKeeper/ZooKeeperIO.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -65,7 +65,7 @@ void ForwardingConnection::disconnect()
     }
 }
 
-void ForwardingConnection::send(SvsKeeperStorage::RequestForSession request_for_session)
+void ForwardingConnection::send(KeeperStore::RequestForSession request_for_session)
 {
     if (!connected)
     {

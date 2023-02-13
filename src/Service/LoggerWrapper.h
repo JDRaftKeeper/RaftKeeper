@@ -3,7 +3,7 @@
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 #include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

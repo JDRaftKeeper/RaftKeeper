@@ -26,7 +26,7 @@ foreach(default_policy_var_name
     set(${default_policy_var_name} NEW)
 endforeach()
 
-project(ClickHouse)
+project(RaftKeeper)
 
 # If turned off: e.g. when ENABLE_FOO is ON, but FOO tool was not found, the CMake will continue.
 option(FAIL_ON_UNSUPPORTED_OPTIONS_COMBINATION
@@ -60,7 +60,7 @@ set(CMAKE_DEBUG_POSTFIX "d" CACHE STRING "Generate debug library name with a pos
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Check that submodules are present only if source was downloaded with git
-if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/boost/boost")
+if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/boost/boost")
     message (FATAL_ERROR "Submodules are not initialized. Run\n\tgit submodule update --init --recursive")
 endif ()
 
@@ -89,15 +89,6 @@ string (TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UC)
 
 option(USE_STATIC_LIBRARIES "Disable to use shared libraries" ON)
 option(MAKE_STATIC_LIBRARIES "Disable to make shared libraries" ${USE_STATIC_LIBRARIES})
-
-if (NOT MAKE_STATIC_LIBRARIES)
-    # DEVELOPER ONLY.
-    # Faster linking if turned on.
-    option(SPLIT_SHARED_LIBRARIES "Keep all internal libraries as separate .so files")
-
-    option(CLICKHOUSE_SPLIT_BINARY
-        "Make several binaries (clickhouse-server, clickhouse-client etc.) instead of one bundled")
-endif ()
 
 if (MAKE_STATIC_LIBRARIES AND SPLIT_SHARED_LIBRARIES)
     message(FATAL_ERROR "Defining SPLIT_SHARED_LIBRARIES=1 without MAKE_STATIC_LIBRARIES=0 has no effect.")
@@ -200,7 +191,7 @@ if (NOT CMAKE_BUILD_TYPE_UC STREQUAL "RELEASE")
         set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--gdb-index")
         set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gdb-index")
         message (STATUS "Adding .gdb-index via --gdb-index linker option.")
-    # we use another tool for gdb-index, because gold linker removes section .debug_aranges, which used inside clickhouse stacktraces
+    # we use another tool for gdb-index, because gold linker removes section .debug_aranges, which used inside raftkeeper stacktraces
     # http://sourceware-org.1504.n7.nabble.com/gold-No-debug-aranges-section-when-linking-with-gdb-index-td540965.html#a556932
     elseif (LINKER_NAME MATCHES "gold$" AND ADD_GDB_INDEX_FOR_GOLD)
         find_program (GDB_ADD_INDEX_EXE NAMES "gdb-add-index" DOC "Path to gdb-add-index executable")
@@ -222,7 +213,7 @@ endif ()
 
 # Add a section with the hash of the compiled machine code for integrity checks.
 # Only for official builds, because adding a section can be time consuming (rewrite of several GB).
-# And cross compiled binaries are not supported (since you cannot execute clickhouse hash-binary)
+# And cross compiled binaries are not supported (since you cannot execute raftkeeper hash-binary)
 if (OBJCOPY_PATH AND YANDEX_OFFICIAL_BUILD AND (NOT CMAKE_TOOLCHAIN_FILE))
     set (USE_BINARY_HASH 1)
 endif ()
@@ -240,10 +231,6 @@ if(COMPILER_PIPE)
 else()
     message(STATUS "Disabling compiler -pipe option (have only ${AVAILABLE_PHYSICAL_MEMORY} mb of memory)")
 endif()
-
-#if(NOT DISABLE_CPU_OPTIMIZE)
-#    include(cmake/cpu_features.cmake)
-#endif()
 
 option(ARCH_NATIVE "Add -march=native compiler flag")
 
@@ -437,9 +424,9 @@ enable_testing() # Enable for tests without binary
 
 # when installing to /usr - place configs to /etc but for /usr/local place to /usr/local/etc
 if (CMAKE_INSTALL_PREFIX STREQUAL "/usr")
-    set (CLICKHOUSE_ETC_DIR "/etc")
+    set (RAFTKEEPER_ETC_DIR "/etc")
 else ()
-    set (CLICKHOUSE_ETC_DIR "${CMAKE_INSTALL_PREFIX}/etc")
+    set (RAFTKEEPER_ETC_DIR "${CMAKE_INSTALL_PREFIX}/etc")
 endif ()
 
 message (STATUS
@@ -454,71 +441,20 @@ include (GNUInstallDirs)
 include (cmake/contrib_finder.cmake)
 
 find_contrib_lib(double-conversion) # Must be before parquet
-#include (cmake/find/ssl.cmake)
-#include (cmake/find/ldap.cmake) # after ssl
-#include (cmake/find/icu.cmake)
 include (cmake/find/zlib.cmake)
-#include (cmake/find/zstd.cmake)
-#include (cmake/find/ltdl.cmake) # for odbc
-# openssl, zlib before poco
-#include (cmake/find/sparsehash.cmake)
 include (cmake/find/re2.cmake)
-#include (cmake/find/krb5.cmake)
-#include (cmake/find/libgsasl.cmake)
-#include (cmake/find/cyrus-sasl.cmake)
-#include (cmake/find/rdkafka.cmake)
-#include (cmake/find/amqpcpp.cmake)
-#include (cmake/find/capnp.cmake)
-#include (cmake/find/llvm.cmake)
-#include (cmake/find/termcap.cmake) # for external static llvm
-#include (cmake/find/h3.cmake)
-#include (cmake/find/libxml2.cmake)
-#include (cmake/find/brotli.cmake)
 include (cmake/find/protobuf.cmake)
-##include (cmake/find/grpc.cmake)
-#include (cmake/find/pdqsort.cmake)
-#include (cmake/find/miniselect.cmake)
-#include (cmake/find/hdfs3.cmake) # uses protobuf
 include (cmake/find/poco.cmake)
-#include (cmake/find/curl.cmake)
-#include (cmake/find/s3.cmake)
-#include (cmake/find/base64.cmake)
-#include (cmake/find/parquet.cmake)
-#include (cmake/find/simdjson.cmake)
 include (cmake/find/fast_float.cmake)
-#include (cmake/find/rapidjson.cmake)
-#include (cmake/find/fastops.cmake)
-#include (cmake/find/odbc.cmake)
-#include (cmake/find/rocksdb.cmake)
-#include (cmake/find/libpqxx.cmake)
 include (cmake/find/nuraft.cmake)
-#include (cmake/find/concurrentqueue.cmake)
-
-#
-#if(NOT USE_INTERNAL_PARQUET_LIBRARY)
-#    set (ENABLE_ORC OFF CACHE INTERNAL "")
-#endif()
-#include (cmake/find/orc.cmake)
-
-#include (cmake/find/avro.cmake)
-#include (cmake/find/msgpack.cmake)
-#include (cmake/find/cassandra.cmake)
-#include (cmake/find/sentry.cmake)
-#include (cmake/find/stats.cmake)
 
 set (USE_INTERNAL_CITYHASH_LIBRARY ON CACHE INTERNAL "")
 find_contrib_lib(cityhash)
 
-#find_contrib_lib(farmhash)
 
 if (ENABLE_TESTS)
     include (cmake/find/gtest.cmake)
 endif ()
-
-# Need to process before "contrib" dir:
-#include (cmake/find/mysqlclient.cmake)
-
-# When testing for memory leaks with Valgrind, don't link tcmalloc or jemalloc.
 
 #include (cmake/print_flags.cmake)
 
@@ -535,20 +471,20 @@ endif ()
 
 macro (add_executable target)
     # invoke built-in add_executable
-    # explicitly acquire and interpose malloc symbols by clickhouse_malloc
+    # explicitly acquire and interpose malloc symbols by raftkeeper_malloc
     # if GLIBC_COMPATIBILITY is ON and ENABLE_THINLTO is on than provide memcpy symbol explicitly to neutrialize thinlto's libcall generation.
     if (GLIBC_COMPATIBILITY AND ENABLE_THINLTO)
-        _add_executable (${ARGV} $<TARGET_OBJECTS:clickhouse_malloc> $<TARGET_OBJECTS:clickhouse_memcpy>)
+        _add_executable (${ARGV} $<TARGET_OBJECTS:raftkeeper_malloc> $<TARGET_OBJECTS:raftkeeper_memcpy>)
     else ()
-        _add_executable (${ARGV} $<TARGET_OBJECTS:clickhouse_malloc>)
+        _add_executable (${ARGV} $<TARGET_OBJECTS:raftkeeper_malloc>)
     endif ()
 
     get_target_property (type ${target} TYPE)
     if (${type} STREQUAL EXECUTABLE)
         # disabled for TSAN and gcc since libtsan.a provides overrides too
-        if (TARGET clickhouse_new_delete)
+        if (TARGET raftkeeper_new_delete)
             # operator::new/delete for executables (MemoryTracker stuff)
-            target_link_libraries (${target} PRIVATE clickhouse_new_delete ${MALLOC_LIBRARIES})
+            target_link_libraries (${target} PRIVATE raftkeeper_new_delete ${MALLOC_LIBRARIES})
         endif()
     endif()
 endmacro()
@@ -563,7 +499,6 @@ add_subdirectory (base)
 add_subdirectory (src)
 add_subdirectory (programs)
 add_subdirectory (tests)
-#add_subdirectory (utils)
 
 include (cmake/print_include_directories.cmake)
 

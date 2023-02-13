@@ -6,7 +6,7 @@
 #include <IO/WriteBuffer.h>
 #include <IO/BufferWithOwnMemory.h>
 
-namespace DB
+namespace RK
 {
 
 class WriteBufferFromFileBase : public BufferWithOwnMemory<WriteBuffer>

@@ -11,7 +11,7 @@
 #include <IO/MMapReadBufferFromFileDescriptor.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

@@ -7,7 +7,7 @@
 #include <IO/WriteHelpers.h>
 #include <IO/WriteBufferFromString.h>
 
-using namespace DB;
+using namespace RK;
 
 template <typename T, typename U>
 void checkString(const T & str, U manip, const std::string & expected)

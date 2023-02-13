@@ -9,7 +9,7 @@
 #include <type_traits>
 
 
-namespace DB
+namespace RK
 {
 
 template <typename T>

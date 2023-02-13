@@ -1,14 +1,14 @@
 #pragma once
 
 #include <fstream>
-#include <Service/SvsKeeperThreadSafeQueue.h>
+#include <Service/ThreadSafeQueue.h>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 
 //Only support backend async task
@@ -40,7 +40,7 @@ public:
 
 private:
     ThreadPool thread_pool;
-    SvsKeeperThreadSafeQueue<std::shared_ptr<BaseTask>> task_queue;
+    ThreadSafeQueue<std::shared_ptr<BaseTask>> task_queue;
     //std::condition_variable task_var;
     std::mutex write_file;
     std::atomic<bool> is_shut_down{false};

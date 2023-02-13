@@ -1,0 +1,23 @@
+<raftkeeper>
+    <keeper>
+        <forwarding_port>8102</forwarding_port>
+        <port>8101</port>
+        <my_id>1</my_id>
+        <host>node1</host>
+        <four_letter_word_white_list>ruok, conf</four_letter_word_white_list>
+        <cluster>
+            <server>
+                <id>1</id>
+                <host>node1</host>
+            </server>
+            <server>
+                <id>2</id>
+                <host>node2</host>
+            </server>
+            <server>
+                <id>3</id>
+                <host>node3</host>
+            </server>
+        </cluster>
+    </keeper>
+</raftkeeper>

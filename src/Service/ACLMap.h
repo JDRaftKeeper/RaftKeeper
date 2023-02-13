@@ -4,7 +4,7 @@
 #include <unordered_map>
 
 
-namespace DB
+namespace RK
 {
 
 /// Simple mapping of different ACLs to sequentially growing numbers

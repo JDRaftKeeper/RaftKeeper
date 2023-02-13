@@ -68,7 +68,7 @@ Otherwise you will get only exported symbols from program headers.
 #endif
 
 
-namespace DB
+namespace RK
 {
 
 namespace
