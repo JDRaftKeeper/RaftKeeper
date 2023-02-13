@@ -2,6 +2,5 @@
 
 namespace ClickHouseRevision
 {
-    unsigned getVersionRevision();
     unsigned getVersionInteger();
 }

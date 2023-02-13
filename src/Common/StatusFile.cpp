@@ -36,8 +36,7 @@ StatusFile::FillFunction StatusFile::write_pid = [](WriteBuffer & out)
 StatusFile::FillFunction StatusFile::write_full_info = [](WriteBuffer & out)
 {
     out << "PID: " << getpid() << "\n"
-        << "Started at: " << LocalDateTime(time(nullptr)) << "\n"
-        << "Revision: " << ClickHouseRevision::getVersionRevision() << "\n";
+        << "Started at: " << LocalDateTime(time(nullptr)) << "\n";
 };
 
 
