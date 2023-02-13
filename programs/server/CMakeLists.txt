@@ -19,10 +19,6 @@ list(APPEND RAFTKEEPER_SERVER_LINK PRIVATE readpassphrase)
 
 raftkeeper_program_add(server)
 
-message(STATUS "RAFTKEEPER_SERVER_LINK = ${RAFTKEEPER_SERVER_LINK}")
-message(STATUS "RAFTKEEPER_SERVER_SOURCES = ${RAFTKEEPER_SERVER_SOURCES}")
-message(STATUS "RAFTKEEPER_SERVER_INCLUDE = ${RAFTKEEPER_SERVER_INCLUDE}")
-
 install(FILES config.xml DESTINATION ${RAFTKEEPER_ETC_DIR}/raftkeeper-server COMPONENT raftkeeper)
 
 # TODO We actually need this on Mac, FreeBSD.
