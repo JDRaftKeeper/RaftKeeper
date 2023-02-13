@@ -9,7 +9,7 @@
 
 #include <limits>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

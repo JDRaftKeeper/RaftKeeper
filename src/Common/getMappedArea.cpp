@@ -9,7 +9,7 @@
 #include <IO/ReadHelpers.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -21,7 +21,7 @@ namespace ErrorCodes
 namespace
 {
 
-uintptr_t readAddressHex(DB::ReadBuffer & in)
+uintptr_t readAddressHex(RK::ReadBuffer & in)
 {
     uintptr_t res = 0;
     while (!in.eof())
@@ -42,7 +42,7 @@ uintptr_t readAddressHex(DB::ReadBuffer & in)
 
 std::pair<void *, size_t> getMappedArea(void * ptr)
 {
-    using namespace DB;
+    using namespace RK;
 
     uintptr_t uintptr = reinterpret_cast<uintptr_t>(ptr);
     ReadBufferFromFile in("/proc/self/maps");
@@ -65,7 +65,7 @@ std::pair<void *, size_t> getMappedArea(void * ptr)
 
 #else
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

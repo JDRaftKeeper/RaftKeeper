@@ -24,7 +24,7 @@ namespace
     };
 }
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

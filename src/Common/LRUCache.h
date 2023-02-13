@@ -10,7 +10,7 @@
 #include <common/logger_useful.h>
 
 
-namespace DB
+namespace RK
 {
 
 template <typename T>

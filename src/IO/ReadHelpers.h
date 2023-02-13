@@ -33,7 +33,7 @@
 #define DEFAULT_MAX_STRING_SIZE (1ULL << 30)
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

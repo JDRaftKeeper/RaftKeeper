@@ -105,7 +105,7 @@ class ClickHouseCluster:
         self.name = name if name is not None else ''
 
         self.base_config_dir = base_config_dir or os.environ.get('CLICKHOUSE_TESTS_BASE_CONFIG_DIR',
-                                                                 '/etc/clickhouse-server/')
+                                                                 '/etc/raftkeeper-server/')
         self.server_bin_path = p.realpath(
             server_bin_path or os.environ.get('CLICKHOUSE_TESTS_SERVER_BIN_PATH', '/usr/bin/clickhouse'))
         self.odbc_bridge_bin_path = p.realpath(odbc_bridge_bin_path or get_odbc_bridge_path())
@@ -190,7 +190,7 @@ class ClickHouseCluster:
         """Add an instance to the cluster.
 
         name - the name of the instance directory and the value of the 'instance' macro in ClickHouse.
-        base_config_dir - a directory with config.xml and users.xml files which will be copied to /etc/clickhouse-server/ directory
+        base_config_dir - a directory with config.xml and users.xml files which will be copied to /etc/raftkeeper-server/ directory
         main_configs - a list of config files that will be added to config.d/ directory
         user_configs - a list of config files that will be added to users.d/ directory
         with_zookeeper - if True, add ZooKeeper configuration to configs and ZooKeeper instances to the cluster.
@@ -844,7 +844,7 @@ class ClickHouseCluster:
             subprocess_check_call(self.base_zookeeper_cmd + ["start", n])
 
 
-CLICKHOUSE_START_COMMAND = "clickhouse server --config-file=/etc/clickhouse-server/config.xml --log-file=/var/log/clickhouse-server/clickhouse-server.log --errorlog-file=/var/log/clickhouse-server/clickhouse-server.err.log"
+CLICKHOUSE_START_COMMAND = "clickhouse server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 
 CLICKHOUSE_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(CLICKHOUSE_START_COMMAND)
 
@@ -855,9 +855,9 @@ services:
         image: {image}:{tag}
         hostname: {hostname}
         volumes:
-            - {instance_config_dir}:/etc/clickhouse-server/
+            - {instance_config_dir}:/etc/raftkeeper-server/
             - {db_dir}:/var/lib/clickhouse/
-            - {logs_dir}:/var/log/clickhouse-server/
+            - {logs_dir}:/var/log/raftkeeper-server/
             - /etc/passwd:/etc/passwd:ro
             {binary_volume}
             {odbc_bridge_volume}
@@ -1070,8 +1070,8 @@ class ClickHouseInstance:
         assert_eq_with_retry(self, "select 1", "1", retry_count=int(stop_wait_sec / 0.5), sleep_time=0.5)
 
     def restart_clickhouse(self, stop_start_wait_sec=5, kill=False):
-        self.stop_clickhouse(stop_start_wait_sec, kill)
-        self.start_clickhouse(stop_start_wait_sec)
+        self.stop_raftkeeper(stop_start_wait_sec, kill)
+        self.start_raftkeeper(stop_start_wait_sec)
 
     def exec_in_container(self, cmd, detach=False, nothrow=False, **kwargs):
         container_id = self.get_docker_handle().id
@@ -1079,10 +1079,10 @@ class ClickHouseInstance:
 
     def contains_in_log(self, substring):
         result = self.exec_in_container(
-            ["bash", "-c", 'grep "{}" /var/log/clickhouse-server/clickhouse-server.log || true'.format(substring)])
+            ["bash", "-c", 'grep "{}" /var/log/raftkeeper-server/raftkeeper-server.log || true'.format(substring)])
         return len(result) > 0
 
-    def wait_for_log_line(self, regexp, filename='/var/log/clickhouse-server/clickhouse-server.log', timeout=30, repetitions=1, look_behind_lines=100):
+    def wait_for_log_line(self, regexp, filename='/var/log/raftkeeper-server/raftkeeper-server.log', timeout=30, repetitions=1, look_behind_lines=100):
         start_time = time.time()
         result = self.exec_in_container(
             ["bash", "-c", 'timeout {} tail -Fn{} "{}" | grep -Em {} {}'.format(timeout, look_behind_lines, filename, repetitions, shlex.quote(regexp))])
@@ -1426,7 +1426,7 @@ class ClickHouseKiller(object):
         self.clickhouse_node = clickhouse_node
 
     def __enter__(self):
-        self.clickhouse_node.stop_clickhouse(kill=True)
+        self.clickhouse_node.stop_raftkeeper(kill=True)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.clickhouse_node.start_clickhouse()
+        self.clickhouse_node.start_raftkeeper()

@@ -27,7 +27,7 @@
 /// More info: https://www.kernel.org/doc/Documentation/accounting/taskstats.txt
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -299,7 +299,7 @@ TaskStatsInfoGetter::~TaskStatsInfoGetter()
 
 #else
 
-namespace DB
+namespace RK
 {
 
 bool TaskStatsInfoGetter::checkPermissions()

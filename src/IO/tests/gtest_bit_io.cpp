@@ -17,7 +17,7 @@
 #pragma GCC diagnostic ignored "-Wmissing-declarations"
 #include <gtest/gtest.h>
 
-using namespace DB;
+using namespace RK;
 
 // Intentionally asymmetric both byte and word-size to detect read and write inconsistencies
 // each prime bit is set to 0.

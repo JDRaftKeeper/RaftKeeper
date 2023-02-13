@@ -5,7 +5,7 @@
 #include <memory>
 
 
-namespace DB
+namespace RK
 {
 
 /** Create an object to read data from a file.

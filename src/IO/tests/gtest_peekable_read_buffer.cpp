@@ -6,7 +6,7 @@
 #include <IO/ConcatReadBuffer.h>
 #include <IO/PeekableReadBuffer.h>
 
-static void readAndAssert(DB::ReadBuffer & buf, const char * str)
+static void readAndAssert(RK::ReadBuffer & buf, const char * str)
 {
     size_t n = strlen(str);
     char tmp[n];
@@ -14,7 +14,7 @@ static void readAndAssert(DB::ReadBuffer & buf, const char * str)
     ASSERT_EQ(strncmp(tmp, str, n), 0);
 }
 
-static void assertAvailable(DB::ReadBuffer & buf, const char * str)
+static void assertAvailable(RK::ReadBuffer & buf, const char * str)
 {
     size_t n = strlen(str);
     ASSERT_EQ(buf.available(), n);
@@ -28,18 +28,18 @@ try
     std::string s2 = "qwertyuiop";
     std::string s3 = "asdfghjkl;";
     std::string s4 = "zxcvbnm,./";
-    DB::ReadBufferFromString b1(s1);
-    DB::ReadBufferFromString b2(s2);
-    DB::ReadBufferFromString b3(s3);
-    DB::ReadBufferFromString b4(s4);
+    RK::ReadBufferFromString b1(s1);
+    RK::ReadBufferFromString b2(s2);
+    RK::ReadBufferFromString b3(s3);
+    RK::ReadBufferFromString b4(s4);
 
-    DB::ConcatReadBuffer concat({&b1, &b2, &b3, &b4});
-    DB::PeekableReadBuffer peekable(concat, 0);
+    RK::ConcatReadBuffer concat({&b1, &b2, &b3, &b4});
+    RK::PeekableReadBuffer peekable(concat, 0);
 
     ASSERT_TRUE(!peekable.eof());
     assertAvailable(peekable, "0123456789");
     {
-        DB::PeekableReadBufferCheckpoint checkpoint{peekable};
+        RK::PeekableReadBufferCheckpoint checkpoint{peekable};
         readAndAssert(peekable, "01234");
     }
 
@@ -54,7 +54,7 @@ try
     assertAvailable(peekable, "789");
 
     {
-        DB::PeekableReadBufferCheckpoint checkpoint{peekable, true};
+        RK::PeekableReadBufferCheckpoint checkpoint{peekable, true};
         peekable.ignore(20);
     }
     assertAvailable(peekable, "789qwertyuiop");
@@ -83,7 +83,7 @@ try
     ASSERT_TRUE(peekable.eof());
 
 }
-catch (const DB::Exception & e)
+catch (const RK::Exception & e)
 {
     std::cerr << e.what() << ", " << e.displayText() << std::endl;
     throw;

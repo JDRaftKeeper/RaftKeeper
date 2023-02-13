@@ -3,7 +3,7 @@
 #include <cstdint>
 
 
-namespace DB
+namespace RK
 {
 
 /** Opens a file /proc/self/mstat. Keeps it open and reads memory statistics via 'pread'.

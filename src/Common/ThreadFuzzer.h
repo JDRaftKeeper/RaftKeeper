@@ -2,7 +2,7 @@
 #include <cstdint>
 
 
-namespace DB
+namespace RK
 {
 
 /** Allows to randomize thread scheduling and insert various glitches across whole program for testing purposes.

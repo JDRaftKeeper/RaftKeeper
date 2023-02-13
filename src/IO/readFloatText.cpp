@@ -1,6 +1,6 @@
 #include <IO/readFloatText.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

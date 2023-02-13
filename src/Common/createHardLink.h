@@ -2,7 +2,7 @@
 
 #include <common/types.h>
 
-namespace DB
+namespace RK
 {
 
 /// Create a hard link `destination_path` pointing to `source_path`.

@@ -13,9 +13,9 @@
 #include <iomanip>
 
 
-using namespace DB;
+using namespace RK;
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {

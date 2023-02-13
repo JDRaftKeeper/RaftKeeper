@@ -47,12 +47,12 @@ public:
     }
 
 
-    void readAndMerge(DB::ReadBuffer & rb)
+    void readAndMerge(RK::ReadBuffer & rb)
     {
         Cell::State::read(rb);
 
         size_t new_size = 0;
-        DB::readVarUInt(new_size, rb);
+        RK::readVarUInt(new_size, rb);
 
         this->resize(new_size);
 

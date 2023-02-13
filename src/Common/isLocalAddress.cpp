@@ -7,7 +7,7 @@
 #include <Poco/Net/SocketAddress.h>
 
 
-namespace DB
+namespace RK
 {
 
 bool isLocalAddress(const Poco::Net::IPAddress & address)

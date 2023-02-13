@@ -11,7 +11,7 @@
 /** Small wrappers for asynchronous I/O.
   */
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -45,7 +45,7 @@ AIOContext::AIOContext(unsigned int nr_events)
 {
     ctx = 0;
     if (io_setup(nr_events, &ctx) < 0)
-        DB::throwFromErrno("io_setup failed", DB::ErrorCodes::CANNOT_IOSETUP);
+        RK::throwFromErrno("io_setup failed", RK::ErrorCodes::CANNOT_IOSETUP);
 }
 
 AIOContext::~AIOContext()
@@ -61,7 +61,7 @@ AIOContext::~AIOContext()
 /** Small wrappers for asynchronous I/O.
   */
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -124,7 +124,7 @@ AIOContext::AIOContext(unsigned int)
 {
     ctx = io_setup();
     if (ctx < 0)
-        DB::throwFromErrno("io_setup failed", DB::ErrorCodes::CANNOT_IOSETUP);
+        RK::throwFromErrno("io_setup failed", RK::ErrorCodes::CANNOT_IOSETUP);
 }
 
 AIOContext::~AIOContext()

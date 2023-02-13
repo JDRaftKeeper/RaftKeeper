@@ -1,31 +1,30 @@
 #include <Service/FourLetterCommand.h>
 
-#include <Service/SvsKeeperDispatcher.h>
-#include <Service/SvsConnectionHandler.h>
-#include <common/logger_useful.h>
+#include <IO/Operators.h>
+#include <IO/WriteHelpers.h>
+#include <Service/ConnectionHandler.h>
+#include <Service/Defines.h>
+#include <Service/Keeper4LWInfo.h>
+#include <Service/KeeperDispatcher.h>
 #include <Poco/Environment.h>
 #include <Poco/Path.h>
+#include <Poco/String.h>
+#include <Common/StringUtils/StringUtils.h>
 #include <Common/getCurrentProcessFDCount.h>
 #include <Common/getMaxFileDescriptorCount.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Service/Keeper4LWInfo.h>
-#include <Service/Defines.h>
 #include <common/find_symbols.h>
-#include <IO/WriteHelpers.h>
-#include <IO/Operators.h>
-#include <Poco/String.h>
-#include <Service/Keeper4LWInfo.h>
+#include <common/logger_useful.h>
 
 #include <unistd.h>
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
     extern const int LOGICAL_ERROR;
 }
 
-IFourLetterCommand::IFourLetterCommand(SvsKeeperDispatcher & keeper_dispatcher_)
+IFourLetterCommand::IFourLetterCommand(KeeperDispatcher & keeper_dispatcher_)
     : keeper_dispatcher(keeper_dispatcher_)
 {
 }
@@ -84,7 +83,7 @@ void FourLetterCommandFactory::registerCommand(FourLetterCommandPtr & command)
     commands.emplace(command->code(), std::move(command));
 }
 
-void FourLetterCommandFactory::registerCommands(SvsKeeperDispatcher & keeper_dispatcher)
+void FourLetterCommandFactory::registerCommands(KeeperDispatcher & keeper_dispatcher)
 {
     FourLetterCommandFactory & factory = FourLetterCommandFactory::instance();
 
@@ -158,7 +157,7 @@ bool FourLetterCommandFactory::isEnabled(int32_t code)
     return std::find(white_list.begin(), white_list.end(), code) != white_list.end();
 }
 
-void FourLetterCommandFactory::initializeWhiteList(SvsKeeperDispatcher & keeper_dispatcher)
+void FourLetterCommandFactory::initializeWhiteList(KeeperDispatcher & keeper_dispatcher)
 {
     const auto & keeper_settings = keeper_dispatcher.getKeeperConfigurationAndSettings();
 
@@ -217,7 +216,7 @@ void print(IFourLetterCommand::StringBuffer & buf, const String & key, uint64_t 
 
 String MonitorCommand::run()
 {
-    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     if (!keeper_info.has_leader)
@@ -282,13 +281,13 @@ String ConfCommand::run()
 String ConsCommand::run()
 {
     StringBuffer buf;
-    SvsConnectionHandler::dumpConnections(buf, false);
+    ConnectionHandler::dumpConnections(buf, false);
     return buf.str();
 }
 
 String RestConnStatsCommand::run()
 {
-    SvsConnectionHandler::resetConnsStats();
+    ConnectionHandler::resetConnsStats();
     return "Connection stats reset.\n";
 }
 
@@ -304,7 +303,7 @@ String ServerStatCommand::run()
         writeText("\n", buf);
     };
 
-    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
@@ -330,13 +329,13 @@ String StatCommand::run()
 
     auto write = [&buf] (const String & key, const String & value) { buf << key << ": " << value << '\n'; };
 
-    KeeperConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     write("Raft Service version", String(RAFT_SERVICE_VERSION) + "-" + VERSION_GITHASH);
 
     buf << "Clients:\n";
-    SvsConnectionHandler::dumpConnections(buf, true);
+    ConnectionHandler::dumpConnections(buf, true);
     buf << '\n';
 
     StringBuffer latency;
@@ -449,9 +448,9 @@ String LogInfoCommand::run()
     auto append = [&ret] (String key, uint64_t value) -> void
     {
         writeText(key, ret);
-        writeText('\t', ret);
+        writeText("\t", ret);
         writeText(std::to_string(value), ret);
-        writeText('\n', ret);
+        writeText("\n", ret);
     };
     append("first_log_idx", log_info.first_log_idx);
     append("first_log_term", log_info.first_log_idx);

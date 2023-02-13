@@ -1,4 +1,4 @@
-#include <Service/NuRaftCommon.h>
+#include <Service/KeeperCommon.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
@@ -9,10 +9,11 @@
 #include <loggers/Loggers.h>
 #include <Poco/File.h>
 #include <Poco/Util/LayeredConfiguration.h>
+#include <Common/Stopwatch.h>
 #include <common/argsToConfig.h>
 
 using namespace nuraft;
-using namespace DB;
+using namespace RK;
 
 static const UInt32 LOG_COUNT = 100000;
 
@@ -151,7 +152,7 @@ TEST(RaftPerformance, machineCreateThread)
     std::string snap_dir(LOG_DIR + "/51");
     cleanDirectory(snap_dir);
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;

@@ -107,8 +107,8 @@ private:
     bool required_substring_is_prefix;
     bool is_case_insensitive;
     std::string required_substring;
-    std::optional<DB::StringSearcher<true, true>> case_sensitive_substring_searcher;
-    std::optional<DB::StringSearcher<false, true>> case_insensitive_substring_searcher;
+    std::optional<RK::StringSearcher<true, true>> case_sensitive_substring_searcher;
+    std::optional<RK::StringSearcher<false, true>> case_insensitive_substring_searcher;
     std::unique_ptr<RegexType> re2;
     unsigned number_of_subpatterns;
 };

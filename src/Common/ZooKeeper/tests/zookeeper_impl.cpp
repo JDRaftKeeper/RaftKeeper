@@ -21,6 +21,6 @@ try
 }
 catch (...)
 {
-    DB::tryLogCurrentException(__PRETTY_FUNCTION__);
+    RK::tryLogCurrentException(__PRETTY_FUNCTION__);
     return 1;
 }

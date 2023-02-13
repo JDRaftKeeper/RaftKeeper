@@ -5,7 +5,7 @@
 #include <IO/WriteBufferFromFile.h>
 
 
-namespace DB
+namespace RK
 {
 
 

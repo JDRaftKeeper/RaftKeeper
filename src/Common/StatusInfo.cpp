@@ -2,7 +2,7 @@
 
 /// Available status. Add something here as you wish.
 #define APPLY_FOR_STATUS(M) \
-    M(DictionaryStatus, "Dictionary Status.", DB::getStatusEnumAllPossibleValues()) \
+    M(DictionaryStatus, "Dictionary Status.", RK::getStatusEnumAllPossibleValues()) \
 
 
 namespace CurrentStatusInfo

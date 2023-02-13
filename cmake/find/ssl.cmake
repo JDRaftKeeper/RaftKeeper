@@ -11,7 +11,7 @@ endif()
 
 option(USE_INTERNAL_SSL_LIBRARY "Set to FALSE to use system *ssl library instead of bundled" ${NOT_UNBUNDLED})
 
-if(NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/boringssl/README.md")
+if(NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/boringssl/README.md")
     if(USE_INTERNAL_SSL_LIBRARY)
         message(WARNING "submodule contrib/boringssl is missing. to fix try run: \n git submodule update --init --recursive")
         message (${RECONFIGURE_MESSAGE_LEVEL} "Can't find internal ssl library")
@@ -52,7 +52,7 @@ endif ()
 
 if (NOT OPENSSL_FOUND AND NOT MISSING_INTERNAL_SSL_LIBRARY)
     set (USE_INTERNAL_SSL_LIBRARY 1)
-    set (OPENSSL_ROOT_DIR "${ClickHouse_SOURCE_DIR}/contrib/boringssl")
+    set (OPENSSL_ROOT_DIR "${RaftKeeper_SOURCE_DIR}/contrib/boringssl")
 
     if (ARCH_AMD64)
         set (OPENSSL_INCLUDE_DIR "${OPENSSL_ROOT_DIR}/include")

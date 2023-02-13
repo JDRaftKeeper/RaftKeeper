@@ -1,5 +1,5 @@
-set(LIBXML2_SOURCE_DIR ${ClickHouse_SOURCE_DIR}/contrib/libxml2)
-set(LIBXML2_BINARY_DIR ${ClickHouse_BINARY_DIR}/contrib/libxml2)
+set(LIBXML2_SOURCE_DIR ${RaftKeeper_SOURCE_DIR}/contrib/libxml2)
+set(LIBXML2_BINARY_DIR ${RaftKeeper_BINARY_DIR}/contrib/libxml2)
 
 set(SRCS
     ${LIBXML2_SOURCE_DIR}/SAX.c

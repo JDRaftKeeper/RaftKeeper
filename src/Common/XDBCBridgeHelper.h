@@ -20,7 +20,7 @@
 #    include <Common/config.h>
 #endif
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {

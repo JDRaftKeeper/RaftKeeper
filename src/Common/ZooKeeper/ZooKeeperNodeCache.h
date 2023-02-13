@@ -9,7 +9,7 @@
 #include "ZooKeeper.h"
 #include "Common.h"
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {

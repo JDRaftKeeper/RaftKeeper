@@ -1,6 +1,6 @@
 #include <Service/NuRaftInMemoryLogStore.h>
 
-namespace DB
+namespace RK
 {
 namespace
 {

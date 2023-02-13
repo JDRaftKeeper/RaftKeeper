@@ -9,7 +9,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -31,7 +31,7 @@ static thread_local size_t max_stack_size = 0;
   */
 __attribute__((__weak__)) void checkStackSize()
 {
-    using namespace DB;
+    using namespace RK;
 
     if (!stack_address)
     {

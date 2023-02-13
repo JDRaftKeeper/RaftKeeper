@@ -2,7 +2,7 @@
 
 #include <common/types.h>
 
-namespace DB
+namespace RK
 {
 UInt32 getCRC32(const char * data, size_t length);
 

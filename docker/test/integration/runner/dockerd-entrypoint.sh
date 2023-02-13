@@ -17,17 +17,8 @@ done
 set -e
 
 echo "Start tests"
-export CLICKHOUSE_TESTS_SERVER_BIN_PATH=/clickhouse
-export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=/clickhouse
-export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=/clickhouse-config
-export CLICKHOUSE_ODBC_BRIDGE_BINARY_PATH=/clickhouse-odbc-bridge
+export RAFTKEEPER_TESTS_SERVER_BIN_PATH=/raftkeeper
+export RAFTKEEPER_TESTS_BASE_CONFIG_DIR=/raftkeeper-config
 
-export DOCKER_MYSQL_GOLANG_CLIENT_TAG=${DOCKER_MYSQL_GOLANG_CLIENT_TAG:=latest}
-export DOCKER_MYSQL_JAVA_CLIENT_TAG=${DOCKER_MYSQL_JAVA_CLIENT_TAG:=latest}
-export DOCKER_MYSQL_JS_CLIENT_TAG=${DOCKER_MYSQL_JS_CLIENT_TAG:=latest}
-export DOCKER_MYSQL_PHP_CLIENT_TAG=${DOCKER_MYSQL_PHP_CLIENT_TAG:=latest}
-export DOCKER_POSTGRESQL_JAVA_CLIENT_TAG=${DOCKER_POSTGRESQL_JAVA_CLIENT_TAG:=latest}
-export DOCKER_KERBEROS_KDC_TAG=${DOCKER_KERBEROS_KDC_TAG:=latest}
-
-cd /ClickHouse/tests/integration
+cd /RaftKeeper/tests/integration
 exec "$@"

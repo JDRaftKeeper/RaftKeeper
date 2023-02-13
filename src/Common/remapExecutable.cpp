@@ -14,7 +14,7 @@
 #include "remapExecutable.h"
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -145,7 +145,7 @@ void remapExecutable()
 
 #else
 
-namespace DB
+namespace RK
 {
 
 void remapExecutable() {}

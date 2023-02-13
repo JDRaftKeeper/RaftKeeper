@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-namespace DB
+namespace RK
 {
 /* Parse globs in string and make a regexp for it.
  */

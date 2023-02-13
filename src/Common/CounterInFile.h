@@ -19,7 +19,7 @@
 #include <common/types.h>
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -68,26 +68,26 @@ public:
 
         int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
         if (-1 == fd)
-            DB::throwFromErrnoWithPath("Cannot open file " + path, path, DB::ErrorCodes::CANNOT_OPEN_FILE);
+            RK::throwFromErrnoWithPath("Cannot open file " + path, path, RK::ErrorCodes::CANNOT_OPEN_FILE);
 
         try
         {
             int flock_ret = flock(fd, LOCK_EX);
             if (-1 == flock_ret)
-                DB::throwFromErrnoWithPath("Cannot lock file " + path, path, DB::ErrorCodes::CANNOT_OPEN_FILE);
+                RK::throwFromErrnoWithPath("Cannot lock file " + path, path, RK::ErrorCodes::CANNOT_OPEN_FILE);
 
             if (!file_doesnt_exists)
             {
-                DB::ReadBufferFromFileDescriptor rb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
+                RK::ReadBufferFromFileDescriptor rb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
                 try
                 {
-                    DB::readIntText(res, rb);
+                    RK::readIntText(res, rb);
                 }
-                catch (const DB::Exception & e)
+                catch (const RK::Exception & e)
                 {
                     /// A more understandable error message.
-                    if (e.code() == DB::ErrorCodes::CANNOT_READ_ALL_DATA || e.code() == DB::ErrorCodes::ATTEMPT_TO_READ_AFTER_EOF)
-                        throw DB::ParsingException("File " + path + " is empty. You must fill it manually with appropriate value.", e.code());
+                    if (e.code() == RK::ErrorCodes::CANNOT_READ_ALL_DATA || e.code() == RK::ErrorCodes::ATTEMPT_TO_READ_AFTER_EOF)
+                        throw RK::ParsingException("File " + path + " is empty. You must fill it manually with appropriate value.", e.code());
                     else
                         throw;
                 }
@@ -99,11 +99,11 @@ public:
             {
                 res += delta;
 
-                DB::WriteBufferFromFileDescriptor wb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
+                RK::WriteBufferFromFileDescriptor wb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
                 wb.seek(0, SEEK_SET);
                 wb.truncate(0);
-                DB::writeIntText(res, wb);
-                DB::writeChar('\n', wb);
+                RK::writeIntText(res, wb);
+                RK::writeChar('\n', wb);
                 wb.sync();
             }
 
@@ -142,7 +142,7 @@ public:
 
         int fd = ::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0666);
         if (-1 == fd)
-            DB::throwFromErrnoWithPath("Cannot open file " + path, path, DB::ErrorCodes::CANNOT_OPEN_FILE);
+            RK::throwFromErrnoWithPath("Cannot open file " + path, path, RK::ErrorCodes::CANNOT_OPEN_FILE);
 
         try
         {
@@ -150,30 +150,30 @@ public:
 
             if (file_exists)
             {
-                DB::ReadBufferFromFileDescriptor rb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
+                RK::ReadBufferFromFileDescriptor rb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
                 try
                 {
                     UInt64 current_value;
-                    DB::readIntText(current_value, rb);
+                    RK::readIntText(current_value, rb);
                     char c;
-                    DB::readChar(c, rb);
+                    RK::readChar(c, rb);
                     if (rb.count() > 0 && c == '\n' && rb.eof())
                         broken = false;
                 }
-                catch (const DB::Exception & e)
+                catch (const RK::Exception & e)
                 {
-                    if (e.code() != DB::ErrorCodes::CANNOT_READ_ALL_DATA && e.code() != DB::ErrorCodes::ATTEMPT_TO_READ_AFTER_EOF)
+                    if (e.code() != RK::ErrorCodes::CANNOT_READ_ALL_DATA && e.code() != RK::ErrorCodes::ATTEMPT_TO_READ_AFTER_EOF)
                         throw;
                 }
             }
 
             if (broken)
             {
-                DB::WriteBufferFromFileDescriptor wb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
+                RK::WriteBufferFromFileDescriptor wb(fd, SMALL_READ_WRITE_BUFFER_SIZE);
                 wb.seek(0, SEEK_SET);
                 wb.truncate(0);
-                DB::writeIntText(value, wb);
-                DB::writeChar('\n', wb);
+                RK::writeIntText(value, wb);
+                RK::writeChar('\n', wb);
                 wb.sync();
             }
         }

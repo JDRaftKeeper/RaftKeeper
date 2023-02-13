@@ -23,7 +23,7 @@ namespace CurrentMetrics
     extern const Metric Read;
 }
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

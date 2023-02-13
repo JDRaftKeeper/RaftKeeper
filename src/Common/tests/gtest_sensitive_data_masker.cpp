@@ -14,7 +14,7 @@
 #include <chrono>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -29,7 +29,7 @@ TEST(Common, SensitiveDataMasker)
 {
 
     Poco::AutoPtr<Poco::Util::XMLConfiguration> empty_xml_config = new Poco::Util::XMLConfiguration();
-    DB::SensitiveDataMasker masker(*empty_xml_config , "");
+    RK::SensitiveDataMasker masker(*empty_xml_config , "");
     masker.addMaskingRule("all a letters", "a+", "--a--");
     masker.addMaskingRule("all b letters", "b+", "--b--");
     masker.addMaskingRule("all d letters", "d+", "--d--");
@@ -47,7 +47,7 @@ TEST(Common, SensitiveDataMasker)
     masker.printStats();
 #endif
 
-    DB::SensitiveDataMasker masker2(*empty_xml_config , "");
+    RK::SensitiveDataMasker masker2(*empty_xml_config , "");
     masker2.addMaskingRule("hide root password", "qwerty123", "******");
     masker2.addMaskingRule("hide SSN", "[0-9]{3}-[0-9]{2}-[0-9]{4}", "000-00-0000");
     masker2.addMaskingRule("hide email", "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,4}", "hidden@hidden.test");
@@ -78,7 +78,7 @@ TEST(Common, SensitiveDataMasker)
     masker2.printStats();
 #endif
 
-    DB::SensitiveDataMasker maskerbad(*empty_xml_config , "");
+    RK::SensitiveDataMasker maskerbad(*empty_xml_config , "");
 
     // gtest has not good way to check exception content, so just do it manually (see https://github.com/google/googletest/issues/952 )
     try
@@ -86,13 +86,13 @@ TEST(Common, SensitiveDataMasker)
         maskerbad.addMaskingRule("bad regexp", "**", "");
         ADD_FAILURE() << "addMaskingRule() should throw an error" << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         EXPECT_EQ(
             std::string(e.what()),
             "SensitiveDataMasker: cannot compile re2: **, error: no argument for repetition operator: *. Look at "
             "https://github.com/google/re2/wiki/Syntax for reference.");
-        EXPECT_EQ(e.code(), DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+        EXPECT_EQ(e.code(), RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
     }
     /* catch (...) { // not needed, gtest will react unhandled exception
         FAIL() << "ERROR: Unexpected exception thrown: " << std::current_exception << std::endl; // std::current_exception is part of C++11x
@@ -137,7 +137,7 @@ TEST(Common, SensitiveDataMasker)
 </clickhouse>)END");
 
         Poco::AutoPtr<Poco::Util::XMLConfiguration> xml_config = new Poco::Util::XMLConfiguration(xml_isteam);
-        DB::SensitiveDataMasker masker_xml_based(*xml_config, "query_masking_rules");
+        RK::SensitiveDataMasker masker_xml_based(*xml_config, "query_masking_rules");
         std::string top_secret = "The e-mail of IVAN PETROV is kotik1902@sdsdf.test, and the password is qwerty123";
         EXPECT_EQ(masker_xml_based.wipeSensitiveData(top_secret), 4);
         EXPECT_EQ(top_secret, "The e-mail of John Doe is hidden@hidden.test, and the password is ******");
@@ -169,16 +169,16 @@ TEST(Common, SensitiveDataMasker)
 </clickhouse>)END");
 
         Poco::AutoPtr<Poco::Util::XMLConfiguration> xml_config = new Poco::Util::XMLConfiguration(xml_isteam_bad);
-        DB::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
+        RK::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
 
         ADD_FAILURE() << "XML should throw an error on bad XML" << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         EXPECT_EQ(
             std::string(e.what()),
             "query_masking_rules configuration contains more than one rule named 'test'.");
-        EXPECT_EQ(e.code(), DB::ErrorCodes::INVALID_CONFIG_PARAMETER);
+        EXPECT_EQ(e.code(), RK::ErrorCodes::INVALID_CONFIG_PARAMETER);
     }
 
     try
@@ -192,16 +192,16 @@ TEST(Common, SensitiveDataMasker)
 </clickhouse>)END");
 
         Poco::AutoPtr<Poco::Util::XMLConfiguration> xml_config = new Poco::Util::XMLConfiguration(xml_isteam_bad);
-        DB::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
+        RK::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
 
         ADD_FAILURE() << "XML should throw an error on bad XML" << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         EXPECT_EQ(
             std::string(e.what()),
             "query_masking_rules configuration, rule 'test' has no <regexp> node or <regexp> is empty.");
-        EXPECT_EQ(e.code(), DB::ErrorCodes::NO_ELEMENTS_IN_CONFIG);
+        EXPECT_EQ(e.code(), RK::ErrorCodes::NO_ELEMENTS_IN_CONFIG);
     }
 
     try
@@ -215,17 +215,17 @@ TEST(Common, SensitiveDataMasker)
 </clickhouse>)END");
 
         Poco::AutoPtr<Poco::Util::XMLConfiguration> xml_config = new Poco::Util::XMLConfiguration(xml_isteam_bad);
-        DB::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
+        RK::SensitiveDataMasker masker_xml_based_exception_check(*xml_config, "query_masking_rules");
 
         ADD_FAILURE() << "XML should throw an error on bad XML" << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         EXPECT_EQ(
             std::string(e.message()),
             "SensitiveDataMasker: cannot compile re2: ())(, error: missing ): ())(. Look at https://github.com/google/re2/wiki/Syntax for reference.: while adding query masking rule 'test'."
         );
-        EXPECT_EQ(e.code(), DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+        EXPECT_EQ(e.code(), RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
     }
 
 }

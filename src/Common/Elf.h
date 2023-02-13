@@ -21,7 +21,7 @@ using ElfNhdr = ElfW(Nhdr);
 using ElfSym = ElfW(Sym);
 
 
-namespace DB
+namespace RK
 {
 
 /** Allow to navigate sections in ELF.

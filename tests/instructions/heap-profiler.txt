@@ -1,14 +1,14 @@
-Build clickhouse without tcmalloc. cmake -D ENABLE_TCMALLOC=0
+Build raftkeeper without tcmalloc. cmake -D ENABLE_TCMALLOC=0
 
-Copy clickhouse binary to your server.
-scp programs/clickhouse server:~
+Copy raftkeeper binary to your server.
+scp programs/raftkeeper server:~
 
 ssh to your server
 
-Stop clickhouse:
-sudo service clickhouse-server stop
+Stop raftkeeper:
+sudo service raftkeeper-server stop
 
-Run clickhouse with heap profiler from the terminal:
-sudo -u clickhouse LD_PRELOAD=/usr/lib/libtcmalloc.so HEAPPROFILE=/var/log/clickhouse-server/heap.hprof ./clickhouse server --config /etc/clickhouse-server/config.xml
+Run raftkeeper with heap profiler from the terminal:
+sudo -u raftkeeper LD_PRELOAD=/usr/lib/libtcmalloc.so HEAPPROFILE=/var/log/raftkeeper-server/heap.hprof ./raftkeeper server --config /etc/raftkeeper-server/config.xml
 
-Profiles will appear in /var/log/clickhouse-server/
+Profiles will appear in /var/log/raftkeeper-server/

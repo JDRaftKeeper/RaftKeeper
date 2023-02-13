@@ -5,7 +5,7 @@ if (NOT OS_LINUX OR ARCH_AARCH64)
 endif ()
 
 if (ENABLE_FASTMEMCPY)
-    set (LIBRARY_DIR ${ClickHouse_SOURCE_DIR}/contrib/FastMemcpy)
+    set (LIBRARY_DIR ${RaftKeeper_SOURCE_DIR}/contrib/FastMemcpy)
 
     set (SRCS
         ${LIBRARY_DIR}/FastMemcpy.c

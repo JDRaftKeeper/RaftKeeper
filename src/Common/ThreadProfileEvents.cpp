@@ -25,7 +25,7 @@
 #include <common/errnoToString.h>
 
 
-namespace DB
+namespace RK
 {
 
 bool TasksStatsCounters::checkIfAvailable()
@@ -128,7 +128,7 @@ void TasksStatsCounters::incrementProfileEvents(const ::taskstats & prev, const 
 
 #if defined(__linux__) && !defined(ARCADIA_BUILD)
 
-namespace DB
+namespace RK
 {
 
 thread_local PerfEventsCounters current_thread_counters;
@@ -566,7 +566,7 @@ void PerfDescriptorsHolder::releaseResources()
 
 #else
 
-namespace DB
+namespace RK
 {
 
 // Not on Linux or in Arcadia: the functionality is disabled.

@@ -17,7 +17,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

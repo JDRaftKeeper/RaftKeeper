@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

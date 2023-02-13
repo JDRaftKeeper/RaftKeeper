@@ -7,7 +7,7 @@
 #include <common/defines.h>
 
 
-namespace DB
+namespace RK
 {
 
 /// Data types for representing elementary values from a database in RAM.
@@ -284,22 +284,22 @@ inline constexpr const char * getTypeName(TypeIndex idx)
 namespace std
 {
     template <typename T>
-    struct hash<DB::Decimal<T>> { size_t operator()(const DB::Decimal<T> & x) const { return hash<T>()(x.value); } };
+    struct hash<RK::Decimal<T>> { size_t operator()(const RK::Decimal<T> & x) const { return hash<T>()(x.value); } };
 
     template <>
-    struct hash<DB::Decimal128>
+    struct hash<RK::Decimal128>
     {
-        size_t operator()(const DB::Decimal128 & x) const
+        size_t operator()(const RK::Decimal128 & x) const
         {
-            return std::hash<DB::Int64>()(x.value >> 64)
-                ^ std::hash<DB::Int64>()(x.value & std::numeric_limits<DB::UInt64>::max());
+            return std::hash<RK::Int64>()(x.value >> 64)
+                ^ std::hash<RK::Int64>()(x.value & std::numeric_limits<RK::UInt64>::max());
         }
     };
 
     template <>
-    struct hash<DB::DateTime64>
+    struct hash<RK::DateTime64>
     {
-        size_t operator()(const DB::DateTime64 & x) const
+        size_t operator()(const RK::DateTime64 & x) const
         {
             return std::hash<std::decay_t<decltype(x)>::NativeType>()(x);
         }
@@ -307,14 +307,14 @@ namespace std
 
 
     template <>
-    struct hash<DB::Decimal256>
+    struct hash<RK::Decimal256>
     {
-        size_t operator()(const DB::Decimal256 & x) const
+        size_t operator()(const RK::Decimal256 & x) const
         {
             // temp solution
-            static constexpr DB::UInt64 max_uint_mask = std::numeric_limits<DB::UInt64>::max();
-            return std::hash<DB::Int64>()(static_cast<DB::Int64>(x.value >> 64 & max_uint_mask))
-                ^ std::hash<DB::Int64>()(static_cast<DB::Int64>(x.value & max_uint_mask));
+            static constexpr RK::UInt64 max_uint_mask = std::numeric_limits<RK::UInt64>::max();
+            return std::hash<RK::Int64>()(static_cast<RK::Int64>(x.value >> 64 & max_uint_mask))
+                ^ std::hash<RK::Int64>()(static_cast<RK::Int64>(x.value & max_uint_mask));
         }
     };
 }

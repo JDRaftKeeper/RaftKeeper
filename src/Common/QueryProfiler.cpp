@@ -16,7 +16,7 @@ namespace ProfileEvents
     extern const Event QueryProfilerSignalOverruns;
 }
 
-namespace DB
+namespace RK
 {
 
 namespace

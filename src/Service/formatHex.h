@@ -3,7 +3,7 @@
 #include <sstream>
 #include <string>
 
-namespace DB
+namespace RK
 {
 template <class T>
 std::string toHexString(T i)

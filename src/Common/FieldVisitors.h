@@ -8,7 +8,7 @@
 class SipHash;
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

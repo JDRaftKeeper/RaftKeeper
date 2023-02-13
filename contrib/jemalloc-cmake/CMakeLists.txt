@@ -46,7 +46,7 @@ if (JEMALLOC_CONFIG_MALLOC_CONF_OVERRIDE)
 endif()
 message (STATUS "jemalloc malloc_conf: ${JEMALLOC_CONFIG_MALLOC_CONF}")
 
-set (LIBRARY_DIR "${ClickHouse_SOURCE_DIR}/contrib/jemalloc")
+set (LIBRARY_DIR "${RaftKeeper_SOURCE_DIR}/contrib/jemalloc")
 
 set (SRCS
     ${LIBRARY_DIR}/src/arena.c

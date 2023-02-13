@@ -3,7 +3,7 @@
 #include <Service/SocketNotification.h>
 
 
-namespace DB {
+namespace RK {
 
 
 SocketNotifier::SocketNotifier(const Socket& socket):

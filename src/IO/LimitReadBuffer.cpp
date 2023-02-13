@@ -3,7 +3,7 @@
 #include <Common/Exception.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

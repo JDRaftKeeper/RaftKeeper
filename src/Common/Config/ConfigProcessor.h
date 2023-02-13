@@ -26,7 +26,7 @@ namespace zkutil
     using EventPtr = std::shared_ptr<Poco::Event>;
 }
 
-namespace DB
+namespace RK
 {
 
 using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;

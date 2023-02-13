@@ -8,7 +8,7 @@
 #include <common/logger_useful.h>
 #include <Common/ThreadPool.h>
 
-namespace DB
+namespace RK
 {
 using nuraft::int32;
 using nuraft::int64;

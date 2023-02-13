@@ -21,7 +21,7 @@
 #    include <Common/config_version.h>
 #endif
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -242,7 +242,7 @@ static std::string getExtraExceptionInfo(const std::exception & e)
                 }
             }
         }
-        else if (const auto * errno_exception = dynamic_cast<const DB::ErrnoException *>(&e))
+        else if (const auto * errno_exception = dynamic_cast<const RK::ErrnoException *>(&e))
         {
             if (errno_exception->getErrno() == ENOSPC && errno_exception->getPath())
                 getNoSpaceLeftInfoMessage(errno_exception->getPath().value(), msg);

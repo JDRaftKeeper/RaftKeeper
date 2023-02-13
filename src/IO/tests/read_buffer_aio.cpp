@@ -191,7 +191,7 @@ void runTest(unsigned int num, const std::function<bool()> & func)
     {
         ok = func();
     }
-    catch (const DB::Exception & ex)
+    catch (const RK::Exception & ex)
     {
         ok = false;
         std::cout << "Caught exception " << ex.displayText() << "\n";
@@ -210,7 +210,7 @@ void runTest(unsigned int num, const std::function<bool()> & func)
 
 bool test1(const std::string & filename)
 {
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     if (in.getFileName() != filename)
         return false;
     if (in.getFD() == -1)
@@ -223,7 +223,7 @@ bool test2(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(buf.length());
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     size_t count = in.read(newbuf.data(), newbuf.length());
     if (count != newbuf.length())
         return false;
@@ -238,7 +238,7 @@ bool test3(const std::string & filename, const std::string & buf)
 
     size_t requested = 9 * DEFAULT_AIO_FILE_BLOCK_SIZE;
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     in.setMaxBytes(requested);
     size_t count = in.read(newbuf.data(), newbuf.length());
 
@@ -251,7 +251,7 @@ bool test4(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(buf.length());
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     in.setMaxBytes(0);
     size_t n_read = in.read(newbuf.data(), newbuf.length());
 
@@ -263,7 +263,7 @@ bool test5(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(1 + (DEFAULT_AIO_FILE_BLOCK_SIZE >> 1));
 
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
     in.setMaxBytes(1 + (DEFAULT_AIO_FILE_BLOCK_SIZE >> 1));
 
     size_t count = in.read(newbuf.data(), newbuf.length());
@@ -281,7 +281,7 @@ bool test6(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(buf.length());
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     if (in.getPosition() != 0)
         return false;
@@ -301,7 +301,7 @@ bool test7(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(buf.length() - DEFAULT_AIO_FILE_BLOCK_SIZE);
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     (void) in.seek(DEFAULT_AIO_FILE_BLOCK_SIZE, SEEK_SET);
     size_t count = in.read(newbuf.data(), newbuf.length());
     if (count != (9 * DEFAULT_AIO_FILE_BLOCK_SIZE))
@@ -315,7 +315,7 @@ bool test8(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(DEFAULT_AIO_FILE_BLOCK_SIZE - 1);
 
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     (void) in.seek(DEFAULT_AIO_FILE_BLOCK_SIZE + 1, SEEK_CUR);
     size_t count = in.read(newbuf.data(), newbuf.length());
 
@@ -337,13 +337,13 @@ bool test9(const std::string & filename, const std::string & buf)
         std::string newbuf;
         newbuf.resize(buf.length());
 
-        DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+        RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
         size_t count = in.read(newbuf.data(), newbuf.length());
         if (count != newbuf.length())
             return false;
         in.setMaxBytes(9 * DEFAULT_AIO_FILE_BLOCK_SIZE);
     }
-    catch (const DB::Exception &)
+    catch (const RK::Exception &)
     {
         ok = true;
     }
@@ -353,7 +353,7 @@ bool test9(const std::string & filename, const std::string & buf)
 
 bool test10(const std::string & filename, const std::string & buf)
 {
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     {
         std::string newbuf;
@@ -390,10 +390,10 @@ bool test11(const std::string & filename)
 
     try
     {
-        DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+        RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
         (void) in.seek(-DEFAULT_AIO_FILE_BLOCK_SIZE, SEEK_SET);
     }
-    catch (const DB::Exception &)
+    catch (const RK::Exception &)
     {
         ok = true;
     }
@@ -410,14 +410,14 @@ bool test12(const std::string & filename, const std::string &)
         std::string newbuf;
         newbuf.resize(4 * DEFAULT_AIO_FILE_BLOCK_SIZE);
 
-        DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+        RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
         size_t count = in.read(newbuf.data(), newbuf.length());
         if (count != newbuf.length())
             return false;
 
         (void) in.seek(-(10 * DEFAULT_AIO_FILE_BLOCK_SIZE), SEEK_CUR);
     }
-    catch (const DB::Exception &)
+    catch (const RK::Exception &)
     {
         ok = true;
     }
@@ -430,7 +430,7 @@ bool test13(const std::string & filename, const std::string &)
     std::string newbuf;
     newbuf.resize(2 * DEFAULT_AIO_FILE_BLOCK_SIZE - 3);
 
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
     size_t count1 = in.read(newbuf.data(), newbuf.length());
     return count1 == newbuf.length();
 }
@@ -440,7 +440,7 @@ bool test14(const std::string & filename, const std::string & buf)
     std::string newbuf;
     newbuf.resize(1 + (DEFAULT_AIO_FILE_BLOCK_SIZE >> 1));
 
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
     (void) in.seek(2, SEEK_SET);
     in.setMaxBytes(3 + (DEFAULT_AIO_FILE_BLOCK_SIZE >> 1));
 
@@ -459,7 +459,7 @@ bool test15(const std::string & filename, const std::string &)
     std::string newbuf;
     newbuf.resize(1000);
 
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     size_t count = in.read(newbuf.data(), 1);
     if (count != 1)
@@ -471,7 +471,7 @@ bool test15(const std::string & filename, const std::string &)
 
 bool test16(const std::string & filename, const std::string &)
 {
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
     size_t count;
 
     {
@@ -537,7 +537,7 @@ bool test16(const std::string & filename, const std::string &)
 
 bool test17(const std::string & filename, const std::string & buf)
 {
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
     size_t count;
 
     {
@@ -581,7 +581,7 @@ bool test17(const std::string & filename, const std::string & buf)
 
 bool test18(const std::string & filename, const std::string & buf)
 {
-    DB::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     std::string newbuf;
     newbuf.resize(1340);
@@ -599,7 +599,7 @@ bool test18(const std::string & filename, const std::string & buf)
 
 bool test19(const std::string & filename, const std::string & buf)
 {
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     {
         std::string newbuf;
@@ -630,7 +630,7 @@ bool test19(const std::string & filename, const std::string & buf)
 
 bool test20(const std::string & filename, const std::string & buf)
 {
-    DB::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
+    RK::ReadBufferAIO in(filename, 3 * DEFAULT_AIO_FILE_BLOCK_SIZE);
 
     {
         std::string newbuf;

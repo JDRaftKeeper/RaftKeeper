@@ -31,7 +31,7 @@ template<> struct hash<Poco::Net::IPAddress>
 };
 }
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

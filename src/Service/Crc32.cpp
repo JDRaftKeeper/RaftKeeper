@@ -1,7 +1,7 @@
 #include <Service/Crc32.h>
 #include <common/types.h>
 
-namespace DB
+namespace RK
 {
 
 const UInt32 CRC_TABLE[] = {

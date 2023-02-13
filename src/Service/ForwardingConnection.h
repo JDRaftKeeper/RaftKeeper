@@ -2,15 +2,15 @@
 
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <IO/WriteBufferFromPocoSocket.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Poco/Net/StreamSocket.h>
-#include <common/logger_useful.h>
-#include <Service/SvsKeeperStorage.h>
+#include <Service/KeeperStore.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <libnuraft/async.hxx>
+#include <Poco/Net/StreamSocket.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 
 enum PkgType : int8_t
@@ -86,7 +86,7 @@ public:
     ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout_ms) : my_server_id(server_id_), thread_id(thread_id_), endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingConnection")) {}
 
     void connect(Poco::Timespan connection_timeout);
-    void send(SvsKeeperStorage::RequestForSession request_for_session);
+    void send(KeeperStore::RequestForSession request_for_session);
     bool receive(ForwardResponse & response);
     void disconnect();
 

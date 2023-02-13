@@ -1,11 +1,11 @@
 #pragma once
 
+#include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
-#include <Service/SvsKeeperServer.h>
 #include <Common/Stopwatch.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -15,7 +15,6 @@ namespace ErrorCodes
 
 class RequestForwarder
 {
-    using Request = SvsKeeperStorage::RequestForSession;
     using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
     using RunnerId = size_t;
 
@@ -25,7 +24,7 @@ public:
     {
     }
 
-    void push(Request request_for_session);
+    void push(RequestForSession request_for_session);
 
     void run(RunnerId runner_id);
 
@@ -35,8 +34,8 @@ public:
 
     void initialize(
         size_t thread_count_,
-        std::shared_ptr<SvsKeeperServer> server_,
-        std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
+        std::shared_ptr<KeeperServer> server_,
+        std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         UInt64 session_sync_period_ms_);
 
 
@@ -47,7 +46,7 @@ private:
 
     std::shared_ptr<RequestProcessor> request_processor;
 
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     //    std::vector<std::unique_ptr<std::mutex>> mutexes;
     //
@@ -63,7 +62,7 @@ private:
 
     bool shutdown_called{false};
 
-    std::shared_ptr<SvsKeeperServer> server;
+    std::shared_ptr<KeeperServer> server;
 
     UInt64 session_sync_period_ms = 500;
 

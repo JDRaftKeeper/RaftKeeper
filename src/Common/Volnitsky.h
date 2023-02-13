@@ -35,7 +35,7 @@
   */
 
 
-namespace DB
+namespace RK
 {
 namespace VolnitskyTraits
 {

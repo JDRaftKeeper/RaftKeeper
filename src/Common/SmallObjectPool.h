@@ -4,7 +4,7 @@
 #include <common/unaligned.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Can allocate memory objects of fixed size with deletion support.

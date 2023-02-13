@@ -8,13 +8,13 @@ namespace
 
 MemoryTracker * getMemoryTracker()
 {
-    if (auto * thread_memory_tracker = DB::CurrentThread::getMemoryTracker())
+    if (auto * thread_memory_tracker = RK::CurrentThread::getMemoryTracker())
         return thread_memory_tracker;
 
     /// Once the main thread is initialized,
     /// total_memory_tracker is initialized too.
     /// And can be used, since MainThreadStatus is required for profiling.
-    if (DB::MainThreadStatus::get())
+    if (RK::MainThreadStatus::get())
         return &total_memory_tracker;
 
     return nullptr;
@@ -25,7 +25,7 @@ MemoryTracker * getMemoryTracker()
 namespace CurrentMemoryTracker
 {
 
-using DB::current_thread;
+using RK::current_thread;
 
 void alloc(Int64 size)
 {

@@ -11,7 +11,7 @@
 
 int main(int, char **)
 {
-    using namespace DB;
+    using namespace RK;
 
     try
     {

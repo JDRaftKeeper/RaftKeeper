@@ -8,7 +8,7 @@
 #include <functional>
 
 
-namespace DB
+namespace RK
 {
 
 /** Implements the ability to write and read data in/from WriteBuffer/ReadBuffer
@@ -19,8 +19,8 @@ namespace DB
   *
   * Example usage:
   *
-  *     DB::WriteBufferFromFileDescriptor buf(STDOUT_FILENO);
-  *     buf << DB::double_quote << "Hello, world!" << '\n' << DB::flush;
+  *     RK::WriteBufferFromFileDescriptor buf(STDOUT_FILENO);
+  *     buf << RK::double_quote << "Hello, world!" << '\n' << RK::flush;
   *
   * Outputs `char` type (usually it's Int8) as a symbol, not as a number.
   */

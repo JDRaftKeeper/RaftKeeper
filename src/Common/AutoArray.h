@@ -7,7 +7,7 @@
 #include <Common/formatReadable.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -39,7 +39,7 @@ namespace ErrorCodes
   * In this case, compared to std::vector:
   * - for arrays of 1 element size - an advantage of about 2 times;
   * - for arrays of 5 elements - an advantage of about 1.5 times
-  *   (DB::Field, containing UInt64 and String, used as T);
+  *   (RK::Field, containing UInt64 and String, used as T);
   */
 
 const size_t empty_auto_array_helper = 0;

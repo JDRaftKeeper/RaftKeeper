@@ -6,7 +6,7 @@
 #include <IO/BufferWithOwnMemory.h>
 
 
-namespace DB
+namespace RK
 {
 
 class WriteBufferFromOStream : public BufferWithOwnMemory<WriteBuffer>

@@ -7,7 +7,7 @@
 #include <string>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -39,7 +39,7 @@ void deserializeSnapshotMagic(ReadBuffer & in)
         throw Exception(ErrorCodes::CORRUPTED_DATA ,"Incorrect magic header in file, expected {}, got {}", SNP_HEADER, magic_header);
 }
 
-int64_t deserializeSessionAndTimeout(SvsKeeperStorage & storage, ReadBuffer & in)
+int64_t deserializeSessionAndTimeout(KeeperStore & store, ReadBuffer & in)
 {
     int32_t count;
     Coordination::read(count, in);
@@ -51,14 +51,14 @@ int64_t deserializeSessionAndTimeout(SvsKeeperStorage & storage, ReadBuffer & in
 
         Coordination::read(session_id, in);
         Coordination::read(timeout, in);
-        storage.addSessionID(session_id, timeout);
+        store.addSessionID(session_id, timeout);
         max_session_id = std::max(session_id, max_session_id);
         count--;
     }
     return max_session_id;
 }
 
-void deserializeACLMap(SvsKeeperStorage & storage, ReadBuffer & in)
+void deserializeACLMap(KeeperStore & store, ReadBuffer & in)
 {
     int32_t count;
     Coordination::read(count, in);
@@ -80,13 +80,13 @@ void deserializeACLMap(SvsKeeperStorage & storage, ReadBuffer & in)
             acls.push_back(acl);
             acls_len--;
         }
-        storage.acl_map.addMapping(map_index, acls);
+        store.acl_map.addMapping(map_index, acls);
 
         count--;
     }
 }
 
-int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * log)
+int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
 {
     int64_t max_zxid = 0;
     std::string path;
@@ -118,16 +118,13 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
         if (!path.empty())
         {
             node->stat.dataLength = node->data.length();
-//            storage.container.insertOrReplace(path, node);
-            storage.container.emplace(path, node);
+            store.container.emplace(path, node);
 
             if (node->stat.ephemeralOwner != 0)
             {
                 node->is_ephemeral = true;
-                storage.ephemerals[node->stat.ephemeralOwner].insert(path);
+                store.ephemerals[node->stat.ephemeralOwner].insert(path);
             }
-
-//            storage.acl_map.addUsage(node.acl_id);
         }
         Coordination::read(path, in);
         count++;
@@ -135,24 +132,15 @@ int64_t deserializeStorageData(SvsKeeperStorage & storage, ReadBuffer & in, Poco
             LOG_INFO(log, "Deserialized nodes from snapshot: {}", count);
     }
 
-    storage.buildPathChildren(true);
-//    for (const auto & itr : storage.container)
-//    {
-//        if (itr.key != "/")
-//        {
-//            auto parent_path = parentPath(itr.key);
-//            storage.container.updateValue(parent_path, [&path = itr.key] (SvsKeeperStorage::Node & value) { value.children.insert(getBaseName(path)); value.stat.numChildren++; });
-//        }
-//    }
-
+    store.buildPathChildren(true);
     LOG_INFO(log, "Totally deserialized {} nodes from snapshot", count);
 
     return max_zxid;
 }
 
-void deserializeSvsKeeperStorageFromSnapshot(SvsKeeperStorage & storage, const std::string & snapshot_path, Poco::Logger * log)
+void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string & snapshot_path, Poco::Logger * log)
 {
-    LOG_INFO(log, "Deserializing storage snapshot {}", snapshot_path);
+    LOG_INFO(log, "Deserializing snapshot {}", snapshot_path);
     int64_t zxid = getZxidFromName(snapshot_path);
 
     ReadBufferFromFile reader(snapshot_path);
@@ -160,15 +148,15 @@ void deserializeSvsKeeperStorageFromSnapshot(SvsKeeperStorage & storage, const s
     deserializeSnapshotMagic(reader);
 
     LOG_INFO(log, "Magic deserialized, looks OK");
-    auto max_session_id = deserializeSessionAndTimeout(storage, reader);
+    auto max_session_id = deserializeSessionAndTimeout(store, reader);
     LOG_INFO(log, "Sessions and timeouts deserialized, max_session_id: {}", max_session_id);
 
-    storage.session_id_counter = max_session_id + 1; /// session_id_counter pointer to next slot
-    deserializeACLMap(storage, reader);
+    store.session_id_counter = max_session_id + 1; /// session_id_counter pointer to next slot
+    deserializeACLMap(store, reader);
     LOG_INFO(log, "ACLs deserialized");
 
     LOG_INFO(log, "Deserializing data from snapshot");
-    int64_t zxid_from_nodes = deserializeStorageData(storage, reader, log);
+    int64_t zxid_from_nodes = deserializeStorageData(store, reader, log);
     /// In ZooKeeper Snapshots can contain inconsistent state of storage. They call
     /// this inconsistent state "fuzzy". So it's guaranteed that snapshot contain all
     /// records up to zxid from snapshot name and also some records for future.
@@ -184,12 +172,12 @@ void deserializeSvsKeeperStorageFromSnapshot(SvsKeeperStorage & storage, const s
     if (zxid_from_nodes > zxid)
         LOG_WARNING(log, "ZooKeeper snapshot was in inconsistent (fuzzy) state. Will try to apply log. ZooKeeper create non fuzzy snapshot with restart. You can just restart ZooKeeper server and get consistent version.");
 
-    storage.zxid = zxid;
+    store.zxid = zxid;
 
-    LOG_INFO(log, "Finished, snapshot ZXID {}", storage.zxid);
+    LOG_INFO(log, "Finished, snapshot ZXID {}", store.zxid);
 }
 
-void deserializeSvsKeeperStorageFromSnapshotsDir(SvsKeeperStorage & storage, const std::string & path, Poco::Logger * log)
+void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::string & path, Poco::Logger * log)
 {
     namespace fs = std::filesystem;
     std::map<int64_t, std::string> existing_snapshots;
@@ -205,7 +193,7 @@ void deserializeSvsKeeperStorageFromSnapshotsDir(SvsKeeperStorage & storage, con
     LOG_INFO(log, "Totally have {} snapshots, will use latest", existing_snapshots.size());
     /// deserialize only from latest snapshot
     if (!existing_snapshots.empty())
-        deserializeSvsKeeperStorageFromSnapshot(storage, existing_snapshots.rbegin()->second, log);
+        deserializeKeeperStoreFromSnapshot(store, existing_snapshots.rbegin()->second, log);
     else
         throw Exception(ErrorCodes::CORRUPTED_DATA, "No snapshots found on path {}. At least one snapshot must exist.", path);
 }
@@ -484,7 +472,7 @@ bool hasErrorsInMultiRequest(Coordination::ZooKeeperRequestPtr request)
 
 }
 
-bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * log)
+bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
 {
     int64_t checksum;
     Coordination::read(checksum, in);
@@ -519,13 +507,13 @@ bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * 
 
     request->xid = xid;
 
-    if (zxid > storage.zxid)
+    if (zxid > store.zxid)
     {
         /// Separate processing of session id requests
         if (request->getOpNum() == Coordination::OpNum::SessionID)
         {
             const Coordination::ZooKeeperSessionIDRequest & session_id_request = dynamic_cast<const Coordination::ZooKeeperSessionIDRequest &>(*request);
-            storage.getSessionID(session_id_request.session_timeout_ms);
+            store.getSessionID(session_id_request.session_timeout_ms);
         }
         else
         {
@@ -533,15 +521,15 @@ bool deserializeTxn(SvsKeeperStorage & storage, ReadBuffer & in, Poco::Logger * 
             if (request->getOpNum() == Coordination::OpNum::Multi && hasErrorsInMultiRequest(request))
                 return true;
 
-            SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
-            storage.processRequest(responses_queue, request, session_id, time, zxid, /* check_acl = */ false, /*ignore_response*/true);
+            KeeperStore::SvsKeeperResponsesQueue responses_queue;
+            store.processRequest(responses_queue, request, session_id, time, zxid, /* check_acl = */ false, /*ignore_response*/true);
         }
     }
 
     return true;
 }
 
-void deserializeLogAndApplyToStorage(SvsKeeperStorage & storage, const std::string & log_path, Poco::Logger * log)
+void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_path, Poco::Logger * log)
 {
     ReadBufferFromFile reader(log_path);
 
@@ -550,7 +538,7 @@ void deserializeLogAndApplyToStorage(SvsKeeperStorage & storage, const std::stri
     LOG_INFO(log, "Header looks OK");
 
     size_t counter = 0;
-    while (!reader.eof() && deserializeTxn(storage, reader, log))
+    while (!reader.eof() && deserializeTxn(store, reader, log))
     {
         counter++;
         if (counter % 1000 == 0)
@@ -565,7 +553,7 @@ void deserializeLogAndApplyToStorage(SvsKeeperStorage & storage, const std::stri
     LOG_INFO(log, "Finished {} deserialization, totally read {} records", log_path, counter);
 }
 
-void deserializeLogsAndApplyToStorage(SvsKeeperStorage & storage, const std::string & path, Poco::Logger * log)
+void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & path, Poco::Logger * log)
 {
     namespace fs = std::filesystem;
     std::map<int64_t, std::string> existing_logs;
@@ -583,11 +571,11 @@ void deserializeLogsAndApplyToStorage(SvsKeeperStorage & storage, const std::str
     std::vector<std::string> stored_files;
     for (auto it = existing_logs.rbegin(); it != existing_logs.rend(); ++it)
     {
-        if (it->first >= storage.zxid)
+        if (it->first >= store.zxid)
         {
             stored_files.emplace_back(it->second);
         }
-        else if (it->first < storage.zxid)
+        else
         {
             /// add the last logfile that is less than the zxid
             stored_files.emplace_back(it->second);
@@ -597,7 +585,7 @@ void deserializeLogsAndApplyToStorage(SvsKeeperStorage & storage, const std::str
 
     for (auto it = stored_files.rbegin(); it != stored_files.rend(); ++it)
     {
-        deserializeLogAndApplyToStorage(storage, *it, log);
+        deserializeLogAndApplyToStore(store, *it, log);
     }
 
 }

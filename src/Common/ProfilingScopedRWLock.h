@@ -5,7 +5,7 @@
 #include <Common/Stopwatch.h>
 
 
-namespace DB
+namespace RK
 {
 
 class ProfilingScopedWriteRWLock

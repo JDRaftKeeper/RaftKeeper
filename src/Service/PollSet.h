@@ -6,7 +6,7 @@
 
 using Poco::Net::Socket;
 
-namespace DB {
+namespace RK {
 
 class PollSetImpl;
 

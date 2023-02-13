@@ -1,4 +1,4 @@
-include (${ClickHouse_SOURCE_DIR}/cmake/add_check.cmake)
+include (${RaftKeeper_SOURCE_DIR}/cmake/add_check.cmake)
 
 add_executable (date_lut2 date_lut2.cpp)
 add_executable (date_lut3 date_lut3.cpp)
@@ -22,4 +22,4 @@ if(USE_GTEST)
 endif()
 
 add_executable (dump_variable dump_variable.cpp)
-target_link_libraries (dump_variable PRIVATE clickhouse_common_io)
+target_link_libraries (dump_variable PRIVATE raftkeeper_common_io)

@@ -1,6 +1,6 @@
 syntax="proto3";
 
-package DB;
+package RK;
 
 enum LogEntryTypePB 
 {

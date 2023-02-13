@@ -3,11 +3,12 @@
 #include <string>
 #include <thread>
 #include <time.h>
+#include <Service/KeeperCommon.h>
 #include <Service/LogEntry.h>
-#include <Service/NuRaftCommon.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
-#include <Service/SvsKeeperSettings.h>
+#include <Service/Settings.h>
+#include <boost/program_options.hpp>
 #include <libnuraft/nuraft.hxx>
 #include <loggers/Loggers.h>
 #include <Poco/File.h>
@@ -28,15 +29,15 @@
 #include <common/logger_useful.h>
 
 using namespace Coordination;
-using namespace DB;
+using namespace RK;
 using namespace nuraft;
 
-namespace DB
+namespace RK
 {
 static const std::string LOG_DIR = "./test_raft_log";
 static const std::string SNAP_DIR = "./test_raft_snapshot";
 
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 0)
+void setNode(KeeperStore & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 0)
 {
     ACLs default_acls;
     ACL acl;
@@ -52,7 +53,7 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 
@@ -319,8 +320,8 @@ void snapshotVolume(int last_index)
     KeeperSnapshotManager snap_mgr(snap_dir, 1000000, 20);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore storage(raft_settings->dead_session_check_period_ms);
 
     auto mem1 = GetProcessMemory();
     Stopwatch watch;
@@ -396,7 +397,7 @@ void snapshotVolume(int last_index)
         byte_rate,
         count_rate);
 
-    SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    KeeperStore new_storage(raft_settings->dead_session_check_period_ms);
     watch.start();
     snap_mgr.parseSnapshot(meta, new_storage);
 
@@ -423,7 +424,7 @@ int main(int argc, char ** argv)
         return 0;
     }
     char * tag = argv[1];
-    DB::TestServer app;
+    RK::TestServer app;
     app.init(argc, argv);
     app.run();
     if (strcmp(tag, "logSegmentThread") == 0)

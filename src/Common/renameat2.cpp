@@ -10,7 +10,7 @@
 #include <sys/utsname.h>
 #endif
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

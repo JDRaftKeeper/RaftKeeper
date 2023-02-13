@@ -4,12 +4,12 @@
 
 struct ContextHolder
 {
-    DB::SharedContextHolder shared_context;
-    DB::Context context;
+    RK::SharedContextHolder shared_context;
+    RK::Context context;
 
     ContextHolder()
-        : shared_context(DB::Context::createShared())
-        , context(DB::Context::createGlobal(shared_context.get()))
+        : shared_context(RK::Context::createShared())
+        , context(RK::Context::createGlobal(shared_context.get()))
     {
         context.makeGlobalContext();
         context.setPath("./");

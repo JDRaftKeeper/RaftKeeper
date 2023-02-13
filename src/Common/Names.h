@@ -7,7 +7,7 @@
 #include <unordered_map>
 
 
-namespace DB
+namespace RK
 {
 
 using Names = std::vector<std::string>;

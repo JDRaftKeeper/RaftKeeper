@@ -13,7 +13,7 @@
 #include <valgrind/valgrind.h>
 #endif
 
-namespace DB::ErrorCodes
+namespace RK::ErrorCodes
 {
     extern const int CANNOT_ALLOCATE_MEMORY;
 }
@@ -41,12 +41,12 @@ public:
 
         void * vp = ::mmap(nullptr, num_bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (MAP_FAILED == vp)
-            DB::throwFromErrno(fmt::format("FiberStack: Cannot mmap {}.", ReadableSize(num_bytes)), DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
+            RK::throwFromErrno(fmt::format("FiberStack: Cannot mmap {}.", ReadableSize(num_bytes)), RK::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
 
         if (-1 == ::mprotect(vp, page_size, PROT_NONE))
         {
             ::munmap(vp, num_bytes);
-            DB::throwFromErrno("FiberStack: cannot protect guard page", DB::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
+            RK::throwFromErrno("FiberStack: cannot protect guard page", RK::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
         }
 
         /// Do not count guard page in memory usage.

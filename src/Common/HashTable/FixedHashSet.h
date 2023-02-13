@@ -19,7 +19,7 @@ public:
 
     /// NOTE: Currently this method isn't used. When it does, the ReadBuffer should
     ///  contain the Key explicitly.
-    // void readAndMerge(DB::ReadBuffer & rb)
+    // void readAndMerge(RK::ReadBuffer & rb)
     // {
 
     // }

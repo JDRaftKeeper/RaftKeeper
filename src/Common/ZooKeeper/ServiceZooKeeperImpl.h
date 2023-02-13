@@ -84,7 +84,7 @@ extern const Metric ZooKeeperSession;
 namespace Coordination
 {
 
-using namespace DB;
+using namespace RK;
 
 /** Usage scenario: look at the documentation for IKeeper class.
   */

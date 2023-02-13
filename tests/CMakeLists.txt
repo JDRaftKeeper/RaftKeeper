@@ -4,15 +4,15 @@ enable_testing()
 if (TARGET check)
     message (STATUS "Target check already exists")
 else ()
-    include (${ClickHouse_SOURCE_DIR}/cmake/add_check.cmake)
+    include (${RaftKeeper_SOURCE_DIR}/cmake/add_check.cmake)
 endif ()
 
-install (PROGRAMS clickhouse-test DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT clickhouse)
+install (PROGRAMS raftkeeper-test DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
 install (
     DIRECTORY queries performance config
-    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/clickhouse-test
+    DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/raftkeeper-test
     USE_SOURCE_PERMISSIONS
-    COMPONENT clickhouse
+    COMPONENT raftkeeper
     PATTERN "CMakeLists.txt" EXCLUDE
     PATTERN ".gitignore" EXCLUDE
 )

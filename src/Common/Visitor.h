@@ -49,7 +49,7 @@
  *  TODO: Add ConstVisitor with 'visit(const Type &)' function in order to implement 'accept(...) const'.
  */
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

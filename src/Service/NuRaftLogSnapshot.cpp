@@ -5,17 +5,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <Service/NuRaftCommon.h>
+#include <IO/WriteHelpers.h>
+#include <Service/KeeperCommon.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <sys/uio.h>
 #include <Poco/File.h>
-#include <Common/Exception.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <Common/Stopwatch.h>
-#include <IO/WriteHelpers.h>
 #include <Poco/NumberFormatter.h>
+#include <Common/Exception.h>
+#include <Common/Stopwatch.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push
@@ -27,7 +27,7 @@
 //#define RAFT_SERVICE_TEST
 #endif
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -122,7 +122,7 @@ std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, 
 
     SnapshotBatchHeader header;
     header.data_length = str_buf.size();
-    header.data_crc = DB::getCRC32(str_buf.c_str(), str_buf.size());
+    header.data_crc = RK::getCRC32(str_buf.c_str(), str_buf.size());
 
     writeIntBinary(header.data_length, *out);
     writeIntBinary(header.data_crc, *out);
@@ -142,7 +142,7 @@ UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
     };
     crc[0] = checksum;
     crc[1] = data_crc;
-    return DB::getCRC32(reinterpret_cast<const char *>(&data), 8);
+    return RK::getCRC32(reinterpret_cast<const char *>(&data), 8);
 }
 
 std::pair<size_t, UInt32>
@@ -224,7 +224,7 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
     writeTailAndClose(out, checksum);
 }
 
-[[maybe_unused]] size_t serializeEphemerals(SvsKeeperStorage::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size)
+[[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     LOG_INFO(log, "Begin create snapshot ephemeral object, node size {}, path {}", ephemerals.size(), path);
@@ -282,25 +282,25 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
 
 /** Serialize sessions and return the next_session_id before serialize
      */
-int64_t serializeSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, const SnapshotVersion version, std::string & path)
+int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, std::string & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
 
     auto out = openFileAndWriteHeader(path, version);
 
 
-    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", storage.session_and_timeout.size(), path);
+    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", store.session_and_timeout.size(), path);
 
-    std::lock_guard lock(storage.session_mutex);
-    std::lock_guard acl_lock(storage.auth_mutex);
+    std::lock_guard lock(store.session_mutex);
+    std::lock_guard acl_lock(store.auth_mutex);
 
-    int64_t next_session_id = storage.session_id_counter;
+    int64_t next_session_id = store.session_id_counter;
     ptr<SnapshotBatchPB> batch;
 
     uint64_t index = 0;
     UInt32 checksum = 0;
 
-    for (auto & session_it : storage.session_and_timeout)
+    for (auto & session_it : store.session_and_timeout)
     {
         /// flush and rebuild batch
         if (index % save_batch_size == 0)
@@ -323,8 +323,8 @@ int64_t serializeSessions(SvsKeeperStorage & storage, UInt32 save_batch_size, co
         Coordination::write(session_it.second, buf); //Timeout_ms
 
         Coordination::AuthIDs ids;
-        if (storage.session_and_auth.count(session_it.first))
-            ids = storage.session_and_auth.at(session_it.first);
+        if (store.session_and_auth.count(session_it.first))
+            ids = store.session_and_auth.at(session_it.first);
         Coordination::write(ids, buf);
 
         ptr<buffer> data = buf.getBuffer();
@@ -418,7 +418,7 @@ size_t KeeperSnapshotStore::getObjectIdx(const std::string & file_name)
     return std::stoi(file_name.substr(it1 + 1, file_name.size() - it1));
 }
 
-size_t KeeperSnapshotStore::serializeDataTree(SvsKeeperStorage & storage)
+size_t KeeperSnapshotStore::serializeDataTree(KeeperStore & storage)
 {
     std::shared_ptr<WriteBufferFromFile> out;
     ptr<SnapshotBatchPB> batch;
@@ -439,12 +439,12 @@ size_t KeeperSnapshotStore::serializeDataTree(SvsKeeperStorage & storage)
 void KeeperSnapshotStore::serializeNode(
     ptr<WriteBufferFromFile> & out,
     ptr<SnapshotBatchPB> & batch,
-    SvsKeeperStorage & storage,
+    KeeperStore & store,
     const String & path,
     uint64_t & processed,
     uint32_t & checksum)
 {
-    auto node = storage.container.get(path);
+    auto node = store.container.get(path);
 
     /// In case of node is deleted
     if (!node)
@@ -506,7 +506,7 @@ void KeeperSnapshotStore::serializeNode(
         path_with_slash += '/';
 
     for (const auto & child : node->children)
-        serializeNode(out, batch, storage, path_with_slash + child, processed, checksum);
+        serializeNode(out, batch, store, path_with_slash + child, processed, checksum);
 
 }
 
@@ -530,7 +530,7 @@ void KeeperSnapshotStore::appendNodeToBatch(
     entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
 }
 
-size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t next_zxid, int64_t next_session_id)
+size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
     if (snap_meta->size() == 0)
     {
@@ -542,8 +542,8 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
         throw Exception(ErrorCodes::CANNOT_CREATE_DIRECTORY, "Fail to create snapshot directory {}", snap_dir);
     }
 
-    size_t data_object_count = storage.container.size() / max_object_node_size;
-    if (storage.container.size() % max_object_node_size)
+    size_t data_object_count = store.container.size() / max_object_node_size;
+    if (store.container.size() % max_object_node_size)
     {
         data_object_count += 1;
     }
@@ -574,7 +574,7 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
     String session_path;
     /// object index should start from 1
     getObjectPath(2, session_path);
-    int64_t serialized_next_session_id = serializeSessions(storage, save_batch_size, version, session_path);
+    int64_t serialized_next_session_id = serializeSessions(store, save_batch_size, version, session_path);
     LOG_INFO(log,
              "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
              toHexString(next_session_id),
@@ -584,10 +584,10 @@ size_t KeeperSnapshotStore::createObjects(SvsKeeperStorage & storage, int64_t ne
     String acl_path;
     /// object index should start from 1
     getObjectPath(3, acl_path);
-    serializeAcls(storage.acl_map, acl_path, save_batch_size, version);
+    serializeAcls(store.acl_map, acl_path, save_batch_size, version);
 
     /// 4. Save data tree
-    size_t last_id = serializeDataTree(storage);
+    size_t last_id = serializeDataTree(store);
 
     total_obj_count = last_id;
     LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
@@ -641,7 +641,7 @@ bool KeeperSnapshotStore::loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader &
     return true;
 }
 
-bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage & storage)
+bool KeeperSnapshotStore::parseOneObject(std::string obj_path, KeeperStore & store)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -748,7 +748,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             /// Deserialize ACL
                             Coordination::ACLs acls;
                             Coordination::read(acls, in);
-                            node->acl_id = storage.acl_map.convertACLs(acls);
+                            node->acl_id = store.acl_map.convertACLs(acls);
                             LOG_TRACE(log, "parseOneObject path {}, acl_id {}", key, node->acl_id);
                         }
 
@@ -756,7 +756,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         if (node->acl_id == std::numeric_limits<uint64_t>::max())
                             node->acl_id = 0;
 
-                        storage.acl_map.addUsage(node->acl_id);
+                        store.acl_map.addUsage(node->acl_id);
                         LOG_TRACE(log, "parseOneObject path {}, acl_id {}", key, node->acl_id);
 
                         Coordination::read(node->is_ephemeral, in);
@@ -764,14 +764,14 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(node->stat, in);
                         auto ephemeral_owner = node->stat.ephemeralOwner;
                         LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
-                        storage.container.emplace(key, std::move(node));
+                        store.container.emplace(key, std::move(node));
 
                         if (ephemeral_owner != 0)
                         {
                             /// TODO LOG_INFO -> LOG_TRACE
                             LOG_INFO(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
-                            std::lock_guard l(storage.ephemerals_mutex);
-                            auto & ephemeral_nodes = storage.ephemerals[ephemeral_owner];
+                            std::lock_guard l(store.ephemerals_mutex);
+                            auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
                             ephemeral_nodes.emplace(key);
                         }
                     }
@@ -815,8 +815,8 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                             {
                                 if (!ids.empty())
                                 {
-                                    std::lock_guard lock(storage.auth_mutex);
-                                    storage.session_and_auth[session_id] = ids;
+                                    std::lock_guard lock(store.auth_mutex);
+                                    store.session_and_auth[session_id] = ids;
                                 }
                             }
                         }
@@ -832,7 +832,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         break;
                     }
                     LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
-                    storage.addSessionID(session_id, timeout);
+                    store.addSessionID(session_id, timeout);
                 }
             }
             break;
@@ -855,7 +855,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                         Coordination::read(acls, in);
 
                         LOG_TRACE(log, "parseOneObject acl_id {}", acl_id);
-                        storage.acl_map.addMapping(acl_id, acls);
+                        store.acl_map.addMapping(acl_id, acls);
                     }
                 }
                 break;
@@ -890,11 +890,11 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
                 }
                 if (int_map.find("ZXID") != int_map.end())
                 {
-                    storage.zxid = int_map["ZXID"];
+                    store.zxid = int_map["ZXID"];
                 }
                 if (int_map.find("SESSIONID") != int_map.end())
                 {
-                    storage.session_id_counter = int_map["SESSIONID"];
+                    store.session_id_counter = int_map["SESSIONID"];
                 }
             }
             break;
@@ -906,7 +906,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, SvsKeeperStorage 
     return true;
 }
 
-void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
+void KeeperSnapshotStore::parseObject(KeeperStore & store)
 {
     SnapshotVersion current_version = static_cast<SnapshotVersion>(version);
     if (current_version > version)
@@ -915,7 +915,7 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
     {
-        object_thread_pool.trySchedule([this, thread_idx, &storage] {
+        object_thread_pool.trySchedule([this, thread_idx, &store] {
             Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.parseObjectThread"));
             UInt32 obj_idx = 0;
             for (auto it = this->objects_path.begin(); it != this->objects_path.end(); it++)
@@ -931,7 +931,7 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
                         this->objects_path.size());
                     try
                     {
-                        this->parseOneObject(it->second, storage);
+                        this->parseOneObject(it->second, store);
                     }
                     catch(Exception & e)
                     {
@@ -945,15 +945,15 @@ void KeeperSnapshotStore::parseObject(SvsKeeperStorage & storage)
     object_thread_pool.wait();
 
     size_t ephemeral_nodes = 0;
-    for (auto & paths : storage.ephemerals)
+    for (auto & paths : store.ephemerals)
     {
         ephemeral_nodes += paths.second.size();
     }
-    LOG_INFO(log, "Load snapshot done, ephemeral sessions {} nodes {}", storage.ephemerals.size(), ephemeral_nodes);
+    LOG_INFO(log, "Load snapshot done, ephemeral sessions {} nodes {}", store.ephemerals.size(), ephemeral_nodes);
 
-    storage.buildPathChildren();
+    store.buildPathChildren();
 
-    auto node = storage.container.get("/");
+    auto node = store.container.get("/");
     if (node != nullptr)
     {
         LOG_INFO(log, "Root path children count {}", node->children.size());
@@ -1088,7 +1088,7 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
     objects_path[obj_id] = path;
 }
 
-size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, SvsKeeperStorage & storage, int64_t next_zxid, int64_t next_session_id)
+size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, KeeperStore & storage, int64_t next_zxid, int64_t next_session_id)
 {
     size_t store_size = storage.container.size() + storage.ephemerals.size();
     meta.set_size(store_size);
@@ -1166,7 +1166,7 @@ bool KeeperSnapshotManager::saveSnapshotObject(snapshot & meta, ulong obj_id, bu
     return true;
 }
 
-bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage)
+bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & storage)
 {
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())

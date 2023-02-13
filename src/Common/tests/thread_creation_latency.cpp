@@ -14,7 +14,7 @@ static void f() { ++value; }
 static void * g(void *) { f(); return {}; }
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -61,7 +61,7 @@ void test(size_t n, const char * name, F && kernel)
 
 int main(int argc, char ** argv)
 {
-    size_t n = argc == 2 ? DB::parse<UInt64>(argv[1]) : 100000;
+    size_t n = argc == 2 ? RK::parse<UInt64>(argv[1]) : 100000;
 
     test(n, "Create and destroy ThreadPool each iteration", []
     {
@@ -74,9 +74,9 @@ int main(int argc, char ** argv)
     {
         pthread_t thread;
         if (pthread_create(&thread, nullptr, g, nullptr))
-            DB::throwFromErrno("Cannot create thread.", DB::ErrorCodes::PTHREAD_ERROR);
+            RK::throwFromErrno("Cannot create thread.", RK::ErrorCodes::PTHREAD_ERROR);
         if (pthread_join(thread, nullptr))
-            DB::throwFromErrno("Cannot join thread.", DB::ErrorCodes::PTHREAD_ERROR);
+            RK::throwFromErrno("Cannot join thread.", RK::ErrorCodes::PTHREAD_ERROR);
     });
 
     test(n, "Create and destroy std::thread each iteration", []

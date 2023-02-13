@@ -64,10 +64,9 @@ build and test:
     - echo "Start integration tests"
     - cd ../tests/integration
     - export integration_work_dir=`pwd`
-    - export CLICKHOUSE_TESTS_ODBC_BRIDGE_BIN_PATH=$build_dir/programs/clickhouse-odbc-bridge
-    - export CLICKHOUSE_TESTS_SERVER_BIN_PATH=$build_dir/programs/clickhouse
-    - export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=$build_dir/programs/clickhouse
-    - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/server
+    - export CLICKHOUSE_TESTS_SERVER_BIN_PATH=$build_dir/programs/raftkeeper
+    - export CLICKHOUSE_TESTS_CLIENT_BIN_PATH=$build_dir/programs/raftkeeper
+    - export CLICKHOUSE_TESTS_BASE_CONFIG_DIR=$build_dir/../programs/service
     - ./runner 'test_servicekeeper_* -ss'
     - echo "Integration test finished."
 

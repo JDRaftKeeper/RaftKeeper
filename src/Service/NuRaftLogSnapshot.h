@@ -2,16 +2,16 @@
 
 #include <map>
 #include <string>
+#include <IO/WriteBufferFromFile.h>
+#include <Service/KeeperCommon.h>
+#include <Service/KeeperStore.h>
 #include <Service/LogEntry.h>
-#include <Service/NuRaftCommon.h>
-#include <Service/SvsKeeperStorage.h>
 #include <Service/proto/Log.pb.h>
 #include <libnuraft/nuraft.hxx>
 #include <Common/ZooKeeper/IKeeper.h>
-#include <IO/WriteBufferFromFile.h>
 
 
-namespace DB
+namespace RK
 {
 using nuraft::snapshot;
 using nuraft::ulong;
@@ -73,10 +73,10 @@ public:
      *
      * @param next_zxid zxid corresponding to snapshot begin log id
      */
-    size_t createObjects(SvsKeeperStorage & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
+    size_t createObjects(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
     // init snapshot store for receive snapshot object
     void init(std::string create_time);
-    void parseObject(SvsKeeperStorage & storage);
+    void parseObject(KeeperStore & store);
 
     void loadObject(ulong obj_id, ptr<buffer> & buffer);
     bool existObject(ulong obj_id);
@@ -120,22 +120,22 @@ public:
 
 private:
     void getObjectPath(ulong object_id, std::string & path);
-    bool parseOneObject(std::string obj_path, SvsKeeperStorage & storage);
+    bool parseOneObject(std::string obj_path, KeeperStore & store);
     bool loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
-    size_t serializeDataTree(SvsKeeperStorage & storage);
+    size_t serializeDataTree(KeeperStore & storage);
     /**
      * Serialize data tree by deep traversal.
      * @param out destination
      * @param batch nodes packaged in batch
-     * @param storage data tree
+     * @param store data tree
      * @param path current node path
      * @param processed nodes processed
      */
     void serializeNode(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchPB> & batch,
-        SvsKeeperStorage & storage,
+        KeeperStore & store,
         const String & path,
         uint64_t & processed,
         uint32_t & checksum);
@@ -171,13 +171,13 @@ public:
     {
     }
     ~KeeperSnapshotManager() { }
-    size_t createSnapshot(snapshot & meta, SvsKeeperStorage & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
+    size_t createSnapshot(snapshot & meta, KeeperStore & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
     bool receiveSnapshot(snapshot & meta);
     bool existSnapshot(const snapshot & meta);
     bool existSnapshotObject(const snapshot & meta, ulong obj_id);
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
     bool saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer);
-    bool parseSnapshot(const snapshot & meta, SvsKeeperStorage & storage);
+    bool parseSnapshot(const snapshot & meta, KeeperStore & storage);
     ptr<snapshot> lastSnapshot();
     time_t getLastCreateTime();
     size_t loadSnapshotMetas();

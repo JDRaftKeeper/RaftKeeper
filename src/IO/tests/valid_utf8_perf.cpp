@@ -20,7 +20,7 @@ int main(int argc, char ** argv)
         Stopwatch timer;
         std::string str1;
         {
-            DB::WriteBufferFromString simple_buf(str1);
+            RK::WriteBufferFromString simple_buf(str1);
             for (int i = 0; i < repeats; ++i)
             {
                 simple_buf.write(text.data(), text.size());
@@ -34,10 +34,10 @@ int main(int argc, char ** argv)
 
         std::string str2;
         {
-            DB::WriteBufferFromString simple_buf(str2);
+            RK::WriteBufferFromString simple_buf(str2);
             for (int i = 0; i < repeats; ++i)
             {
-                DB::WriteBufferValidUTF8 utf_buf(simple_buf);
+                RK::WriteBufferValidUTF8 utf_buf(simple_buf);
                 utf_buf.write(text.data(), text.size());
             }
         }
@@ -45,7 +45,7 @@ int main(int argc, char ** argv)
         std::cout << "Wrote to UTF8 in " << t << "s at " << text.size() / 1e6 * repeats / t << "MB/s." << std::endl;
         std::cout << "String length: " << str2.size() << "(" << (str2.size() == text.size() * repeats ? "as " : "un") << "expected)" << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

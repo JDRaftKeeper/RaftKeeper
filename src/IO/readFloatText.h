@@ -99,7 +99,7 @@ LIMIT 100
   */
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

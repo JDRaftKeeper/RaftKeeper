@@ -19,7 +19,7 @@
 
 using Poco::Net::SocketImpl;
 
-namespace DB {
+namespace RK {
 
 #if defined(POCO_HAVE_FD_EPOLL)
 

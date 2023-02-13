@@ -14,7 +14,7 @@
     #include <emmintrin.h>
 #endif
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -656,7 +656,7 @@ Exception readException(ReadBuffer & buf, const String & additional_message, boo
     if (!additional_message.empty())
         out << additional_message << ". ";
 
-    if (name != "DB::Exception")
+    if (name != "RK::Exception")
         out << name << ". ";
 
     out << message << ".";
@@ -741,7 +741,7 @@ void skipToUnescapedNextLineOrEOF(ReadBuffer & buf)
     }
 }
 
-void saveUpToPosition(ReadBuffer & in, DB::Memory<> & memory, char * current)
+void saveUpToPosition(ReadBuffer & in, RK::Memory<> & memory, char * current)
 {
     assert(current >= in.position());
     assert(current <= in.buffer().end());
@@ -758,7 +758,7 @@ void saveUpToPosition(ReadBuffer & in, DB::Memory<> & memory, char * current)
     in.position() = current;
 }
 
-bool loadAtPosition(ReadBuffer & in, DB::Memory<> & memory, char * & current)
+bool loadAtPosition(ReadBuffer & in, RK::Memory<> & memory, char * & current)
 {
     assert(current <= in.buffer().end());
 

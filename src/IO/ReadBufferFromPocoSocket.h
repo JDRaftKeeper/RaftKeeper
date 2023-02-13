@@ -5,7 +5,7 @@
 
 #include <Poco/Net/Socket.h>
 
-namespace DB
+namespace RK
 {
 
 using AsyncCallback = std::function<void(int, const Poco::Timespan &, const std::string &)>;

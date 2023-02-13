@@ -9,7 +9,7 @@
 int main(int, char **)
 {
     {
-        using Cont = DB::SpaceSaving<int>;
+        using Cont = RK::SpaceSaving<int>;
         Cont first(10);
 
         /* Test biased insertion */
@@ -79,7 +79,7 @@ int main(int, char **)
     {
         /* Same test for string keys */
 
-        using Cont = DB::SpaceSaving<StringRef, StringRefHash>;
+        using Cont = RK::SpaceSaving<StringRef, StringRefHash>;
         Cont cont(10);
 
         for (int i = 0; i < 400; ++i)

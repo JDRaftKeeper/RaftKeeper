@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 
-using namespace DB;
+using namespace RK;
 
 int main(int, char**)
 {

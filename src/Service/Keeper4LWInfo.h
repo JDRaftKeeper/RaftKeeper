@@ -4,7 +4,7 @@
 #include <common/types.h>
 #include <Common/Exception.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

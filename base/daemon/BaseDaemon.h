@@ -113,7 +113,7 @@ protected:
 
     virtual std::string getDefaultCorePath() const;
 
-    std::optional<DB::StatusFile> pid_file;
+    std::optional<RK::StatusFile> pid_file;
 
     std::atomic_bool is_cancelled{false};
 
@@ -129,7 +129,7 @@ protected:
     std::atomic_size_t sigint_signals_counter{0};
 
     std::string config_path;
-    DB::ConfigProcessor::LoadedConfig loaded_config;
+    RK::ConfigProcessor::LoadedConfig loaded_config;
     Poco::Util::AbstractConfiguration * last_configuration = nullptr;
 
     String build_id_info;

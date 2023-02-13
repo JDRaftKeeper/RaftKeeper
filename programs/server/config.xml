@@ -1,0 +1,142 @@
+<?xml version="1.0"?>
+<!--
+  NOTE: User and query level settings are set up in "users.xml" file.
+  If you have accidentally specified user-level settings here, server won't start.
+  You can either move the settings to the right place inside "users.xml" file
+   or add <skip_check_for_incorrect_settings>1</skip_check_for_incorrect_settings> here.
+-->
+
+<raftkeeper>
+    <logger>
+        <!-- Valid values are: none(turn off), fatal, critical, error, warning, notice, information, debug, trace -->
+        <!-- <level>trace</level> -->
+        <!-- Logger file path, default is empty string. If is empty string will not log to file -->
+        <path>./log/raftkeeper.log</path>
+        <!-- Error logger file path, default is empty string. If is empty string will not log to file -->
+        <err_log_path>./log/raftkeeper.err.log</err_log_path>
+        <!-- Log file size limit, when reached will create another file, default is 100M. -->
+        <!-- <size>100M</size> -->
+        <!-- How many log file to keep, default is 10. -->
+        <!-- <count>10</count> -->
+        <!-- Whether print log to console, default is true-->
+        <log_to_console>true</log_to_console>
+    </logger>
+
+    <keeper>
+        <!-- My id in cluster. -->
+        <my_id>1</my_id>
+
+        <!-- Binging host, default is "0.0.0.0." -->
+        <!-- <host>0.0.0.0</host> -->
+
+        <!-- Port for user request and 4lw command -->
+        <!-- <port>8101</port> -->
+
+        <!-- Port for follower forward write request and session info to leader. -->
+        <!-- <forwarding_port>8102</forwarding_port> -->
+
+        <!-- Port for Raft internal usage: heartbeat, log replicate, leader selection etc. -->
+        <!-- <internal_port>8103</internal_port> -->
+
+        <!-- Raft log store directory -->
+        <log_dir>./data/log</log_dir>
+
+        <!-- Raft snapshot store directory -->
+        <snapshot_dir>./data/snapshot</snapshot_dir>
+
+        <!-- Max snapshot interval in second. -->
+        <!-- <snapshot_create_interval>3600</snapshot_create_interval> -->
+
+        <!-- Processor thread count, default is 16. -->
+        <!-- <thread_count>16</thread_count> -->
+
+        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld" -->
+        <!-- <four_letter_word_white_list></four_letter_word_white_list> -->
+
+        <!-- Super digest for root user, default is empty string.
+            See https://zookeeper.apache.org/doc/r3.5.2-alpha/zookeeperAdmin.html  -->
+        <!-- <super_digest></super_digest> -->
+
+        <!-- NuRaft related settings -->
+        <raft_settings>
+            <!-- User session timeout in millisecond, default is 30000. -->
+            <!-- <session_timeout_ms>30000</session_timeout_ms> -->
+
+            <!-- User operation timeout in millisecond, default is 20000. -->
+            <!-- <operation_timeout_ms>20000</operation_timeout_ms> -->
+
+            <!-- Leader will check whether session is dead in this period, default is 1000. -->
+            <!-- <dead_session_check_period_ms>100</dead_session_check_period_ms> -->
+
+            <!-- NuRaft heart beat interval in millisecond, default is 500. -->
+            <!-- <heart_beat_interval_ms>500</heart_beat_interval_ms> -->
+
+            <!-- NuRaft election timeout lower bound, default is 10s. -->
+            <!-- <election_timeout_lower_bound_ms>10000</election_timeout_lower_bound_ms> -->
+
+            <!-- NuRaft election timeout upper bound, default is 20s. -->
+            <!-- <election_timeout_upper_bound_ms>20000</election_timeout_upper_bound_ms> -->
+
+            <!-- Keeper will keep at least this log item, default 1_000_000. -->
+            <!-- <reserved_log_items>1000000</reserved_log_items> -->
+
+            <!-- Create snapshot in this log size, default is 3_000_000. -->
+            <!-- <snapshot_distance>3000000</snapshot_distance> -->
+
+            <!-- How many snapshot to keep, default is 5. -->
+            <!-- <max_stored_snapshots>5</max_stored_snapshots> -->
+
+            <!-- Startup time in millisecond, default is 6000000ms. Because will load data, should set to a big value. -->
+            <!-- <startup_timeout>6000000</startup_timeout> -->
+
+            <!-- Shutdown time in millisecond, default is 5000ms. -->
+            <!-- <shutdown_timeout>5000</shutdown_timeout> -->
+
+            <!-- NuRaft log level, default is information. -->
+            <!-- <raft_logs_level>information</raft_logs_level> -->
+
+            <!-- NuRaft thread pool size, default is 32. -->
+            <!-- <nuraft_thread_size>32</nuraft_thread_size> -->
+
+            <!-- Log gap (compared to the leader's latest log) for treating this node as fresh, default is 200. -->
+            <!-- <fresh_log_gap>200</fresh_log_gap> -->
+
+            <!-- Auto update configuration retry times, default is 30. -->
+            <!-- <configuration_change_tries_count>30</configuration_change_tries_count> -->
+
+            <!-- NuRaft append entries max batch size, default is 1000. -->
+            <!-- <max_batch_size>1000</max_batch_size> -->
+
+            <!-- Fsync log for every appending entry, default is true. If false data is less safty -->
+            <!-- <force_sync>true</force_sync> -->
+
+            <!-- If force_sync is false, will fsync log in x appending entries, default value is 1000. -->
+            <!-- <fsync_interval>1000</fsync_interval> -->
+
+            <!-- If this flag is set, the leader can do log replication and log appending in parallel,
+                thus it can reduce the latency of write operation path. Default is true. -->
+            <!-- <async_fsync>true</async_fsync> -->
+        </raft_settings>
+
+        <![CDATA[
+        <cluster>
+            <server>
+                <id>1</id>
+                <host>host1</host>
+                <!-- <internal_port>8103</port> -->
+                <!-- <forwarding_port>8102</forwarding_port> -->
+                <!-- `true` if this node is learner. Learner will not initiate or participate in leader election. -->
+                <!-- <learner>false</learner> -->
+                <!-- Priority of this server, default is 1 and if is 0 the server will never be leader. -->
+                <!-- <priority>1</priority_> -->
+            </server>
+                <id>2</id>
+                <host>host2</host>
+            <server>
+                <id>3</id>
+                <host>host3</host>
+            </server>
+        </cluster>
+        ]]>
+    </keeper>
+</raftkeeper>

@@ -11,7 +11,7 @@
 namespace Coordination
 {
 
-using namespace DB;
+using namespace RK;
 
 void ZooKeeperResponse::write(WriteBuffer & out) const
 {

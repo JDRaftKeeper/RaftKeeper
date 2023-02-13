@@ -3,7 +3,7 @@
 #include <Common/Exception.h>
 
 
-namespace DB
+namespace RK
 {
 
 class NetException : public Exception
@@ -15,8 +15,8 @@ public:
     void rethrow() const override { throw *this; }
 
 private:
-    const char * name() const throw() override { return "DB::NetException"; }
-    const char * className() const throw() override { return "DB::NetException"; }
+    const char * name() const throw() override { return "RK::NetException"; }
+    const char * className() const throw() override { return "RK::NetException"; }
 };
 
 }

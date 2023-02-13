@@ -89,7 +89,7 @@
 #define DW_LNE_set_discriminator 0x04
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

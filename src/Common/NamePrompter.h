@@ -10,7 +10,7 @@
 #include <queue>
 #include <utility>
 
-namespace DB
+namespace RK
 {
 template <size_t MaxNumHints>
 class NamePrompter

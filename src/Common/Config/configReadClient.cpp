@@ -4,7 +4,7 @@
 #include <Poco/File.h>
 #include "ConfigProcessor.h"
 
-namespace DB
+namespace RK
 {
 bool configReadClient(Poco::Util::LayeredConfiguration & config, const std::string & home_path)
 {

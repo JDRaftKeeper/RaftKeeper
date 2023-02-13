@@ -12,30 +12,30 @@ int main(int, char **)
 {
     try
     {
-        DB::Int64 a = -123456;
-        DB::Float64 b = 123.456;
-        DB::String c = "вася пе\tтя";
-        DB::String d = "'xyz\\";
+        RK::Int64 a = -123456;
+        RK::Float64 b = 123.456;
+        RK::String c = "вася пе\tтя";
+        RK::String d = "'xyz\\";
 
         std::ofstream s("test");
-        DB::WriteBufferFromOStream out(s);
+        RK::WriteBufferFromOStream out(s);
 
         for (int i = 0; i < 1000000; ++i)
         {
-            DB::writeIntText(a, out);
-            DB::writeChar(' ', out);
+            RK::writeIntText(a, out);
+            RK::writeChar(' ', out);
 
-            DB::writeFloatText(b, out);
-            DB::writeChar(' ', out);
+            RK::writeFloatText(b, out);
+            RK::writeChar(' ', out);
 
-            DB::writeEscapedString(c, out);
-            DB::writeChar('\t', out);
+            RK::writeEscapedString(c, out);
+            RK::writeChar('\t', out);
 
-            DB::writeQuotedString(d, out);
-            DB::writeChar('\n', out);
+            RK::writeQuotedString(d, out);
+            RK::writeChar('\n', out);
         }
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

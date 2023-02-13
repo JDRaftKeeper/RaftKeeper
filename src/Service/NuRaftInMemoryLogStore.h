@@ -6,7 +6,7 @@
 #include <Core/Types.h>
 #include <libnuraft/log_store.hxx> // Y_IGNORE
 
-namespace DB
+namespace RK
 {
 
 class NuRaftInMemoryLogStore : public nuraft::log_store

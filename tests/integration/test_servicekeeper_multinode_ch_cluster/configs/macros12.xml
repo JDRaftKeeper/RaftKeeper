@@ -1,7 +1,0 @@
-<yandex>
-<macros incl="macros" optional="true" />
-<macros>
-<shard>03</shard>
-<replica>03</replica>
-</macros>
-</yandex>
