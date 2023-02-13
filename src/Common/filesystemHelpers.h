@@ -10,7 +10,7 @@
 #include <Poco/TemporaryFile.h>
 
 
-namespace DB
+namespace RK
 {
 
 using TemporaryFile = Poco::TemporaryFile;

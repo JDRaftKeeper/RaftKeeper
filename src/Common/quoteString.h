@@ -4,7 +4,7 @@
 #include <common/StringRef.h>
 
 
-namespace DB
+namespace RK
 {
 /// Quote the string.
 String quoteString(const StringRef & x);

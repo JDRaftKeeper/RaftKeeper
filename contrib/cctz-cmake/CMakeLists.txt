@@ -40,7 +40,7 @@ endif()
 
 if (NOT EXTERNAL_CCTZ_LIBRARY_FOUND OR NOT EXTERNAL_CCTZ_LIBRARY_WORKS)
     set(USE_INTERNAL_CCTZ_LIBRARY 1)
-    set(LIBRARY_DIR ${ClickHouse_SOURCE_DIR}/contrib/cctz)
+    set(LIBRARY_DIR ${RaftKeeper_SOURCE_DIR}/contrib/cctz)
 
     set (SRCS
         ${LIBRARY_DIR}/src/civil_time_detail.cc

@@ -273,34 +273,34 @@ public:
     ConstLookupResult ALWAYS_INLINE find(Key x) const { return find(x, hash(x)); }
 
 
-    void write(DB::WriteBuffer & wb) const
+    void write(RK::WriteBuffer & wb) const
     {
         for (size_t i = 0; i < NUM_BUCKETS; ++i)
             impls[i].write(wb);
     }
 
-    void writeText(DB::WriteBuffer & wb) const
+    void writeText(RK::WriteBuffer & wb) const
     {
         for (size_t i = 0; i < NUM_BUCKETS; ++i)
         {
             if (i != 0)
-                DB::writeChar(',', wb);
+                RK::writeChar(',', wb);
             impls[i].writeText(wb);
         }
     }
 
-    void read(DB::ReadBuffer & rb)
+    void read(RK::ReadBuffer & rb)
     {
         for (size_t i = 0; i < NUM_BUCKETS; ++i)
             impls[i].read(rb);
     }
 
-    void readText(DB::ReadBuffer & rb)
+    void readText(RK::ReadBuffer & rb)
     {
         for (size_t i = 0; i < NUM_BUCKETS; ++i)
         {
             if (i != 0)
-                DB::assertChar(',', rb);
+                RK::assertChar(',', rb);
             impls[i].readText(rb);
         }
     }

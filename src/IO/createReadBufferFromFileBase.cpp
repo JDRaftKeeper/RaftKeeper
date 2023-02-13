@@ -16,7 +16,7 @@ namespace ProfileEvents
     extern const Event CreatedReadBufferMMapFailed;
 }
 
-namespace DB
+namespace RK
 {
 
 std::unique_ptr<ReadBufferFromFileBase> createReadBufferFromFileBase(

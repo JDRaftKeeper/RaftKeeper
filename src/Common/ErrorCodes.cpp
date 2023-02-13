@@ -551,7 +551,7 @@
 
 /* See END */
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {

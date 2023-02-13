@@ -3,7 +3,7 @@
 #include <memory>
 #include <optional>
 #include <set>
-#include <Service/SvsKeeperDispatcher.h>
+#include <Service/KeeperDispatcher.h>
 #include <Poco/Mutex.h>
 #include <Poco/Util/Application.h>
 #include <Common/Config/ConfigProcessor.h>
@@ -15,7 +15,7 @@
 
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -35,23 +35,23 @@ void Context::setConfig(const ConfigurationPtr & config_)
     config = config_;
 }
 
-std::shared_ptr<SvsKeeperDispatcher> Context::getSvsKeeperStorageDispatcher() const
+std::shared_ptr<KeeperDispatcher> Context::getDispatcher() const
 {
     return dispatcher;
 }
 
-void Context::initializeServiceKeeperStorageDispatcher()
+void Context::initializeDispatcher()
 {
     std::lock_guard lock(dispatcher_mutex);
     if (dispatcher)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to initialize keeper multiple times");
 
     const auto & config_ = getConfigRef();
-    dispatcher = std::make_shared<SvsKeeperDispatcher>();
+    dispatcher = std::make_shared<KeeperDispatcher>();
     dispatcher->initialize(config_);
 }
 
-void Context::shutdownServiceKeeperStorageDispatcher()
+void Context::shutdownDispatcher()
 {
     std::lock_guard lock(dispatcher_mutex);
     if (dispatcher)
@@ -83,8 +83,9 @@ void Context::reloadConfig() const
 
 void Context::shutdown()
 {
-    dispatcher->shutdown();
+    shutdownDispatcher();
 }
+
 const Poco::Util::AbstractConfiguration & Context::getConfigRef() const
 {
     std::lock_guard lock(config_mutex);

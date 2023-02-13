@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(BoringSSL LANGUAGES C CXX)
 
-set(BORINGSSL_SOURCE_DIR ${ClickHouse_SOURCE_DIR}/contrib/boringssl)
+set(BORINGSSL_SOURCE_DIR ${RaftKeeper_SOURCE_DIR}/contrib/boringssl)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   set(CLANG 1)

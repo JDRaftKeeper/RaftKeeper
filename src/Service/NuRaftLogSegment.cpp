@@ -5,8 +5,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <Service/Crc32.h>
+#include <Service/KeeperCommon.h>
 #include <Service/LogEntry.h>
-#include <Service/NuRaftCommon.h>
 #include <Service/NuRaftLogSegment.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -19,7 +19,7 @@
 #    pragma clang diagnostic ignored "-Wformat-nonliteral"
 #endif
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -425,7 +425,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         }
         header.term = entry->get_term();
         header.data_length = buf_size;
-        header.data_crc = DB::getCRC32(entry_str, header.data_length);
+        header.data_crc = RK::getCRC32(entry_str, header.data_length);
         vec[0].iov_base = &header;
         vec[0].iov_len = LogEntryHeader::HEADER_SIZE;
         vec[1].iov_base = reinterpret_cast<void *>(entry_str);

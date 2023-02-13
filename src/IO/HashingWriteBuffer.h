@@ -8,7 +8,7 @@
 #define DBMS_DEFAULT_HASHING_BLOCK_SIZE 2048ULL
 
 
-namespace DB
+namespace RK
 {
 
 template <typename Buffer>
@@ -30,14 +30,14 @@ public:
             return state;
     }
 
-    void append(DB::BufferBase::Position data)
+    void append(RK::BufferBase::Position data)
     {
         state = CityHash_v1_0_2::CityHash128WithSeed(data, block_size, state);
     }
 
     /// computation of the hash depends on the partitioning of blocks
     /// so you need to compute a hash of n complete pieces and one incomplete
-    void calculateHash(DB::BufferBase::Position data, size_t len);
+    void calculateHash(RK::BufferBase::Position data, size_t len);
 
 protected:
     size_t block_pos;
@@ -69,7 +69,7 @@ public:
     HashingWriteBuffer(
         WriteBuffer & out_,
         size_t block_size_ = DBMS_DEFAULT_HASHING_BLOCK_SIZE)
-        : IHashingBuffer<DB::WriteBuffer>(block_size_), out(out_)
+        : IHashingBuffer<RK::WriteBuffer>(block_size_), out(out_)
     {
         out.next(); /// If something has already been written to `out` before us, we will not let the remains of this data affect the hash.
         working_buffer = out.buffer();

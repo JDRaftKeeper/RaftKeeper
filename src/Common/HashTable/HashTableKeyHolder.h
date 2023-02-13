@@ -63,7 +63,7 @@ inline void ALWAYS_INLINE keyHolderPersistKey(Key &&) {}
 template <typename Key>
 inline void ALWAYS_INLINE keyHolderDiscardKey(Key &&) {}
 
-namespace DB
+namespace RK
 {
 
 /**
@@ -79,23 +79,23 @@ struct ArenaKeyHolder
 
 }
 
-inline StringRef & ALWAYS_INLINE keyHolderGetKey(DB::ArenaKeyHolder & holder)
+inline StringRef & ALWAYS_INLINE keyHolderGetKey(RK::ArenaKeyHolder & holder)
 {
     return holder.key;
 }
 
-inline void ALWAYS_INLINE keyHolderPersistKey(DB::ArenaKeyHolder & holder)
+inline void ALWAYS_INLINE keyHolderPersistKey(RK::ArenaKeyHolder & holder)
 {
     // Hash table shouldn't ask us to persist a zero key
     assert(holder.key.size > 0);
     holder.key.data = holder.pool.insert(holder.key.data, holder.key.size);
 }
 
-inline void ALWAYS_INLINE keyHolderDiscardKey(DB::ArenaKeyHolder &)
+inline void ALWAYS_INLINE keyHolderDiscardKey(RK::ArenaKeyHolder &)
 {
 }
 
-namespace DB
+namespace RK
 {
 
 /** SerializedKeyHolder is a key holder for a StringRef key that is already
@@ -110,16 +110,16 @@ struct SerializedKeyHolder
 
 }
 
-inline StringRef & ALWAYS_INLINE keyHolderGetKey(DB::SerializedKeyHolder & holder)
+inline StringRef & ALWAYS_INLINE keyHolderGetKey(RK::SerializedKeyHolder & holder)
 {
     return holder.key;
 }
 
-inline void ALWAYS_INLINE keyHolderPersistKey(DB::SerializedKeyHolder &)
+inline void ALWAYS_INLINE keyHolderPersistKey(RK::SerializedKeyHolder &)
 {
 }
 
-inline void ALWAYS_INLINE keyHolderDiscardKey(DB::SerializedKeyHolder & holder)
+inline void ALWAYS_INLINE keyHolderDiscardKey(RK::SerializedKeyHolder & holder)
 {
     [[maybe_unused]] void * new_head = holder.pool.rollback(holder.key.size);
     assert(new_head == holder.key.data);

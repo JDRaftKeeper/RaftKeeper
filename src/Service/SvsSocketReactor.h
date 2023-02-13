@@ -11,7 +11,7 @@
 
 
 
-namespace DB {
+namespace RK {
 
     template <class SR>
     class SvsSocketReactor : public SR

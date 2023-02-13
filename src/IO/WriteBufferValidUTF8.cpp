@@ -8,7 +8,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 
 const size_t WriteBufferValidUTF8::DEFAULT_SIZE = 4096;

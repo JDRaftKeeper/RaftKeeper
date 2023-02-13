@@ -1,38 +1,49 @@
-if (USE_INTERNAL_POCO_LIBRARY)
-    # Foundation (pcre)
+# Foundation (pcre)
 
-    set (SRCS_PCRE
-        ${LIBRARY_DIR}/Foundation/src/pcre_config.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_byte_order.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_chartables.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_compile.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_exec.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_fullinfo.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_globals.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_maketables.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_newline.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_ord2utf8.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_study.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_tables.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_dfa_exec.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_get.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_jit_compile.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_refcount.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_string_utils.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_version.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_ucd.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_valid_utf8.c
-        ${LIBRARY_DIR}/Foundation/src/pcre_xclass.c
-    )
+set(SRCS_PCRE
+#        ${LIBRARY_DIR}/Foundation/src/pcre2.h
+        ${LIBRARY_DIR}/Foundation/src/pcre2_auto_possess.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_chartables.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_compile.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_config.c
+#        ${LIBRARY_DIR}/Foundation/src/pcre2_config.h
+        ${LIBRARY_DIR}/Foundation/src/pcre2_context.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_convert.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_dfa_match.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_error.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_extuni.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_find_bracket.c
+#        ${LIBRARY_DIR}/Foundation/src/pcre2_internal.h
+#        ${LIBRARY_DIR}/Foundation/src/pcre2_intmodedep.h
+        ${LIBRARY_DIR}/Foundation/src/pcre2_jit_compile.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_maketables.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_match.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_match_data.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_newline.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_ord2utf.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_pattern_info.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_script_run.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_serialize.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_string_utils.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_study.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_substitute.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_substring.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_tables.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_ucd.c
+#        ${LIBRARY_DIR}/Foundation/src/pcre2_ucp.h
+        ${LIBRARY_DIR}/Foundation/src/pcre2_ucptables.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_valid_utf.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_xclass.c
+        )
 
-    add_library (_poco_foundation_pcre ${SRCS_PCRE})
-    add_library (Poco::Foundation::PCRE ALIAS _poco_foundation_pcre)
+add_library(_poco_foundation_pcre ${SRCS_PCRE})
+add_library(Poco::Foundation::PCRE ALIAS _poco_foundation_pcre)
 
-    target_compile_options (_poco_foundation_pcre PRIVATE -Wno-sign-compare)
+target_compile_options(_poco_foundation_pcre PRIVATE -Wno-sign-compare)
 
-    # Foundation
+# Foundation
 
-    set (SRCS
+set(SRCS
         ${LIBRARY_DIR}/Foundation/src/AbstractObserver.cpp
         ${LIBRARY_DIR}/Foundation/src/ActiveDispatcher.cpp
         ${LIBRARY_DIR}/Foundation/src/ArchiveStrategy.cpp
@@ -186,50 +197,43 @@ if (USE_INTERNAL_POCO_LIBRARY)
         ${LIBRARY_DIR}/Foundation/src/Windows1250Encoding.cpp
         ${LIBRARY_DIR}/Foundation/src/Windows1251Encoding.cpp
         ${LIBRARY_DIR}/Foundation/src/Windows1252Encoding.cpp
-    )
-
-    add_library (_poco_foundation ${SRCS})
-    add_library (Poco::Foundation ALIAS _poco_foundation)
-
-    if (COMPILER_GCC)
-        target_compile_options (_poco_foundation
-            PRIVATE
-                -Wno-suggest-override
         )
-    elseif (COMPILER_CLANG)
-        target_compile_options (_poco_foundation
+
+list(REMOVE_ITEM SRCS ${SRCS_PCRE})
+
+add_library(_poco_foundation ${SRCS})
+add_library(Poco::Foundation ALIAS _poco_foundation)
+
+if (COMPILER_GCC)
+    target_compile_options(_poco_foundation
             PRIVATE
-                -Wno-atomic-implicit-seq-cst
-                -Wno-deprecated
-                -Wno-extra-semi-stmt
-                -Wno-zero-as-null-pointer-constant
-                -Wno-implicit-int-float-conversion
-                -Wno-thread-safety-analysis
-                -Wno-thread-safety-negative
-        )
-    endif ()
-    target_compile_options (_poco_foundation
-        PRIVATE
-            -Wno-sign-compare
-            -Wno-unused-parameter
-    )
-    target_compile_definitions (_poco_foundation
-        PRIVATE
-            POCO_UNBUNDLED
-            POCO_UNBUNDLED_ZLIB
-        PUBLIC
-            POCO_ENABLE_CPP11
-            POCO_OS_FAMILY_UNIX
-    )
-    target_include_directories (_poco_foundation SYSTEM PUBLIC ${LIBRARY_DIR}/Foundation/include)
-    target_link_libraries (_poco_foundation PRIVATE Poco::Foundation::PCRE ${ZLIB_LIBRARIES})
-else ()
-    add_library (Poco::Foundation UNKNOWN IMPORTED GLOBAL)
-
-    find_library (LIBRARY_POCO_FOUNDATION PocoFoundation)
-    find_path (INCLUDE_POCO_FOUNDATION Poco/Foundation.h)
-    set_target_properties (Poco::Foundation PROPERTIES IMPORTED_LOCATION ${LIBRARY_POCO_FOUNDATION})
-    set_target_properties (Poco::Foundation PROPERTIES INTERFACE_INCLUDE_DIRECTORIES ${INCLUDE_POCO_FOUNDATION})
-
-    message (STATUS "Using Poco::Foundation: ${LIBRARY_POCO_FOUNDATION} ${INCLUDE_POCO_FOUNDATION}")
+            -Wno-suggest-override
+            )
+elseif (COMPILER_CLANG)
+    target_compile_options(_poco_foundation
+            PRIVATE
+            -Wno-atomic-implicit-seq-cst
+            -Wno-deprecated
+            -Wno-extra-semi-stmt
+            -Wno-zero-as-null-pointer-constant
+            -Wno-implicit-int-float-conversion
+            -Wno-thread-safety-analysis
+            -Wno-thread-safety-negative
+            )
 endif ()
+target_compile_options(_poco_foundation
+        PRIVATE
+        -Wno-sign-compare
+        -Wno-unused-parameter
+        )
+target_compile_definitions(_poco_foundation
+        PRIVATE
+        POCO_UNBUNDLED
+        POCO_UNBUNDLED_ZLIB
+        PUBLIC
+        POCO_ENABLE_CPP11
+        POCO_OS_FAMILY_UNIX
+        )
+target_include_directories(_poco_foundation SYSTEM PUBLIC ${LIBRARY_DIR}/Foundation/include)
+target_include_directories(_poco_foundation PRIVATE ${LIBRARY_DIR}/Foundation/src)
+target_link_libraries(_poco_foundation PRIVATE Poco::Foundation::PCRE ${ZLIB_LIBRARIES})

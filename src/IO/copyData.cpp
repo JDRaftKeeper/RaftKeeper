@@ -4,7 +4,7 @@
 #include <IO/copyData.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {

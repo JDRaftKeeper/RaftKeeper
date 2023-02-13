@@ -6,10 +6,10 @@
 
 inline void tryRegisterFunctions()
 {
-    static struct Register { Register() { DB::registerFunctions(); } } registered;
+    static struct Register { Register() { RK::registerFunctions(); } } registered;
 }
 
 inline void tryRegisterFormats()
 {
-    static struct Register { Register() { DB::registerFormats(); } } registered;
+    static struct Register { Register() { RK::registerFormats(); } } registered;
 }

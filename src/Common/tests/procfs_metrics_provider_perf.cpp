@@ -9,7 +9,7 @@
 #if defined(__linux__)
 int main(int argc, char ** argv)
 {
-    using namespace DB;
+    using namespace RK;
 
     size_t num_iterations = argc >= 2 ? std::stoull(argv[1]) : 1000000;
 

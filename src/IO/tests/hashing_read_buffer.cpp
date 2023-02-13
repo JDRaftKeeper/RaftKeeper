@@ -24,13 +24,13 @@ static void test(size_t data_size)
         std::cout << "block size " << read_buffer_block_size << std::endl;
         std::stringstream io;       // STYLE_CHECK_ALLOW_STD_STRING_STREAM
         io.exceptions(std::ios::failbit);
-        DB::WriteBufferFromOStream out_impl(io);
-        DB::HashingWriteBuffer out(out_impl);
+        RK::WriteBufferFromOStream out_impl(io);
+        RK::HashingWriteBuffer out(out_impl);
         out.write(data, data_size);
         out.next();
 
-        DB::ReadBufferFromIStream source(io, read_buffer_block_size);
-        DB::HashingReadBuffer buf(source);
+        RK::ReadBufferFromIStream source(io, read_buffer_block_size);
+        RK::HashingReadBuffer buf(source);
 
         std::vector<char> read_buf(data_size);
         buf.read(read_buf.data(), data_size);

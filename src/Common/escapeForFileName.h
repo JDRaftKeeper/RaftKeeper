@@ -3,7 +3,7 @@
 #include <string>
 
 
-namespace DB
+namespace RK
 {
 
 /** Convert a string, so result could be used as a file name.

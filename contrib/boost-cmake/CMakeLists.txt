@@ -56,7 +56,7 @@ endif()
 
 if (NOT EXTERNAL_BOOST_FOUND)
     set (USE_INTERNAL_BOOST_LIBRARY 1)
-    set (LIBRARY_DIR ${ClickHouse_SOURCE_DIR}/contrib/boost)
+    set (LIBRARY_DIR ${RaftKeeper_SOURCE_DIR}/contrib/boost)
 
     # filesystem
 

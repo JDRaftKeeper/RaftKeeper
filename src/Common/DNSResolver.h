@@ -7,7 +7,7 @@
 #include <common/logger_useful.h>
 
 
-namespace DB
+namespace RK
 {
 
 /// A singleton implementing DNS names resolving with optional DNS cache

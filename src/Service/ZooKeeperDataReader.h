@@ -1,17 +1,15 @@
 #pragma once
 #include <string>
-#include <Service/SvsKeeperStorage.h>
+#include <Service/KeeperStore.h>
 #include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 
-void deserializeSvsKeeperStorageFromSnapshot(SvsKeeperStorage & storage, const std::string & snapshot_path, Poco::Logger * log);
+void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string & snapshot_path, Poco::Logger * log);
+void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::string & path, Poco::Logger * log);
 
-void deserializeSvsKeeperStorageFromSnapshotsDir(SvsKeeperStorage & storage, const std::string & path, Poco::Logger * log);
-
-void deserializeLogAndApplyToStorage(SvsKeeperStorage & storage, const std::string & log_path, Poco::Logger * log);
-
-void deserializeLogsAndApplyToStorage(SvsKeeperStorage & storage, const std::string & path, Poco::Logger * log);
+void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_path, Poco::Logger * log);
+void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & path, Poco::Logger * log);
 
 }

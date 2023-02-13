@@ -9,7 +9,7 @@
 #include <Common/FieldVisitors.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -22,64 +22,64 @@ inline Field getBinaryValue(UInt8 type, ReadBuffer & buf)
     switch (type)
     {
         case Field::Types::Null: {
-            return DB::Field();
+            return RK::Field();
         }
         case Field::Types::UInt64: {
             UInt64 value;
-            DB::readVarUInt(value, buf);
+            RK::readVarUInt(value, buf);
             return value;
         }
         case Field::Types::UInt128: {
             UInt128 value;
-            DB::readBinary(value, buf);
+            RK::readBinary(value, buf);
             return value;
         }
         case Field::Types::Int64: {
             Int64 value;
-            DB::readVarInt(value, buf);
+            RK::readVarInt(value, buf);
             return value;
         }
         case Field::Types::Float64: {
             Float64 value;
-            DB::readFloatBinary(value, buf);
+            RK::readFloatBinary(value, buf);
             return value;
         }
         case Field::Types::String: {
             std::string value;
-            DB::readStringBinary(value, buf);
+            RK::readStringBinary(value, buf);
             return value;
         }
         case Field::Types::Array: {
             Array value;
-            DB::readBinary(value, buf);
+            RK::readBinary(value, buf);
             return value;
         }
         case Field::Types::Tuple: {
             Tuple value;
-            DB::readBinary(value, buf);
+            RK::readBinary(value, buf);
             return value;
         }
         case Field::Types::Map: {
             Map value;
-            DB::readBinary(value, buf);
+            RK::readBinary(value, buf);
             return value;
         }
         case Field::Types::AggregateFunctionState: {
             AggregateFunctionStateData value;
-            DB::readStringBinary(value.name, buf);
-            DB::readStringBinary(value.data, buf);
+            RK::readStringBinary(value.name, buf);
+            RK::readStringBinary(value.data, buf);
             return value;
         }
     }
-    return DB::Field();
+    return RK::Field();
 }
 
 void readBinary(Array & x, ReadBuffer & buf)
 {
     size_t size;
     UInt8 type;
-    DB::readBinary(type, buf);
-    DB::readBinary(size, buf);
+    RK::readBinary(type, buf);
+    RK::readBinary(size, buf);
 
     for (size_t index = 0; index < size; ++index)
         x.push_back(getBinaryValue(type, buf));
@@ -91,28 +91,28 @@ void writeBinary(const Array & x, WriteBuffer & buf)
     size_t size = x.size();
     if (size)
         type = x.front().getType();
-    DB::writeBinary(type, buf);
-    DB::writeBinary(size, buf);
+    RK::writeBinary(type, buf);
+    RK::writeBinary(size, buf);
 
     for (const auto & elem : x)
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, elem);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, elem);
 }
 
 void writeText(const Array & x, WriteBuffer & buf)
 {
-    DB::String res = applyVisitor(DB::FieldVisitorToString(), DB::Field(x));
+    RK::String res = applyVisitor(RK::FieldVisitorToString(), RK::Field(x));
     buf.write(res.data(), res.size());
 }
 
 void readBinary(Tuple & x, ReadBuffer & buf)
 {
     size_t size;
-    DB::readBinary(size, buf);
+    RK::readBinary(size, buf);
 
     for (size_t index = 0; index < size; ++index)
     {
         UInt8 type;
-        DB::readBinary(type, buf);
+        RK::readBinary(type, buf);
         x.push_back(getBinaryValue(type, buf));
     }
 }
@@ -120,30 +120,30 @@ void readBinary(Tuple & x, ReadBuffer & buf)
 void writeBinary(const Tuple & x, WriteBuffer & buf)
 {
     const size_t size = x.size();
-    DB::writeBinary(size, buf);
+    RK::writeBinary(size, buf);
 
     for (const auto & elem : x)
     {
         const UInt8 type = elem.getType();
-        DB::writeBinary(type, buf);
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, elem);
+        RK::writeBinary(type, buf);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, elem);
     }
 }
 
 void writeText(const Tuple & x, WriteBuffer & buf)
 {
-    writeFieldText(DB::Field(x), buf);
+    writeFieldText(RK::Field(x), buf);
 }
 
 void readBinary(Map & x, ReadBuffer & buf)
 {
     size_t size;
-    DB::readBinary(size, buf);
+    RK::readBinary(size, buf);
 
     for (size_t index = 0; index < size; ++index)
     {
         UInt8 type;
-        DB::readBinary(type, buf);
+        RK::readBinary(type, buf);
         x.push_back(getBinaryValue(type, buf));
     }
 }
@@ -151,31 +151,31 @@ void readBinary(Map & x, ReadBuffer & buf)
 void writeBinary(const Map & x, WriteBuffer & buf)
 {
     const size_t size = x.size();
-    DB::writeBinary(size, buf);
+    RK::writeBinary(size, buf);
 
     for (const auto & elem : x)
     {
         const UInt8 type = elem.getType();
-        DB::writeBinary(type, buf);
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, elem);
+        RK::writeBinary(type, buf);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, elem);
     }
 }
 
 void writeText(const Map & x, WriteBuffer & buf)
 {
-    writeFieldText(DB::Field(x), buf);
+    writeFieldText(RK::Field(x), buf);
 }
 
 void writeFieldText(const Field & x, WriteBuffer & buf)
 {
-    DB::String res = Field::dispatch(DB::FieldVisitorToString(), x);
+    RK::String res = Field::dispatch(RK::FieldVisitorToString(), x);
     buf.write(res.data(), res.size());
 }
 
 
 String Field::dump() const
 {
-    return applyVisitor(DB::FieldVisitorDump(), *this);
+    return applyVisitor(RK::FieldVisitorDump(), *this);
 }
 
 Field Field::restoreFromDump(const std::string_view & dump_)

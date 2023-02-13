@@ -8,7 +8,7 @@
 #include <IO/ReadHelpers.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

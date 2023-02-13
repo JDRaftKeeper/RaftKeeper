@@ -10,7 +10,7 @@
 #include <IO/AIOContextPool.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

@@ -1,19 +1,19 @@
 #pragma once
 
 #include <unordered_map>
+#include <Core/Context.h>
+#include <Core/Types.h>
+#include <IO/ReadBufferFromFileDescriptor.h>
 #include <IO/ReadBufferFromPocoSocket.h>
 #include <IO/WriteBufferFromPocoSocket.h>
-#include <Core/Context.h>
-#include <Service/SvsKeeperThreadSafeQueue.h>
+#include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Poco/Net/TCPServerConnection.h>
+#include <Common/MultiVersion.h>
+#include <Common/PipeFDs.h>
 #include <Common/Stopwatch.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
-#include <Common/MultiVersion.h>
-#include <Common/PipeFDs.h>
-#include <Core/Types.h>
-#include <IO/ReadBufferFromFileDescriptor.h>
 
 #if defined(POCO_HAVE_FD_EPOLL)
 #include <sys/epoll.h>
@@ -21,9 +21,7 @@
 #include <poll.h>
 #endif
 
-#define USE_NIO_FOR_KEEPER
-
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -49,7 +47,7 @@ struct ConnectRequest
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-using ThreadSafeResponseQueue = SvsKeeperThreadSafeQueue<std::shared_ptr<FIFOBuffer>>;
+using ThreadSafeResponseQueue = ThreadSafeQueue<std::shared_ptr<FIFOBuffer>>;
 
 using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
 

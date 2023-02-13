@@ -7,7 +7,7 @@
 #if defined(__linux__)
 struct taskstats;
 
-namespace DB
+namespace RK
 {
 /// Provides several essential per-task metrics by reading data from Procfs (when available).
 class ProcfsMetricsProvider : private boost::noncopyable

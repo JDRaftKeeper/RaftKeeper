@@ -11,7 +11,7 @@
 #include <algorithm>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

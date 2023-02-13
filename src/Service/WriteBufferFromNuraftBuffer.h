@@ -3,7 +3,7 @@
 #include <IO/WriteBuffer.h>
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 
-namespace DB
+namespace RK
 {
 
 class WriteBufferFromNuraftBuffer : public WriteBuffer

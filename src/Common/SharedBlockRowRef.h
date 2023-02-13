@@ -6,7 +6,7 @@
 #include <boost/smart_ptr/intrusive_ptr.hpp>
 
 
-namespace DB
+namespace RK
 {
 
 /// Allows you refer to the row in the block and hold the block ownership,

@@ -5,11 +5,11 @@ set (SRCS
     ConfigReloader.cpp
 )
 
-add_library(clickhouse_common_config ${SRCS})
+add_library(raftkeeper_common_config ${SRCS})
 
-target_link_libraries(clickhouse_common_config
+target_link_libraries(raftkeeper_common_config
     PUBLIC
-        clickhouse_common_zookeeper
+        raftkeeper_common_zookeeper
         common
         Poco::XML
     PRIVATE

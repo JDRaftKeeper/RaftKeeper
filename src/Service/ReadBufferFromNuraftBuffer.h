@@ -3,7 +3,7 @@
 
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 
-namespace DB
+namespace RK
 {
 
 class ReadBufferFromNuraftBuffer : public ReadBufferFromMemory

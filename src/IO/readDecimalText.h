@@ -5,7 +5,7 @@
 #include <Common/intExp.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

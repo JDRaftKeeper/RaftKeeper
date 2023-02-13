@@ -20,7 +20,7 @@ namespace CurrentMetrics
     extern const Metric OpenFileForRead;
 }
 
-namespace DB
+namespace RK
 {
 
 /** Class for asynchronous data reading.

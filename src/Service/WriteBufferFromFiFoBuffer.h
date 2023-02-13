@@ -4,7 +4,7 @@
 #include <IO/WriteBuffer.h>
 #include <Poco/FIFOBuffer.h>
 
-namespace DB
+namespace RK
 {
 
 using Poco::FIFOBuffer;

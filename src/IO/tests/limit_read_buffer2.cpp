@@ -6,7 +6,7 @@
 #include <IO/ReadHelpers.h>
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -18,7 +18,7 @@ namespace DB
 int main(int, char **)
 try
 {
-    using namespace DB;
+    using namespace RK;
 
     std::stringstream s;        // STYLE_CHECK_ALLOW_STD_STRING_STREAM
     s.exceptions(std::ios::failbit);
@@ -133,7 +133,7 @@ try
 
     return 0;
 }
-catch (const DB::Exception & e)
+catch (const RK::Exception & e)
 {
     std::cerr << e.what() << ", " << e.displayText() << std::endl;
     return 1;

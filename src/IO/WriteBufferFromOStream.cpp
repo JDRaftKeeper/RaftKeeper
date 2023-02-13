@@ -2,7 +2,7 @@
 #include <Common/MemoryTracker.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

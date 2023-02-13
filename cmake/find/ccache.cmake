@@ -14,7 +14,7 @@ if ((ENABLE_CCACHE OR NOT DEFINED ENABLE_CCACHE) AND NOT COMPILER_MATCHES_CCACHE
 endif()
 
 if (NOT CCACHE_FOUND AND NOT DEFINED ENABLE_CCACHE AND NOT COMPILER_MATCHES_CCACHE)
-    message(WARNING "CCache is not found. We recommend setting it up if you build ClickHouse from source often. "
+    message(WARNING "CCache is not found. We recommend setting it up if you build RaftKeeper from source often. "
             "Setting it up will significantly reduce compilation time for 2nd and consequent builds")
 endif()
 

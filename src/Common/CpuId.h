@@ -9,7 +9,7 @@
 #include <cstring>
 
 
-namespace DB
+namespace RK
 {
 namespace Cpu
 {

@@ -22,7 +22,7 @@ int main(int, char **)
     std::string identity_ = "";
 
     std::vector<std::string> hosts_strings;
-    hosts_strings.emplace_back("127.0.0.1:5102");
+    hosts_strings.emplace_back("127.0.0.1:8101");
     Coordination::ZooKeeper::Nodes nodes;
     nodes.reserve(hosts_strings.size());
     auto * log = &Poco::Logger::get("raft_tcp_client");

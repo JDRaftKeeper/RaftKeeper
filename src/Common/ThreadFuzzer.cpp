@@ -31,7 +31,7 @@
         M(int, pthread_mutex_unlock, pthread_mutex_t * arg)
 #endif
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

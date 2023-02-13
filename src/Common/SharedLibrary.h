@@ -6,7 +6,7 @@
 #include <boost/noncopyable.hpp>
 
 
-namespace DB
+namespace RK
 {
 
 /** Allows you to open a dynamic library and get a pointer to a function from it.

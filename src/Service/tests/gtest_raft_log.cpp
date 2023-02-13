@@ -1,8 +1,9 @@
-#include <Service/NuRaftCommon.h>
+#include <Service/KeeperCommon.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/proto/Log.pb.h>
 #include <Service/tests/raft_test_common.h>
+#include <boost/program_options.hpp>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
 #include <loggers/Loggers.h>
@@ -12,18 +13,15 @@
 
 
 using namespace nuraft;
-using namespace DB;
+using namespace RK;
 
-namespace DB
+namespace RK
 {
 TestServer::TestServer() = default;
-TestServer::~TestServer()
-{
-}
+TestServer::~TestServer() = default;
 
 void TestServer::init(int argc, char ** argv)
 {
-    namespace po = boost::program_options;
     /// Don't parse options with Poco library, we prefer neat boost::program_options
     stopOptionsProcessing();
     /// Save received data into the internal config.
@@ -452,9 +450,9 @@ TEST(RaftLog, writeAt)
     ptr<cluster_config> new_conf = cs_new<cluster_config>
         ( 454570345,
           454569083, false );
-    ptr<srv_config> srv_conf1 = cs_new<srv_config>(4, 0, "10.199.141.7:5103", "", 0, 1);
-    ptr<srv_config> srv_conf2 = cs_new<srv_config>(13, 0, "10.199.141.8:5103", "", 0, 1);
-    ptr<srv_config> srv_conf3 = cs_new<srv_config>(15, 0, "10.199.141.6:5103", "", 0, 1);
+    ptr<srv_config> srv_conf1 = cs_new<srv_config>(4, 0, "10.199.141.7:8103", "", 0, 1);
+    ptr<srv_config> srv_conf2 = cs_new<srv_config>(13, 0, "10.199.141.8:8103", "", 0, 1);
+    ptr<srv_config> srv_conf3 = cs_new<srv_config>(15, 0, "10.199.141.6:8103", "", 0, 1);
     new_conf->get_servers().push_back(srv_conf1);
     new_conf->get_servers().push_back(srv_conf2);
     new_conf->get_servers().push_back(srv_conf3);
@@ -755,7 +753,7 @@ TEST(RaftLog, logSegmentThread)
 
 int main(int argc, char ** argv)
 {
-    DB::TestServer app;
+    RK::TestServer app;
     app.init(argc, argv);
     app.run();
     //thread_env = new ThreadEnvironment();

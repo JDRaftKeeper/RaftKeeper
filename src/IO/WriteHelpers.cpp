@@ -3,7 +3,7 @@
 #include <Common/hex.h>
 
 
-namespace DB
+namespace RK
 {
 
 template <typename IteratorSrc, typename IteratorDst>

@@ -2,7 +2,7 @@
 
 #include <IO/ReadBuffer.h>
 
-namespace DB
+namespace RK
 {
 
 /// Just a stub - reads nothing from nowhere.

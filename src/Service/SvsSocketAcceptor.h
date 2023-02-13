@@ -18,7 +18,7 @@ using Poco::NObserver;
 using Poco::AutoPtr;
 
 
-namespace DB {
+namespace RK {
 
     template <class ServiceHandler, class SR>
     class SvsSocketAcceptor

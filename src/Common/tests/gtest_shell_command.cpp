@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 
 
-using namespace DB;
+using namespace RK;
 
 
 TEST(ShellCommand, Execute)

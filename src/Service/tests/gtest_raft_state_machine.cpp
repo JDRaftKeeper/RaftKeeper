@@ -1,22 +1,18 @@
+#include <Service/KeeperStore.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
-#include <Service/SvsKeeperStorage.h>
-#include <Service/proto/Log.pb.h>
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
-#include <loggers/Loggers.h>
 #include <Poco/File.h>
 #include <Poco/Logger.h>
-#include <Poco/Util/LayeredConfiguration.h>
-#include <common/argsToConfig.h>
 
 using namespace nuraft;
-using namespace DB;
+using namespace RK;
 using namespace Coordination;
 
-namespace DB
+namespace RK
 {
 void cleanAll() {
     Poco::File log(LOG_DIR);
@@ -29,7 +25,7 @@ void cleanAll() {
 
 uint64_t createSession(NuRaftStateMachine & machine)
 {
-    return machine.getStorage().getSessionID(30000);
+    return machine.getStore().getSessionID(30000);
 }
 
 void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
@@ -43,7 +39,7 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    SvsKeeperStorage::RequestForSession session_request;
+    KeeperStore::RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperCreateRequest>();
     session_request.request = request;
@@ -85,7 +81,7 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    SvsKeeperStorage::RequestForSession session_request;
+    KeeperStore::RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperSetRequest>();
     session_request.request = request;
@@ -112,7 +108,7 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    SvsKeeperStorage::RequestForSession session_request;
+    KeeperStore::RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request.request = request;
@@ -158,7 +154,7 @@ TEST(RaftStateMachine, serializeAndParse)
 {
     std::string snap_dir(SNAP_DIR + "/0");
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     //NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
 
@@ -170,7 +166,7 @@ TEST(RaftStateMachine, serializeAndParse)
     default_acls.emplace_back(std::move(acl));
 
     //UInt64 index = machine.last_commit_index() + 1;
-    SvsKeeperStorage::RequestForSession session_request;
+    KeeperStore::RequestForSession session_request;
     session_request.session_id = 1;
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "1";
@@ -184,7 +180,7 @@ TEST(RaftStateMachine, serializeAndParse)
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
-    SvsKeeperStorage::RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
+    KeeperStore::RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
     if (session_request_2.request->getOpNum() == OpNum::Create)
     {
         ZooKeeperCreateRequest * request_2 = static_cast<ZooKeeperCreateRequest *>(session_request_2.request.get());
@@ -202,7 +198,7 @@ TEST(RaftStateMachine, appendEntry)
     cleanDirectory(snap_dir);
 
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
@@ -224,7 +220,7 @@ TEST(RaftStateMachine, modifyEntry)
     cleanDirectory(snap_dir);
 
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
@@ -262,7 +258,7 @@ TEST(RaftStateMachine, createSnapshot)
     cleanDirectory(snap_dir);
 
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
@@ -288,7 +284,7 @@ TEST(RaftStateMachine, createSnapshot)
     UInt64 term = 1;
     snapshot meta(last_index, term, config);
     machine.create_snapshot(meta);
-    ASSERT_EQ(machine.getStorage().container.size(), 36);
+    ASSERT_EQ(machine.getStore().container.size(), 36);
     machine.shutdown();
     cleanDirectory(snap_dir);
 }
@@ -301,7 +297,7 @@ TEST(RaftStateMachine, syncSnapshot)
     cleanDirectory(snap_dir_2);
 
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
@@ -333,7 +329,7 @@ TEST(RaftStateMachine, syncSnapshot)
         machine_target.save_logical_snp_obj(meta, obj_id, *(data_out.get()), is_first, is_last_obj);
     }
     machine_target.apply_snapshot(meta);
-    ASSERT_EQ(machine_target.getStorage().container.size(), last_index + 1);
+    ASSERT_EQ(machine_target.getStore().container.size(), last_index + 1);
 
     for (auto i = 1; i < obj_id; i++)
     {
@@ -360,7 +356,7 @@ TEST(RaftStateMachine, initStateMachine)
     //Create
     {
         SvsKeeperResponsesQueue queue;
-        SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+        RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
 
         std::mutex new_session_id_callback_mutex;
@@ -396,14 +392,14 @@ TEST(RaftStateMachine, initStateMachine)
         LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
 
 
-        ASSERT_EQ(machine.getStorage().container.size(), 257);
+        ASSERT_EQ(machine.getStore().container.size(), 257);
         machine.shutdown();
     }
 
     // Load
     {
         SvsKeeperResponsesQueue queue;
-        SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+        RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
 
         std::mutex new_session_id_callback_mutex;

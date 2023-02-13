@@ -4,7 +4,7 @@
 #include <widechar_width.h>
 
 
-namespace DB
+namespace RK
 {
 namespace UTF8
 {

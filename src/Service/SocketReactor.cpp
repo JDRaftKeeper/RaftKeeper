@@ -12,7 +12,7 @@ using Poco::ErrorHandler;
 using Poco::Net::SocketImpl;
 
 
-namespace DB {
+namespace RK {
 
 
 SocketReactor::SocketReactor():

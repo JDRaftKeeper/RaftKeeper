@@ -9,24 +9,23 @@
 
 namespace fs = std::filesystem;
 
-namespace DB
+namespace RK
 {
 using namespace nuraft;
 
 NuRaftStateManager::NuRaftStateManager(
     int id_,
-    const std::string & endpoint_,
-    const std::string & log_dir_,
-    const Poco::Util::AbstractConfiguration & config,
-    KeeperConfigurationAndSettingsPtr coordination_settings_)
-    : coordination_settings(coordination_settings_), my_server_id(id_), endpoint(endpoint_), log_dir(log_dir_)
+    const Poco::Util::AbstractConfiguration & config_,
+    SettingsPtr settings_)
+    : settings(settings_), my_id(id_), my_host(settings_->host), my_internal_port(settings_->internal_port), log_dir(settings_->log_dir)
 {
     log = &(Poco::Logger::get("NuRaftStateManager"));
-    curr_log_store = cs_new<NuRaftFileLogStore>(log_dir, false , coordination_settings->coordination_settings->force_sync, coordination_settings->coordination_settings->async_fsync, coordination_settings->coordination_settings->fsync_interval);
+    curr_log_store = cs_new<NuRaftFileLogStore>(
+        log_dir, false, settings->raft_settings->force_sync, settings->raft_settings->async_fsync, settings->raft_settings->fsync_interval);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
-    cur_cluster_config = parseClusterConfig(config, "service.remote_servers", coordination_settings->thread_count);
+    cur_cluster_config = parseClusterConfig(config_, "keeper.cluster", settings->thread_count);
 }
 
 ptr<cluster_config> NuRaftStateManager::load_config()
@@ -49,7 +48,8 @@ ptr<cluster_config> NuRaftStateManager::load_config()
 
 void NuRaftStateManager::save_config(const cluster_config & config)
 {
-    std::unique_ptr<WriteBufferFromFile> out_file_buf = std::make_unique<WriteBufferFromFile>(cluster_config_file, 4096, O_WRONLY | O_TRUNC | O_CREAT);
+    std::unique_ptr<WriteBufferFromFile> out_file_buf
+        = std::make_unique<WriteBufferFromFile>(cluster_config_file, 4096, O_WRONLY | O_TRUNC | O_CREAT);
     nuraft::ptr<nuraft::buffer> data = config.serialize();
     writeVarUInt(data->size(), *out_file_buf);
     out_file_buf->write(reinterpret_cast<char *>(data->data()), data->size());
@@ -102,7 +102,8 @@ void NuRaftStateManager::system_exit(const int exit_code)
     LOG_ERROR(log, "Raft system exit with code {}", exit_code);
 }
 
-ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const std::string & config_name, size_t thread_count) const
+ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
+    const Poco::Util::AbstractConfiguration & config, const std::string & config_name, size_t thread_count) const
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
@@ -117,34 +118,47 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
         {
             if (startsWith(key, "server"))
             {
-                int id_ = config.getInt(config_name + "." + key + ".server_id");
+                int id = config.getInt(config_name + "." + key + ".id");
                 String host = config.getString(config_name + "." + key + ".host");
-                String port = config.getString(config_name + "." + key + ".port", "5103");
-                String endpoint_ = host + ":" + port;
-                String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "5101");
-                String forwarding_endpoint_ = host + ":" + forwarding_port;
-                bool learner_ = config.getBool(config_name + "." + key + ".learner", false);
-                int priority_ = config.getInt(config_name + "." + key + ".priority", 1);
-                ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id_, 0, endpoint_, "", learner_, priority_));
+                String internal_port = config.getString(config_name + "." + key + ".internal_port", "8103");
+                String endpoint = host + ":" + internal_port;
+                bool learner = config.getBool(config_name + "." + key + ".learner", false);
+                int priority = config.getInt(config_name + "." + key + ".priority", 1);
+                ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id, 0, endpoint, "", learner, priority));
 
-                if (my_server_id != id_)
+                if (my_id != id)
                 {
-                    LOG_INFO(log, "Create ForwardingConnection for {}, {}", id_, forwarding_endpoint_);
+                    String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "8102");
+                    String forwarding_endpoint = host + ":" + forwarding_port;
 
+                    LOG_INFO(log, "Create ForwardingConnection for {}, {}", id, forwarding_endpoint);
+
+                    /// TODO use separate configuration
                     for (size_t i = 0; i < thread_count; ++i)
                     {
-                        auto & client_list = clients[id_];
-                        std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(my_server_id, i, forwarding_endpoint_, coordination_settings->coordination_settings->operation_timeout_ms);
+                        auto & client_list = clients[id];
+                        std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(
+                            my_id, i, forwarding_endpoint, settings->raft_settings->operation_timeout_ms);
                         client_list.push_back(client);
-                        LOG_INFO(log, "Create ForwardingConnection for {}, {}, thread {}, {}", id_, forwarding_endpoint_, i, static_cast<void*>(client.get()));
+                        LOG_INFO(
+                            log,
+                            "Create ForwardingConnection for {}, {}, thread {}, {}",
+                            id,
+                            forwarding_endpoint,
+                            i,
+                            static_cast<void *>(client.get()));
                     }
                 }
             }
-            else if (key == "async_replication")
-            {
-                ret_cluster_config->set_async_replication(config.getBool(config_name + "." + key, false));
-            }
         }
+
+        /// If user does not configure cluster, put myself to NuRaft.
+        if (ret_cluster_config->get_servers().empty())
+        {
+            auto my_endpoint = my_host + ":" + std::to_string(my_internal_port);
+            ret_cluster_config->get_servers().push_back(cs_new<srv_config>(my_id, 0, my_endpoint, "", false, 1));
+        }
+
     }
 
     std::string s;
@@ -159,7 +173,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(const Poco::Util::Abs
 
 ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
 {
-    auto new_cluster_config = parseClusterConfig(config, "service.remote_servers", coordination_settings->thread_count);
+    auto new_cluster_config = parseClusterConfig(config, "keeper.cluster", settings->thread_count);
 
     std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
     for (const auto & new_server : new_cluster_config->get_servers())

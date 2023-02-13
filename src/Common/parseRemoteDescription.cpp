@@ -2,7 +2,7 @@
 #include <Common/Exception.h>
 #include <IO/WriteHelpers.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

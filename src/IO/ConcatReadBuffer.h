@@ -5,7 +5,7 @@
 #include <IO/ReadBuffer.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Reads from the concatenation of multiple ReadBuffers

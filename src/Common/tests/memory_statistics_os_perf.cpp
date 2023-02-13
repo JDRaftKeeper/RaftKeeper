@@ -7,7 +7,7 @@
 int main([[maybe_unused]] int argc, [[maybe_unused]] char ** argv)
 {
 #if defined(OS_LINUX)
-    using namespace DB;
+    using namespace RK;
 
     size_t num_iterations = argc >= 2 ? std::stoull(argv[1]) : 1000000;
     MemoryStatisticsOS stats;

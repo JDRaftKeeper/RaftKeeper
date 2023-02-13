@@ -7,7 +7,7 @@
   */
 
 
-using namespace DB;
+using namespace RK;
 
 
 static void NO_INLINE write(WriteBuffer & out, size_t size)

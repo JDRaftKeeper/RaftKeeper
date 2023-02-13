@@ -32,6 +32,6 @@ private:
 
     void logException()
     {
-        DB::tryLogCurrentException(log);
+        RK::tryLogCurrentException(log);
     }
 };

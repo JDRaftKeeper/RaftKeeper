@@ -10,7 +10,7 @@ int getMaxFileDescriptorCount()
     namespace fs = std::filesystem;
     int result = -1;
 #if defined(__linux__) || defined(__APPLE__)
-    using namespace DB;
+    using namespace RK;
 
     if (fs::exists("/proc/sys/fs/file-max"))
     {

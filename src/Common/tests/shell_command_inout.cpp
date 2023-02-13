@@ -12,7 +12,7 @@
 int main(int argc, char ** argv)
 try
 {
-    using namespace DB;
+    using namespace RK;
 
     if (argc < 2)
     {
@@ -42,6 +42,6 @@ try
 }
 catch (...)
 {
-    std::cerr << DB::getCurrentExceptionMessage(true) << '\n';
+    std::cerr << RK::getCurrentExceptionMessage(true) << '\n';
     throw;
 }

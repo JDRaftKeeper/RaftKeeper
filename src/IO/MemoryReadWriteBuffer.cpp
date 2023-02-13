@@ -2,7 +2,7 @@
 #include <boost/noncopyable.hpp>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

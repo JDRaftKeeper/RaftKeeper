@@ -12,27 +12,27 @@ int main(int, char **)
     try
     {
         std::string s = "-123456 123.456 вася пе\\tтя\t'\\'xyz\\\\'";
-        DB::ReadBufferFromString in(s);
+        RK::ReadBufferFromString in(s);
 
-        DB::Int64 a;
-        DB::Float64 b;
-        DB::String c, d;
+        RK::Int64 a;
+        RK::Float64 b;
+        RK::String c, d;
 
-        DB::readIntText(a, in);
+        RK::readIntText(a, in);
         in.ignore();
 
-        DB::readFloatText(b, in);
+        RK::readFloatText(b, in);
         in.ignore();
 
-        DB::readEscapedString(c, in);
+        RK::readEscapedString(c, in);
         in.ignore();
 
-        DB::readQuotedString(d, in);
+        RK::readQuotedString(d, in);
 
         std::cout << a << ' ' << b << ' ' << c << '\t' << '\'' << d << '\'' << std::endl;
         std::cout << in.count() << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

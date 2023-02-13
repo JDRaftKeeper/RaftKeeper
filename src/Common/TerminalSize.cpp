@@ -5,7 +5,7 @@
 #include <boost/program_options.hpp>
 
 
-namespace DB::ErrorCodes
+namespace RK::ErrorCodes
 {
     extern const int SYSTEM_ERROR;
 }
@@ -17,7 +17,7 @@ uint16_t getTerminalWidth()
         winsize terminal_size {};
 
         if (ioctl(STDIN_FILENO, TIOCGWINSZ, &terminal_size))
-            DB::throwFromErrno("Cannot obtain terminal window size (ioctl TIOCGWINSZ)", DB::ErrorCodes::SYSTEM_ERROR);
+            RK::throwFromErrno("Cannot obtain terminal window size (ioctl TIOCGWINSZ)", RK::ErrorCodes::SYSTEM_ERROR);
 
         return terminal_size.ws_col;
     }

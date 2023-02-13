@@ -58,8 +58,8 @@ int main(int argc, char ** argv)
         formatted.reserve(n * 21);
 
         {
-            DB::WriteBufferFromVector wb(formatted);
-        //    DB::CompressedWriteBuffer wb2(wb1);
+            RK::WriteBufferFromVector wb(formatted);
+        //    RK::CompressedWriteBuffer wb2(wb1);
             Stopwatch watch;
 
             UInt64 tsc = rdtsc();
@@ -67,9 +67,9 @@ int main(int argc, char ** argv)
             for (size_t i = 0; i < n; ++i)
             {
                 //writeIntTextTable(data[i], wb);
-                DB::writeIntText(data[i], wb);
-                //DB::writeIntText(data[i], wb);
-                DB::writeChar('\t', wb);
+                RK::writeIntText(data[i], wb);
+                //RK::writeIntText(data[i], wb);
+                RK::writeChar('\t', wb);
             }
 
             tsc = rdtsc() - tsc;
@@ -87,14 +87,14 @@ int main(int argc, char ** argv)
         }
 
         {
-            DB::ReadBuffer rb(formatted.data(), formatted.size(), 0);
-        //    DB::CompressedReadBuffer rb(rb_);
+            RK::ReadBuffer rb(formatted.data(), formatted.size(), 0);
+        //    RK::CompressedReadBuffer rb(rb_);
             Stopwatch watch;
 
             for (size_t i = 0; i < n; ++i)
             {
-                DB::readIntText(data2[i], rb);
-                DB::assertChar('\t', rb);
+                RK::readIntText(data2[i], rb);
+                RK::assertChar('\t', rb);
             }
 
             watch.stop();
@@ -106,7 +106,7 @@ int main(int argc, char ** argv)
 
         std::cerr << (0 == memcmp(data.data(), data2.data(), data.size()) ? "Ok." : "Fail.") << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

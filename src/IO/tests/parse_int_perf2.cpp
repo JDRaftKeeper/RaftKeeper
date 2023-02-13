@@ -10,13 +10,13 @@
 namespace test
 {
     template <typename T>
-    void readIntText(T & x, DB::ReadBuffer & buf)
+    void readIntText(T & x, RK::ReadBuffer & buf)
     {
         bool negative = false;
         x = 0;
 
         if (unlikely(buf.eof()))
-            DB::throwReadAfterEOF();
+            RK::throwReadAfterEOF();
 
         if (is_signed_v<T> && *buf.position() == '-')
         {
@@ -52,7 +52,7 @@ int main(int, char **)
 {
     try
     {
-        DB::ReadBufferFromFileDescriptor in(STDIN_FILENO);
+        RK::ReadBufferFromFileDescriptor in(STDIN_FILENO);
         Int64 n = 0;
         size_t nums = 0;
 
@@ -60,7 +60,7 @@ int main(int, char **)
 
         while (!in.eof())
         {
-            DB::readIntText(n, in);
+            RK::readIntText(n, in);
             in.ignore();
 
             //std::cerr << "n: " << n << std::endl;
@@ -74,7 +74,7 @@ int main(int, char **)
             << nums / watch.elapsedSeconds() << " num/sec. (" << in.count() / watch.elapsedSeconds() / 1000000 << " MB/s.)"
             << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

@@ -19,7 +19,7 @@
 #endif
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -55,10 +55,10 @@ public:
         , replacement(replacement_string)
     {
         if (!regexp.ok())
-            throw DB::Exception(
+            throw RK::Exception(
                 "SensitiveDataMasker: cannot compile re2: " + regexp_string_ + ", error: " + regexp.error()
                     + ". Look at https://github.com/google/re2/wiki/Syntax for reference.",
-                DB::ErrorCodes::CANNOT_COMPILE_REGEXP);
+                RK::ErrorCodes::CANNOT_COMPILE_REGEXP);
     }
 
     uint64_t apply(std::string & data) const
@@ -136,7 +136,7 @@ SensitiveDataMasker::SensitiveDataMasker(const Poco::Util::AbstractConfiguration
             {
                 addMaskingRule(rule_name, regexp, replace);
             }
-            catch (DB::Exception & e)
+            catch (RK::Exception & e)
             {
                 e.addMessage("while adding query masking rule '" + rule_name + "'.");
                 throw;

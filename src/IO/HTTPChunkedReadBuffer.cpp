@@ -6,7 +6,7 @@
 #include <common/arithmeticOverflow.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes

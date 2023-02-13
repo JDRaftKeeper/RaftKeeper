@@ -36,7 +36,7 @@ bool inline memoryTrackerCanThrow(VariableContext level, bool fault_injection)
 
 }
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -128,7 +128,7 @@ void MemoryTracker::logMemoryUsage(Int64 current) const
 void MemoryTracker::alloc(Int64 size)
 {
     if (size < 0)
-        throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Negative size ({}) is passed to MemoryTracker. It is a bug.", size);
+        throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Negative size ({}) is passed to MemoryTracker. It is a bug.", size);
 
     if (BlockerInThread::isBlocked(level))
     {
@@ -173,7 +173,7 @@ void MemoryTracker::alloc(Int64 size)
     if (unlikely(_memory_tracker_always_throw_logical_error_on_allocation))
     {
         _memory_tracker_always_throw_logical_error_on_allocation = false;
-        throw DB::Exception(DB::ErrorCodes::LOGICAL_ERROR, "Memory tracker: allocations not allowed.");
+        throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Memory tracker: allocations not allowed.");
     }
 #endif
 
@@ -186,7 +186,7 @@ void MemoryTracker::alloc(Int64 size)
         ProfileEvents::increment(ProfileEvents::QueryMemoryLimitExceeded);
         const auto * description = description_ptr.load(std::memory_order_relaxed);
         amount.fetch_sub(size, std::memory_order_relaxed);
-        throw DB::Exception(DB::ErrorCodes::MEMORY_LIMIT_EXCEEDED,
+        throw RK::Exception(RK::ErrorCodes::MEMORY_LIMIT_EXCEEDED,
                             "Memory tracker{}{}: fault injected. Would use {} (attempt to allocate chunk of {} bytes), maximum: {}",
                             description ? " " : "", description ? description : "",
                             formatReadableSizeWithBinarySuffix(will_be),
@@ -207,7 +207,7 @@ void MemoryTracker::alloc(Int64 size)
         ProfileEvents::increment(ProfileEvents::QueryMemoryLimitExceeded);
         const auto * description = description_ptr.load(std::memory_order_relaxed);
         amount.fetch_sub(size, std::memory_order_relaxed);
-        throw DB::Exception(DB::ErrorCodes::MEMORY_LIMIT_EXCEEDED,
+        throw RK::Exception(RK::ErrorCodes::MEMORY_LIMIT_EXCEEDED,
                             "Memory limit{}{} exceeded: would use {} (attempt to allocate chunk of {} bytes), maximum: {}",
                             description ? " " : "", description ? description : "",
                             formatReadableSizeWithBinarySuffix(will_be),

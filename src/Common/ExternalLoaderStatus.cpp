@@ -1,6 +1,6 @@
 #include <Common/ExternalLoaderStatus.h>
 
-namespace DB
+namespace RK
 {
     String toString(ExternalLoaderStatus status)
     {

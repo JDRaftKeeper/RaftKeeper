@@ -9,7 +9,7 @@
 #include <Common/Exception.h>
 
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -92,7 +92,7 @@ public:
         PoolBase * getPool() const
         {
             if (!data)
-                throw DB::Exception("Attempt to get pool from uninitialized entry", DB::ErrorCodes::LOGICAL_ERROR);
+                throw RK::Exception("Attempt to get pool from uninitialized entry", RK::ErrorCodes::LOGICAL_ERROR);
             return &data->data.pool;
         }
 

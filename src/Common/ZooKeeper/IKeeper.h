@@ -19,7 +19,7 @@
 namespace Coordination
 {
 
-using namespace DB;
+using namespace RK;
 
 
 struct ACL
@@ -387,7 +387,7 @@ enum Event
 };
 
 
-class Exception : public DB::Exception
+class Exception : public RK::Exception
 {
 private:
     /// Delegate constructor, used to minimize repetition; last parameter used for overload resolution.

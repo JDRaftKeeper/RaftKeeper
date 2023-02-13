@@ -1,10 +1,10 @@
 #pragma once
 
+#include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
-#include <Service/SvsKeeperServer.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -12,7 +12,7 @@ namespace ErrorCodes
     extern const int RAFT_ERROR;
 }
 
-using Request = SvsKeeperStorage::RequestForSession;
+using RequestForSession = KeeperStore::RequestForSession;
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 using RunnerId = size_t;
 
@@ -25,19 +25,19 @@ struct ErrorRequest
     Coordination::OpNum opnum;
 };
 
-class SvsKeeperDispatcher;
+class KeeperDispatcher;
 
+/**Handle user read request and Raft committed write request.
+ */
 class RequestProcessor
 {
 public:
-    using RequestForSession = SvsKeeperStorage::RequestForSession;
-
     explicit RequestProcessor(SvsKeeperResponsesQueue & responses_queue_)
         : responses_queue(responses_queue_), log(&Poco::Logger::get("RequestProcessor"))
     {
     }
 
-    void push(Request request_for_session);
+    void push(RequestForSession request_for_session);
     void run();
 
     void moveRequestToPendingQueue(RunnerId runner_id);
@@ -51,14 +51,14 @@ public:
 
     void shutdown();
 
-    void commit(Request request);
+    void commit(RequestForSession request);
 
     void onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid, Coordination::OpNum opnum);
 
     void initialize(
         size_t thread_count_,
-        std::shared_ptr<SvsKeeperServer> server_,
-        std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
+        std::shared_ptr<KeeperServer> server_,
+        std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         UInt64 operation_timeout_ms_);
 
     size_t commitQueueSize() { return committed_queue.size(); }
@@ -71,13 +71,13 @@ private:
     }
 
 
-    using RequestForSessions = std::vector<SvsKeeperStorage::RequestForSession>;
+    using RequestForSessions = std::vector<KeeperStore::RequestForSession>;
 
     ThreadFromGlobalPool main_thread;
 
     bool shutdown_called{false};
 
-    std::shared_ptr<SvsKeeperServer> server;
+    std::shared_ptr<KeeperServer> server;
 
     SvsKeeperResponsesQueue & responses_queue;
 
@@ -89,13 +89,13 @@ private:
     std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> pending_requests;
 
     /// Raft committed write requests which can be local or from other nodes.
-    ConcurrentBoundedQueue<SvsKeeperStorage::RequestForSession> committed_queue{1000};
+    ConcurrentBoundedQueue<KeeperStore::RequestForSession> committed_queue{1000};
 
     size_t thread_count;
 
     ThreadPoolPtr request_thread;
 
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher;
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     mutable std::mutex mutex;
     std::condition_variable cv;

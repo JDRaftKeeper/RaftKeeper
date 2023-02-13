@@ -1,10 +1,10 @@
+#include <Service/KeeperDispatcher.h>
+#include <Service/RequestAccumulator.h>
 
-#include <Service/SvsKeeperDispatcher.h>
-
-namespace DB
+namespace RK
 {
 
-void RequestAccumulator::processRequest(RequestForSession request_for_session)
+void RequestAccumulator::push(RequestForSession request_for_session)
 {
     requests_queue->push(request_for_session);
 }
@@ -15,14 +15,14 @@ void RequestAccumulator::run(RunnerId runner_id)
     NuRaftResult result = nullptr;
     /// Requests from previous iteration. We store them to be able
     /// to send errors to the client.
-    //    SvsKeeperStorage::RequestsForSessions prev_batch;
+    //    KeeperStore::RequestsForSessions prev_batch;
 
-    SvsKeeperStorage::RequestsForSessions to_append_batch;
+    KeeperStore::RequestsForSessions to_append_batch;
     UInt64 max_wait = operation_timeout_ms;
 
     while (!shutdown_called)
     {
-        SvsKeeperStorage::RequestForSession request_for_session;
+        KeeperStore::RequestForSession request_for_session;
 
         bool pop_succ = false;
         if (to_append_batch.empty())
@@ -57,7 +57,7 @@ void RequestAccumulator::run(RunnerId runner_id)
     }
 }
 
-bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, const SvsKeeperStorage::RequestsForSessions & prev_batch)
+bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch)
 {
     /// Forcefully process all previous pending requests
 
@@ -100,7 +100,7 @@ void RequestAccumulator::shutdown()
 
     shutdown_called = true;
 
-    SvsKeeperStorage::RequestForSession request_for_session;
+    KeeperStore::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         request_processor->onError(
@@ -114,12 +114,12 @@ void RequestAccumulator::shutdown()
 
 void RequestAccumulator::initialize(
     size_t thread_count,
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
-    std::shared_ptr<SvsKeeperServer> server_,
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
+    std::shared_ptr<KeeperServer> server_,
     UInt64 operation_timeout_ms_,
     UInt64 max_batch_size_)
 {
-    keeper_dispatcher = service_keeper_storage_dispatcher_;
+    keeper_dispatcher = keeper_dispatcher_;
     operation_timeout_ms = operation_timeout_ms_;
     max_batch_size = max_batch_size_;
     server = server_;

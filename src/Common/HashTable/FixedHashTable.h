@@ -2,7 +2,7 @@
 
 #include <Common/HashTable/HashTable.h>
 
-namespace DB
+namespace RK
 {
     namespace ErrorCodes
     {
@@ -229,7 +229,7 @@ public:
     class Reader final : private Cell::State
     {
     public:
-        Reader(DB::ReadBuffer & in_) : in(in_) {}
+        Reader(RK::ReadBuffer & in_) : in(in_) {}
 
         Reader(const Reader &) = delete;
         Reader & operator=(const Reader &) = delete;
@@ -239,7 +239,7 @@ public:
             if (!is_initialized)
             {
                 Cell::State::read(in);
-                DB::readVarUInt(size, in);
+                RK::readVarUInt(size, in);
                 is_initialized = true;
             }
 
@@ -258,13 +258,13 @@ public:
         inline const value_type & get() const
         {
             if (!is_initialized || is_eof)
-                throw DB::Exception("No available data", DB::ErrorCodes::NO_AVAILABLE_DATA);
+                throw RK::Exception("No available data", RK::ErrorCodes::NO_AVAILABLE_DATA);
 
             return cell.getValue();
         }
 
     private:
-        DB::ReadBuffer & in;
+        RK::ReadBuffer & in;
         Cell cell;
         size_t read_count = 0;
         size_t size;
@@ -372,10 +372,10 @@ public:
     bool ALWAYS_INLINE has(const Key & x) const { return !buf[x].isZero(*this); }
     bool ALWAYS_INLINE has(const Key &, size_t hash_value) const { return !buf[hash_value].isZero(*this); }
 
-    void write(DB::WriteBuffer & wb) const
+    void write(RK::WriteBuffer & wb) const
     {
         Cell::State::write(wb);
-        DB::writeVarUInt(size(), wb);
+        RK::writeVarUInt(size(), wb);
 
         if (!buf)
             return;
@@ -384,16 +384,16 @@ public:
         {
             if (!ptr->isZero(*this))
             {
-                DB::writeVarUInt(ptr - buf);
+                RK::writeVarUInt(ptr - buf);
                 ptr->write(wb);
             }
         }
     }
 
-    void writeText(DB::WriteBuffer & wb) const
+    void writeText(RK::WriteBuffer & wb) const
     {
         Cell::State::writeText(wb);
-        DB::writeText(size(), wb);
+        RK::writeText(size(), wb);
 
         if (!buf)
             return;
@@ -402,20 +402,20 @@ public:
         {
             if (!ptr->isZero(*this))
             {
-                DB::writeChar(',', wb);
-                DB::writeText(ptr - buf, wb);
-                DB::writeChar(',', wb);
+                RK::writeChar(',', wb);
+                RK::writeText(ptr - buf, wb);
+                RK::writeChar(',', wb);
                 ptr->writeText(wb);
             }
         }
     }
 
-    void read(DB::ReadBuffer & rb)
+    void read(RK::ReadBuffer & rb)
     {
         Cell::State::read(rb);
         destroyElements();
         size_t m_size;
-        DB::readVarUInt(m_size, rb);
+        RK::readVarUInt(m_size, rb);
         this->setSize(m_size);
         free();
         alloc();
@@ -423,19 +423,19 @@ public:
         for (size_t i = 0; i < m_size; ++i)
         {
             size_t place_value = 0;
-            DB::readVarUInt(place_value, rb);
+            RK::readVarUInt(place_value, rb);
             Cell x;
             x.read(rb);
             new (&buf[place_value]) Cell(x, *this);
         }
     }
 
-    void readText(DB::ReadBuffer & rb)
+    void readText(RK::ReadBuffer & rb)
     {
         Cell::State::readText(rb);
         destroyElements();
         size_t m_size;
-        DB::readText(m_size, rb);
+        RK::readText(m_size, rb);
         this->setSize(m_size);
         free();
         alloc();
@@ -443,10 +443,10 @@ public:
         for (size_t i = 0; i < m_size; ++i)
         {
             size_t place_value = 0;
-            DB::assertChar(',', rb);
-            DB::readText(place_value, rb);
+            RK::assertChar(',', rb);
+            RK::readText(place_value, rb);
             Cell x;
-            DB::assertChar(',', rb);
+            RK::assertChar(',', rb);
             x.readText(rb);
             new (&buf[place_value]) Cell(x, *this);
         }

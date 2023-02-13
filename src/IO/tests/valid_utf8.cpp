@@ -17,25 +17,25 @@ int main(int, char **)
 
         std::string str;
         {
-            DB::WriteBufferFromString str_buf(str);
+            RK::WriteBufferFromString str_buf(str);
             {
-                DB::WriteBufferValidUTF8 utf_buf(str_buf, true, "-");
-                DB::writeEscapedString(test1, utf_buf);
+                RK::WriteBufferValidUTF8 utf_buf(str_buf, true, "-");
+                RK::writeEscapedString(test1, utf_buf);
             }
         }
         std::cout << str << std::endl;
 
         str = "";
         {
-            DB::WriteBufferFromString str_buf(str);
+            RK::WriteBufferFromString str_buf(str);
             {
-                DB::WriteBufferValidUTF8 utf_buf(str_buf, true, "-");
-                DB::writeEscapedString(test2, utf_buf);
+                RK::WriteBufferValidUTF8 utf_buf(str_buf, true, "-");
+                RK::writeEscapedString(test2, utf_buf);
             }
         }
         std::cout << str << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

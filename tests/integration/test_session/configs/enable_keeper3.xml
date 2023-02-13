@@ -1,0 +1,30 @@
+<raftkeeper>
+    <keeper>
+        <port>8101</port>
+        <forwarding_port>8102</forwarding_port>
+        <my_id>3</my_id>
+        <host>node3</host>
+        <four_letter_word_white_list>*</four_letter_word_white_list>
+
+        <raft_settings>
+            <operation_timeout_ms>1000</operation_timeout_ms>
+            <session_timeout_ms>100000</session_timeout_ms>
+            <raft_logs_level>debug</raft_logs_level>
+        </raft_settings>
+
+        <cluster>
+            <server>
+                <id>1</id>
+                <host>node1</host>
+            </server>
+            <server>
+                <id>2</id>
+                <host>node2</host>
+            </server>
+            <server>
+                <id>3</id>
+                <host>node3</host>
+            </server>
+        </cluster>
+    </keeper>
+</raftkeeper>

@@ -6,7 +6,7 @@
 #include <Core/Defines.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -152,7 +152,7 @@ public:
     }
 
     /// You can only call for an empty object.
-    void read(DB::ReadBuffer & in)
+    void read(RK::ReadBuffer & in)
     {
         UInt8 v;
         readBinary(v, in);
@@ -172,7 +172,7 @@ public:
         }
     }
 
-    void readAndMerge(DB::ReadBuffer & in)
+    void readAndMerge(RK::ReadBuffer & in)
     {
         auto container_type = getContainerType();
 
@@ -214,7 +214,7 @@ public:
             getContainer<Large>().readAndMerge(in);
     }
 
-    void write(DB::WriteBuffer & out) const
+    void write(RK::WriteBuffer & out) const
     {
         auto container_type = getContainerType();
         writeBinary(static_cast<UInt8>(container_type), out);

@@ -1,7 +1,7 @@
 #include <Service/ACLMap.h>
 #include <Common/SipHash.h>
 
-namespace DB
+namespace RK
 {
 
 template<class Key, class Val>

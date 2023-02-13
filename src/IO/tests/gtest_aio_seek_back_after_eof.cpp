@@ -49,7 +49,7 @@ void prepareForEOF(std::string & filename, std::string & buf)
 }
 TEST(ReadBufferAIOTest, TestReadAfterAIO)
 {
-    using namespace DB;
+    using namespace RK;
     std::string data;
     std::string file_path;
     prepareForEOF(file_path, data);

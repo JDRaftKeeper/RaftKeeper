@@ -2,7 +2,7 @@
 #include <atomic>
 
 
-namespace DB
+namespace RK
 {
 
 class SimpleActionLock;

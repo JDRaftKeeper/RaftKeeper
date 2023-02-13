@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 
-using namespace DB;
+using namespace RK;
 
 
 TEST(Common, unescapeForFileName)

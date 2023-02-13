@@ -5,7 +5,7 @@
 #include <ostream>
 #include <common/types.h>
 
-namespace DB
+namespace RK
 {
     enum class ExternalLoaderStatus
     {

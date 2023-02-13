@@ -72,7 +72,7 @@
 #include <ucontext.h>
 
 
-DB::PipeFDs signal_pipe;
+RK::PipeFDs signal_pipe;
 
 
 /** Reset signal handler to the default and send signal to itself.
@@ -103,8 +103,8 @@ static void writeSignalIDtoSignalPipe(int sig)
     auto saved_errno = errno;   /// We must restore previous value of errno in signal handler.
 
     char buf[signal_pipe_buf_size];
-    DB::WriteBufferFromFileDescriptor out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
-    DB::writeBinary(sig, out);
+    RK::WriteBufferFromFileDescriptor out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
+    RK::writeBinary(sig, out);
     out.next();
 
     errno = saved_errno;
@@ -132,21 +132,21 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
     auto saved_errno = errno;   /// We must restore previous value of errno in signal handler.
 
     char buf[signal_pipe_buf_size];
-    DB::WriteBufferFromFileDescriptorDiscardOnFailure out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
+    RK::WriteBufferFromFileDescriptorDiscardOnFailure out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
 
     const ucontext_t signal_context = *reinterpret_cast<ucontext_t *>(context);
     const StackTrace stack_trace(signal_context);
 
-    StringRef query_id = DB::CurrentThread::getQueryId();   /// This is signal safe.
+    StringRef query_id = RK::CurrentThread::getQueryId();   /// This is signal safe.
     query_id.size = std::min(query_id.size, max_query_id_size);
 
-    DB::writeBinary(sig, out);
-    DB::writePODBinary(*info, out);
-    DB::writePODBinary(signal_context, out);
-    DB::writePODBinary(stack_trace, out);
-    DB::writeBinary(UInt32(getThreadId()), out);
-    DB::writeStringBinary(query_id, out);
-    DB::writePODBinary(DB::current_thread, out);
+    RK::writeBinary(sig, out);
+    RK::writePODBinary(*info, out);
+    RK::writePODBinary(signal_context, out);
+    RK::writePODBinary(stack_trace, out);
+    RK::writeBinary(UInt32(getThreadId()), out);
+    RK::writeStringBinary(query_id, out);
+    RK::writePODBinary(RK::current_thread, out);
 
     out.next();
 
@@ -159,11 +159,6 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
 
     errno = saved_errno;
 }
-
-
-/// Avoid link time dependency on DB/Interpreters - will use this function only when linked.
-__attribute__((__weak__)) void collectCrashLog(
-    Int32 signal, UInt64 thread_id, const String & query_id, const StackTrace & stack_trace);
 
 
 /** The thread that read info about signal or std::terminate from pipe.
@@ -190,12 +185,12 @@ public:
     void run() override
     {
         char buf[signal_pipe_buf_size];
-        DB::ReadBufferFromFileDescriptor in(signal_pipe.fds_rw[0], signal_pipe_buf_size, buf);
+        RK::ReadBufferFromFileDescriptor in(signal_pipe.fds_rw[0], signal_pipe_buf_size, buf);
 
         while (!in.eof())
         {
             int sig = 0;
-            DB::readBinary(sig, in);
+            RK::readBinary(sig, in);
             // We may log some specific signals afterwards, with different log
             // levels and more info, but for completeness we log all signals
             // here at trace level.
@@ -218,8 +213,8 @@ public:
                 UInt32 thread_num;
                 std::string message;
 
-                DB::readBinary(thread_num, in);
-                DB::readBinary(message, in);
+                RK::readBinary(thread_num, in);
+                RK::readBinary(message, in);
 
                 onTerminate(message, thread_num);
             }
@@ -236,18 +231,18 @@ public:
                 StackTrace stack_trace(NoCapture{});
                 UInt32 thread_num{};
                 std::string query_id;
-                DB::ThreadStatus * thread_ptr{};
+                RK::ThreadStatus * thread_ptr{};
 
                 if (sig != SanitizerTrap)
                 {
-                    DB::readPODBinary(info, in);
-                    DB::readPODBinary(context, in);
+                    RK::readPODBinary(info, in);
+                    RK::readPODBinary(context, in);
                 }
 
-                DB::readPODBinary(stack_trace, in);
-                DB::readBinary(thread_num, in);
-                DB::readBinary(query_id, in);
-                DB::readPODBinary(thread_ptr, in);
+                RK::readPODBinary(stack_trace, in);
+                RK::readBinary(thread_num, in);
+                RK::readBinary(query_id, in);
+                RK::readPODBinary(thread_ptr, in);
 
                 /// This allows to receive more signals if failure happens inside onFault function.
                 /// Example: segfault while symbolizing stack trace.
@@ -273,16 +268,16 @@ private:
         const StackTrace & stack_trace,
         UInt32 thread_num,
         const std::string & query_id,
-        DB::ThreadStatus * thread_ptr) const
+        RK::ThreadStatus * thread_ptr) const
     {
-        DB::ThreadStatus thread_status;
+        RK::ThreadStatus thread_status;
 
         /// Send logs from this thread to client if possible.
         /// It will allow client to see failure messages directly.
         if (thread_ptr)
         {
             if (auto logs_queue = thread_ptr->getInternalTextLogsQueue())
-                DB::CurrentThread::attachInternalTextLogsQueue(logs_queue);
+                RK::CurrentThread::attachInternalTextLogsQueue(logs_queue);
         }
 
         LOG_FATAL(log, "########################################");
@@ -352,10 +347,6 @@ private:
         }
 #endif
 
-        /// Write crash to system.crash_log table if available.
-        if (collectCrashLog)
-            collectCrashLog(sig, thread_num, query_id, stack_trace);
-
         /// When everything is done, we will try to send these error messages to client.
         if (thread_ptr)
             thread_ptr->onFatalError();
@@ -371,19 +362,19 @@ static void sanitizerDeathCallback()
     /// Also need to send data via pipe. Otherwise it may lead to deadlocks or failures in printing diagnostic info.
 
     char buf[signal_pipe_buf_size];
-    DB::WriteBufferFromFileDescriptorDiscardOnFailure out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
+    RK::WriteBufferFromFileDescriptorDiscardOnFailure out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
 
     const StackTrace stack_trace;
 
-    StringRef query_id = DB::CurrentThread::getQueryId();
+    StringRef query_id = RK::CurrentThread::getQueryId();
     query_id.size = std::min(query_id.size, max_query_id_size);
 
     int sig = SignalListener::SanitizerTrap;
-    DB::writeBinary(sig, out);
-    DB::writePODBinary(stack_trace, out);
-    DB::writeBinary(UInt32(getThreadId()), out);
-    DB::writeStringBinary(query_id, out);
-    DB::writePODBinary(DB::current_thread, out);
+    RK::writeBinary(sig, out);
+    RK::writePODBinary(stack_trace, out);
+    RK::writeBinary(UInt32(getThreadId()), out);
+    RK::writeStringBinary(query_id, out);
+    RK::writePODBinary(RK::current_thread, out);
 
     out.next();
 
@@ -409,7 +400,7 @@ static void sanitizerDeathCallback()
     std::string log_message;
 
     if (std::current_exception())
-        log_message = "Terminate called for uncaught exception:\n" + DB::getCurrentExceptionMessage(true);
+        log_message = "Terminate called for uncaught exception:\n" + RK::getCurrentExceptionMessage(true);
     else
         log_message = "Terminate called without an active exception";
 
@@ -421,11 +412,11 @@ static void sanitizerDeathCallback()
         log_message.resize(buf_size - 16);
 
     char buf[buf_size];
-    DB::WriteBufferFromFileDescriptor out(signal_pipe.fds_rw[1], buf_size, buf);
+    RK::WriteBufferFromFileDescriptor out(signal_pipe.fds_rw[1], buf_size, buf);
 
-    DB::writeBinary(static_cast<int>(SignalListener::StdTerminate), out);
-    DB::writeBinary(UInt32(getThreadId()), out);
-    DB::writeBinary(log_message, out);
+    RK::writeBinary(static_cast<int>(SignalListener::StdTerminate), out);
+    RK::writeBinary(UInt32(getThreadId()), out);
+    RK::writeBinary(log_message, out);
     out.next();
 
     abort();
@@ -451,7 +442,7 @@ static bool tryCreateDirectories(Poco::Logger * logger, const std::string & path
     }
     catch (...)
     {
-        LOG_WARNING(logger, "{}: when creating {}, {}", __PRETTY_FUNCTION__, path, DB::getCurrentExceptionMessage(true));
+        LOG_WARNING(logger, "{}: when creating {}, {}", __PRETTY_FUNCTION__, path, RK::getCurrentExceptionMessage(true));
     }
     return false;
 }
@@ -466,7 +457,7 @@ void BaseDaemon::reloadConfiguration()
       * (It's convenient to log in console when you start server without any command line parameters.)
       */
     config_path = config().getString("config-file", "config.xml");
-    DB::ConfigProcessor config_processor(config_path, false, true);
+    RK::ConfigProcessor config_processor(config_path, false, true);
     config_processor.setConfigPath(Poco::Path(config_path).makeParent().toString());
     loaded_config = config_processor.loadConfig(/* allow_zk_includes = */ true);
 
@@ -527,7 +518,7 @@ void BaseDaemon::closeFDs()
         proc_path.list(fds);
         for (const auto & fd_str : fds)
         {
-            int fd = DB::parse<int>(fd_str);
+            int fd = RK::parse<int>(fd_str);
             if (fd > 2 && fd != signal_pipe.fds_rw[0] && fd != signal_pipe.fds_rw[1])
                 ::close(fd);
         }
@@ -559,7 +550,7 @@ void debugIncreaseOOMScore()
     const std::string new_score = "555";
     try
     {
-        DB::WriteBufferFromFile buf("/proc/self/oom_score_adj");
+        RK::WriteBufferFromFile buf("/proc/self/oom_score_adj");
         buf.write(new_score.c_str(), new_score.size());
         buf.close();
     }
@@ -607,7 +598,7 @@ void BaseDaemon::initialize(Application & self)
     }
     umask(umask_num);
 
-    DB::ConfigProcessor(config_path).savePreprocessedConfig(loaded_config, "");
+    RK::ConfigProcessor(config_path).savePreprocessedConfig(loaded_config, "");
 
     /// Write core dump on crash.
     {
@@ -635,7 +626,7 @@ void BaseDaemon::initialize(Application & self)
         DateLUT::setDefaultTimezone(config_timezone);
     }
 
-    std::string log_path = config().getString("logger.log", "");
+    std::string log_path = config().getString("logger.path", "");
     if (!log_path.empty())
         log_path = Poco::Path(log_path).setFileName("").toString();
 
@@ -686,7 +677,7 @@ void BaseDaemon::initialize(Application & self)
 
     /// Create pid file.
     if (config().has("pid"))
-        pid_file.emplace(config().getString("pid"), DB::StatusFile::write_pid);
+        pid_file.emplace(config().getString("pid"), RK::StatusFile::write_pid);
 
     if (is_daemon)
     {
@@ -798,7 +789,7 @@ void BaseDaemon::initializeTerminationAndSignalProcessing()
     signal_listener_thread.start(*signal_listener);
 
 #if defined(__ELF__) && !defined(__FreeBSD__)
-    String build_id_hex = DB::SymbolIndex::instance()->getBuildIDHex();
+    String build_id_hex = RK::SymbolIndex::instance()->getBuildIDHex();
     if (build_id_hex.empty())
         build_id_info = "no build id";
     else
@@ -811,7 +802,7 @@ void BaseDaemon::initializeTerminationAndSignalProcessing()
     std::string executable_path = getExecutablePath();
 
     if (!executable_path.empty())
-        stored_binary_hash = DB::Elf(executable_path).getBinaryHash();
+        stored_binary_hash = RK::Elf(executable_path).getBinaryHash();
 #endif
 }
 
@@ -837,14 +828,14 @@ void BaseDaemon::defineOptions(Poco::Util::OptionSet & new_options)
             .required(false)
             .repeatable(false)
             .argument("<file>")
-            .binding("logger.log"));
+            .binding("logger.path"));
 
     new_options.addOption(
         Poco::Util::Option("errorlog-file", "E", "use given log file for errors only")
             .required(false)
             .repeatable(false)
             .argument("<file>")
-            .binding("logger.errorlog"));
+            .binding("logger.err_log_path"));
 
     new_options.addOption(
         Poco::Util::Option("pid-file", "P", "use given pidfile")
@@ -872,7 +863,7 @@ void BaseDaemon::handleSignal(int signal_id)
         onInterruptSignals(signal_id);
     }
     else
-        throw DB::Exception(std::string("Unsupported signal: ") + strsignal(signal_id), 0);
+        throw RK::Exception(std::string("Unsupported signal: ") + strsignal(signal_id), 0);
 }
 
 void BaseDaemon::onInterruptSignals(int signal_id)

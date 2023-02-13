@@ -11,7 +11,7 @@
 #include <Poco/Version.h>
 
 
-namespace DB
+namespace RK
 {
 
 namespace ErrorCodes
@@ -94,7 +94,7 @@ String getFilesystemName([[maybe_unused]] const String & mount_point)
 #if defined(__linux__)
     FILE * mounted_filesystems = setmntent("/etc/mtab", "r");
     if (!mounted_filesystems)
-        throw DB::Exception("Cannot open /etc/mtab to get name of filesystem", ErrorCodes::SYSTEM_ERROR);
+        throw RK::Exception("Cannot open /etc/mtab to get name of filesystem", ErrorCodes::SYSTEM_ERROR);
     mntent fs_info;
     constexpr size_t buf_size = 4096;     /// The same as buffer used for getmntent in glibc. It can happen that it's not enough
     std::vector<char> buf(buf_size);
@@ -102,10 +102,10 @@ String getFilesystemName([[maybe_unused]] const String & mount_point)
         ;
     endmntent(mounted_filesystems);
     if (fs_info.mnt_dir != mount_point)
-        throw DB::Exception("Cannot find name of filesystem by mount point " + mount_point, ErrorCodes::SYSTEM_ERROR);
+        throw RK::Exception("Cannot find name of filesystem by mount point " + mount_point, ErrorCodes::SYSTEM_ERROR);
     return fs_info.mnt_fsname;
 #else
-    throw DB::Exception("The function getFilesystemName is supported on Linux only", ErrorCodes::NOT_IMPLEMENTED);
+    throw RK::Exception("The function getFilesystemName is supported on Linux only", ErrorCodes::NOT_IMPLEMENTED);
 #endif
 }
 

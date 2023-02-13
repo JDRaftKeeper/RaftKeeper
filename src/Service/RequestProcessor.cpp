@@ -1,11 +1,11 @@
 
-#include <Service/SvsKeeperDispatcher.h>
+#include <Service/KeeperDispatcher.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
 
-namespace DB
+namespace RK
 {
 
-void RequestProcessor::push(Request request_for_session)
+void RequestProcessor::push(RequestForSession request_for_session)
 {
     if (!shutdown_called)
     {
@@ -29,7 +29,7 @@ void RequestProcessor::run()
                 using namespace std::chrono_literals;
                 std::unique_lock lk(mutex);
                 if (!cv.wait_for(lk, operation_timeout_ms * 1ms, [&] { return !need_wait() || shutdown_called; }))
-                    LOG_WARNING(
+                    LOG_DEBUG(
                         log,
                         "wait time out errors size {}, requests_queue size {}, committed_queue size {}",
                         errors.size(),
@@ -74,7 +74,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
     LOG_TRACE(log, "runner_id {} request_size {}", runner_id, request_size);
     for (size_t i = 0; i < request_size; ++i)
     {
-        Request request;
+        RequestForSession request;
         if (requests_queue->tryPop(runner_id, request))
         {
             auto op_num = request.request->getOpNum();
@@ -91,7 +91,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
 void RequestProcessor::processCommittedRequest(size_t count)
 {
     LOG_DEBUG(log, "committed_request_size {}", count);
-    Request committed_request;
+    RequestForSession committed_request;
     for (size_t i = 0; i < count; ++i)
     {
         if (committed_queue.peek(committed_request))
@@ -112,7 +112,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
             auto op_num = committed_request.request->getOpNum();
 
             /// Remote requests
-            if (!service_keeper_storage_dispatcher->isLocalSession(committed_request.session_id)
+            if (!keeper_dispatcher->isLocalSession(committed_request.session_id)
                 || op_num == Coordination::OpNum::Auth)
             {
                 LOG_DEBUG(log, "Not contains session {}", committed_request.session_id);
@@ -248,7 +248,7 @@ void RequestProcessor::processErrorRequest()
 
             auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(session_id))->second;
 
-            if (!service_keeper_storage_dispatcher->isLocalSession(session_id))
+            if (!keeper_dispatcher->isLocalSession(session_id))
             {
                 if (pending_requests_for_thread.contains(session_id))
                 {
@@ -266,13 +266,13 @@ void RequestProcessor::processErrorRequest()
             else
             {
                 using namespace Coordination;
-                std::optional<Request> request;
+                std::optional<RequestForSession> request;
                 if (static_cast<int32_t>(xid) == Coordination::AUTH_XID)
                 {
                     ZooKeeperRequestPtr auth_request = std::make_shared<ZooKeeperAuthRequest>();
                     using namespace std::chrono;
                     int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                    Request request1{static_cast<int64_t>(session_id), auth_request, now, -1, -1};
+                    RequestForSession request1{static_cast<int64_t>(session_id), auth_request, now, -1, -1};
                     request.emplace(request1);
                 }
                 else
@@ -328,7 +328,7 @@ void RequestProcessor::processErrorRequest()
                     response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                      : Coordination::Error::ZCONNECTIONLOSS;
 
-                    responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{static_cast<int64_t>(session_id), response});
+                    responses_queue.push(RK::KeeperStore::ResponseForSession{static_cast<int64_t>(session_id), response});
 
                     LOG_ERROR(
                         log,
@@ -409,14 +409,14 @@ void RequestProcessor::applyRequest(const RequestForSession & request) const
             response->zxid = 0;
             response->error = Coordination::Error::ZCONNECTIONLOSS;
 
-            responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request.session_id, response});
+            responses_queue.push(RK::KeeperStore::ResponseForSession{request.session_id, response});
         }
         /// Raft already committed the request, we must apply it/
         else
         {
             if (!server->isLeaderAlive())
                 LOG_WARNING(log, "Apply write request but leader not alive.");
-            server->getKeeperStateMachine()->getStorage().processRequest(
+            server->getKeeperStateMachine()->getStore().processRequest(
                 responses_queue, request.request, request.session_id, request.create_time, {}, true, false);
         }
     }
@@ -444,7 +444,7 @@ void RequestProcessor::shutdown()
     if (main_thread.joinable())
         main_thread.join();
 
-    SvsKeeperStorage::RequestForSession request_for_session;
+    KeeperStore::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         auto response = request_for_session.request->makeResponse();
@@ -452,11 +452,11 @@ void RequestProcessor::shutdown()
         response->zxid = 0;
         response->request_created_time_ms = request_for_session.create_time;
         response->error = Coordination::Error::ZSESSIONEXPIRED;
-        responses_queue.push(DB::SvsKeeperStorage::ResponseForSession{request_for_session.session_id, response});
+        responses_queue.push(RK::KeeperStore::ResponseForSession{request_for_session.session_id, response});
     }
 }
 
-void RequestProcessor::commit(Request request)
+void RequestProcessor::commit(RequestForSession request)
 {
     if (!shutdown_called)
     {
@@ -486,14 +486,14 @@ void RequestProcessor::onError(
 
 void RequestProcessor::initialize(
     size_t thread_count_,
-    std::shared_ptr<SvsKeeperServer> server_,
-    std::shared_ptr<SvsKeeperDispatcher> service_keeper_storage_dispatcher_,
+    std::shared_ptr<KeeperServer> server_,
+    std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     UInt64 operation_timeout_ms_)
 {
     operation_timeout_ms = operation_timeout_ms_;
     thread_count = thread_count_;
     server = server_;
-    service_keeper_storage_dispatcher = service_keeper_storage_dispatcher_;
+    keeper_dispatcher = keeper_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count_);
     for (size_t i = 0; i < thread_count; i++)

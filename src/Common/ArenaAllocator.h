@@ -3,7 +3,7 @@
 #include <Common/Allocator.h>
 
 
-namespace DB
+namespace RK
 {
 
 /// Allocator which proxies all allocations to Arena. Used in aggregate functions.

@@ -30,7 +30,7 @@ Use this config for docker-compose:
 
 Start containers with `docker-compose up`.
 
-In clickhouse-client create table like:
+In raftkeeper-client create table like:
 
     CREATE TABLE kafka ( a UInt8,  b String) ENGINE = Kafka('localhost:9092', 'topic', 'group1', 'CSV') SETTINGS kafka_row_delimiter = '\n';
 
@@ -40,6 +40,6 @@ Login inside Kafka container and stream some data:
     vi data.csv
     cat data.csv | /opt/kafka/bin/kafka-console-producer.sh --topic topic --broker-list localhost:9092
     
-Read data in clickhouse:
+Read data in raftkeeper:
 
     SELECT * FROM kafka;

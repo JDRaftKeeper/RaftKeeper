@@ -2,7 +2,7 @@
 
 #include <Poco/Timespan.h>
 
-namespace DB
+namespace RK
 {
 
 class Context;

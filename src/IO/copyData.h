@@ -4,7 +4,7 @@
 #include <functional>
 
 
-namespace DB
+namespace RK
 {
 
 class ReadBuffer;

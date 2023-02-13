@@ -12,7 +12,7 @@ namespace CurrentMetrics
     extern const Metric OpenFileForRead;
 }
 
-namespace DB
+namespace RK
 {
 
 /** Accepts path to file and opens it, or pre-opened file descriptor.

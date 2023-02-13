@@ -1,7 +1,7 @@
 #include <IO/NullWriteBuffer.h>
 
 
-namespace DB
+namespace RK
 {
 
 NullWriteBuffer::NullWriteBuffer(size_t buf_size, char * existing_memory, size_t alignment)

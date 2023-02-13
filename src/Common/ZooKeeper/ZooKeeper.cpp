@@ -18,7 +18,7 @@
 #define ZOOKEEPER_CONNECTION_TIMEOUT_MS 1000
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -227,7 +227,7 @@ void ZooKeeper::init(
     }
     else
     {
-        throw DB::Exception("Unknown implementation of coordination service: " + implementation, DB::ErrorCodes::NOT_IMPLEMENTED);
+        throw RK::Exception("Unknown implementation of coordination service: " + implementation, RK::ErrorCodes::NOT_IMPLEMENTED);
     }
 
     if (!chroot.empty() && !exists("/"))
@@ -308,18 +308,6 @@ struct ZooKeeperArgs
             else if (key == "implementation")
             {
                 implementation = config.getString(config_name + "." + key);
-            }
-            else if (startsWith(key, "service_node"))
-            {
-                service_hosts.push_back(
-                    (config.getBool(config_name + "." + key + ".secure", false) ? "secure://" : "") +
-                    config.getString(config_name + "." + key + ".host") + ":"
-                    + config.getString(config_name + "." + key + ".port", "5102")
-                );
-            }
-            else if (key == "use_ch_service")
-            {
-                use_ch_service = config.getBool(config_name + "." + key);
             }
             else
                 throw KeeperException(std::string("Unknown key ") + key + " in config file", Coordination::Error::ZBADARGUMENTS);
@@ -1080,17 +1068,17 @@ void ZooKeeper::finalize()
 size_t KeeperMultiException::getFailedOpIndex(Coordination::Error exception_code, const Coordination::Responses & responses)
 {
     if (responses.empty())
-        throw DB::Exception("Responses for multi transaction is empty", DB::ErrorCodes::LOGICAL_ERROR);
+        throw RK::Exception("Responses for multi transaction is empty", RK::ErrorCodes::LOGICAL_ERROR);
 
     for (size_t index = 0, size = responses.size(); index < size; ++index)
         if (responses[index]->error != Coordination::Error::ZOK)
             return index;
 
     if (!Coordination::isUserError(exception_code))
-        throw DB::Exception("There are no failed OPs because '" + std::string(Coordination::errorMessage(exception_code)) + "' is not valid response code for that",
-                            DB::ErrorCodes::LOGICAL_ERROR);
+        throw RK::Exception("There are no failed OPs because '" + std::string(Coordination::errorMessage(exception_code)) + "' is not valid response code for that",
+                            RK::ErrorCodes::LOGICAL_ERROR);
 
-    throw DB::Exception("There is no failed OpResult", DB::ErrorCodes::LOGICAL_ERROR);
+    throw RK::Exception("There is no failed OpResult", RK::ErrorCodes::LOGICAL_ERROR);
 }
 
 

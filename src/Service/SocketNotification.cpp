@@ -1,7 +1,7 @@
 #include <Service/SocketNotification.h>
 
 
-namespace DB {
+namespace RK {
 
 SocketNotification::SocketNotification(SocketReactor* pReactor):
 	_pReactor(pReactor)

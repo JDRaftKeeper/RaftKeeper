@@ -1,26 +1,26 @@
 #include <string>
+#include <unordered_map>
+#include <Service/ACLMap.h>
+#include <Service/KeeperStore.h>
+#include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
-#include <Service/SvsKeeperSettings.h>
-#include <Service/SvsKeeperStorage.h>
-#include <Service/NuRaftFileLogStore.h>
+#include <Service/Settings.h>
 #include <Service/proto/Log.pb.h>
-#include <Service/ACLMap.h>
-#include <unordered_map>
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
 
 using namespace nuraft;
-using namespace DB;
+using namespace RK;
 using namespace Coordination;
 
 //const std::string LOG_DIR = "./test_raft_log";
 //const std::string SNAP_DIR = "./test_raft_snapshot";
 
-namespace DB
+namespace RK
 {
-void setNode(SvsKeeperStorage & storage, const std::string key, const std::string value, bool is_ephemeral, int64_t session_id)
+void setNode(KeeperStore & storage, const std::string key, const std::string value, bool is_ephemeral, int64_t session_id)
 {
     ACLs default_acls;
     ACL acl;
@@ -38,7 +38,7 @@ void setNode(SvsKeeperStorage & storage, const std::string key, const std::strin
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -65,7 +65,7 @@ ptr<buffer> closeSessionLog(int64_t session_id)
 {
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
     request->xid = Coordination::CLOSE_XID;
-    SvsKeeperStorage::RequestForSession request_info;
+    KeeperStore::RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
@@ -83,7 +83,7 @@ ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::st
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<SvsKeeperStorage::RequestForSession>();
+    auto session_request = cs_new<KeeperStore::RequestForSession>();
     auto request = cs_new<ZooKeeperCreateRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -111,7 +111,7 @@ setLog(int64_t session_id, const std::string & key, const std::string value, con
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<SvsKeeperStorage::RequestForSession>();
+    auto session_request = cs_new<KeeperStore::RequestForSession>();
     auto request = cs_new<ZooKeeperSetRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -137,7 +137,7 @@ removeLog(int64_t session_id, const std::string & key)
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<SvsKeeperStorage::RequestForSession>();
+    auto session_request = cs_new<KeeperStore::RequestForSession>();
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -162,7 +162,8 @@ void commitLog(NuRaftStateMachine & machine, ptr<buffer> buf)
     machine.commit(machine.last_commit_index() + 1, *buf, true);
 }
 
-void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, int32_t permissions, const std::string & scheme, const std::string & id)
+void setACLNode(
+    KeeperStore & storage, const std::string key, const std::string value, int32_t permissions, const std::string & scheme, const std::string & id)
 {
     ACLs default_acls;
     ACL acl;
@@ -182,12 +183,12 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->acls = default_acls;
     request->xid = 1;
 
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
-void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::string value, const ACLs & acls)
+void setACLNode(KeeperStore & storage, const std::string key, const std::string value, const ACLs & acls)
 {
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "/" + key;
@@ -197,12 +198,12 @@ void setACLNode(SvsKeeperStorage & storage, const std::string key, const std::st
     request->acls = acls;
     request->xid = 1;
 
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
-void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
+void addAuth(KeeperStore & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
 {
 //    'digest', 'user1:password1'
 //    String scheme = "digest";
@@ -212,26 +213,26 @@ void addAuth(SvsKeeperStorage & storage, uint64_t session_id, const std::string 
     request->scheme = scheme;
     request->data = id;
 
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
-ACLs getACL(SvsKeeperStorage & storage, const std::string key)
+ACLs getACL(KeeperStore & storage, const std::string key)
 {
     auto request = cs_new<ZooKeeperGetACLRequest>();
     request->path = key;
 
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/false);
 
-    SvsKeeperStorage::ResponseForSession responses;
+    KeeperStore::ResponseForSession responses;
     responses_queue.tryPop(responses);
     return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses.response).acl;
 }
 
-void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const std::string value)
+void setEphemeralNode(KeeperStore & storage, const std::string key, const std::string value)
 {
     ACLs default_acls;
     ACL acl;
@@ -247,12 +248,12 @@ void setEphemeralNode(SvsKeeperStorage & storage, const std::string key, const s
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    SvsKeeperStorage::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::SvsKeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
 
-void assertStateMachineEquals(SvsKeeperStorage & storage, SvsKeeperStorage & ano_storage)
+void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
 {
     /// assert unit map
     ASSERT_EQ(storage.zxid, ano_storage.zxid);
@@ -265,7 +266,7 @@ void assertStateMachineEquals(SvsKeeperStorage & storage, SvsKeeperStorage & ano
 
 
     /// assert container
-    for (uint32_t i=0; i< SvsKeeperStorage::MAP_BLOCK_NUM; i++)
+    for (uint32_t i=0; i< KeeperStore::MAP_BLOCK_NUM; i++)
     {
         auto & map = storage.container.getMap(i);
         auto & ano_map = ano_storage.container.getMap(i);
@@ -298,11 +299,13 @@ void assertStateMachineEquals(SvsKeeperStorage & storage, SvsKeeperStorage & ano
         ASSERT_EQ(it.second, ano_storage.session_and_timeout.at(it.first));
     }
 
-    auto filter_auth = [] (SvsKeeperStorage::SessionAndAuth & auth_ids) {
-        for (auto it = auth_ids.begin(); it != auth_ids.end(); it++)
+    auto filter_auth = [] (KeeperStore::SessionAndAuth & auth_ids) {
+        for (auto it = auth_ids.begin(); it != auth_ids.end();)
         {
             if (it->second.empty())
-                auth_ids.erase(it);
+                auth_ids.erase(it++);
+            else
+                it++;
         }
     };
 
@@ -340,8 +343,8 @@ TEST(RaftSnapshot, createSnapshot_1)
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     snapshot snap_meta(1, 1, config);
 
-    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore storage(raft_settings->dead_session_check_period_ms);
 
     setNode(storage, "1", "table_1");
     ASSERT_EQ(storage.container.size(), 2); /// it's has "/" and "/1"
@@ -357,8 +360,8 @@ TEST(RaftSnapshot, createSnapshot_2)
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore store(raft_settings->dead_session_check_period_ms);
 
     UInt32 last_index = 1024;
     UInt32 term = 1;
@@ -366,10 +369,10 @@ TEST(RaftSnapshot, createSnapshot_2)
     {
         std::string key = std::to_string(i + 1);
         std::string value = "table_" + key;
-        setNode(storage, key, value);
+        setNode(store, key, value);
     }
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, storage);
+    size_t object_size = snap_mgr.createSnapshot(meta, store);
     ASSERT_EQ(object_size, 11 + 1 + 1 + 1);
     cleanDirectory(snap_dir);
 }
@@ -388,17 +391,17 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms.totalMilliseconds());
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore store(raft_settings->dead_session_check_period_ms);
 
     for (int i = 0; i < last_index; i++)
     {
         std::string key = std::to_string(i + 1);
         std::string value = "table_" + key;
-        setNode(storage, key, value);
+        setNode(store, key, value);
     }
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr_read.createSnapshot(meta, storage);
+    size_t object_size = snap_mgr_read.createSnapshot(meta, store);
     ASSERT_EQ(object_size, 11 + 1 + 1 + 1);
 
     ulong obj_id = 0;
@@ -432,13 +435,13 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
-    SvsKeeperSettingsPtr coordination_settings(std::make_shared<SvsKeeperSettings>());
-    SvsKeeperStorage storage(coordination_settings->dead_session_check_period_ms);
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore store(raft_settings->dead_session_check_period_ms);
 
     /// session 1
-    storage.getSessionID(3000);
+    store.getSessionID(3000);
 
-    addAuth(storage, 1, "digest", "user1:password1"); /// set acl to session
+    addAuth(store, 1, "digest", "user1:password1"); /// set acl to session
     UInt32 last_index = 2048;
     UInt32 term = 1;
     for (int i = 1; i <= 1024; i++)
@@ -462,22 +465,22 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             acls.emplace_back(std::move(acl2));
 
             /// set vector acl to "/1020" node
-            setACLNode(storage, key, value, acls);
+            setACLNode(store, key, value, acls);
         }
         else if (i == 1022)
         {
             /// set read permission to "/1022" node
-            setACLNode(storage, key, value, ACL::Read, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+            setACLNode(store, key, value, ACL::Read, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
         }
         else if (i == 1024)
         {
             /// Set a password different from session 1
-            setACLNode(storage, key, value, ACL::All, "digest", "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+            setACLNode(store, key, value, ACL::All, "digest", "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
         }
         else if (i % 2)
-            setNode(storage, key, value);
+            setNode(store, key, value);
         else
-            setACLNode(storage, key, value, ACL::All, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI="); /// set acl to even number node
+            setACLNode(store, key, value, ACL::All, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI="); /// set acl to even number node
     }
 
     for (int i = 0; i < 1024; i++)
@@ -487,42 +490,42 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         std::string value = "table_" + key;
 
         /// create EphemeralNode to even number, session 1 auth is "digest", "user1:password1"
-        setEphemeralNode(storage, "/2/" + key, value);
+        setEphemeralNode(store, "/2/" + key, value);
     }
 
-    setEphemeralNode(storage, "/1020/test112", "test211"); /// Success, parent acls Include (ACL::All, "digest", "user1:password1")
-    setEphemeralNode(storage, "/1022/test112", "test211"); /// Failure, no permission
-    setEphemeralNode(storage, "/1024/test113", "test311"); /// Failure, different password
+    setEphemeralNode(store, "/1020/test112", "test211"); /// Success, parent acls Include (ACL::All, "digest", "user1:password1")
+    setEphemeralNode(store, "/1022/test112", "test211"); /// Failure, no permission
+    setEphemeralNode(store, "/1024/test113", "test311"); /// Failure, different password
 
     /// session 2
-    storage.getSessionID(3000);
+    store.getSessionID(3000);
 
     /// session 3
-    storage.getSessionID(6000);
+    store.getSessionID(6000);
 
     for (size_t i = 0; i < 10000; ++i)
     {
-        storage.getSessionID(6000);
+        store.getSessionID(6000);
     }
 
-    ASSERT_EQ(storage.container.size(),2050); /// Include "/" node
+    ASSERT_EQ(store.container.size(),2050); /// Include "/" node
 
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, storage, storage.zxid, storage.session_id_counter);
+    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter);
 
     /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 21 + 3);
 
-    SvsKeeperStorage new_storage(coordination_settings->dead_session_check_period_ms);
+    KeeperStore new_storage(raft_settings->dead_session_check_period_ms);
 
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
 
     /// compare container
     ASSERT_EQ(new_storage.container.size(),2050); /// Include "/" node, "/1020/test112"
-    ASSERT_EQ(new_storage.container.size(), storage.container.size());
-    for (UInt32 i = 0; i < storage.container.getBlockNum(); i++)
+    ASSERT_EQ(new_storage.container.size(), store.container.size());
+    for (UInt32 i = 0; i < store.container.getBlockNum(); i++)
     {
-        auto & inner_map = storage.container.getMap(i);
+        auto & inner_map = store.container.getMap(i);
         for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
         {
             auto new_node = new_storage.container.get(it->first);
@@ -544,9 +547,9 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_TRUE(true) << "compare container.";
 
     /// compare ephemeral
-    ASSERT_EQ(new_storage.ephemerals.size(), storage.ephemerals.size());
-    ASSERT_EQ(storage.ephemerals.size(),1);
-    for (const auto & [session_id, paths] : storage.ephemerals)
+    ASSERT_EQ(new_storage.ephemerals.size(), store.ephemerals.size());
+    ASSERT_EQ(store.ephemerals.size(),1);
+    for (const auto & [session_id, paths] : store.ephemerals)
     {
         ASSERT_FALSE(new_storage.ephemerals.find(session_id) == new_storage.ephemerals.end());
         ASSERT_EQ(paths, new_storage.ephemerals.find(session_id)->second);
@@ -555,16 +558,16 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_TRUE(true) << "compare ephemeral.";
 
     /// compare sessions
-    ASSERT_EQ(storage.session_and_timeout.size(), 10003);
-    ASSERT_EQ(storage.session_and_timeout.size(), new_storage.session_and_timeout.size());
-    ASSERT_EQ(storage.session_and_timeout, new_storage.session_and_timeout);
+    ASSERT_EQ(store.session_and_timeout.size(), 10003);
+    ASSERT_EQ(store.session_and_timeout.size(), new_storage.session_and_timeout.size());
+    ASSERT_EQ(store.session_and_timeout, new_storage.session_and_timeout);
 
     ASSERT_TRUE(true) << "compare sessions.";
 
     /// compare Others(int_map)
-    ASSERT_EQ(storage.session_id_counter,10004);
-    ASSERT_EQ(storage.session_id_counter, new_storage.session_id_counter);
-    ASSERT_EQ(storage.zxid, new_storage.zxid);
+    ASSERT_EQ(store.session_id_counter,10004);
+    ASSERT_EQ(store.session_id_counter, new_storage.session_id_counter);
+    ASSERT_EQ(store.zxid, new_storage.zxid);
 
     ASSERT_TRUE(true) << "compare Others(int_map).";
 
@@ -572,7 +575,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     /// compare session_and_auth
     if (create_version >= V1 && parse_version >= V1)
     {
-        ASSERT_EQ(storage.session_and_auth, new_storage.session_and_auth);
+        ASSERT_EQ(store.session_and_auth, new_storage.session_and_auth);
     }
 
     ASSERT_TRUE(true) << "compare session_and_auth.";
@@ -582,26 +585,26 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     {
         /// include : vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
         ASSERT_EQ(new_storage.acl_map.getMapping().size(), 4);
-        ASSERT_EQ(storage.acl_map.getMapping(), new_storage.acl_map.getMapping());
+        ASSERT_EQ(store.acl_map.getMapping(), new_storage.acl_map.getMapping());
 
-        const auto & acls = new_storage.acl_map.convertNumber(storage.container.get("/1020")->acl_id);
+        const auto & acls = new_storage.acl_map.convertNumber(store.container.get("/1020")->acl_id);
         ASSERT_EQ(acls.size(), 2);
         ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
         ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
 
-        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1022")->acl_id))
+        for (const auto & acl : new_storage.acl_map.convertNumber(store.container.get("/1022")->acl_id))
         {
             ASSERT_EQ(acl.permissions, ACL::Read);
         }
 
-        for (const auto & acl : new_storage.acl_map.convertNumber(storage.container.get("/1024")->acl_id))
+        for (const auto & acl : new_storage.acl_map.convertNumber(store.container.get("/1024")->acl_id))
         {
             ASSERT_EQ(acl.permissions, ACL::All);
             ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
         }
 
-        const auto & const_acl_usage_counter = storage.acl_map.getUsageCounter();
-        auto & acl_usage_counter = const_cast<decltype(storage.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
+        const auto & const_acl_usage_counter = store.acl_map.getUsageCounter();
+        auto & acl_usage_counter = const_cast<decltype(store.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
         const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
         auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
 
@@ -621,13 +624,13 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     {
         std::string key = std::to_string(i + 1);
         std::string value = "table_" + key;
-        setNode(storage, key, value);
+        setNode(store, key, value);
     }
 
-    ASSERT_EQ(storage.container.size(),4098);
+    ASSERT_EQ(store.container.size(),4098);
     sleep(1); /// snapshot_create_interval minest is 1
     snapshot meta2(2 * last_index, term, config);
-    object_size = snap_mgr.createSnapshot(meta2, storage);
+    object_size = snap_mgr.createSnapshot(meta2, store);
 
     KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
     ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
@@ -655,7 +658,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     cleanDirectory(log_dir);
 
     SvsKeeperResponsesQueue queue;
-    SvsKeeperSettingsPtr setting_ptr = cs_new<SvsKeeperSettings>();
+    RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
     ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
 
     std::mutex new_session_id_callback_mutex;
@@ -675,7 +678,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     }
 
     /// use the first session
-    int64_t session_id = machine.getStorage().session_id_counter - 2;
+    int64_t session_id = machine.getStore().session_id_counter - 2;
     ASSERT_EQ(session_id, 1);
 
     /// create 10 znodes
@@ -750,7 +753,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
 
-    assertStateMachineEquals(machine.getStorage(), ano_machine.getStorage());
+    assertStateMachineEquals(machine.getStore(), ano_machine.getStore());
 
     machine.shutdown();
     ano_machine.shutdown();

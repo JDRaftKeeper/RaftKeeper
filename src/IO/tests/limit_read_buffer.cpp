@@ -9,7 +9,7 @@
 
 int main(int argc, char ** argv)
 {
-    using namespace DB;
+    using namespace RK;
 
     if (argc < 2)
     {

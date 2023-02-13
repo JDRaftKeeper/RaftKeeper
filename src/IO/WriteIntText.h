@@ -7,7 +7,7 @@
 /// 40 digits or 39 digits and a sign
 #define WRITE_HELPERS_MAX_INT_WIDTH 40U
 
-namespace DB
+namespace RK
 {
 
 namespace detail

@@ -20,20 +20,20 @@ int main(int, char **)
         std::cerr << static_cast<Int64>(x1) << std::endl;
 
         {
-            DB::WriteBufferFromString wb(s);
-            DB::writeIntText(x1, wb);
+            RK::WriteBufferFromString wb(s);
+            RK::writeIntText(x1, wb);
         }
 
         std::cerr << s << std::endl;
 
         {
-            DB::ReadBufferFromString rb(s);
-            DB::readIntText(x2, rb);
+            RK::ReadBufferFromString rb(s);
+            RK::readIntText(x2, rb);
         }
 
         std::cerr << static_cast<Int64>(x2) << std::endl;
     }
-    catch (const DB::Exception & e)
+    catch (const RK::Exception & e)
     {
         std::cerr << e.what() << ", " << e.displayText() << std::endl;
         return 1;

@@ -3,7 +3,7 @@
 #include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
 
-namespace DB
+namespace RK
 {
 using nuraft::byte;
 using nuraft::cs_new;

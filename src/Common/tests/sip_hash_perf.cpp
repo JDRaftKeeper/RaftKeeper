@@ -23,7 +23,7 @@
 int main(int, char **)
 {
     std::vector<std::string> data;
-    DB::ReadBufferFromFileDescriptor in(STDIN_FILENO);
+    RK::ReadBufferFromFileDescriptor in(STDIN_FILENO);
 
     std::cerr << std::fixed << std::setprecision(3);
 
@@ -33,8 +33,8 @@ int main(int, char **)
         while (!in.eof())
         {
             data.emplace_back();
-            DB::readEscapedString(data.back(), in);
-            DB::assertChar('\n', in);
+            RK::readEscapedString(data.back(), in);
+            RK::assertChar('\n', in);
         }
 
         double seconds = watch.elapsedSeconds();

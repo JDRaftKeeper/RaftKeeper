@@ -4,7 +4,7 @@
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Interpreters/Context.h>
 
-namespace DB
+namespace RK
 {
 
 /// Timeouts for the case when we have just single attempt to connect.

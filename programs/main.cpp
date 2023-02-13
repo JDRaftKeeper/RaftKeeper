@@ -11,69 +11,15 @@
 #include <vector>
 #include <string>
 #include <tuple>
-#include <utility> /// pair
-
-#if !defined(ARCADIA_BUILD)
-#    include "config_tools.h"
-#endif
-
+#include <utility>
 #include <Common/StringUtils/StringUtils.h>
-#include <Common/getHashOfLoadedBinary.h>
-
 #include <common/phdr_cache.h>
 #include <ext/scope_guard.h>
 
 
-/// Universal executable for various clickhouse applications
-#if ENABLE_CLICKHOUSE_SERVER
-int mainEntryClickHouseServer(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_CLIENT
-int mainEntryClickHouseClient(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_LOCAL
-int mainEntryClickHouseLocal(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_BENCHMARK
-int mainEntryClickHouseBenchmark(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
-int mainEntryClickHouseExtractFromConfig(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_COMPRESSOR
-int mainEntryClickHouseCompressor(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_FORMAT
-int mainEntryClickHouseFormat(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_COPIER
-int mainEntryClickHouseClusterCopier(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_OBFUSCATOR
-int mainEntryClickHouseObfuscator(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_GIT_IMPORT
-int mainEntryClickHouseGitImport(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_INSTALL
-int mainEntryClickHouseInstall(int argc, char ** argv);
-int mainEntryClickHouseStart(int argc, char ** argv);
-int mainEntryClickHouseStop(int argc, char ** argv);
-int mainEntryClickHouseStatus(int argc, char ** argv);
-int mainEntryClickHouseRestart(int argc, char ** argv);
-#endif
-#if ENABLE_CLICKHOUSE_SERVICE
-int mainEntryClickHouseService(int argc, char ** argv);
-int mainEntryClickHouseKeeperConverter(int argc, char ** argv);
-#endif
+int mainEntryRaftKeeperServer(int argc, char ** argv);
+int mainEntryRaftKeeperConverter(int argc, char ** argv);
 
-int mainEntryClickHouseHashBinary(int, char **)
-{
-    /// Intentionally without newline. So you can run:
-    /// objcopy --add-section .note.ClickHouse.hash=<(./clickhouse hash-binary) clickhouse
-    std::cout << getHashOfLoadedBinaryHex();
-    return 0;
-}
 
 #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
 
@@ -84,70 +30,30 @@ using MainFunc = int (*)(int, char**);
 
 
 /// Add an item here to register new application
-std::pair<const char *, MainFunc> clickhouse_applications[] =
+std::pair<const char *, MainFunc> raftkeeper_applications[] =
 {
-#if ENABLE_CLICKHOUSE_LOCAL
-    {"local", mainEntryClickHouseLocal},
-#endif
-#if ENABLE_CLICKHOUSE_CLIENT
-    {"client", mainEntryClickHouseClient},
-#endif
-#if ENABLE_CLICKHOUSE_BENCHMARK
-    {"benchmark", mainEntryClickHouseBenchmark},
-#endif
-#if ENABLE_CLICKHOUSE_SERVER
-    {"server", mainEntryClickHouseServer},
-#endif
-#if ENABLE_CLICKHOUSE_EXTRACT_FROM_CONFIG
-    {"extract-from-config", mainEntryClickHouseExtractFromConfig},
-#endif
-#if ENABLE_CLICKHOUSE_COMPRESSOR
-    {"compressor", mainEntryClickHouseCompressor},
-#endif
-#if ENABLE_CLICKHOUSE_FORMAT
-    {"format", mainEntryClickHouseFormat},
-#endif
-#if ENABLE_CLICKHOUSE_COPIER
-    {"copier", mainEntryClickHouseClusterCopier},
-#endif
-#if ENABLE_CLICKHOUSE_OBFUSCATOR
-    {"obfuscator", mainEntryClickHouseObfuscator},
-#endif
-#if ENABLE_CLICKHOUSE_GIT_IMPORT
-    {"git-import", mainEntryClickHouseGitImport},
-#endif
-#if ENABLE_CLICKHOUSE_INSTALL
-    {"install", mainEntryClickHouseInstall},
-    {"start", mainEntryClickHouseStart},
-    {"stop", mainEntryClickHouseStop},
-    {"status", mainEntryClickHouseStatus},
-    {"restart", mainEntryClickHouseRestart},
-#endif
-    {"hash-binary", mainEntryClickHouseHashBinary},
-#if ENABLE_CLICKHOUSE_SERVICE
-    {"service", mainEntryClickHouseService},
-    {"service-converter", mainEntryClickHouseKeeperConverter},
-#endif
+    {"server", mainEntryRaftKeeperServer},
+    {"converter", mainEntryRaftKeeperConverter},
 };
 
 
 int printHelp(int, char **)
 {
     std::cerr << "Use one of the following commands:" << std::endl;
-    for (auto & application : clickhouse_applications)
-        std::cerr << "clickhouse " << application.first << " [args] " << std::endl;
+    for (auto & application : raftkeeper_applications)
+        std::cerr << "raftkeeper " << application.first << " [args] " << std::endl;
     return -1;
 }
 
 
-bool isClickhouseApp(const std::string & app_suffix, std::vector<char *> & argv)
+bool isRaftKeeperApp(const std::string & app_suffix, std::vector<char *> & argv)
 {
     /// Use app if the first arg 'app' is passed (the arg should be quietly removed)
     if (argv.size() >= 2)
     {
         auto first_arg = argv.begin() + 1;
 
-        /// 'clickhouse --client ...' and 'clickhouse client ...' are Ok
+        /// 'raftkeeper --client ...' and 'raftkeeper client ...' are Ok
         if (*first_arg == "--" + app_suffix || *first_arg == app_suffix)
         {
             argv.erase(first_arg);
@@ -155,8 +61,8 @@ bool isClickhouseApp(const std::string & app_suffix, std::vector<char *> & argv)
         }
     }
 
-    /// Use app if clickhouse binary is run through symbolic link with name clickhouse-app
-    std::string app_name = "clickhouse-" + app_suffix;
+    /// Use app if raftkeeper binary is run through symbolic link with name raftkeeper-app
+    std::string app_name = "raftkeeper-" + app_suffix;
     return !argv.empty() && (app_name == argv[0] || endsWith(argv[0], "/" + app_name));
 }
 
@@ -364,9 +270,9 @@ int main(int argc_, char ** argv_)
     /// Print a basic help if nothing was matched
     MainFunc main_func = printHelp;
 
-    for (auto & application : clickhouse_applications)
+    for (auto & application : raftkeeper_applications)
     {
-        if (isClickhouseApp(application.first, argv))
+        if (isRaftKeeperApp(application.first, argv))
         {
             main_func = application.second;
             break;

@@ -4,13 +4,13 @@ if (NOT MSVC)
     set (INTERNAL_ZLIB_NAME "zlib-ng" CACHE INTERNAL "")
 else ()
     set (INTERNAL_ZLIB_NAME "zlib" CACHE INTERNAL "")
-    if (NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}")
-        message (WARNING "Will use standard zlib, please clone manually:\n git clone https://github.com/madler/zlib.git ${ClickHouse_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}")
+    if (NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}")
+        message (WARNING "Will use standard zlib, please clone manually:\n git clone https://github.com/madler/zlib.git ${RaftKeeper_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}")
         message (${RECONFIGURE_MESSAGE_LEVEL} "Can't use internal zlib library")
     endif ()
 endif ()
 
-if(NOT EXISTS "${ClickHouse_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}/zlib.h")
+if(NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}/zlib.h")
     if(USE_INTERNAL_ZLIB_LIBRARY)
         message(WARNING "submodule contrib/${INTERNAL_ZLIB_NAME} is missing. to fix try run: \n git submodule update --init --recursive")
         message (${RECONFIGURE_MESSAGE_LEVEL} "Can't find internal zlib library")
@@ -30,7 +30,7 @@ endif ()
 
 if (NOT ZLIB_FOUND AND NOT MISSING_INTERNAL_ZLIB_LIBRARY)
     set (USE_INTERNAL_ZLIB_LIBRARY 1)
-    set (ZLIB_INCLUDE_DIR "${ClickHouse_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}" "${ClickHouse_BINARY_DIR}/contrib/${INTERNAL_ZLIB_NAME}" CACHE INTERNAL "") # generated zconf.h
+    set (ZLIB_INCLUDE_DIR "${RaftKeeper_SOURCE_DIR}/contrib/${INTERNAL_ZLIB_NAME}" "${RaftKeeper_BINARY_DIR}/contrib/${INTERNAL_ZLIB_NAME}" CACHE INTERNAL "") # generated zconf.h
     set (ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR}) # for poco
     set (ZLIB_INCLUDE_DIRECTORIES ${ZLIB_INCLUDE_DIR}) # for protobuf
     set (ZLIB_FOUND 1) # for poco

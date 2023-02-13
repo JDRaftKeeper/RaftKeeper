@@ -6,7 +6,7 @@ namespace Poco
 class Message;
 }
 
-namespace DB
+namespace RK
 {
 /// Poco::Message with more ClickHouse-specific info
 /// NOTE: Poco::Message is not polymorphic class, so we can't use inheritance in couple with dynamic_cast<>()

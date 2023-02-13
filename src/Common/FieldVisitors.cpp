@@ -8,7 +8,7 @@
 #include <Common/SipHash.h>
 
 
-namespace DB
+namespace RK
 {
 namespace ErrorCodes
 {
@@ -194,43 +194,43 @@ String FieldVisitorToString::operator() (const Map & x) const
 
 
 void FieldVisitorWriteBinary::operator() (const Null &, WriteBuffer &) const { }
-void FieldVisitorWriteBinary::operator() (const UInt64 & x, WriteBuffer & buf) const { DB::writeVarUInt(x, buf); }
-void FieldVisitorWriteBinary::operator() (const Int64 & x, WriteBuffer & buf) const { DB::writeVarInt(x, buf); }
-void FieldVisitorWriteBinary::operator() (const Float64 & x, WriteBuffer & buf) const { DB::writeFloatBinary(x, buf); }
-void FieldVisitorWriteBinary::operator() (const String & x, WriteBuffer & buf) const { DB::writeStringBinary(x, buf); }
-void FieldVisitorWriteBinary::operator() (const UInt128 & x, WriteBuffer & buf) const { DB::writeBinary(x, buf); }
-void FieldVisitorWriteBinary::operator() (const Int128 & x, WriteBuffer & buf) const { DB::writeVarInt(x, buf); }
-void FieldVisitorWriteBinary::operator() (const UInt256 & x, WriteBuffer & buf) const { DB::writeBinary(x, buf); }
-void FieldVisitorWriteBinary::operator() (const Int256 & x, WriteBuffer & buf) const { DB::writeBinary(x, buf); }
+void FieldVisitorWriteBinary::operator() (const UInt64 & x, WriteBuffer & buf) const { RK::writeVarUInt(x, buf); }
+void FieldVisitorWriteBinary::operator() (const Int64 & x, WriteBuffer & buf) const { RK::writeVarInt(x, buf); }
+void FieldVisitorWriteBinary::operator() (const Float64 & x, WriteBuffer & buf) const { RK::writeFloatBinary(x, buf); }
+void FieldVisitorWriteBinary::operator() (const String & x, WriteBuffer & buf) const { RK::writeStringBinary(x, buf); }
+void FieldVisitorWriteBinary::operator() (const UInt128 & x, WriteBuffer & buf) const { RK::writeBinary(x, buf); }
+void FieldVisitorWriteBinary::operator() (const Int128 & x, WriteBuffer & buf) const { RK::writeVarInt(x, buf); }
+void FieldVisitorWriteBinary::operator() (const UInt256 & x, WriteBuffer & buf) const { RK::writeBinary(x, buf); }
+void FieldVisitorWriteBinary::operator() (const Int256 & x, WriteBuffer & buf) const { RK::writeBinary(x, buf); }
 void FieldVisitorWriteBinary::operator() (const AggregateFunctionStateData & x, WriteBuffer & buf) const
 {
-    DB::writeStringBinary(x.name, buf);
-    DB::writeStringBinary(x.data, buf);
+    RK::writeStringBinary(x.name, buf);
+    RK::writeStringBinary(x.data, buf);
 }
 
 void FieldVisitorWriteBinary::operator() (const Array & x, WriteBuffer & buf) const
 {
     const size_t size = x.size();
-    DB::writeBinary(size, buf);
+    RK::writeBinary(size, buf);
 
     for (size_t i = 0; i < size; ++i)
     {
         const UInt8 type = x[i].getType();
-        DB::writeBinary(type, buf);
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, x[i]);
+        RK::writeBinary(type, buf);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, x[i]);
     }
 }
 
 void FieldVisitorWriteBinary::operator() (const Tuple & x, WriteBuffer & buf) const
 {
     const size_t size = x.size();
-    DB::writeBinary(size, buf);
+    RK::writeBinary(size, buf);
 
     for (size_t i = 0; i < size; ++i)
     {
         const UInt8 type = x[i].getType();
-        DB::writeBinary(type, buf);
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, x[i]);
+        RK::writeBinary(type, buf);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, x[i]);
     }
 }
 
@@ -238,13 +238,13 @@ void FieldVisitorWriteBinary::operator() (const Tuple & x, WriteBuffer & buf) co
 void FieldVisitorWriteBinary::operator() (const Map & x, WriteBuffer & buf) const
 {
     const size_t size = x.size();
-    DB::writeBinary(size, buf);
+    RK::writeBinary(size, buf);
 
     for (size_t i = 0; i < size; ++i)
     {
         const UInt8 type = x[i].getType();
         writeBinary(type, buf);
-        Field::dispatch([&buf] (const auto & value) { DB::FieldVisitorWriteBinary()(value, buf); }, x[i]);
+        Field::dispatch([&buf] (const auto & value) { RK::FieldVisitorWriteBinary()(value, buf); }, x[i]);
     }
 }
 

@@ -3,7 +3,7 @@
 #include <IO/WriteBufferFromFileBase.h>
 
 
-namespace DB
+namespace RK
 {
 
 /** Use ready file descriptor. Does not open or close a file.
