@@ -22,7 +22,7 @@ set (CONFIG_VERSION ${CMAKE_CURRENT_BINARY_DIR}/Common/config_version.h)
 set (CONFIG_COMMON ${CMAKE_CURRENT_BINARY_DIR}/Common/config.h)
 
 include (../cmake/version.cmake)
-message (STATUS "Will build ${VERSION_FULL} revision ${VERSION_REVISION} ${VERSION_OFFICIAL}")
+message (STATUS "Will build ${VERSION_FULL}")
 configure_file (Common/config.h.in ${CONFIG_COMMON})
 configure_file (Common/config_version.h.in ${CONFIG_VERSION})
 configure_file (Core/config_core.h.in ${CMAKE_CURRENT_BINARY_DIR}/Core/config_core.h)
@@ -152,7 +152,6 @@ target_link_libraries(raftkeeper_common_io
             Poco::Foundation
 )
 
-message(STATUS "NURAFT_LIBRARY ${NURAFT_LIBRARY} ${NURAFT_INCLUDE_DIR}")
 dbms_target_link_libraries(PUBLIC ${NURAFT_LIBRARY})
 
 
