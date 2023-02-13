@@ -47,7 +47,7 @@ void Server::initialize(Application & self)
 
 void Server::uninitialize()
 {
-    logger().information("shutting down service server");
+    logger().information("Shutting down RaftKeeper.");
     BaseDaemon::uninitialize();
 }
 

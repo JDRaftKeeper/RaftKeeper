@@ -69,12 +69,12 @@ void LogEntryQueue::clear()
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
-    const std::string & log_dir, bool force_new, bool force_sync_, bool async_fsync_, UInt64 fsync_interval_)
-    : force_sync(force_sync_), async_fsync(async_fsync_), fsync_interval(fsync_interval_)
+    const std::string & log_dir, bool force_new, FsyncMode log_fsync_mode_, UInt64 log_fsync_interval_)
+    : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
-    if (force_sync && async_fsync)
+    if (log_fsync_mode == FsyncMode::FSYNC_BATCH)
     {
         fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
     }
@@ -109,14 +109,13 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     bool force_new,
     UInt32 max_log_size_,
     UInt32 max_segment_count_,
-    bool force_sync_,
-    bool async_fsync_,
-    UInt64 fsync_interval_)
-    : force_sync(force_sync_), async_fsync(async_fsync_), fsync_interval(fsync_interval_)
+    FsyncMode log_fsync_mode_,
+    UInt64 log_fsync_interval_)
+    : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
 
-    if (force_sync && async_fsync)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
         fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
     }
@@ -145,7 +144,7 @@ void NuRaftFileLogStore::shutdown()
 
     shutdown_called = true;
 
-    if (force_sync && async_fsync)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
         async_fsync_event->set();
         if (fsync_thread.joinable())
@@ -228,7 +227,7 @@ ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 
     last_log_entry = clone;
 
-    if (force_sync && async_fsync && entry->get_val_type() != log_val_type::app_log)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
         async_fsync_event->set();
 
     return log_index;
@@ -248,7 +247,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
     last_log_entry = entry;
 
-    if (force_sync && async_fsync && entry->get_val_type() != log_val_type::app_log)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
         async_fsync_event->set();
 
     LOG_DEBUG(log, "write entry at {}", index);
@@ -258,22 +257,21 @@ void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 {
     LOG_TRACE(log, "fsync log store, start log idx {}, log count {}", start, cnt);
 
-    if (force_sync)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
-        if (async_fsync)
+        async_fsync_event->set();
+    }
+    else if (log_fsync_mode == FsyncMode::FSYNC_BATCH)
+    {
+        if (to_flush_count % log_fsync_interval == 0)
         {
-            async_fsync_event->set();
+            to_flush_count = 0;
+            flush();
         }
-        else
-        {
-            to_flush_count++;
-
-            if (to_flush_count % fsync_interval == 0)
-            {
-                to_flush_count = 0;
-                flush();
-            }
-        }
+    }
+    else if (log_fsync_mode == FsyncMode::FSYNC)
+    {
+        flush();
     }
 }
 
@@ -438,7 +436,7 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
             segment_store->writeAt(cur_idx, le);
         }
     }
-    if (force_sync && async_fsync)
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
         async_fsync_event->set();
     LOG_DEBUG(log, "apply pack {}", index);
 }
@@ -469,7 +467,7 @@ bool NuRaftFileLogStore::flush()
 ulong NuRaftFileLogStore::last_durable_index()
 {
     uint64_t last_log = next_slot() - 1;
-    if (!(force_sync && async_fsync)) {
+    if (log_fsync_mode != FsyncMode::FSYNC_PARALLEL) {
         return last_log;
     }
 
