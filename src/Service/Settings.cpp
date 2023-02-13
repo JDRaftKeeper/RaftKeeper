@@ -10,6 +10,33 @@ namespace ErrorCodes
 extern const int UNKNOWN_SETTING;
 }
 
+namespace FsyncModeNS {
+FsyncMode parseFsyncMode(const String & in)
+{
+    if (in == "fsync_parallel")
+        return FsyncMode::FSYNC_PARALLEL;
+    else if (in == "fsync")
+        return FsyncMode::FSYNC;
+    else if (in == "fsync_batch")
+        return FsyncMode::FSYNC_BATCH;
+    else
+        throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
+}
+
+String toString(FsyncMode mode)
+{
+    if (mode == FsyncMode::FSYNC_PARALLEL)
+        return "fsync_parallel";
+    else if (mode == FsyncMode::FSYNC)
+        return "fsync";
+    else if (mode == FsyncMode::FSYNC_BATCH)
+        return "fsync_batch";
+    else
+        throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
+}
+
+}
+
 void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config)
 {
     if (!config.has(config_elem))
@@ -45,16 +72,15 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         fresh_log_gap = config.getUInt(get_key("fresh_log_gap"), 200);
         configuration_change_tries_count = config.getUInt(get_key("configuration_change_tries_count"), 30);
         max_batch_size = config.getUInt(get_key("max_batch_size"), 1000);
-        force_sync = config.getBool(get_key("force_sync"), true);
-        fsync_interval = config.getUInt(get_key("fsync_interval"), 1);
-        async_fsync = config.getBool(get_key("async_fsync"), true);
+        log_fsync_mode = FsyncModeNS::parseFsyncMode(config.getString(get_key("log_fsync_mode"), "fsync_parallel"));
+        log_fsync_interval = config.getUInt(get_key("log_fsync_interval"), 1000);
         session_consistent = config.getBool(get_key("session_consistent"), true);
         async_snapshot = config.getBool(get_key("async_snapshot"), false);
     }
     catch (Exception & e)
     {
         if (e.code() == ErrorCodes::UNKNOWN_SETTING)
-            e.addMessage("in Coordination settings config");
+            e.addMessage("in configuration.");
         throw;
     }
 }
@@ -79,10 +105,9 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->nuraft_thread_size = 32;
     settings->fresh_log_gap = 200;
     settings->configuration_change_tries_count = 30;
-    settings->force_sync = true;
     settings->max_batch_size = 1000;
-    settings->fsync_interval = 1;
-    settings->async_fsync = true;
+    settings->log_fsync_interval = 1000;
+    settings->log_fsync_mode = FsyncMode::FSYNC_PARALLEL;
     settings->session_consistent = true;
     settings->async_snapshot = false;
 
@@ -107,12 +132,12 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
         buf.write('\n');
     };
 
-    auto write_bool = [&buf](bool value)
-    {
-        String str_val = value ? "true" : "false";
-        writeText(str_val, buf);
-        buf.write('\n');
-    };
+//    auto write_bool = [&buf](bool value)
+//    {
+//        String str_val = value ? "true" : "false";
+//        writeText(str_val, buf);
+//        buf.write('\n');
+//    };
 
     writeText("my_id=", buf);
     write_int(my_id);
@@ -187,8 +212,10 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     buf.write('\n');
     writeText("rotate_log_storage_interval=", buf);
     write_int(raft_settings->rotate_log_storage_interval);
-    writeText("force_sync=", buf);
-    write_bool(raft_settings->force_sync);
+    writeText("log_fsync_mode=", buf);
+    writeText(FsyncModeNS::toString(raft_settings->log_fsync_mode), buf);
+    writeText("log_fsync_interval=", buf);
+    write_int(raft_settings->log_fsync_interval);
 
     writeText("nuraft_thread_size=", buf);
     write_int(raft_settings->nuraft_thread_size);

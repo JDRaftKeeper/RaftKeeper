@@ -107,15 +107,17 @@
             <!-- NuRaft append entries max batch size, default is 1000. -->
             <!-- <max_batch_size>1000</max_batch_size> -->
 
-            <!-- Fsync log for every appending entry, default is true. If false data is less safty -->
-            <!-- <force_sync>true</force_sync> -->
+            <!-- Raft log fsync mode:
+                    fsync_parallel : The leader can do log replication and log persisting in parallel,
+                        thus it can reduce the latency of write operation path. In this mode data is safety.
+                    fsync : The leader and follower do log persisting synchronously. In this mode data is safety.
+                    fsync_batch : The leader and follower do log persisting asynchronously and in batch.
+                        In this mode data is less safety.
+            -->
+            <!-- <log_fsync_mode>fsync_parallel</log_fsync_mode> -->
 
-            <!-- If force_sync is false, will fsync log in x appending entries, default value is 1000. -->
-            <!-- <fsync_interval>1000</fsync_interval> -->
-
-            <!-- If this flag is set, the leader can do log replication and log appending in parallel,
-                thus it can reduce the latency of write operation path. Default is true. -->
-            <!-- <async_fsync>true</async_fsync> -->
+            <!-- If log_fsync_mode is fsync_batch, will fsync log after x appending entries, default value is 1000. -->
+            <!-- <log_fsync_interval>1000</log_fsync_interval> -->
         </raft_settings>
 
         <![CDATA[
