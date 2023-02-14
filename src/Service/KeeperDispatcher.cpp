@@ -54,20 +54,6 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
             try
             {
-                if (!request_for_session.request->isReadRequest() && server->isLeaderAlive())
-                {
-                    LOG_TRACE(log, "leader is {}", server->getLeader());
-
-                    if (server->isLeader())
-                        request_accumulator.push(request_for_session);
-                    else
-                        request_forwarder.push(request_for_session);
-                }
-                else if (!request_for_session.request->isReadRequest() && !server->isLeaderAlive())
-                {
-                    request_accumulator.push(request_for_session);
-                }
-
                 if (isLocalSession(request_for_session.session_id))
                 {
                     LOG_TRACE(
@@ -80,7 +66,21 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                 }
                 else
                 {
-                    LOG_WARNING(log, "not contains session {}", toHexString(request_for_session.session_id));
+                    LOG_WARNING(log, "not local session {}", toHexString(request_for_session.session_id));
+                }
+
+                if (!request_for_session.request->isReadRequest() && server->isLeaderAlive())
+                {
+                    LOG_TRACE(log, "leader is {}", server->getLeader());
+
+                    if (server->isLeader())
+                        request_accumulator.push(request_for_session);
+                    else
+                        request_forwarder.push(request_for_session);
+                }
+                else if (!request_for_session.request->isReadRequest() && !server->isLeaderAlive())
+                {
+                    request_accumulator.push(request_for_session);
                 }
             }
             catch (...)

@@ -205,7 +205,6 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 else
                 {
                     LOG_WARNING(log, "Logic error, pending request for session {} is empty", toHexString(committed_request.session_id));
-                    break;
                 }
 
                 if (has_read_request || found_error)
