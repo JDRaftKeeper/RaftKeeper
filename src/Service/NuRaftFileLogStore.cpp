@@ -84,42 +84,6 @@ void LogEntryQueue::clear()
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
-    const std::string & log_dir, bool force_new, FsyncMode log_fsync_mode_, UInt64 log_fsync_interval_)
-    : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
-{
-    log = &(Poco::Logger::get("FileLogStore"));
-
-    if (log_fsync_mode == FsyncMode::FSYNC_BATCH)
-    {
-        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
-    }
-
-    segment_store = LogSegmentStore::getInstance(log_dir, force_new);
-
-    if (segment_store->init() >= 0)
-    {
-        LOG_INFO(log, "Init file log store, last log index {}, log dir {}", segment_store->lastLogIndex(), log_dir);
-    }
-    else
-    {
-        LOG_WARNING(log, "Init file log store failed, log dir {}", log_dir);
-        return;
-    }
-
-    if (segment_store->lastLogIndex() < 1)
-    {
-        /// no log entry exists, return a dummy constant entry with value set to null and term set to zero
-        last_log_entry = cs_new<log_entry>(0, nuraft::buffer::alloc(0));
-    }
-    else
-    {
-        last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
-    }
-
-    disk_last_durable_index = segment_store->lastLogIndex();
-}
-
-NuRaftFileLogStore::NuRaftFileLogStore(
     const std::string & log_dir,
     bool force_new,
     UInt32 max_log_size_,
@@ -132,12 +96,30 @@ NuRaftFileLogStore::NuRaftFileLogStore(
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
-        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
+        std::condition_variable cv;
+        std::mutex thread_mutex;
+
+        bool thread_started = false;
+        fsync_thread = ThreadFromGlobalPool([&thread_started, this] { fsyncThread(thread_started); });
+
+        std::unique_lock lock(thread_mutex);
+        while(!cv.wait_for(lock, std::chrono::milliseconds (100), [&thread_started] {return thread_started;}))
+        {
+            /// ignore
+        }
     }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
 
-    segment_store->init(max_log_size_, max_segment_count_);
+    if (segment_store->init(max_log_size_, max_segment_count_) >= 0)
+    {
+        LOG_INFO(log, "Init file log store, last log index {}, log dir {}", segment_store->lastLogIndex(), log_dir);
+    }
+    else
+    {
+        LOG_WARNING(log, "Init file log store failed, log dir {}", log_dir);
+        return;
+    }
 
     if (segment_store->lastLogIndex() < 1)
     {
@@ -161,7 +143,7 @@ void NuRaftFileLogStore::shutdown()
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
-        async_fsync_event->set();
+        parallel_fsync_event->set();
         if (fsync_thread.joinable())
             fsync_thread.join();
     }
@@ -172,13 +154,14 @@ NuRaftFileLogStore::~NuRaftFileLogStore()
     shutdown();
 }
 
-void NuRaftFileLogStore::fsyncThread()
+void NuRaftFileLogStore::fsyncThread(bool & thread_started)
 {
-    async_fsync_event = std::make_shared<Poco::Event>();
+    parallel_fsync_event = std::make_shared<Poco::Event>();
 
     while (!shutdown_called)
     {
-        async_fsync_event->wait();
+        thread_started = true;
+        parallel_fsync_event->wait();
 
         UInt64 last_flush_index = segment_store->flush();
         if (last_flush_index)
@@ -188,6 +171,8 @@ void NuRaftFileLogStore::fsyncThread()
                 raft_instance->notify_log_append_completion(true);
         }
     }
+
+    LOG_INFO(log, "shutdown background raft log fsync thread.");
 }
 
 ptr<log_entry> NuRaftFileLogStore::make_clone(const ptr<log_entry> & entry)
@@ -198,20 +183,12 @@ ptr<log_entry> NuRaftFileLogStore::make_clone(const ptr<log_entry> & entry)
 
 ulong NuRaftFileLogStore::next_slot() const
 {
-#ifdef _TEST_MEMORY_
-    return last_log_index_ + 1;
-#else
     return segment_store->lastLogIndex() + 1;
-#endif
 }
 
 ulong NuRaftFileLogStore::start_index() const
 {
-#ifdef _TEST_MEMORY_
-    return 1;
-#else
     return segment_store->firstLogIndex();
-#endif
 }
 
 ptr<log_entry> NuRaftFileLogStore::last_entry() const
@@ -226,34 +203,19 @@ ptr<log_entry> NuRaftFileLogStore::last_entry() const
 ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 {
     ptr<log_entry> clone = makeClone(entry);
-#ifdef _TEST_MEMORY_
-    UInt64 log_index = last_log_index_.load(std::memory_order_acquire) + 1;
-    log_queue.putEntry(log_index, clone);
-    {
-        std::lock_guard<std::recursive_mutex> lock(log_lock);
-        mem_logs_[log_index] = clone;
-    }
-    last_log_index_.fetch_add(1, std::memory_order_acquire);
-#else
-    //std::lock_guard write_lock(index_mutex);
     UInt64 log_index = segment_store->appendEntry(entry);
     log_queue.putEntry(log_index, clone);
-#endif
 
     last_log_entry = clone;
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
-        async_fsync_event->set();
+        parallel_fsync_event->set();
 
     return log_index;
 }
 
 void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 {
-    //std::lock_guard<std::recursive_mutex> lock(log_lock);
-    //ptr<LogEntry> ch_entry = std::static_pointer_cast<LogEntry>(entry);
-    //logs_count += ch_entry->setIndex(index);
-    //ptr<log_entry> new_entry = LogEntry::setTermAndIndex(entry, entry->get_term(), index);
     if (segment_store->writeAt(index, entry) == index)
     {
         log_queue.clear();
@@ -263,7 +225,7 @@ void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
     last_log_entry = entry;
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
-        async_fsync_event->set();
+        parallel_fsync_event->set();
 
     LOG_DEBUG(log, "write entry at {}", index);
 }
@@ -274,7 +236,7 @@ void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
-        async_fsync_event->set();
+        parallel_fsync_event->set();
     }
     else if (log_fsync_mode == FsyncMode::FSYNC_BATCH)
     {
@@ -349,18 +311,6 @@ ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ul
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
     ptr<nuraft::log_entry> src = nullptr;
-#ifdef _TEST_MEMORY_
-    auto entry = mem_logs_.find(index);
-    if (entry != mem_logs_.end())
-    {
-        src = entry->second;
-        return makeClone(src);
-    }
-    else
-    {
-        return nullptr;
-    }
-#else
     {
         //std::lock_guard write_lock(index_mutex);
         src = log_queue.getEntry(index);
@@ -383,8 +333,6 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
         return make_clone(src);
     else
         return nullptr;
-#endif
-    //    return src;
 }
 
 ulong NuRaftFileLogStore::term_at(ulong index)
@@ -452,7 +400,7 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
         }
     }
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
-        async_fsync_event->set();
+        parallel_fsync_event->set();
     LOG_DEBUG(log, "apply pack {}", index);
 }
 

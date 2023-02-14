@@ -30,14 +30,10 @@ using nuraft::int32;
 using nuraft::int64;
 using nuraft::ulong;
 
-#ifndef _TEST_MEMORY_
-//#    define _TEST_MEMORY_
-#endif
-
 class LogEntryQueue
 {
 public:
-    LogEntryQueue() : batch_index(0), max_index(0), log(&(Poco::Logger::get("FileLogStore"))) { }
+    LogEntryQueue() : batch_index(0), max_index(0), log(&(Poco::Logger::get("LogEntryQueue"))) { }
     ptr<log_entry> getEntry(const UInt64 & index);
     void putEntry(UInt64 & index, ptr<log_entry> & entry);
     void putEntryOrClear(UInt64 & index, ptr<log_entry> & entry);
@@ -59,16 +55,10 @@ class NuRaftFileLogStore : public nuraft::log_store
 
 public :
     NuRaftFileLogStore(
-         const std::string & log_dir,
-         bool force_new = false,
-         FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
-         UInt64 log_fsync_interval_ = 1000);
-
-    NuRaftFileLogStore(
         const std::string & log_dir,
-        bool force_new,
-        UInt32 max_log_size_,
-        UInt32 max_segment_count_,
+        bool force_new = false,
+        UInt32 max_log_size_ = LogSegmentStore::MAX_LOG_SIZE,
+        UInt32 max_segment_count_ = LogSegmentStore::MAX_SEGMENT_COUNT,
         FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
         UInt64 log_fsync_interval_ = 1000);
 
@@ -117,34 +107,22 @@ public :
 
 private:
     static ptr<log_entry> make_clone(const ptr<log_entry> & entry);
-    void fsyncThread();
+    void fsyncThread(bool & thread_started);
+
     Poco::Logger * log;
     ptr<LogSegmentStore> segment_store;
     LogEntryQueue log_queue;
 
-    //mutable std::recursive_mutex log_lock;
-    //log start index in current segment
-    //std::atomic<UInt64> start_idx;
-    //log's count in current segment
-
-    //std::shared_mutex index_mutex;
-
-#ifdef _TEST_MEMORY_
-    std::atomic<UInt64> last_log_index_;
-    std::unordered_map<ulong, ptr<log_entry>> mem_logs_;
-#endif
-
-    //last log entry
     ptr<log_entry> last_log_entry;
-//    std::atomic<UInt32> to_flush_count {};
-    /// TODO simplify configuration
     FsyncMode log_fsync_mode;
     UInt64 log_fsync_interval;
+
     UInt64 to_flush_count{0};
     ThreadFromGlobalPool fsync_thread;
     std::atomic<bool> shutdown_called{false};
+
     ulong disk_last_durable_index;
-    std::shared_ptr<Poco::Event> async_fsync_event;
+    std::shared_ptr<Poco::Event> parallel_fsync_event;
     nuraft::ptr<nuraft::raft_server> raft_instance;
 };
 
