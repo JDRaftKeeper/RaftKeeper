@@ -171,6 +171,9 @@ def test_restart(started_cluster):
                 compare_stats(v[1], dd[k][1], k)
                 compare_stats(v[1], ddd[k][1], k)
 
+
+        print("compare down")
+
     finally:
         try:
             for zk_conn in fake_zks:
