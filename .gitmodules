@@ -1,3 +1,6 @@
+[submodule "contrib/NuRaft"]
+	path = contrib/NuRaft
+	url = https://github.com/eBay/NuRaft.git
 [submodule "contrib/poco"]
 	path = contrib/poco
 	url = https://github.com/pocoproject/poco.git
@@ -50,9 +53,6 @@
 [submodule "contrib/boringssl"]
 	path = contrib/boringssl
 	url = https://github.com/ClickHouse-Extras/boringssl.git
-[submodule "contrib/NuRaft"]
-	path = contrib/NuRaft
-	url = https://github.com/eBay/NuRaft.git
 [submodule "contrib/libc-headers"]
 	path = contrib/libc-headers
 	url = https://github.com/ClickHouse-Extras/libc-headers.git
