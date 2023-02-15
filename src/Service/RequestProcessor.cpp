@@ -206,7 +206,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                                     log,
                                     "Logic Error, maybe reconnected current session {} pending head request xid {} {} not same "
                                     "committed request xid {} {}, pending request size {}",
-                                    committed_request.session_id,
+                                    toHexString(committed_request.session_id),
                                     current_begin_request_session->request->xid,
                                     current_begin_request_session->request->toString(),
                                     committed_request.request->xid,
