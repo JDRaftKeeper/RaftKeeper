@@ -73,9 +73,9 @@ def restart_cluster(zk, first_session_id):
     node2.kill_raftkeeper(stop_start_wait_sec=0.1)
     node3.kill_raftkeeper(stop_start_wait_sec=0.1)
     time.sleep(3)
-    node1.restore_clickhouse()
-    node2.restore_clickhouse()
-    node3.restore_clickhouse()
+    node1.restore_raftkeeper()
+    node2.restore_raftkeeper()
+    node3.restore_raftkeeper()
 
     wait_nodes()
     print("Cluster started client session id is ", zk._session_id)
