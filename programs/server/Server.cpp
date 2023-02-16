@@ -196,7 +196,6 @@ int Server::main(const std::vector<std::string> & /*args*/)
     std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_forwarding_server;
     std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> nio_forwarding_server_acceptor;
 
-
     /// start forwarding server
     /// TODO ignore it when cluster has one node.
     int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
@@ -235,8 +234,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
     LOG_INFO(log, "RaftKeeper started!");
 
     SCOPE_EXIT({
-        LOG_DEBUG(log, "Received termination signal.");
-        LOG_DEBUG(log, "Waiting for current connections to close.");
+        LOG_INFO(log, "Main thread received termination signal.");
 
         main_config_reloader.reset();
         is_cancelled = true;
@@ -244,8 +242,15 @@ int Server::main(const std::vector<std::string> & /*args*/)
         /// shutdown dispatcher
         global_context.shutdownDispatcher();
 
-        LOG_INFO(log, "RaftKeeper shutdown forcefully.");
-        _exit(Application::EXIT_OK);
+        /// shutdown TCP servers
+        LOG_INFO(log, "Waiting for current connections to close.");
+        if (nio_server)
+            nio_server->stop();
+        if (nio_forwarding_server)
+            nio_forwarding_server->stop();
+
+        LOG_INFO(log, "RaftKeeper shutdown gracefully.");
+//        _exit(Application::EXIT_OK);
     });
 
     // 4. Wait for termination

@@ -666,7 +666,7 @@ void NuRaftStateMachine::shutdown()
         return;
 
     shutdown_called = true;
-    LOG_INFO(log, "State machine shutting down");
+    LOG_INFO(log, "Shutting down state machine");
 
     store.finalize();
     task_manager->shutDown();

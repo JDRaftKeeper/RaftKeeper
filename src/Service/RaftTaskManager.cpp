@@ -185,7 +185,7 @@ void RaftTaskManager::getLastCommitted(nuraft::ulong & last_committed_index)
 
 void RaftTaskManager::shutDown()
 {
-    LOG_INFO(log, "Task manager shut down");    
+    LOG_INFO(log, "Shutting down task manager");
     if (!is_shut_down)
     {
         is_shut_down = true;
