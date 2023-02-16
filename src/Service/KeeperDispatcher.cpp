@@ -80,7 +80,7 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         request_for_session.request->getOpNum());
                     request_processor->push(request_for_session);
                 }
-                else
+                else if (!request_for_session.isForwardRequest())
                 {
                     LOG_WARNING(log, "not local session {}", toHexString(request_for_session.session_id));
                 }
