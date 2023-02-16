@@ -57,10 +57,10 @@ public :
     NuRaftFileLogStore(
         const std::string & log_dir,
         bool force_new = false,
-        UInt32 max_log_size_ = LogSegmentStore::MAX_LOG_SIZE,
-        UInt32 max_segment_count_ = LogSegmentStore::MAX_SEGMENT_COUNT,
         FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
-        UInt64 log_fsync_interval_ = 1000);
+        UInt64 log_fsync_interval_ = 1000,
+        UInt32 max_log_size_ = LogSegmentStore::MAX_LOG_SIZE,
+        UInt32 max_segment_count_ = LogSegmentStore::MAX_SEGMENT_COUNT);
 
     ~NuRaftFileLogStore() override;
 

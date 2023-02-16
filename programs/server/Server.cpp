@@ -250,7 +250,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
             nio_forwarding_server->stop();
 
         LOG_INFO(log, "RaftKeeper shutdown gracefully.");
-//        _exit(Application::EXIT_OK);
+        _exit(Application::EXIT_OK);
     });
 
     // 4. Wait for termination
