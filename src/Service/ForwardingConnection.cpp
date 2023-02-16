@@ -84,7 +84,7 @@ void ForwardingConnection::send(KeeperStore::RequestForSession request_for_sessi
 {
     if (!connected)
     {
-        connect(operation_timeout.totalMilliseconds() / 3);
+        connect(operation_timeout.totalMicroseconds() / 3);
     }
 
     if (!connected)
@@ -160,7 +160,7 @@ void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t
 {
     if (!connected)
     {
-        connect(operation_timeout.totalMilliseconds() / 3);
+        connect(operation_timeout.totalMicroseconds() / 3);
     }
 
     if (!connected)
