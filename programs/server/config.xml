@@ -130,7 +130,7 @@
                 <!-- `true` if this node is learner. Learner will not initiate or participate in leader election. -->
                 <!-- <learner>false</learner> -->
                 <!-- Priority of this server, default is 1 and if is 0 the server will never be leader. -->
-                <!-- <priority>1</priority_> -->
+                <!-- <priority>1</priority> -->
             </server>
                 <id>2</id>
                 <host>host2</host>
