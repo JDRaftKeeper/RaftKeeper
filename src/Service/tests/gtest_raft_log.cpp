@@ -369,12 +369,12 @@ TEST(RaftLog, removeSegment)
     }
 
     //[1,2],[3,4],[5,6],[7，8],[9,open]
-    ASSERT_EQ(log_store->getSegments().size(), 4);    
-    ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]    
+    ASSERT_EQ(log_store->getSegments().size(), 4);
+    ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]
     ASSERT_EQ(log_store->getSegments().size(), 3);
     ASSERT_EQ(log_store->firstLogIndex(), 3);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
-    ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment    
+    ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment
     ASSERT_EQ(log_store->getSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
     ASSERT_EQ(log_store->firstLogIndex(), 5);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
@@ -398,10 +398,10 @@ TEST(RaftLog, truncateLog)
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
     ASSERT_EQ(log_store->getSegments().size(), 7);
-    ASSERT_EQ(log_store->lastLogIndex(),16);
+    ASSERT_EQ(log_store->lastLogIndex(), 16);
 
     ASSERT_EQ(log_store->truncateLog(15), 0); //tuncate open segment
-    ASSERT_EQ(log_store->lastLogIndex(),15);
+    ASSERT_EQ(log_store->lastLogIndex(), 15);
 
     ptr<log_entry> log = log_store->getEntry(15);
     ASSERT_EQ(log->get_term(), 1);
@@ -462,24 +462,21 @@ TEST(RaftLog, writeAt)
         ASSERT_EQ(file_store->append(entry_log), i + 1);
     }
 
-    ptr<cluster_config> new_conf = cs_new<cluster_config>
-        ( 454570345,
-          454569083, false );
+    ptr<cluster_config> new_conf = cs_new<cluster_config>(454570345, 454569083, false);
     ptr<srv_config> srv_conf1 = cs_new<srv_config>(4, 0, "10.199.141.7:8103", "", 0, 1);
     ptr<srv_config> srv_conf2 = cs_new<srv_config>(13, 0, "10.199.141.8:8103", "", 0, 1);
     ptr<srv_config> srv_conf3 = cs_new<srv_config>(15, 0, "10.199.141.6:8103", "", 0, 1);
     new_conf->get_servers().push_back(srv_conf1);
     new_conf->get_servers().push_back(srv_conf2);
     new_conf->get_servers().push_back(srv_conf3);
-    new_conf->set_user_ctx( "" );
-    ptr<buffer> new_conf_buf( new_conf->serialize() );
-    ptr<log_entry> entry( cs_new<log_entry>( 2, new_conf_buf, log_val_type::conf ) );
+    new_conf->set_user_ctx("");
+    ptr<buffer> new_conf_buf(new_conf->serialize());
+    ptr<log_entry> entry(cs_new<log_entry>(2, new_conf_buf, log_val_type::conf));
 
     file_store->write_at(8, entry);
 
     ptr<log_entry> log = file_store->entry_at(8);
-    ptr<cluster_config> new_conf1 =
-        cluster_config::deserialize(log->get_buf());
+    ptr<cluster_config> new_conf1 = cluster_config::deserialize(log->get_buf());
 
     ASSERT_EQ(new_conf1->get_servers().size(), 3);
     ASSERT_EQ(new_conf1->get_log_idx(), 454570345);
@@ -524,7 +521,7 @@ TEST(RaftLog, writeAt)
     ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
 
-//    ASSERT_EQ(file_store->close(), 0);
+    //    ASSERT_EQ(file_store->close(), 0);
     //cleanDirectory(log_dir);
 }
 
@@ -533,7 +530,8 @@ TEST(RaftLog, compact)
 {
     std::string log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
-    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, static_cast<UInt32>(100), static_cast<UInt32>(3));
+    ptr<NuRaftFileLogStore> file_store
+        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC_PARALLEL, 1000, static_cast<UInt32>(100), static_cast<UInt32>(3));
 
     UInt64 term = 1;
     std::string key("/ck/table/table1");
@@ -582,7 +580,7 @@ TEST(RaftLog, compact)
     ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
 
-//    ASSERT_EQ(file_store->close(), 0);
+    //    ASSERT_EQ(file_store->close(), 0);
     //cleanDirectory(log_dir);
 }
 

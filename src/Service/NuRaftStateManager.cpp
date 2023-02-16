@@ -91,7 +91,7 @@ ptr<srv_state> NuRaftStateManager::read_state()
 
     if (!in)
     {
-        LOG_WARNING(log, "Raft srv_state file not exist");
+        LOG_WARNING(log, "Raft srv_state file not exist, maybe this is the first startup.");
         return cs_new<srv_state>();
     }
     in.seekg(0, std::ios::end);

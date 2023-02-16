@@ -86,10 +86,10 @@ void LogEntryQueue::clear()
 NuRaftFileLogStore::NuRaftFileLogStore(
     const std::string & log_dir,
     bool force_new,
-    UInt32 max_log_size_,
-    UInt32 max_segment_count_,
     FsyncMode log_fsync_mode_,
-    UInt64 log_fsync_interval_)
+    UInt64 log_fsync_interval_,
+    UInt32 max_log_size_,
+    UInt32 max_segment_count_)
     : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
