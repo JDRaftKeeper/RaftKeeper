@@ -227,8 +227,10 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     buf.write('\n');
     writeText("rotate_log_storage_interval=", buf);
     write_int(raft_settings->rotate_log_storage_interval);
+
     writeText("log_fsync_mode=", buf);
     writeText(FsyncModeNS::toString(raft_settings->log_fsync_mode), buf);
+    buf.write('\n');
     writeText("log_fsync_interval=", buf);
     write_int(raft_settings->log_fsync_interval);
 
