@@ -96,9 +96,6 @@ private:
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
-    Poco::Timespan operation_timeout;
-    Poco::Timespan session_timeout;
-
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
 

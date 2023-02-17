@@ -153,7 +153,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
                     {
                         auto & client_list = clients[id];
                         std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(
-                            my_id, i, forwarding_endpoint, settings->raft_settings->operation_timeout_ms);
+                            my_id, i, forwarding_endpoint, settings->raft_settings->operation_timeout_ms * 1000);
                         client_list.push_back(client);
                         LOG_INFO(
                             log,
