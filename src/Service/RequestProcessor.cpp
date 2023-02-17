@@ -449,6 +449,7 @@ void RequestProcessor::shutdown()
     if (shutdown_called)
         return;
 
+    LOG_INFO(log, "Shutting down request processor!");
     shutdown_called = true;
 
     {
