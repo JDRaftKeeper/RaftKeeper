@@ -23,10 +23,7 @@ namespace RK
 {
 
 /** Accumulate requests into a batch to promote performance.
- *
- * Request in a batch must be
- *      1. all write request
- *      2. continuous
+ * Request in a batch must be all write request.
  *
  * The batch is transferred to Raft and goes through log replication flow.
  */
@@ -38,7 +35,10 @@ class RequestAccumulator
     using RunnerId = size_t;
 
 public:
-    explicit RequestAccumulator(std::shared_ptr<RequestProcessor> request_processor_) : request_processor(request_processor_) { }
+    explicit RequestAccumulator(std::shared_ptr<RequestProcessor> request_processor_)
+        : log(&Poco::Logger::get("RequestAccumulator")), request_processor(request_processor_)
+    {
+    }
 
     void push(RequestForSession request_for_session);
 
@@ -56,6 +56,8 @@ public:
         UInt64 max_batch_size_);
 
 private:
+    Poco::Logger * log;
+
     ptr<RequestsQueue> requests_queue;
     ThreadPoolPtr request_thread;
 

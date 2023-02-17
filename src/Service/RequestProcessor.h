@@ -25,6 +25,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int RAFT_ERROR;
+    extern const int RAFT_FORWARDING_ERROR;
 }
 
 using RequestForSession = KeeperStore::RequestForSession;
