@@ -99,6 +99,7 @@ void KeeperServer::startup()
     params.return_method_ = nuraft::raft_params::blocking;
     params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
     params.auto_forwarding_ = true;
+    // TODO set max_batch_size to NuRaft
 
     nuraft::asio_service::options asio_opts{};
     asio_opts.thread_pool_size_ = raft_settings->nuraft_thread_size;
