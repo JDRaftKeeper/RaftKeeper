@@ -27,6 +27,7 @@ void RequestForwarder::push(RequestForSession request_for_session)
 
 void RequestForwarder::run(RunnerId runner_id)
 {
+    LOG_DEBUG(log, "Starting forwarding request sending thread.");
     while (!shutdown_called)
     {
         UInt64 max_wait = session_sync_period_ms;
@@ -47,15 +48,11 @@ void RequestForwarder::run(RunnerId runner_id)
                     auto client = server->getLeaderClient(runner_id);
                     if (client)
                     {
-                        //                        {
-                        //                            std::lock_guard<std::mutex> lock(*mutexes[thread_idx]);
-                        //                            thread_requests.find(thread_idx)->second[request_for_session.session_id].emplace(request_for_session.request->xid, request_for_session);
-                        //                        }
                         client->send(request_for_session);
                     }
                     else
                     {
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
+                        throw Exception("Not found client for runner " + std::to_string(runner_id), ErrorCodes::RAFT_FORWARDING_ERROR);
                     }
                 }
                 else
@@ -63,6 +60,7 @@ void RequestForwarder::run(RunnerId runner_id)
             }
             catch (...)
             {
+                tryLogCurrentException(log, "error forward request to leader for runner " + std::to_string(runner_id));
                 request_processor->onError(
                     false,
                     nuraft::cmd_result_code::FAILED,
@@ -91,12 +89,14 @@ void RequestForwarder::run(RunnerId runner_id)
                     }
                     else
                     {
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
+                        throw Exception(
+                            "Not found client when sending sessions for runner " + std::to_string(runner_id),
+                            ErrorCodes::RAFT_FORWARDING_ERROR);
                     }
                 }
                 catch (...)
                 {
-                    LOG_ERROR(log, "Error to send sessions to leader {}", server->getLeader());
+                    tryLogCurrentException(log, "error forward session to leader for runner " + std::to_string(runner_id));
                 }
             }
 
@@ -109,6 +109,7 @@ void RequestForwarder::run(RunnerId runner_id)
 
 void RequestForwarder::runReceive(RunnerId runner_id)
 {
+    LOG_DEBUG(log, "Starting forwarding response receiving thread.");
     while (!shutdown_called)
     {
         try
@@ -130,7 +131,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                         /// common request
                         if (response.protocol == Result && response.session_id != ForwardResponse::non_session_id)
                         {
-                            LOG_WARNING(
+                            LOG_ERROR(
                                 log,
                                 "Receive failed forward response with type(Result), session {}, xid {}, error code {}",
                                 response.session_id,
@@ -145,7 +146,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                         }
                         else if (response.protocol == Session)
                         {
-                            LOG_WARNING(
+                            LOG_ERROR(
                                 log,
                                 "Receive failed forward response with type(Session), session {}, xid {}, error code {}",
                                 response.session_id,
@@ -154,7 +155,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                         }
                         else if (response.protocol == Handshake)
                         {
-                            LOG_WARNING(
+                            LOG_ERROR(
                                 log,
                                 "Receive failed forward response with type(Handshake), session {}, xid {}, error code {}",
                                 response.session_id,
@@ -166,10 +167,9 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                 else
                 {
                     if (!client)
-                        LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), runner_id);
+                        LOG_DEBUG(log, "Not found client for runner {}, maybe no session attached to me", runner_id);
                     else if (!client->isConnected())
-                        LOG_WARNING(log, "client not connected");
-
+                        LOG_DEBUG(log, "Client not connected for runner {}, maybe no session attached to me", runner_id);
                     std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
                 }
             }
@@ -180,6 +180,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
         }
         catch (...)
         {
+            tryLogCurrentException(log, "Error when receiving forwarding response, runner " + std::to_string(runner_id));
             std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
         }
     }
@@ -187,6 +188,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
 
 void RequestForwarder::shutdown()
 {
+    LOG_INFO(log, "Shutting down request forwarder!");
     if (shutdown_called)
         return;
 
