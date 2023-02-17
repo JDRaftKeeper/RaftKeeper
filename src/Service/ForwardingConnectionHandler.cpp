@@ -46,16 +46,6 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
     , reactor_(reactor)
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
-    , operation_timeout(
-          0,
-          global_context.getConfigRef().getUInt(
-              "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
-              * 1000)
-    , session_timeout(
-          0,
-          global_context.getConfigRef().getUInt(
-              "keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
-              * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
 {
     LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
