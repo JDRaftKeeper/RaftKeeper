@@ -127,7 +127,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if unlikely (current_package.protocol == PkgType::Handshake)
+                if (unlikely (current_package.protocol == PkgType::Handshake))
                 {
                     if (!req_body_buf)
                     {
