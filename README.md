@@ -1,13 +1,24 @@
 # RaftKeeper
 
-RaftKeeper is a high-performance distributed consensus service. It is fully compatible with Zookeeper and can be accessed through the Zookeeper client; it implements most of the functions of Zookeeper (except: Container node, TTL node, quota, reconfig), and provides some additional functions, such as: more monitoring indicators, manual switch Leader wait. 
+RaftKeeper is a high-performance distributed consensus service. 
+It is fully compatible with Zookeeper and can be accessed through the Zookeeper 
+client. It implements most of the functions of Zookeeper (except: Container node, 
+TTL node, quota, reconfig) and provides some additional functions, such as more 
+monitoring indicators, manual Leader switching and so on. 
 
-RaftKeeper provides strict read and write order in a session, that is, the response order of requests in one session is strictly ordered; at the same time, it provides global order for write operations, that is, the write requests submitted to the Leader must be executed in order . 
+RaftKeeper provides a multi-thread processor for performance consideration. 
+But also it provides below guarantee:
+1. Requests response must be returned in order in one session.
+2. All committed write requests must be handled in order, across all sessions.
 
-RaftKeeper data resides in memory and provides snapshot + operation log data persistence capabilities; the execution framework adopts pipeline and batch execution methods to greatly improve system throughput, see benchmark for details.
+RaftKeeper data resides in memory and provides snapshot + operation log data 
+persistence capabilities. The execution framework adopts pipeline and batch 
+execution methods to greatly improve system throughput, see benchmark for details.
 
-
-The RaftKeeper project started in early 2021. It is built on top of ClickHouse and take NuRaft as Raft implementation. We really appreciate the excellent work of the ClickHouse and NuRaft team.
+The RaftKeeper project started in early 2021. It is built on top of 
+[ClickHouse](https://github.com/ClickHouse/ClickHouse) and take 
+[NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
+We really appreciate the excellent work of the ClickHouse and NuRaft team.
 
 
 # How to start?
@@ -33,7 +44,7 @@ cd RaftKeeper && sh bin/build.sh
 
 ### Build on Ubuntu
 
-Requirement: Ubuntu20.04, Clang 13+, Cmake 3.3+
+Requirement: Ubuntu20.04+, Clang 13+, Cmake 3.3+
 ```
 # install tools
 sudo apt-get install cmake llvm-13
@@ -65,11 +76,16 @@ cd RaftKeeper/bin && bash start.sh
 
 ## 3. Access RaftKeeper
 
-You can use ZooKeeper's shell client [zkCli.sh](https://zookeeper.apache.org/doc/r3.6.0/zookeeperCLI.html) to access to RaftKeeper, or you can use Java, python or C ZooKeeper clients to access. Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
+You can use ZooKeeper's shell client [zkCli.sh](https://zookeeper.apache.org/doc/r3.6.0/zookeeperCLI.html) 
+to access to RaftKeeper, or you can use Java, python or C ZooKeeper clients to access. 
+Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
 
 # How to migrate form Zookeeper?
 
-1.Find Zookeeper leader node
+RaftKeeper provides tool to translate Zookeeper data to RaftKeeper format. So you can 
+simply move data into RaftKeeper.
+
+1.Find Zookeeper leader node.
 ```
 [zk1]$ echo srvr | nc zk1/zk2/zk3 zk_port | grep leader
 ```
@@ -84,10 +100,10 @@ You can use ZooKeeper's shell client [zkCli.sh](https://zookeeper.apache.org/doc
 [zk1]$ cd /path/to/ZooKeeper && zkServer.sh start
 [zk1]$ zkServer.sh stop
 ```
-4.Copy Zookeeper leader node data to one of RaftKeeper node
+4.Copy Zookeeper leader node data to one of RaftKeeper node.
 ```
-[zk1]$ scp -r /version-2 root@raft_node1:/path_to_transfer_tmp_data_dir/log
-[zk1]$ scp -r data/version-2 root@raft_node1:/path_to_transfer_tmp_data_dir/snapshot
+[zk1]$ scp log/version-2/* root@raft_node1:/path_to_transfer_tmp_data_dir/log
+[zk1]$ scp data/version-2/* root@raft_node1:/path_to_transfer_tmp_data_dir/snapshot
 ```
 
 5.Translate Zookeeper data to RaftKeeper format and copy to other nodes.
