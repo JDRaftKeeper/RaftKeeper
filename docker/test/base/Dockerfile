@@ -3,16 +3,23 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive LLVM_VERSION=13
 
+# For Chainese users, if there is something wrong, just comment it.
+#RUN echo "# use mirrors" > /etc/apt/sources.list
+#RUN echo "deb [trusted=yes] http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal main restricted universe multiverse" >> /etc/apt/sources.list
+#RUN echo "deb [trusted=yes] http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-updates main restricted universe multiverse" >> /etc/apt/sources.list
+#RUN echo "deb [trusted=yes] http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-backports main restricted universe multiverse" >> /etc/apt/sources.list
+#RUN echo "deb [trusted=yes] http://mirrors.tuna.tsinghua.edu.cn/ubuntu/ focal-security main restricted universe multiverse" >> /etc/apt/sources.list
+
+# ARG for quick switch to a given ubuntu mirror
+ARG apt_archive="http://mirrors.tuna.tsinghua.edu.cn"
+RUN sed -i "s|http://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
+RUN sed -i "s|https://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
+
 RUN apt-get update \
-    && apt-get install ca-certificates lsb-release wget gnupg apt-transport-https \
-        --yes --no-install-recommends --verbose-versions \
-    && export LLVM_PUBKEY_HASH="bda960a8da687a275a2078d43c111d66b1c6a893a3275271beedf266c1ff4a0cdecb429c7a5cccf9f486ea7aa43fd27f" \
-    && wget -nv -O /tmp/llvm-snapshot.gpg.key https://apt.llvm.org/llvm-snapshot.gpg.key \
-    && echo "${LLVM_PUBKEY_HASH} /tmp/llvm-snapshot.gpg.key" | sha384sum -c \
-    && apt-key add /tmp/llvm-snapshot.gpg.key \
-    && export CODENAME="$(lsb_release --codename --short | tr 'A-Z' 'a-z')" \
-    && echo "deb [trusted=yes] http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-${LLVM_VERSION} main" >> \
-        /etc/apt/sources.list
+    && apt-get install ca-certificates wget gnupg apt-transport-https --yes --no-install-recommends --verbose-versions
+
+RUN echo "# llvm " >> /etc/apt/sources.list
+RUN echo "deb [trusted=yes] http://apt.llvm.org/focal/ llvm-toolchain-focal-${LLVM_VERSION} main" >> /etc/apt/sources.list
 
 # initial packages
 RUN apt-get update \
@@ -21,19 +28,19 @@ RUN apt-get update \
         fakeroot \
         ccache \
         curl \
+        vim \
         software-properties-common \
         --yes --no-install-recommends
 
 RUN apt-get update \
     && apt-get install \
-        clang-${LLVM_VERSION} \
+        llvm-${LLVM_VERSION} \
         debhelper \
         devscripts \
         gdb  \
         git \
         gperf \
         lcov \
-        llvm-${LLVM_VERSION} \
         moreutils \
         perl \
         pigz \
