@@ -21,7 +21,8 @@ Test Data: every item is 100 bytes.
 
 ![benchmark-create-tp99.png](images/benchmark-create-tp99.png)
 
-## 2. Mixed request benchmark (create-10% set-40% get-40% delete-10%）
+## 2. Mixed request benchmark (create-10% set-40% get-40% delete-10%)
+
 ![benchmark-mixed-tps.png](images/benchmark-mixed-tps.png)
 
 ![benchmark-mixed-avgrt.png](images/benchmark-mixed-avgrt.png)
