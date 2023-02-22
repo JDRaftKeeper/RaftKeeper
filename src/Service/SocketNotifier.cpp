@@ -2,8 +2,6 @@
 * Copyright (c) 2005-2006, Applied Informatics Software Engineering GmbH. and Contributors.
 * SPDX-License-Identifier:	BSL-1.0
 *
-* Copyright 2021-2023 JD.com, Inc.
-* Apache License Version 2.0
 */
 #include <Service/SocketNotifier.h>
 #include <Service/SocketReactor.h>
