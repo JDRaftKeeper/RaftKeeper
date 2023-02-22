@@ -15,9 +15,8 @@ RaftKeeper data resides in memory and provides snapshot + operation log data
 persistence capabilities. The execution framework adopts pipeline and batch 
 execution methods to greatly improve system throughput, see benchmark for details.
 
-The RaftKeeper project started in early 2021. It is built on top of 
-[ClickHouse](https://github.com/ClickHouse/ClickHouse) and take 
-[NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
+RaftKeeper is derived from [ClickHouse](https://github.com/ClickHouse/ClickHouse) 
+and take [NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
 We really appreciate the excellent work of the ClickHouse and NuRaft team.
 
 
