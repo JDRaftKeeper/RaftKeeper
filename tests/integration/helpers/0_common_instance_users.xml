@@ -1,7 +1,0 @@
-<raftkeeper>
-    <users>
-        <default>
-            <access_management>1</access_management>
-        </default>
-    </users>
-</raftkeeper>
