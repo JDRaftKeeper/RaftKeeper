@@ -1,4 +1,0 @@
-<?xml version="1.0"?>
-<raftkeeper>
-    <dictionaries_config>/etc/raftkeeper-server/dictionaries/*.xml</dictionaries_config>
-</raftkeeper>
