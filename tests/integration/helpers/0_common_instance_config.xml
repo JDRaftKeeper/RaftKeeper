@@ -1,4 +1,6 @@
 <raftkeeper>
-    <keeper>
-    </keeper>
+    <raft_settings>
+        <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
+        <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
+    </raft_settings>
 </raftkeeper>
