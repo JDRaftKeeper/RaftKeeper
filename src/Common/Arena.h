@@ -1,4 +1,3 @@
-String
 #pragma once
 
 #include <string.h>
