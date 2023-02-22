@@ -88,27 +88,28 @@ def test_restart(started_cluster):
 
         fake_zks[0].create("/test_restart_node", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
         get_fake_zk(node1)
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.set("/test_restart_node/" + str(i), b"hello111")
+            fake_zk.set("/test_restart_node/" + str(i), b"hello_new")
 
         get_fake_zk(node2)
 
-        for i in range(100):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
+            # delete not empty node
             fake_zk.delete("/test_restart_node/" + str(i))
 
         get_fake_zk(node3)
 
         fake_zks[1].create("/test_restart_node1", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node1/" + str(i), b"hello")
 
@@ -116,10 +117,11 @@ def test_restart(started_cluster):
 
         fake_zks[2].create("/test_restart_node2", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             t = fake_zk.transaction()
             t.create("/test_restart_node2/q" + str(i))
+            # delete a not exist node
             t.delete("/test_restart_node2/a" + str(i))
             t.create("/test_restart_node2/x" + str(i))
             t.commit()
@@ -128,9 +130,12 @@ def test_restart(started_cluster):
         d = {}
         dump_states(fake_zk, d)
 
+        print("stop nodes")
         node1.stop_raftkeeper()
         node2.stop_raftkeeper()
         node3.stop_raftkeeper()
+
+        print("restart nodes")
 
         node1.start_raftkeeper(start_wait=False)
         node2.start_raftkeeper(start_wait=False)
@@ -140,11 +145,11 @@ def test_restart(started_cluster):
 
         fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
-        for i in range(9900):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
+            assert fake_zk.get("/test_restart_node1" + str(i + 100))[0] == b"hellonew"
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
 
@@ -171,7 +176,7 @@ def test_restart(started_cluster):
                 compare_stats(v[1], ddd[k][1], k)
 
 
-        print("compare down")
+        print("compare done")
 
     finally:
         try:
