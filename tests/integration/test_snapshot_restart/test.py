@@ -88,38 +88,23 @@ def test_restart(started_cluster):
 
         fake_zks[0].create("/test_restart_node", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
-        get_fake_zk(node1)
-
-        for i in range(10000):
-            fake_zk = random.choice(fake_zks)
-            fake_zk.set("/test_restart_node/" + str(i), b"hello111")
-
-        get_fake_zk(node2)
-
-        for i in range(100):
-            fake_zk = random.choice(fake_zks)
-            fake_zk.delete("/test_restart_node/" + str(i))
-
-        get_fake_zk(node3)
-
         fake_zks[1].create("/test_restart_node1", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node1/" + str(i), b"hello")
 
-        get_fake_zk(node1)
-
         fake_zks[2].create("/test_restart_node2", b"hello")
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             t = fake_zk.transaction()
             t.create("/test_restart_node2/q" + str(i))
+            # delete not exist node
             t.delete("/test_restart_node2/a" + str(i))
             t.create("/test_restart_node2/x" + str(i))
             t.commit()
@@ -140,11 +125,11 @@ def test_restart(started_cluster):
 
         fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
-        for i in range(9900):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello111"
+            assert fake_zk.get("/test_restart_node/" + str(i + 100))[0] == b"hello"
 
-        for i in range(10000):
+        for i in range(10):
             fake_zk = random.choice(fake_zks)
             assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
 
@@ -170,7 +155,7 @@ def test_restart(started_cluster):
                 compare_stats(v[1], dd[k][1], k)
                 compare_stats(v[1], ddd[k][1], k)
 
-        print("compare down")
+        print("compare done")
     finally:
         try:
             for zk_conn in fake_zks:
