@@ -191,7 +191,7 @@ public:
     virtual ~LogSegmentStore() { }
     static ptr<LogSegmentStore> getInstance(const std::string & log_dir, bool force_new = false);
 
-    // init logstorage, check consistency and integrity
+    // init log store, check consistency and integrity
     int init(UInt32 max_log_size = MAX_LOG_SIZE, UInt32 max_segment_count = MAX_SEGMENT_COUNT);
     int close();
     UInt64 flush();
