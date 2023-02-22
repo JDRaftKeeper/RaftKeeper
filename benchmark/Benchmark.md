@@ -13,16 +13,17 @@ Config: RaftKeeper log level warning, ZooKeeper log level warn, others is defaul
 Test Data: every item is 100 bytes.
 ```
 
-## 1. Write request benchmark (Create-100%) 
-![benchmark-create-tps.png](images%2Fbenchmark-create-tps.png)
+## 1. Write request benchmark (Create-100%)
 
-![benchmark-create-avgrt.png](images%2Fbenchmark-create-avgrt.png)
+![benchmark-create-tps.png](images/benchmark-create-tps.png)
 
-![benchmark-create-tp99.png](images%2Fbenchmark-create-tp99.png)
+![benchmark-create-avgrt.png](images/benchmark-create-avgrt.png)
+
+![benchmark-create-tp99.png](images/benchmark-create-tp99.png)
 
 ## 2. Mixed request benchmark (create-10% set-40% get-40% delete-10%）
-![benchmark-mixed-tps.png](images%2Fbenchmark-mixed-tps.png)
+![benchmark-mixed-tps.png](images/benchmark-mixed-tps.png)
 
-![benchmark-mixed-avgrt.png](images%2Fbenchmark-mixed-avgrt.png)
+![benchmark-mixed-avgrt.png](images/benchmark-mixed-avgrt.png)
 
-![benchmark-mixed-tp99.png](images%2Fbenchmark-mixed-tp99.png)
+![benchmark-mixed-tp99.png](images/benchmark-mixed-tp99.png)
