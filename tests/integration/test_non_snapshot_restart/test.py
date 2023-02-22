@@ -92,28 +92,15 @@ def test_restart(started_cluster):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node/" + str(i), b"hello")
 
-        get_fake_zk(node1)
-
         for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.set("/test_restart_node/" + str(i), b"hello_new")
-
-        get_fake_zk(node2)
-
-        for i in range(10):
-            fake_zk = random.choice(fake_zks)
-            # delete not empty node
-            fake_zk.delete("/test_restart_node/" + str(i))
-
-        get_fake_zk(node3)
 
         fake_zks[1].create("/test_restart_node1", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
             fake_zk.create("/test_restart_node1/" + str(i), b"hello")
-
-        get_fake_zk(node1)
 
         fake_zks[2].create("/test_restart_node2", b"hello")
 
@@ -147,7 +134,7 @@ def test_restart(started_cluster):
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node1" + str(i + 100))[0] == b"hellonew"
+            assert fake_zk.get("/test_restart_node/" + str(i))[0] == b"hello_new"
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
@@ -188,3 +175,4 @@ def test_restart(started_cluster):
                     pass
         except:
             pass
+
