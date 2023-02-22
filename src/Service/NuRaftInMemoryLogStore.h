@@ -9,6 +9,7 @@
 namespace RK
 {
 
+/// For test usage
 class NuRaftInMemoryLogStore : public nuraft::log_store
 {
 public:
