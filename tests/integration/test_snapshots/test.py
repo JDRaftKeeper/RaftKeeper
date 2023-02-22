@@ -2,7 +2,6 @@
 
 #!/usr/bin/env python3
 import pytest
-from helpers.cluster import ClickHouseCluster
 from helpers.cluster_service import RaftKeeperCluster
 import random
 import string
