@@ -1,11 +1,4 @@
 <?xml version="1.0"?>
-<!--
-  NOTE: User and query level settings are set up in "users.xml" file.
-  If you have accidentally specified user-level settings here, server won't start.
-  You can either move the settings to the right place inside "users.xml" file
-   or add <skip_check_for_incorrect_settings>1</skip_check_for_incorrect_settings> here.
--->
-
 <raftkeeper>
     <logger>
         <!-- Valid values are: none(turn off), fatal, critical, error, warning, notice, information, debug, trace -->
