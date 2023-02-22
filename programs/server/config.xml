@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
 <raftkeeper>
+    <!-- System timezone, default is empty, will use OS default timezone. -->
+    <!-- <timezone></timezone>-->
     <logger>
         <!-- Valid values are: none(turn off), fatal, critical, error, warning, notice, information, debug, trace -->
         <!-- <level>trace</level> -->
