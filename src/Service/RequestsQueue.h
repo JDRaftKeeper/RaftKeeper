@@ -1,18 +1,3 @@
-/**
- * Copyright 2016-2026 ClickHouse, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- * 
- *         http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 #pragma once
 
 #include <Common/ConcurrentBoundedQueue.h>
@@ -25,10 +10,6 @@ namespace RK
 struct RequestsQueue
 {
     using Queue = ConcurrentBoundedQueue<KeeperStore::RequestForSession>;
-
-//    using Queue = boost::lockfree::queue<KeeperStore::RequestForSession>;
-
-//    using Queue = BlockingConcurrentQueue<KeeperStore::RequestForSession>;
 
     std::vector<ptr<Queue>> queues;
 
@@ -47,36 +28,30 @@ struct RequestsQueue
     bool push(const KeeperStore::RequestForSession & request)
     {
         return queues[request.session_id % queues.size()]->push(std::forward<const KeeperStore::RequestForSession>(request));
-//        return queues[request.session_id % queues.size()]->enqueue(std::forward<const KeeperStore::RequestForSession>(request));
     }
 
     bool tryPush(const KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
     {
         return queues[request.session_id % queues.size()]->tryPush(
             std::forward<const KeeperStore::RequestForSession>(request), wait_ms);
-//        return queues[request.session_id % queues.size()]->try_enqueue(
-//            std::forward<const KeeperStore::RequestForSession>(request));
     }
 
     bool pop(size_t queue_id, KeeperStore::RequestForSession & request)
     {
         assert(queue_id != 0 && queue_id <= queues.size());
         return queues[queue_id]->pop(request);
-//        return queues[queue_id]->try_dequeue<KeeperStore::RequestForSession>(request);
     }
 
     bool tryPop(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->tryPop(request, wait_ms);
-//        return queues[queue_id]->wait_dequeue_timed(request, wait_ms * 1000);
     }
 
     bool tryPopMicro(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_micro = 0)
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->tryPopMicro(request, wait_micro);
-//        return queues[queue_id]->wait_dequeue_timed(request, wait_micro);
     }
 
 
@@ -84,7 +59,6 @@ struct RequestsQueue
     {
         for (const auto & queue : queues)
         {
-//            if (queue->wait_dequeue_timed(request, wait_ms * 1000))
             if (queue->tryPop(request, wait_ms * 1000))
                 return true;
         }
@@ -97,18 +71,12 @@ struct RequestsQueue
         for (const auto & queue : queues)
             size += queue->size();
         return size;
-//        size_t size{};
-//        for (const auto & queue : queues)
-//            size += queue->size_approx();
-//        return size;
     }
 
     size_t size(size_t queue_id) const
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->size();
-//        assert(queue_id < queues.size());
-//        return queues[queue_id]->size_approx();
     }
 
     bool empty() const
