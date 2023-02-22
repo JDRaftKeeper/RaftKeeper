@@ -32,7 +32,7 @@ from dicttoxml import dicttoxml
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
 
-from .client import Client
+# from .client import Client
 
 HELPERS_DIR = p.dirname(__file__)
 RAFTKEEPER_ROOT_DIR = p.join(p.dirname(__file__), "../../..")
@@ -257,7 +257,7 @@ class RaftKeeperCluster:
         subprocess.check_call(self.base_cmd + ["rm", "--force", "--stop", node.name])
         subprocess.check_call(self.base_cmd + ["up", "--force-recreate", "--no-deps", "-d", node.name])
         node.ip_address = self.get_instance_ip(node.name)
-        node.client = Client(node.ip_address, command=self.client_bin_path)
+        # node.client = Client(node.ip_address, command=self.client_bin_path)
         start_deadline = time.time() + 180.0  # seconds
         node.wait_for_start(start_deadline)
         return node
@@ -429,7 +429,7 @@ class RaftKeeperCluster:
         for instance in list(self.instances.values()):
             instance.docker_client = None
             instance.ip_address = None
-            instance.client = None
+            # instance.client = None
 
         if not self.zookeeper_use_tmpfs:
             for i in range(1, 4):
