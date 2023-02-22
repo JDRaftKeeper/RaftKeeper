@@ -1,0 +1,82 @@
+# Third Party Code
+
+1.poco
+BSL-1.0
+https://github.com/eBay/NuRaft.git
+
+2.cctz
+Apache License Version 2.0
+https://github.com/ClickHouse-Extras/cctz.git
+
+3.zlib-ng
+(C) 1995-2013 Jean-loup Gailly and Mark Adler
+https://github.com/ClickHouse-Extras/zlib-ng.git
+
+4.googletest
+BSD3
+Copyright 2008, Google Inc.	https://github.com/google/googletest.git
+
+5.double-conversion
+Copyright 2006-2011, the V8 project authors.
+https://github.com/google/double-conversion.git
+
+6.re2
+Copyright (c) 2009 The RE2 Authors
+https://github.com/google/re2.git
+
+7.jemalloc
+Copyright (C) 2002-present Jason Evans <jasone@canonware.com>.
+All rights reserved.
+Copyright (C) 2007-2012 Mozilla Foundation.  All rights reserved.
+Copyright (C) 2009-present Facebook, Inc.  All rights reserved.
+https://github.com/ClickHouse-Extras/jemalloc.git
+
+8.protobuf
+Copyright 2008 Google Inc
+https://github.com/ClickHouse-Extras/protobuf.git
+
+9.boost
+BSL-1.0
+https://github.com/ClickHouse-Extras/boost.git
+
+10.libxml2
+MIT
+https://github.com/GNOME/libxml2.git
+
+11.libcxx
+Apache License Version 2.0
+https://github.com/ClickHouse-Extras/libcxx.git
+
+12.libcxxabi
+Apache License Version 2.0
+https://github.com/ClickHouse-Extras/libcxxabi.git
+
+13.libunwind
+Apache License Version 2.0
+https://github.com/ClickHouse-Extras/libunwind.git
+
+14.fmtlib
+Copyright (c) 2012 - present, Victor Zverovich
+https://github.com/fmtlib/fmt.git
+
+15.dragonbox
+Apache License Version 2.0 with LLVM Exceptions
+Boost Software License Version 1.0
+Apache License Version 2.0
+https://github.com/ClickHouse-Extras/dragonbox.git
+
+16.fast_float
+Apache License, Version 2.0
+https://github.com/fastfloat/fast_float
+
+17.boringssl
+Copyright (c) 1998-2011 The OpenSSL Project
+https://github.com/ClickHouse-Extras/boringssl.git
+
+18.NuRaft
+Apache License Version 2.0
+https://github.com/eBay/NuRaft.git
+
+19.libc-headers
+Copyright (C) 1997-2018 Free Software Foundation, Inc.
+https://github.com/ClickHouse-Extras/libc-headers.git
