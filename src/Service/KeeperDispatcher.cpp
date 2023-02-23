@@ -288,9 +288,6 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
 
         server->waitInit();
         LOG_DEBUG(log, "Quorum initialized");
-
-        server->reConfigIfNeed();
-        LOG_DEBUG(log, "Server reconfiged");
     }
     catch (...)
     {

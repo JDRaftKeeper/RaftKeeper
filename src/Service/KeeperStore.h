@@ -168,7 +168,7 @@ public:
     };
 
     using ResponsesForSessions = std::vector<ResponseForSession>;
-    using SvsKeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
+    using KeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
 
     struct RequestForSession
     {
@@ -348,10 +348,6 @@ private:
     Poco::Logger * log;
 };
 
-using Ephemerals = KeeperStore::Ephemerals;
-using EphemeralsPtr = KeeperStore::EphemeralsPtr;
-using SessionAndWatcher = KeeperStore::SessionAndWatcher;
-using SessionAndWatcherPtr = KeeperStore::SessionAndWatcherPtr;
 using SessionIDs = KeeperStore::SessionIDs;
 using Watches = KeeperStore::Watches;
 

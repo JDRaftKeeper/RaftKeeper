@@ -23,7 +23,7 @@ void ForwardingConnection::connect(Poco::Timespan connection_timeout)
     {
         try
         {
-            LOG_TRACE(log, "try connect {}", endpoint);
+            LOG_TRACE(log, "Try connect {}", endpoint);
             /// Reset the state of previous attempt.
 
             socket = Poco::Net::StreamSocket();
@@ -38,14 +38,14 @@ void ForwardingConnection::connect(Poco::Timespan connection_timeout)
             out.emplace(socket);
 
             sendHandshake();
-            LOG_TRACE(log, "sent handshake {}", endpoint);
+            LOG_TRACE(log, "Sent handshake {}", endpoint);
 
             // TODO receiveHandshake
 //            receiveHandshake();
 //            LOG_TRACE(log, "received handshake {}", endpoint);
 
             connected = true;
-            LOG_TRACE(log, "connect succ {}", endpoint);
+            LOG_TRACE(log, "Connect succ {}", endpoint);
             break;
         }
         catch (...)
@@ -77,7 +77,7 @@ void ForwardingConnection::send(KeeperStore::RequestForSession request_for_sessi
         throw Exception("ForwardingConnection connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
     }
 
-    LOG_TRACE(log, "forwarding endpoint {}, session {}, xid {}", endpoint, request_for_session.session_id, request_for_session.request->xid);
+    LOG_TRACE(log, "Forwarding session {}, xid {} to endpoint {}", toHexString(request_for_session.session_id), request_for_session.request->xid, endpoint);
 
     try
     {

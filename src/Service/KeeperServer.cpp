@@ -43,7 +43,7 @@ namespace
 KeeperServer::KeeperServer(
     const SettingsPtr & settings_,
     const Poco::Util::AbstractConfiguration & config_,
-    SvsKeeperResponsesQueue & responses_queue_,
+    KeeperResponsesQueue & responses_queue_,
     std::shared_ptr<RequestProcessor> request_processor_)
     : server_id(settings_->my_id)
     , settings(settings_)
@@ -110,111 +110,6 @@ void KeeperServer::startup()
         dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
 
-void KeeperServer::addServer(const std::vector<std::string> & tokens)
-{
-    if (tokens.size() < 2)
-    {
-        LOG_ERROR(log, "Too few arguments.");
-        return;
-    }
-
-    int server_id_to_add = atoi(tokens[0].c_str());
-    if (!server_id_to_add || server_id_to_add == server_id)
-    {
-        LOG_WARNING(log, "Wrong server id: {}", server_id_to_add);
-        return;
-    }
-
-    std::string endpoint_to_add = tokens[1];
-    srv_config srv_conf_to_add(server_id_to_add, 1, endpoint_to_add, std::string(), false, 50);
-    LOG_DEBUG(log, "Adding server {}, {}.", toString(server_id_to_add), endpoint_to_add);
-    auto ret = raft_instance->add_srv(srv_conf_to_add);
-    if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(30000));
-        auto ret1 = raft_instance->add_srv(srv_conf_to_add);
-        if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
-        {
-            LOG_ERROR(log, "Failed to add server: {}", ret1->get_result_code());
-            return;
-        }
-    }
-
-    // Wait until it appears in server list.
-    const size_t MAX_TRY = 400;
-    for (size_t jj = 0; jj < MAX_TRY; ++jj)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        ptr<srv_config> conf = raft_instance->get_srv_config(server_id_to_add);
-        if (conf)
-        {
-            LOG_DEBUG(log, "Add server done.");
-            break;
-        }
-    }
-    LOG_DEBUG(log, "Async request is in progress add server {}.", server_id_to_add);
-}
-
-void KeeperServer::addServer(ptr<srv_config> srv_conf_to_add)
-{
-    LOG_DEBUG(log, "Adding server {}, {} after 10s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
-    std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-    auto ret = raft_instance->add_srv(*srv_conf_to_add);
-    if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
-    {
-        LOG_DEBUG(log, "Retry adding server {}, {} after 30s.", toString(srv_conf_to_add->get_id()), srv_conf_to_add->get_endpoint());
-        std::this_thread::sleep_for(std::chrono::milliseconds(30000));
-        auto ret1 = raft_instance->add_srv(*srv_conf_to_add);
-        if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
-        {
-            LOG_ERROR(log, "Failed to add server {} : {}", srv_conf_to_add->get_endpoint(), ret1->get_result_code());
-            return;
-        }
-    }
-
-    // Wait until it appears in server list.
-    const size_t MAX_TRY = 4 * 60 * 10; // 10 minutes
-    for (size_t jj = 0; jj < MAX_TRY; ++jj)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        ptr<srv_config> conf = raft_instance->get_srv_config(srv_conf_to_add->get_id());
-        if (conf)
-        {
-            LOG_DEBUG(log, "Add server {} done.", srv_conf_to_add->get_endpoint());
-            return;
-        }
-    }
-    LOG_DEBUG(log, "Async request is in progress add server {}.", srv_conf_to_add->get_endpoint());
-}
-
-
-void KeeperServer::getServerList(std::vector<ServerInfo> & server_list)
-{
-    std::vector<ptr<srv_config>> configs;
-    raft_instance->get_srv_config_all(configs);
-    int32 leader_id = raft_instance->get_leader();
-
-    for (auto & entry : configs)
-    {
-        ptr<srv_config> & srv = entry;
-        //std::cout << "server id " << srv->get_id() << ": " << srv->get_endpoint();
-        ServerInfo server;
-        server.server_id = srv->get_id();
-        server.endpoint = srv->get_endpoint();
-        if (srv->get_id() == leader_id)
-        {
-            //std::cout << " (LEADER)";
-            server.is_leader = true;
-        }
-        else
-        {
-            server.is_leader = false;
-        }
-        server_list.push_back(server);
-        //std::cout << std::endl;
-    }
-}
-
 ptr<ForwardingConnection> KeeperServer::getLeaderClient(size_t thread_idx)
 {
     return state_manager->getClient(raft_instance->get_leader(), thread_idx);
@@ -225,52 +120,6 @@ int32 KeeperServer::getLeader()
 {
     return raft_instance->get_leader();
 }
-
-void KeeperServer::removeServer(const std::string & endpoint)
-{
-    std::vector<ServerInfo> server_list;
-    getServerList(server_list);
-    std::optional<UInt32> to_remove_id;
-    for (auto it = server_list.begin(); it != server_list.end(); it++)
-    {
-        if (it->endpoint == endpoint)
-        {
-            to_remove_id = it->server_id;
-            LOG_DEBUG(log, "Removing server {}, {} after 30s.", toString(it->server_id), endpoint);
-            std::this_thread::sleep_for(std::chrono::milliseconds(30000));
-            auto ret = raft_instance->remove_srv(it->server_id);
-            if (!ret->get_accepted() || ret->get_result_code() != nuraft::cmd_result_code::OK)
-            {
-                LOG_DEBUG(log, "Retry removing server {}, {} after 30s.", toString(it->server_id), endpoint);
-                std::this_thread::sleep_for(std::chrono::milliseconds(30000));
-                auto ret1 = raft_instance->remove_srv(it->server_id);
-                if (!ret1->get_accepted() || ret1->get_result_code() != nuraft::cmd_result_code::OK)
-                {
-                    LOG_ERROR(log, "Failed to remove server {} : {}", endpoint, ret1->get_result_code());
-                    return;
-                }
-            }
-            break;
-        }
-    }
-
-    if (!to_remove_id)
-        return;
-    // Wait until it appears in server list.
-    const size_t MAX_TRY = 400;
-    for (size_t jj = 0; jj < MAX_TRY; ++jj)
-    {
-        std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        ptr<srv_config> conf = raft_instance->get_srv_config(to_remove_id.value());
-        if (!conf)
-        {
-            LOG_DEBUG(log, "Remove server {} done.", endpoint);
-            return;
-        }
-    }
-    LOG_DEBUG(log, "Async request is in progress remove server {}.", endpoint);
-}
-
 
 void KeeperServer::shutdown()
 {
@@ -375,15 +224,6 @@ ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::ve
     /// append_entries write request
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
     return result;
-}
-
-void KeeperServer::processReadRequest(const KeeperStore::RequestForSession & request_for_session)
-{
-    auto [session_id, request, time, server, client] = request_for_session;
-    if (isLeaderAlive() && request->isReadRequest())
-    {
-        state_machine->processReadRequest(request_for_session);
-    }
 }
 
 int64_t KeeperServer::getSessionID(int64_t session_timeout_ms)
@@ -738,43 +578,6 @@ bool KeeperServer::waitConfigurationUpdate(const ConfigUpdateAction & task)
     else
         LOG_WARNING(log, "Unknown configuration update type {}", static_cast<uint64_t>(task.action_type));
     return true;
-}
-
-void KeeperServer::reConfigIfNeed()
-{
-    //    if (!isLeader())
-    //        return;
-    //
-    //    auto cur_cluster_config = state_manager->load_config();
-    //
-    //    std::vector<String> srvs_removed;
-    //    std::vector<ptr<srv_config>> srvs_added;
-    //
-    //    auto new_cluster_config = state_manager->parseClusterConfig(config, "keeper.cluster");
-    //    std::list<ptr<srv_config>> & new_srvs(new_cluster_config->get_servers());
-    //    std::list<ptr<srv_config>> & old_srvs(cur_cluster_config->get_servers());
-    //
-    //    for (auto it = new_srvs.begin(); it != new_srvs.end(); ++it)
-    //    {
-    //        if (!cur_cluster_config->get_server((*it)->get_id()))
-    //            srvs_added.push_back(*it);
-    //    }
-    //
-    //    for (auto it = old_srvs.begin(); it != old_srvs.end(); ++it)
-    //    {
-    //        if (!new_cluster_config->get_server((*it)->get_id()))
-    //            srvs_removed.push_back((*it)->get_endpoint());
-    //    }
-    //
-    //    for (auto & end_point : srvs_removed)
-    //    {
-    //        removeServer(end_point);
-    //    }
-    //
-    //    for (auto srv_add : srvs_added)
-    //    {
-    //        addServer(srv_add);
-    //    }
 }
 
 uint64_t KeeperServer::createSnapshot()

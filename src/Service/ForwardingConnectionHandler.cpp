@@ -65,7 +65,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 {
     try
     {
-        LOG_TRACE(log, "forwarding handler socket readable");
+        LOG_TRACE(log, "Forwarding handler socket readable");
         if (!socket_.available())
         {
             LOG_INFO(log, "Client close connection! errno {}", errno);
@@ -79,7 +79,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
             if (current_package.is_done)
             {
-                LOG_TRACE(log, "try handle new package");
+                LOG_TRACE(log, "Try handle new package");
 
                 if (!req_header_buf.isFull())
                 {
@@ -95,7 +95,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 req_header_buf.drain(req_header_buf.used());
                 current_package.protocol = static_cast<PkgType>(forward_protocol);
 
-                LOG_TRACE(log, "receive {}", current_package.protocol);
+                LOG_TRACE(log, "Receive {}", current_package.protocol);
 
                 WriteBufferFromFiFoBuffer out;
                 switch (forward_protocol)
@@ -133,7 +133,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                     keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
 
-                    LOG_INFO(log, "register forward from server {} client {}", server_id, client_id);
+                    LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
 
                     keeper_dispatcher->sendAppendEntryResponse(
                         server_id,
@@ -233,7 +233,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             int64_t expiration_time;
                             Coordination::read(expiration_time, body);
 
-                            LOG_TRACE(log, "Recv session {}, expiration time {}", session_id, expiration_time);
+                            LOG_TRACE(log, "Receive session {}, expiration time {}", toHexString(session_id), expiration_time);
 
                             keeper_dispatcher->setSessionExpirationTime(session_id, expiration_time);
                         }
@@ -353,7 +353,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
 
 void ForwardingConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & /*pNf*/)
 {
-    LOG_INFO(log, "reactor shutdown!");
+    LOG_INFO(log, "Reactor shutdown!");
     destroyMe();
 }
 
@@ -382,10 +382,10 @@ std::tuple<int64_t, int64_t, Coordination::OpNum> ForwardingConnectionHandler::r
     request->readImpl(body);
 
     LOG_TRACE(
-        log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", session_id, xid, length, Coordination::toString(opnum));
+        log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
 
     if (!keeper_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", session_id);
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
 
     return {session_id, xid, opnum};
 }

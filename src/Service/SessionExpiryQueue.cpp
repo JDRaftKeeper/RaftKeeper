@@ -1,5 +1,6 @@
 #include <Service/SessionExpiryQueue.h>
 #include <common/logger_useful.h>
+
 namespace RK
 {
 

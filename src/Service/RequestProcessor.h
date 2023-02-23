@@ -33,7 +33,7 @@ class KeeperDispatcher;
 class RequestProcessor
 {
 public:
-    explicit RequestProcessor(SvsKeeperResponsesQueue & responses_queue_)
+    explicit RequestProcessor(KeeperResponsesQueue & responses_queue_)
         : responses_queue(responses_queue_), log(&Poco::Logger::get("RequestProcessor"))
     {
     }
@@ -80,7 +80,7 @@ private:
 
     std::shared_ptr<KeeperServer> server;
 
-    SvsKeeperResponsesQueue & responses_queue;
+    KeeperResponsesQueue & responses_queue;
 
     /// Local requests
     ptr<RequestsQueue> requests_queue;
