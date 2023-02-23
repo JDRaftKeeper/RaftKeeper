@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ClickHouseRevision
+namespace RaftKeeperRevision
 {
     unsigned getVersionInteger();
 }
