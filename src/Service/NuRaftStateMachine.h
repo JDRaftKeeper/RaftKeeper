@@ -21,7 +21,7 @@ using nuraft::async_result;
 using nuraft::buffer;
 using nuraft::cs_new;
 
-using SvsKeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
+using KeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
 
 class RequestProcessor;
 
@@ -29,7 +29,7 @@ class NuRaftStateMachine : public nuraft::state_machine
 {
 public:
     NuRaftStateMachine(
-        SvsKeeperResponsesQueue & responses_queue_,
+        KeeperResponsesQueue & responses_queue_,
         const RaftSettingsPtr & raft_settings_,
         std::string & snap_dir,
         UInt32 snap_begin_second,
@@ -147,7 +147,7 @@ private:
 
     //NodeMap node_map;
     KeeperStore store;
-    SvsKeeperResponsesQueue & responses_queue;
+    KeeperResponsesQueue & responses_queue;
 
     std::shared_ptr<RequestProcessor> request_processor;
 

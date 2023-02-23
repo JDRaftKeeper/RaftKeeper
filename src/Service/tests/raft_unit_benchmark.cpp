@@ -53,7 +53,7 @@ void setNode(KeeperStore & storage, const std::string key, const std::string val
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
 }
 

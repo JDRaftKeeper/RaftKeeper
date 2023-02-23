@@ -74,7 +74,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
 
     size_t request_size = requests_queue->size(runner_id);
 
-    LOG_TRACE(log, "runner_id {} request_size {}", runner_id, request_size);
+    LOG_TRACE(log, "Move request to pending queue, runner id {} request size {}", runner_id, request_size);
     for (size_t i = 0; i < request_size; ++i)
     {
         RequestForSession request;
@@ -83,7 +83,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
             auto op_num = request.request->getOpNum();
             if (op_num != Coordination::OpNum::Auth)
             {
-                LOG_TRACE(log, "put session {} xid {} to pending requests", request.session_id, request.request->xid);
+                LOG_TRACE(log, "Put session {} xid {} to pending queue", toHexString(request.session_id), request.request->xid);
                 thread_requests[request.session_id].push_back(request);
             }
         }
@@ -93,7 +93,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
 
 void RequestProcessor::processCommittedRequest(size_t count)
 {
-    LOG_DEBUG(log, "committed_request_size {}", count);
+    LOG_DEBUG(log, "Process committed request size {}", count);
     RequestForSession committed_request;
     for (size_t i = 0; i < count; ++i)
     {
@@ -103,14 +103,15 @@ void RequestProcessor::processCommittedRequest(size_t count)
 
             LOG_DEBUG(
                 log,
-                "current_session_pending_requests size {} committed_request opNum {}, session {} xid {} request {}",
-                pending_requests_for_thread.contains(committed_request.session_id)
-                    ? pending_requests_for_thread[committed_request.session_id].size()
-                    : 0,
-                Coordination::toString(committed_request.request->getOpNum()),
+                "Committed request session {} xid {} request {}, session {} pending requests size {},",
                 toHexString(committed_request.session_id),
                 committed_request.request->xid,
-                committed_request.request->toString());
+                committed_request.request->toString(),
+                toHexString(committed_request.session_id),
+                pending_requests_for_thread.contains(committed_request.session_id)
+                    ? pending_requests_for_thread[committed_request.session_id].size()
+                    : 0
+                );
 
             auto op_num = committed_request.request->getOpNum();
 
@@ -143,7 +144,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                         log,
                         "Current session pending request opNum {}, session {}, xid {}",
                         Coordination::toString(pending_requests_for_session.begin()->request->getOpNum()),
-                        pending_requests_for_session.begin()->session_id,
+                        toHexString(pending_requests_for_session.begin()->session_id),
                         pending_requests_for_session.begin()->request->xid);
 
                     while (pending_requests_for_session.begin()->request->xid != committed_request.request->xid)
@@ -154,7 +155,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                             LOG_DEBUG(
                                 log,
                                 "Current session {} pending head request xid {} {} is read request",
-                                committed_request.session_id,
+                                toHexString(committed_request.session_id),
                                 current_begin_request_session->session_id,
                                 current_begin_request_session->request->xid);
 
@@ -242,12 +243,13 @@ void RequestProcessor::processErrorRequest()
     std::lock_guard lock(mutex);
     if (!errors.empty())
     {
+        LOG_WARNING(log, "Has {} error requests", errors.size());
         for (auto it = errors.begin(); it != errors.end();)
         {
             const auto & [session_id, xid] = it->first;
             auto & error_request = it->second;
             
-            LOG_WARNING(log, "error {} session {}, xid {}", error_request.error_code, toHexString(session_id), xid);
+            LOG_WARNING(log, "Found error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
 
             auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(session_id))->second;
 
@@ -289,8 +291,8 @@ void RequestProcessor::processErrorRequest()
                         {
                             LOG_TRACE(
                                 log,
-                                "session {} pending request xid {}, target error xid {}",
-                                session_id,
+                                "Try match session {} pending request xid {}, target error xid {}",
+                                toHexString(session_id),
                                 request_it->request->xid,
                                 xid);
                             if (static_cast<uint64_t>(request_it->request->xid) < xid)
@@ -314,7 +316,7 @@ void RequestProcessor::processErrorRequest()
                     }
                     else
                     {
-                        LOG_WARNING(log, "session {}, no pending requests", session_id);
+                        LOG_WARNING(log, "Session {}, no pending requests", toHexString(session_id));
                     }
                 }
 
@@ -346,7 +348,7 @@ void RequestProcessor::processErrorRequest()
                         LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
 
                     it = errors.erase(it);
-                    LOG_ERROR(log, "Matched error request session {}, xid {} from pending requests queue", session_id, xid);
+                    LOG_ERROR(log, "Matched error request session {}, xid {} from pending requests queue", toHexString(session_id), xid);
                 }
                 else
                 {
@@ -469,7 +471,7 @@ void RequestProcessor::commit(RequestForSession request)
             std::unique_lock lk(mutex);
             cv.notify_all();
         }
-        LOG_DEBUG(log, "commit notify committed_queue size {}", committed_queue.size());
+        LOG_DEBUG(log, "Commit notify committed queue size {}", committed_queue.size());
     }
 }
 
@@ -478,7 +480,7 @@ void RequestProcessor::onError(
 {
     if (!shutdown_called)
     {
-        LOG_WARNING(log, "on error session {}, xid {}", session_id, xid);
+        LOG_WARNING(log, "On error session {}, xid {}", toHexString(session_id), xid);
         {
             std::unique_lock lk(mutex);
             ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};

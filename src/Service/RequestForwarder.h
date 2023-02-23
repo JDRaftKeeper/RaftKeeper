@@ -48,12 +48,6 @@ private:
 
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
-    //    std::vector<std::unique_ptr<std::mutex>> mutexes;
-    //
-    //    /// session, xid, request
-    //    using SessionXidRequest = std::unordered_map<int64_t, std::map<int64_t , Request>>;
-    //    std::unordered_map<size_t, SessionXidRequest> thread_requests;
-
     Poco::Logger * log;
 
     ThreadPoolPtr request_thread;
