@@ -1,5 +1,6 @@
 #include <Service/KeeperDispatcher.h>
 #include <Service/RequestAccumulator.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -12,6 +13,8 @@ void RequestAccumulator::push(RequestForSession request_for_session)
 
 void RequestAccumulator::run(RunnerId runner_id)
 {
+    setThreadName(("ReqAccumu-" + toString(runner_id)).c_str());
+
     NuRaftResult result = nullptr;
     /// Requests from previous iteration. We store them to be able
     /// to send errors to the client.

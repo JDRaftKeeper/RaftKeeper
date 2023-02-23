@@ -63,13 +63,8 @@ private:
     /// More than 1k updates is definitely misconfiguration.
     UpdateConfigurationQueue update_configuration_queue{1000};
 
-#ifdef __THREAD_POOL_VEC__
-    std::vector<ThreadFromGlobalPool> request_threads;
-    std::vector<ThreadFromGlobalPool> response_threads;
-#else
     ThreadPoolPtr request_thread;
     ThreadPoolPtr responses_thread;
-#endif
 
     ThreadFromGlobalPool session_cleaner_thread;
 

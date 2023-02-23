@@ -1,6 +1,7 @@
 
 #include <Service/KeeperDispatcher.h>
 #include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -19,6 +20,8 @@ void RequestProcessor::push(RequestForSession request_for_session)
 
 void RequestProcessor::run()
 {
+    setThreadName("ReqProcessor");
+
     while (!shutdown_called)
     {
         try

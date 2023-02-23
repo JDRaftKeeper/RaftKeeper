@@ -31,7 +31,7 @@ KeeperDispatcher::KeeperDispatcher()
 
 void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 {
-    setThreadName(("SerK - " + std::to_string(thread_index)).c_str());
+    setThreadName(("K - " + std::to_string(thread_index)).c_str());
 
     /// Result of requests batch from previous iteration
     nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
@@ -93,7 +93,8 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
 void KeeperDispatcher::requestThread()
 {
-    setThreadName("SerKeeperReqT");
+    setThreadName("KeeperReqT");
+
     while (!shutdown_called)
     {
         KeeperStore::RequestForSession request;
@@ -121,7 +122,7 @@ void KeeperDispatcher::requestThread()
 
 void KeeperDispatcher::responseThread()
 {
-    setThreadName("SerKeeperRspT");
+    setThreadName("KeeperRspT");
 
     KeeperStore::ResponseForSession response_for_session;
     UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
@@ -311,9 +312,6 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
         requests_queue = std::make_shared<RequestsQueue>(1, 20000);
     }
 
-
-#ifdef __THREAD_POOL_VEC__
-#else
     request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
     for (size_t i = 0; i < thread_count; i++)
@@ -328,7 +326,6 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
         }
     }
     responses_thread->trySchedule([this] { responseThread(); });
-#endif
 
     session_cleaner_thread = ThreadFromGlobalPool([this] { sessionCleanerTask(); });
     update_configuration_thread = ThreadFromGlobalPool([this] { updateConfigurationThread(); });
@@ -413,6 +410,8 @@ void KeeperDispatcher::registerForward(ServerForClient server_client, ForwardRes
 
 void KeeperDispatcher::sessionCleanerTask()
 {
+    setThreadName("SessionCleaner");
+
     LOG_INFO(log, "start session clear task");
     while (true)
     {
@@ -468,6 +467,8 @@ void KeeperDispatcher::sessionCleanerTask()
 
 void KeeperDispatcher::updateConfigurationThread()
 {
+    setThreadName("UpdateConfig");
+
     while (true)
     {
         if (shutdown_called)
