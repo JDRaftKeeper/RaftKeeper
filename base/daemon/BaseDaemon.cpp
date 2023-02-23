@@ -53,7 +53,7 @@
 #include <Common/PipeFDs.h>
 #include <Common/StackTrace.h>
 #include <Common/getMultipleKeysFromConfig.h>
-#include <Common/ClickHouseRevision.h>
+#include <Common/RaftKeeperRevision.h>
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/MemorySanitizer.h>
 #include <Common/SymbolIndex.h>
