@@ -1,6 +1,7 @@
 
 #include <Service/KeeperDispatcher.h>
 #include <Service/RequestForwarder.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -12,6 +13,8 @@ void RequestForwarder::push(RequestForSession request_for_session)
 
 void RequestForwarder::run(RunnerId runner_id)
 {
+    setThreadName(("ReqFwdSend-" + toString(runner_id)).c_str());
+
     LOG_DEBUG(log, "Starting forwarding request sending thread.");
     while (!shutdown_called)
     {
@@ -94,6 +97,8 @@ void RequestForwarder::run(RunnerId runner_id)
 
 void RequestForwarder::runReceive(RunnerId runner_id)
 {
+    setThreadName(("ReqFwdRecv-" + toString(runner_id)).c_str());
+
     LOG_DEBUG(log, "Starting forwarding response receiving thread.");
     while (!shutdown_called)
     {

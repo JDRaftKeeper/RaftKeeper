@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <Service/LogEntry.h>
 #include <Service/NuRaftFileLogStore.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -141,6 +142,8 @@ NuRaftFileLogStore::~NuRaftFileLogStore()
 
 void NuRaftFileLogStore::fsyncThread(bool & thread_started)
 {
+    setThreadName("LogFsync");
+
     parallel_fsync_event = std::make_shared<Poco::Event>();
 
     while (!shutdown_called)
