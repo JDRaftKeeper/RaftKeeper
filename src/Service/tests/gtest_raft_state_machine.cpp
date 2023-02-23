@@ -153,7 +153,7 @@ TEST(RaftStateMachine, createSnapshotTime)
 TEST(RaftStateMachine, serializeAndParse)
 {
     std::string snap_dir(SNAP_DIR + "/0");
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     //NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3);
@@ -197,7 +197,7 @@ TEST(RaftStateMachine, appendEntry)
     std::string snap_dir(SNAP_DIR + "/1");
     cleanDirectory(snap_dir);
 
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
@@ -219,7 +219,7 @@ TEST(RaftStateMachine, modifyEntry)
     std::string snap_dir(SNAP_DIR + "/2");
     cleanDirectory(snap_dir);
 
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
@@ -257,7 +257,7 @@ TEST(RaftStateMachine, createSnapshot)
     std::string snap_dir(SNAP_DIR + "/3");
     cleanDirectory(snap_dir);
 
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
@@ -296,7 +296,7 @@ TEST(RaftStateMachine, syncSnapshot)
     cleanDirectory(snap_dir_1);
     cleanDirectory(snap_dir_2);
 
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
@@ -355,7 +355,7 @@ TEST(RaftStateMachine, initStateMachine)
 
     //Create
     {
-        SvsKeeperResponsesQueue queue;
+        KeeperResponsesQueue queue;
         RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
 
@@ -398,7 +398,7 @@ TEST(RaftStateMachine, initStateMachine)
 
     // Load
     {
-        SvsKeeperResponsesQueue queue;
+        KeeperResponsesQueue queue;
         RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
         ptr<NuRaftFileLogStore> log_store = cs_new<NuRaftFileLogStore>(log_dir);
 

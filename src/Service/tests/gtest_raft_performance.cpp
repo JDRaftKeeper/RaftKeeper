@@ -151,7 +151,7 @@ TEST(RaftPerformance, machineCreateThread)
     Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
     std::string snap_dir(LOG_DIR + "/51");
     cleanDirectory(snap_dir);
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;

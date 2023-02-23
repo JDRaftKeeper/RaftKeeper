@@ -48,7 +48,7 @@ nuraft::ptr<nuraft::buffer> writeResponses(KeeperStore::ResponsesForSessions & r
 
 
 NuRaftStateMachine::NuRaftStateMachine(
-    SvsKeeperResponsesQueue & responses_queue_,
+    KeeperResponsesQueue & responses_queue_,
     const RaftSettingsPtr & raft_settings_,
     std::string & snap_dir,
     UInt32 snap_begin_second,

@@ -38,7 +38,7 @@ void setNode(KeeperStore & storage, const std::string key, const std::string val
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -183,7 +183,7 @@ void setACLNode(
     request->acls = default_acls;
     request->xid = 1;
 
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -198,7 +198,7 @@ void setACLNode(KeeperStore & storage, const std::string key, const std::string 
     request->acls = acls;
     request->xid = 1;
 
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -213,7 +213,7 @@ void addAuth(KeeperStore & storage, uint64_t session_id, const std::string & sch
     request->scheme = scheme;
     request->data = id;
 
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -223,7 +223,7 @@ ACLs getACL(KeeperStore & storage, const std::string key)
     auto request = cs_new<ZooKeeperGetACLRequest>();
     request->path = key;
 
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/false);
 
@@ -248,7 +248,7 @@ void setEphemeralNode(KeeperStore & storage, const std::string key, const std::s
     request->is_sequential = false;
     request->acls = default_acls;
     request->xid = 1;
-    KeeperStore::SvsKeeperResponsesQueue responses_queue;
+    KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue ,request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/true);
 }
@@ -657,7 +657,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
 
-    SvsKeeperResponsesQueue queue;
+    KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
     ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
 
@@ -748,7 +748,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    SvsKeeperResponsesQueue ano_queue;
+    KeeperResponsesQueue ano_queue;
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
 
     NuRaftStateMachine ano_machine(ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);

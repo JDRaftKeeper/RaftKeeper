@@ -37,46 +37,35 @@ private:
 
     const Poco::Util::AbstractConfiguration & config;
 
-    SvsKeeperResponsesQueue & responses_queue;
+    KeeperResponsesQueue & responses_queue;
 
     Poco::Logger * log;
 
     std::mutex initialized_mutex;
     std::atomic<bool> initialized_flag = false;
     std::condition_variable initialized_cv;
-//    std::atomic<bool> initial_batch_committed = false;
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
 
-    void addServer(ptr<srv_config> srv_conf_to_add);
-
 public:
     KeeperServer(
         const SettingsPtr & settings_,
         const Poco::Util::AbstractConfiguration & config_,
-        SvsKeeperResponsesQueue & responses_queue_,
+        KeeperResponsesQueue & responses_queue_,
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
     void startup();
-
-    void addServer(const std::vector<std::string> & endpoint_list);
-
-    void getServerList(std::vector<ServerInfo> & server_list);
 
     ptr<ForwardingConnection> getLeaderClient(size_t thread_idx);
 
     int32 getLeader();
 
-    void removeServer(const std::string & endpoint);
-
     void putRequest(const KeeperStore::RequestForSession & request);
 
     ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<KeeperStore::RequestForSession> & request_batch);
-
-    void processReadRequest(const KeeperStore::RequestForSession & request);
 
     int64_t getSessionID(int64_t session_timeout_ms);
     /// update session timeout
@@ -101,15 +90,12 @@ public:
         return initialized_flag;
     }
 
-    void reConfigIfNeed();
-
     void shutdown();
 
     nuraft::ptr<NuRaftStateMachine> getKeeperStateMachine() const
     {
         return state_machine;
     }
-
 
     bool isFollower() const;
 
@@ -127,7 +113,6 @@ public:
     /// Apply action for configuration update. Actually call raft_instance->remove_srv or raft_instance->add_srv.
     /// Synchronously check for update results with retries.
     bool applyConfigurationUpdate(const ConfigUpdateAction & task);
-
 
     /// Wait configuration update for action. Used by followers.
     /// Return true if update was successfully received.

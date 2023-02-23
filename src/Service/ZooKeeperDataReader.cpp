@@ -521,7 +521,7 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
             if (request->getOpNum() == Coordination::OpNum::Multi && hasErrorsInMultiRequest(request))
                 return true;
 
-            KeeperStore::SvsKeeperResponsesQueue responses_queue;
+            KeeperStore::KeeperResponsesQueue responses_queue;
             store.processRequest(responses_queue, request, session_id, time, zxid, /* check_acl = */ false, /*ignore_response*/true);
         }
     }
