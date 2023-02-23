@@ -17,6 +17,11 @@
         <log_to_console>true</log_to_console>
     </logger>
 
+    <!-- <core_dump> -->
+        <!-- 1 GiB by default. If more - it writes to disk too long. -->
+        <!-- <size_limit>1073741824</size_limit> -->
+    <!-- </core_dump> -->
+
     <keeper>
         <!-- My id in cluster. -->
         <my_id>1</my_id>
