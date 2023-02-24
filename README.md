@@ -3,7 +3,7 @@
 RaftKeeper is a high-performance distributed consensus service. 
 It is fully compatible with Zookeeper and can be accessed through the Zookeeper 
 client. It implements most of the functions of Zookeeper (except: Container node, 
-TTL node, quota, reconfig) and provides some additional functions, such as more 
+TTL node, quota etc.) and provides some additional functions, such as more 
 monitoring indicators, manual Leader switching and so on. 
 
 RaftKeeper provides a multi-thread processor for performance consideration. 
