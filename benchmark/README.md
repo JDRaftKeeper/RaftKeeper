@@ -3,11 +3,10 @@
 Zookeeper or RaftKeeper benchmark tool.
 
 ```
-bin/benchmark.sh target nodes thread_size payload_size run_duration(second) only_create
+bin/benchmark.sh nodes thread_size payload_size run_duration(second) only_create
 
 Arguments:
 
-target: test target - 'zookeeper', 'raftkeeper', 'etcd'
 nodes: target nodes
 thread_size: thread size, every thread will use a separated zookeeper client.
 payload_size: data item size in byte
