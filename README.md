@@ -13,7 +13,7 @@ But also it provides below guarantee:
 
 RaftKeeper data resides in memory and provides snapshot + operation log data 
 persistence capabilities. The execution framework adopts pipeline and batch 
-execution methods to greatly improve system throughput, see benchmark for details.
+execution methods to greatly improve system throughput, see [Benchmark](benchmark%2FBenchmark.md) for details.
 
 RaftKeeper is derived from [ClickHouse](https://github.com/ClickHouse/ClickHouse) 
 and take [NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
@@ -82,4 +82,4 @@ Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org
 # How to migrate from Zookeeper?
 
 RaftKeeper provides tool to translate Zookeeper data to RaftKeeper format. So you can 
-simply move data into RaftKeeper, detail is in [migrate-from-zookeeper.md](docs%2Fmigrate-from-zookeeper.md).
+simply move data into RaftKeeper, detail is in [migrate-from-zookeeper](docs%2Fmigrate-from-zookeeper.md).
