@@ -82,4 +82,4 @@ Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org
 # How to migrate from Zookeeper?
 
 RaftKeeper provides tool to translate Zookeeper data to RaftKeeper format. So you can 
-simply move data into RaftKeeper, detail is in [migrate-form-zookeeper.md](docs%2Fmigrate-form-zookeeper.md).
+simply move data into RaftKeeper, detail is in [migrate-from-zookeeper.md](docs%2Fmigrate-from-zookeeper.md).
