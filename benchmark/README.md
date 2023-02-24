@@ -2,14 +2,12 @@
 
 Zookeeper or RaftKeeper benchmark tool.
 
-Usage:
-
 ```
 bin/benchmark.sh target nodes thread_size payload_size run_duration(second) only_create
 
 Arguments:
 
-target: test target - 'zookeeper'
+target: test target - 'zookeeper', 'raftkeeper', 'etcd'
 nodes: target nodes
 thread_size: thread size, every thread will use a separated zookeeper client.
 payload_size: data item size in byte
@@ -27,8 +25,9 @@ Test read write consistency in one session.
 bin/session_consistency.sh nodes thread_size
 
 Arguments: 
+
 nodes: target nodes
-hread_size: thread size, all thread use a same zookeeper client.
+thread_size: thread size, all thread use a same zookeeper client.
 
 # For example : bin/session_consistency.sh "localhost:2181" 10
 ```
