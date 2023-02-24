@@ -220,12 +220,12 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     return result;
 }
 
-ptr<ForwardingConnection> NuRaftStateManager::getClient(int32 id, size_t thread_idx)
+ptr<ForwardingConnection> NuRaftStateManager::getClient(int32_t server_id, RunnerId runner_id)
 {
     std::lock_guard<std::mutex> lock(clients_mutex);
-    if (clients.contains(id) && clients[id].size() > thread_idx)
+    if (clients.contains(server_id) && clients[server_id].size() > runner_id)
     {
-        return clients[id][thread_idx];
+        return clients[server_id][runner_id];
     }
     return nullptr;
 }

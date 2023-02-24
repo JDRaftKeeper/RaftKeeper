@@ -35,8 +35,8 @@ struct ForwardResponse
     int32_t error_code{nuraft::cmd_result_code::OK};
 
     /// source info
-    int64_t session_id{-1};
-    int64_t xid{-1};
+    int64_t session_id{non_session_id};
+    int64_t xid{non_xid};
     Coordination::OpNum opnum{Coordination::OpNum::Error};
 
     void write(WriteBufferFromFiFoBuffer & buf) const
@@ -83,7 +83,14 @@ struct ForwardResponse
 class ForwardingConnection
 {
 public:
-    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout_ms) : my_server_id(server_id_), thread_id(thread_id_), endpoint(endpoint_), operation_timeout(operation_timeout_ms), log(&Poco::Logger::get("ForwardingConnection")) {}
+    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout_ms)
+        : my_server_id(server_id_)
+        , thread_id(thread_id_)
+        , endpoint(endpoint_)
+        , operation_timeout(operation_timeout_ms)
+        , log(&Poco::Logger::get("ForwardingConnection"))
+    {
+    }
 
     void connect(Poco::Timespan connection_timeout);
     void send(KeeperStore::RequestForSession request_for_session);
@@ -98,10 +105,7 @@ public:
 
     bool poll(UInt64 max_wait);
 
-    bool isConnected() const
-    {
-        return connected;
-    }
+    bool isConnected() const { return connected; }
 
     ~ForwardingConnection()
     {
@@ -127,6 +131,5 @@ private:
     std::optional<WriteBufferFromPocoSocket> out;
 
     Poco::Logger * log;
-
 };
 }

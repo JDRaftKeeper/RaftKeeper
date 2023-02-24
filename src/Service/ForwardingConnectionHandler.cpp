@@ -1,13 +1,13 @@
-#    include <Service/ForwardingConnectionHandler.h>
+#include <Service/ForwardingConnectionHandler.h>
 
-#    include <Service/ForwardingConnection.h>
-#    include <Service/FourLetterCommand.h>
-#    include <Service/formatHex.h>
-#    include <Poco/Net/NetException.h>
-#    include <Common/Stopwatch.h>
-#    include <Common/ZooKeeper/ZooKeeperCommon.h>
-#    include <Common/ZooKeeper/ZooKeeperIO.h>
-#    include <Common/setThreadName.h>
+#include <Service/ForwardingConnection.h>
+#include <Service/FourLetterCommand.h>
+#include <Service/formatHex.h>
+#include <Poco/Net/NetException.h>
+#include <Common/Stopwatch.h>
+#include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -233,9 +233,9 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             int64_t expiration_time;
                             Coordination::read(expiration_time, body);
 
-                            LOG_TRACE(log, "Receive session {}, expiration time {}", toHexString(session_id), expiration_time);
+                            LOG_TRACE(log, "Receive remote session {}, expiration time {}", session_id, expiration_time);
 
-                            keeper_dispatcher->setSessionExpirationTime(session_id, expiration_time);
+                            keeper_dispatcher->handleRemoteSession(session_id, expiration_time);
                         }
 
                         req_body_buf.reset();
@@ -247,6 +247,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             nuraft::cmd_result_code::OK,
                             ForwardResponse::non_session_id,
                             ForwardResponse::non_xid,
+                            /// TODO add new OpNum
                             Coordination::OpNum::Error};
                         keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
                     }
@@ -282,9 +283,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
 {
     try
     {
-        //        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
-
-        if (responses->size() == 0 && send_buf.used() == 0)
+        if (responses->empty() && send_buf.used() == 0)
             return;
 
         /// TODO use zero copy buffer
@@ -324,7 +323,6 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
             {
                 sent -= resp->used();
                 responses->remove();
-                //                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -336,7 +334,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         }
 
         /// If all sent unregister writable event.
-        if (responses->size() == 0 && send_buf.used() == 0)
+        if (responses->empty() && send_buf.used() == 0)
         {
             LOG_TRACE(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
             reactor_.removeEventHandler(
@@ -359,7 +357,6 @@ void ForwardingConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotifi
 
 void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-    //    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
     destroyMe();
 }
 
@@ -399,7 +396,6 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
     /// TODO handle timeout
     responses->push(buf.getBuffer());
 
-    //    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
     reactor_.addEventHandler(
         socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));

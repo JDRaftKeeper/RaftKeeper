@@ -299,7 +299,7 @@ public:
         return ret;
     }
 
-    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+    void handleRemoteSession(int64_t session_id, int64_t expiration_time)
     {
         std::lock_guard lock(session_mutex);
         session_expiry_queue.setSessionExpirationTime(session_id, expiration_time);
@@ -312,7 +312,7 @@ public:
     {
         return container.size();
     }
-
+    
     uint64_t getApproximateDataSize() const
     {
         UInt64 node_count = container.size();

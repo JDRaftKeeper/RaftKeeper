@@ -7,6 +7,7 @@
 #include <Service/NuRaftStateMachine.h>
 #include <Service/NuRaftStateManager.h>
 #include <Service/Settings.h>
+#include <Service/Types.h>
 #include <libnuraft/nuraft.hxx>
 
 namespace RK
@@ -59,7 +60,7 @@ public:
 
     void startup();
 
-    ptr<ForwardingConnection> getLeaderClient(size_t thread_idx);
+    ptr<ForwardingConnection> getLeaderClient(RunnerId runner_id);
 
     int32 getLeader();
 
@@ -74,7 +75,7 @@ public:
 
     std::vector<int64_t> getDeadSessions();
 
-    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time);
+    void handleRemoteSession(int64_t session_id, int64_t expiration_time);
 
     int64_t getSessionTimeout(int64_t session_id);
 

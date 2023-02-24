@@ -110,9 +110,9 @@ void KeeperServer::startup()
         dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
 
-ptr<ForwardingConnection> KeeperServer::getLeaderClient(size_t thread_idx)
+ptr<ForwardingConnection> KeeperServer::getLeaderClient(RunnerId runner_id)
 {
-    return state_manager->getClient(raft_instance->get_leader(), thread_idx);
+    return state_manager->getClient(raft_instance->get_leader(), runner_id);
 }
 
 
@@ -333,9 +333,9 @@ bool KeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_time
     return is_success;
 }
 
-void KeeperServer::setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+void KeeperServer::handleRemoteSession(int64_t session_id, int64_t expiration_time)
 {
-    state_machine->getStore().setSessionExpirationTime(session_id, expiration_time);
+    state_machine->getStore().handleRemoteSession(session_id, expiration_time);
 }
 
 int64_t KeeperServer::getSessionTimeout(int64_t session_id)
