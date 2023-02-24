@@ -15,7 +15,7 @@ classpath=$confDir:$classpath
 
 # benchmark
 # args: target nodes thread_size payload_size run_duration(second) only_create
-# for example : ./session_consistency.sh "localhost:2181" 10 100 20 true
+# for example : ./benchmark.sh "localhost:2181" 10 100 20 true
 
 nodes=$1
 thread_size=$2

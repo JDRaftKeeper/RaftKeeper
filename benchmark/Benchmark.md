@@ -9,8 +9,9 @@ You can use the Benchmark tool that comes with RaftKeeper to benchmark RaftKeepe
 Server: Docker - 16 cores, 32GB memory, 50GB NVMe disk
 System: CentOS 7.9
 Version:  RaftKeeper 2.0.0, ZooKeeper 3.7.1
-Config: RaftKeeper log level warning, ZooKeeper log level warn, others is default.
-Test Data: every item is 100 bytes.
+Cluster: RaftKeeper 3 nodes, ZooKeeper 3 nodes
+Config: RaftKeeper log level warning, ZooKeeper log level warn, others is default
+Test Data: every item is 100 bytes
 ```
 
 ## 1. Write request benchmark (Create-100%)
