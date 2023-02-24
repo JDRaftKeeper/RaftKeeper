@@ -49,7 +49,7 @@ void RequestProcessor::run()
             size_t committed_request_size = committed_queue.size();
 
             /// 2. process read request, multi thread
-            for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
+            for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
             {
                 request_thread->trySchedule([this, runner_id] {
                     moveRequestToPendingQueue(runner_id);
@@ -99,7 +99,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
     {
         if (committed_queue.peek(committed_request))
         {
-            auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(committed_request.session_id))->second;
+            auto & pending_requests_for_thread = pending_requests.find(getRunnerId(committed_request.session_id))->second;
 
             LOG_DEBUG(
                 log,
@@ -251,7 +251,7 @@ void RequestProcessor::processErrorRequest()
             
             LOG_WARNING(log, "Found error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
 
-            auto & pending_requests_for_thread = pending_requests.find(getThreadIndex(session_id))->second;
+            auto & pending_requests_for_thread = pending_requests.find(getRunnerId(session_id))->second;
 
             if (!keeper_dispatcher->isLocalSession(session_id))
             {
@@ -497,12 +497,12 @@ void RequestProcessor::initialize(
     UInt64 operation_timeout_ms_)
 {
     operation_timeout_ms = operation_timeout_ms_;
-    thread_count = thread_count_;
+    runner_count = thread_count_;
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
-    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+    requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
     request_thread = std::make_shared<ThreadPool>(thread_count_);
-    for (size_t i = 0; i < thread_count; i++)
+    for (size_t i = 0; i < runner_count; i++)
     {
         pending_requests[i];
     }

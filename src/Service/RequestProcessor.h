@@ -3,6 +3,7 @@
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
 #include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <Service/Types.h>
 
 namespace RK
 {
@@ -14,8 +15,6 @@ namespace ErrorCodes
 }
 
 using RequestForSession = KeeperStore::RequestForSession;
-using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
-using RunnerId = size_t;
 
 struct ErrorRequest
 {
@@ -66,9 +65,9 @@ public:
 
 private:
 
-    size_t getThreadIndex(int64_t session_id) const
+    size_t getRunnerId(int64_t session_id) const
     {
-        return session_id % thread_count;
+        return session_id % runner_count;
     }
 
 
@@ -85,14 +84,14 @@ private:
     /// Local requests
     ptr<RequestsQueue> requests_queue;
 
-    /// <thread_id, <session_id, requests>>
+    /// <runner_id, <session_id, requests>>
     /// Requests from `requests_queue` grouped by session
     std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> pending_requests;
 
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<KeeperStore::RequestForSession> committed_queue{1000};
 
-    size_t thread_count;
+    size_t runner_count;
 
     ThreadPoolPtr request_thread;
 

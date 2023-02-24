@@ -9,6 +9,7 @@
 #include <Poco/Util/LayeredConfiguration.h>
 #include <Common/StringUtils/StringUtils.h>
 #include <common/logger_useful.h>
+#include <Service/Types.h>
 
 namespace RK
 {
@@ -74,7 +75,7 @@ public:
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
-    ptr<ForwardingConnection> getClient(int32 id, size_t thread_idx);
+    ptr<ForwardingConnection> getClient(int32_t server_id, RunnerId runner_id);
 
 protected:
     NuRaftStateManager() = default;

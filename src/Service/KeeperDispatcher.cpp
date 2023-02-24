@@ -265,6 +265,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     LOG_DEBUG(log, "Initializing dispatcher");
     configuration_and_settings = Settings::loadFromConfig(config, true);
 
+    /// TODO remove
     bool session_consistent = configuration_and_settings->raft_settings->session_consistent;
 
     size_t thread_count = configuration_and_settings->thread_count;

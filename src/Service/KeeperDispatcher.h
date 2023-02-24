@@ -27,7 +27,6 @@ namespace RK
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
 using ForwardResponseCallback = std::function<void(const ForwardResponse & response)>;
 
-using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 class KeeperDispatcher : public std::enable_shared_from_this<KeeperDispatcher>
 {
 
@@ -128,9 +127,9 @@ public:
     void filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     /// from follower
-    void setSessionExpirationTime(int64_t session_id, int64_t expiration_time)
+    void handleRemoteSession(int64_t session_id, int64_t expiration_time)
     {
-        server->setSessionExpirationTime(session_id, expiration_time);
+        server->handleRemoteSession(session_id, expiration_time);
     }
 
     /// Thread apply or wait configuration changes from leader

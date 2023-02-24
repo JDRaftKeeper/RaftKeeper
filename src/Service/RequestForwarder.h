@@ -4,6 +4,7 @@
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
 #include <Common/Stopwatch.h>
+#include <Service/Types.h>
 
 namespace RK
 {
@@ -15,9 +16,6 @@ namespace ErrorCodes
 
 class RequestForwarder
 {
-    using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
-    using RunnerId = size_t;
-
 public:
     explicit RequestForwarder(std::shared_ptr<RequestProcessor> request_processor_)
         : request_processor(request_processor_), log(&Poco::Logger::get("RequestForwarder"))

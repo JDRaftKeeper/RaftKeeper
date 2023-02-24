@@ -33,10 +33,6 @@ using Poco::Logger;
 
 class ForwardingConnectionHandler
 {
-private:
-    static std::mutex conns_mutex;
-    /// all connections
-    static std::unordered_set<ForwardingConnectionHandler *> connections;
 
 public:
     ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor);
@@ -47,9 +43,7 @@ public:
     void onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf);
     void onSocketError(const AutoPtr<ErrorNotification> & pNf);
 
-
 private:
-
     std::tuple<int64_t, int64_t, Coordination::OpNum> receiveRequest(int32_t length);
 
     void sendResponse(const ForwardResponse & response);
