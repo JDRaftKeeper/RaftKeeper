@@ -16,9 +16,6 @@ void RequestAccumulator::run(RunnerId runner_id)
     setThreadName(("ReqAccumu-" + toString(runner_id)).c_str());
 
     NuRaftResult result = nullptr;
-    /// Requests from previous iteration. We store them to be able
-    /// to send errors to the client.
-    //    KeeperStore::RequestsForSessions prev_batch;
 
     KeeperStore::RequestsForSessions to_append_batch;
     UInt64 max_wait = operation_timeout_ms;
@@ -118,7 +115,7 @@ void RequestAccumulator::shutdown()
 }
 
 void RequestAccumulator::initialize(
-    size_t thread_count,
+    size_t runner_count,
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     std::shared_ptr<KeeperServer> server_,
     UInt64 operation_timeout_ms_,
@@ -128,9 +125,9 @@ void RequestAccumulator::initialize(
     operation_timeout_ms = operation_timeout_ms_;
     max_batch_size = max_batch_size_;
     server = server_;
-    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
-    request_thread = std::make_shared<ThreadPool>(thread_count);
-    for (size_t i = 0; i < thread_count; i++)
+    requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
+    request_thread = std::make_shared<ThreadPool>(runner_count);
+    for (size_t i = 0; i < runner_count; i++)
     {
         request_thread->trySchedule([this, i] { run(i); });
     }

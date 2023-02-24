@@ -3,6 +3,7 @@
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
+#include <Service/Types.h>
 
 namespace RK
 {
@@ -15,9 +16,7 @@ namespace RK
 class RequestAccumulator
 {
     using RequestForSession = KeeperStore::RequestForSession;
-    using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
     using NuRaftResult = nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>>;
-    using RunnerId = size_t;
 
 public:
     explicit RequestAccumulator(std::shared_ptr<RequestProcessor> request_processor_)
@@ -34,7 +33,7 @@ public:
     void shutdown();
 
     void initialize(
-        size_t thread_count,
+        size_t runner_count,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         std::shared_ptr<KeeperServer> server_,
         UInt64 operation_timeout_ms_,
