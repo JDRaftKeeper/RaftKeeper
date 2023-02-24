@@ -1,4 +1,4 @@
-# RaftKeeper
+![logo.png](logo.png)
 
 RaftKeeper is a high-performance distributed consensus service. 
 It is fully compatible with Zookeeper and can be accessed through the Zookeeper 
