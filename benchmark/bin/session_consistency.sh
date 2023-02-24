@@ -15,7 +15,7 @@ classpath=$confDir:$classpath
 
 # Test read write consistency in one session
 # args: nodes thread_size
-# for example : ./benchmark.sh "localhost:2181" 10
+# for example : ./session_consistency.sh "localhost:2181" 10
 
 nodes=$1
 thread_size=$2
