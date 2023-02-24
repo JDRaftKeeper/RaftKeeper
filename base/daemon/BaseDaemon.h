@@ -80,14 +80,6 @@ public:
     /// also doesn't close global internal pipes for signal handling
     static void closeFDs();
 
-    /// If this method is called after initialization and before run,
-    /// will fork child process and setup watchdog that will print diagnostic info, if the child terminates.
-    /// argv0 is needed to change process name (consequently, it is needed for scripts involving "pgrep", "pidof" to work correctly).
-    void shouldSetupWatchdog(char * argv0_);
-
-    /// Hash of the binary for integrity checks.
-    String getStoredBinaryHash() const;
-
 protected:
     virtual void logRevision() const;
 
@@ -96,9 +88,6 @@ protected:
 
     /// initialize termination process and signal handlers
     virtual void initializeTerminationAndSignalProcessing();
-
-    /// fork the main process and watch if it was killed
-    void setupWatchdog();
 
     void waitForTerminationRequest()
 #if defined(POCO_CLICKHOUSE_PATCH) || POCO_VERSION >= 0x02000000 // in old upstream poco not vitrual
