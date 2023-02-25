@@ -123,3 +123,5 @@ config-preprocessed.xml
 
 # ignore benchmark target file
 benchmark/target
+RaftKeeper.tar.gz
+RaftKeeper/
