@@ -204,7 +204,7 @@ int NuRaftLogSegment::load()
 
     size_t entry_off = loadVersion();
     UInt64 actual_last_index = first_index - 1;
-    for (size_t i = first_index; entry_off < file_size; i++)
+    for (; entry_off < file_size;)
     {
         LogEntryHeader header;
         const int rc = loadHeader(seg_fd, entry_off, &header);
