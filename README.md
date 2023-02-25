@@ -33,7 +33,7 @@ Requirement: macOS 10+, Clang 13+, Cmake 3.12+
 brew install cmake llvm@13
  
 # clone project
-git clone git@xxx/RaftKeeper.git
+git clone https://github.com/JDRaftKeeper/RaftKeeper.git
 git submodule sync && git submodule update --init --recursive
  
 # build project
@@ -49,7 +49,7 @@ Requirement: Ubuntu20.04+, Clang 13+, Cmake 3.12+
 sudo apt-get install cmake llvm-13
  
 # clone project
-git clone git@xxx/RaftKeeper.git
+git clone https://github.com/JDRaftKeeper/RaftKeeper.git
 git submodule sync && git submodule update --init --recursive
  
 # build project
@@ -61,8 +61,7 @@ cd RaftKeeper && sh build.sh
 
 Deploy a three nodes cluster.
 ```
-# download or use tar.gz file in step 1.
-wget xxx 
+# use tar.gz file in step 1.
 tar -xzvf RaftKeeper.tar.gz
  
 # configure it: replace my_id under <my_id> 
