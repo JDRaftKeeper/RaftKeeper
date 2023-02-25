@@ -17,5 +17,4 @@ cp programs/server/bin/start.sh RaftKeeper/bin/.
 cp programs/server/bin/stop.sh RaftKeeper/bin/.
 cp build/programs/raftkeeper RaftKeeper/lib/.
 cp programs/server/config.xml RaftKeeper/conf/.
-sed -i
 tar -czvf RaftKeeper.tar.gz RaftKeeper
