@@ -26,7 +26,7 @@ We really appreciate the excellent work of the ClickHouse and NuRaft team.
 
 ### Build on macOS
 
-Requirement: macOS 10+, Clang 13+, Cmake 3.3+
+Requirement: macOS 10+, Clang 13+, Cmake 3.12+
 
 ```
 # install tools
@@ -38,12 +38,12 @@ git submodule sync && git submodule update --init --recursive
  
 # build project
 export CC=/usr/local/opt/llvm@13/bin/clang CXX=/usr/local/opt/llvm@13/bin/clang++
-cd RaftKeeper && sh bin/build.sh
+cd RaftKeeper && sh build.sh
 ```
 
 ### Build on Ubuntu
 
-Requirement: Ubuntu20.04+, Clang 13+, Cmake 3.3+
+Requirement: Ubuntu20.04+, Clang 13+, Cmake 3.12+
 ```
 # install tools
 sudo apt-get install cmake llvm-13
@@ -54,22 +54,24 @@ git submodule sync && git submodule update --init --recursive
  
 # build project
 export CC=/usr/bin/clang-13 CXX=/usr/bin/clang++-13
-cd RaftKeeper/bin && bash start.sh
+cd RaftKeeper && sh build.sh
 ```
 
 ## 2. Deploy RaftKeeper
 
 Deploy a three nodes cluster.
 ```
-# download RaftKeeper
+# download or use tar.gz file in step 1.
 wget xxx 
 tar -xzvf RaftKeeper.tar.gz
  
-# configure it: replace my_id under <my_id> and id & host under <cluster>. Pls note that three nodes must has different id.
+# configure it: replace my_id under <my_id> 
+# If you deploy a multi nodes cluster, configure id & host under <cluster>. 
+#     Pls note that nodes must has different id.
 vim RaftKeeper/conf/config.xml
  
 # start it
-cd RaftKeeper/bin && bash start.sh
+cd RaftKeeper/bin && sh start.sh
 ```
 
 

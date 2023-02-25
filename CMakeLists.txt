@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.12)
 
 foreach(policy
         CMP0023
@@ -246,7 +246,7 @@ else()
 endif()
 
 # cmake < 3.12 doesn't support 20. We'll set CMAKE_CXX_FLAGS for now
-# set (CMAKE_CXX_STANDARD 20)
+set (CMAKE_CXX_STANDARD 20)
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=${_CXX_STANDARD}")
 
 set (CMAKE_CXX_EXTENSIONS 0) # https://cmake.org/cmake/help/latest/prop_tgt/CXX_EXTENSIONS.html#prop_tgt:CXX_EXTENSIONS
