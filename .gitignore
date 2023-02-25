@@ -53,6 +53,8 @@ CTestTestfile.cmake
 *.a
 *.o
 cmake-build-*
+RaftKeeper.tar.gz
+RaftKeeper/
 
 # Python cache
 *.pyc
