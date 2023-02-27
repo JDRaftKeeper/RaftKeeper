@@ -50,7 +50,7 @@ git submodule sync && git submodule update --init --recursive
  
 # build project
 export CC=/usr/bin/clang-13 CXX=/usr/bin/clang++-13
-cd RaftKeeper && sh build.sh
+cd RaftKeeper && /bin/bash build.sh
 ```
 
 ### Build on macOS
