@@ -24,6 +24,19 @@ We really appreciate the excellent work of the ClickHouse and NuRaft team.
 
 ## 1. Build RaftKeeper
 
+### Build on Centos
+
+Requirement: Centos7.4+, Gcc 10.2.0+, Cmake 3.12+
+```
+# clone project
+git clone https://github.com/JDRaftKeeper/RaftKeeper.git
+git submodule sync && git submodule update --init --recursive
+
+# build project
+export CC=`which gcc-10` CXX=`which g++-10`
+cd RaftKeeper && sh build.sh
+```
+
 ### Build on Ubuntu
 
 Requirement: Ubuntu20.04+, Clang 13+, Cmake 3.12+
