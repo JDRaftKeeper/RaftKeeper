@@ -489,9 +489,6 @@ macro (add_executable target)
     endif()
 endmacro()
 
-set(ConfigIncludePath ${CMAKE_CURRENT_BINARY_DIR}/includes/configs CACHE INTERNAL "Path to generated configuration files.")
-include_directories(${ConfigIncludePath})
-
 # Add as many warnings as possible for our own code.
 include (cmake/warnings.cmake)
 

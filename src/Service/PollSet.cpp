@@ -185,7 +185,7 @@ public:
             }
             else
             {
-                LOG_ERROR(log, "Poll receive null data socket event {}", _events[i].events);
+                LOG_ERROR(log, "Poll receive null data socket event {}", static_cast<unsigned int>(_events[i].events));
             }
 		}
 
