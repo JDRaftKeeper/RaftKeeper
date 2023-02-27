@@ -1,6 +1,7 @@
 # RaftKeeper Benchmarks
 
-You can use the Benchmark tool that comes with RaftKeeper to benchmark RaftKeeper performance.
+You can use the Benchmark tool that comes with RaftKeeper to benchmark RaftKeeper performance. Below we compare the performance of ZooKeeper and RaftKeeper.
+
 
 
 ## Environment
