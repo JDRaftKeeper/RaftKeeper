@@ -7,7 +7,7 @@ ROOT=$(cd "$ROOT"; pwd)
 mkdir -p $ROOT/build
 
 cd $ROOT/build
-cmake .. -DENABLE_JEMALLOC=0
+cmake ..
 
 PARALLEL="$(($(nproc) / 4 + 1))"
 make -j $PARALLEL
