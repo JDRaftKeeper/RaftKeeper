@@ -49,7 +49,7 @@ git clone https://github.com/JDRaftKeeper/RaftKeeper.git
 git submodule sync && git submodule update --init --recursive
  
 # build project
-export CC=/usr/bin/clang-13 CXX=/usr/bin/clang++-13
+export CC=`which clang-13` CXX=`which clang++-13`
 cd RaftKeeper && /bin/bash build.sh
 ```
 
