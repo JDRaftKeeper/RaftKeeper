@@ -2,9 +2,9 @@ name: CMake
 
 on:
   push:
-    branches: [ "nicelulu-ci-test" ]
+    branches: [ "ci-test" ]
   pull_request:
-    branches: [ "nicelulu-ci-test" ]
+    branches: [ "ci-test" ]
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
