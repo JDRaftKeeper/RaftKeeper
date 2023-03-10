@@ -330,7 +330,7 @@ TEST(RaftSnapshot, whenToSnapshot)
     timer.interval = 24 * 3600;
 
     // first snapshot
-    bool is_time = timer.isActionTime("", 0);
+    bool is_time = timer.isActionTime(0, 0);
     ASSERT_EQ(is_time, true);
 }
 
