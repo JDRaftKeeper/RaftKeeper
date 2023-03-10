@@ -11,8 +11,7 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+  build and test:
     runs-on: ubuntu-22.04
 
     steps:
@@ -36,4 +35,4 @@ jobs:
 
     - name: Run integration Tests
       working-directory: ${{github.workspace}}/tests/integration
-      run:  ./runner --binary ${{github.workspace}}/build/programs/raftkeeper  --base-configs-dir ../config/
+      run:  ./runner --binary ${{github.workspace}}/build/programs/raftkeeper  --base-configs-dir ${{github.workspace}}/programs/server
