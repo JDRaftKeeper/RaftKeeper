@@ -154,6 +154,11 @@ if __name__ == "__main__":
         action="append",
         help="Set non-default tags for images used in docker compose recipes(yandex/my_container:my_tag)")
 
+    parser.add_argument(
+        "--use-net-host",
+        default=True,
+        help="Whether use host net in runner.")
+
     parser.add_argument('pytest_args', nargs='*', help="args for pytest command")
 
     args = parser.parse_args()
@@ -161,7 +166,7 @@ if __name__ == "__main__":
     check_args_and_update_paths(args)
 
     net = ""
-    if not args.disable_net_host:
+    if args.use_net_host:
         net = "--net=host"
 
     env_tags = ""
