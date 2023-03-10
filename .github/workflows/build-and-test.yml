@@ -20,11 +20,11 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Install ninja
-      run: sudo apt install -y ninja-build
+    - name: Install ninja & ccache
+      run: sudo apt install -y ninja-build ccache
 
     - name: CMake
-      run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
     - name: Build
       working-directory: ${{github.workspace}}/build
@@ -36,4 +36,4 @@ jobs:
 
     - name: Run integration Tests
       working-directory: ${{github.workspace}}/tests/integration
-      run:  ./runner --binary ${{github.workspace}}/build/programs/raftkeeper  --base-configs-dir ./config/
+      run:  ./runner --binary ${{github.workspace}}/build/programs/raftkeeper  --base-configs-dir ../config/
