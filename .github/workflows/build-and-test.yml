@@ -20,6 +20,9 @@ jobs:
       with:
         submodules: recursive
 
+    - name: Install ninja
+      run: sudo apt install -y ninja-build
+
     - name: CMake
       run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
