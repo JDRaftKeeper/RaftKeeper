@@ -12,6 +12,4 @@ target_link_libraries(raftkeeper_common_config
         raftkeeper_common_zookeeper
         common
         Poco::XML
-    PRIVATE
-        string_utils
 )

@@ -1,13 +1,9 @@
 #include "OwnPatternFormatter.h"
 
 #include <functional>
-#include <optional>
-#include <sys/time.h>
 #include <IO/WriteBufferFromString.h>
 #include <IO/WriteHelpers.h>
-#include <Common/HashTable/Hash.h>
 #include <Common/CurrentThread.h>
-#include <common/getThreadId.h>
 #include <common/terminalColors.h>
 #include "Loggers.h"
 
@@ -49,7 +45,7 @@ void OwnPatternFormatter::formatExtended(const RK::ExtendedLogMessage & msg_ext,
 
     writeCString(" [ ", wb);
     if (color)
-        writeString(setColor(intHash64(msg_ext.thread_id)), wb);
+        writeString(setColor(msg_ext.thread_id), wb);
     RK::writeIntText(msg_ext.thread_id, wb);
     if (color)
         writeCString(resetColor(), wb);

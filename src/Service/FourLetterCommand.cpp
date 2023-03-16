@@ -3,13 +3,13 @@
 #include <IO/Operators.h>
 #include <IO/WriteHelpers.h>
 #include <Service/ConnectionHandler.h>
-#include <Common/config_version.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperDispatcher.h>
 #include <Poco/Environment.h>
 #include <Poco/Path.h>
 #include <Poco/String.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
+#include <Common/config_version.h>
 #include <Common/getCurrentProcessFDCount.h>
 #include <Common/getMaxFileDescriptorCount.h>
 #include <common/find_symbols.h>

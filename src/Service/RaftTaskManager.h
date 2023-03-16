@@ -4,7 +4,7 @@
 #include <Service/ThreadSafeQueue.h>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/Util/LayeredConfiguration.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
 
