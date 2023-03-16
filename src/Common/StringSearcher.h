@@ -1,14 +1,14 @@
 #pragma once
 
-#include <common/getPageSize.h>
-#include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/UTF8Helpers.h>
-#include <Core/Defines.h>
-#include <ext/range.h>
-#include <Poco/Unicode.h>
 #include <stdint.h>
 #include <string.h>
+#include <Core/Defines.h>
+#include <Poco/Unicode.h>
+#include <Common/Exception.h>
+#include <Common/UTF8Helpers.h>
+#include <common/getPageSize.h>
+#include <ext/range.h>
+#include "StringUtils.h"
 
 #ifdef __SSE2__
     #include <emmintrin.h>

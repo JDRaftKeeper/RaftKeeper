@@ -1,6 +1,6 @@
-#include <Common/hex.h>
-#include <Common/StringUtils/StringUtils.h>
 #include <Common/escapeForFileName.h>
+#include <Common/hex.h>
+#include "StringUtils.h"
 
 namespace RK
 {

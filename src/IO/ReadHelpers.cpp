@@ -1,14 +1,14 @@
-#include <Core/Defines.h>
-#include <Common/hex.h>
-#include <Common/PODArray.h>
-#include <Common/StringUtils/StringUtils.h>
-#include <Common/memcpySmall.h>
-#include <IO/WriteHelpers.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/readFloatText.h>
-#include <IO/Operators.h>
-#include <common/find_symbols.h>
 #include <stdlib.h>
+#include <Core/Defines.h>
+#include <IO/Operators.h>
+#include <IO/WriteBufferFromString.h>
+#include <IO/WriteHelpers.h>
+#include <IO/readFloatText.h>
+#include "Common/StringUtils.h"
+#include <Common/PODArray.h>
+#include <Common/hex.h>
+#include <Common/memcpySmall.h>
+#include <common/find_symbols.h>
 
 #ifdef __SSE2__
     #include <emmintrin.h>

@@ -1,24 +1,24 @@
 #include "ConfigProcessor.h"
 
-#include <sys/utsname.h>
+#include <algorithm>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
-#include <algorithm>
-#include <functional>
 #include <filesystem>
-#include <Poco/DOM/Text.h>
+#include <functional>
+#include <IO/Operators.h>
+#include <IO/WriteBufferFromString.h>
+#include <sys/utsname.h>
 #include <Poco/DOM/Attr.h>
 #include <Poco/DOM/Comment.h>
+#include <Poco/DOM/Text.h>
 #include <Poco/Util/XMLConfiguration.h>
-#include <Common/ZooKeeper/ZooKeeperNodeCache.h>
-#include <Common/ZooKeeper/KeeperException.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
 #include <Common/Exception.h>
-#include <common/getResource.h>
+#include <Common/ZooKeeper/KeeperException.h>
+#include <Common/ZooKeeper/ZooKeeperNodeCache.h>
 #include <common/errnoToString.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/Operators.h>
+#include <common/getResource.h>
 
 
 #define PREPROCESSED_SUFFIX "-preprocessed"

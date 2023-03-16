@@ -16,8 +16,8 @@
 #include <Core/Types.h>
 #include <Core/UUID.h>
 
+#include "Common/StringUtils.h"
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
 #include <Common/UInt128.h>
 
 #include <IO/WriteBuffer.h>

@@ -1,6 +1,6 @@
 #include <Common/formatIPv6.h>
 #include <Common/hex.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "StringUtils.h"
 
 #include <ext/range.h>
 #include <array>
