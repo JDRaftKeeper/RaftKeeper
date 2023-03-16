@@ -12,7 +12,7 @@
 #include <common/logger_useful.h>
 
 #include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "StringUtils.h"
 
 #ifndef NDEBUG
 #    include <iostream>

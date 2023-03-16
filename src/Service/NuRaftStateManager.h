@@ -4,12 +4,12 @@
 #include <Service/ForwardingConnection.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/Settings.h>
+#include <Service/Types.h>
 #include <libnuraft/buffer.hxx>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/Util/LayeredConfiguration.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
 #include <common/logger_useful.h>
-#include <Service/Types.h>
 
 namespace RK
 {

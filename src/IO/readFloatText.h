@@ -1,10 +1,10 @@
 #pragma once
 #include <type_traits>
-#include <IO/ReadHelpers.h>
 #include <Core/Defines.h>
-#include <common/shift10.h>
-#include <Common/StringUtils/StringUtils.h>
+#include <IO/ReadHelpers.h>
 #include <double-conversion/double-conversion.h>
+#include "Common/StringUtils.h"
+#include <common/shift10.h>
 
 #ifdef __clang__
 #pragma clang diagnostic push

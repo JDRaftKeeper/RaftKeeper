@@ -6,7 +6,6 @@ set (RAFTKEEPER_SERVER_LINK
     PRIVATE
         raftkeeper_common_config
         raftkeeper_common_io
-        string_utils
         ${NURAFT_LIBRARY}
         ${LINK_RESOURCE_LIB}
     

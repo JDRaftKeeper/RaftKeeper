@@ -17,9 +17,9 @@
 #include <Core/Types.h>
 #include <Core/UUID.h>
 
-#include <Common/Exception.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
 #include <Common/Arena.h>
+#include <Common/Exception.h>
 #include <Common/UInt128.h>
 #include <Common/intExp.h>
 

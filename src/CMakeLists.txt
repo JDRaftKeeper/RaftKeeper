@@ -124,7 +124,6 @@ set_source_files_properties(
 
 target_link_libraries (raftkeeper_common_io
         PRIVATE
-            string_utils
             widechar_width
             ${LINK_LIBRARIES_ONLY_ON_X86_64}
         PUBLIC
@@ -165,7 +164,6 @@ dbms_target_link_libraries (
         boost::program_options
         raftkeeper_common_config
         raftkeeper_common_zookeeper
-        string_utils
     PUBLIC
         boost::system
         raftkeeper_common_io
@@ -217,7 +215,6 @@ if (ENABLE_TESTS AND USE_GTEST)
     target_link_libraries(unit_tests_dbms PRIVATE ${GTEST_BOTH_LIBRARIES}
         dbms
         raftkeeper_common_zookeeper
-        string_utils
         raftkeeper_service_protos
         loggers)
     add_check(unit_tests_dbms)

@@ -4,7 +4,7 @@
 #include <boost/algorithm/string.hpp>
 #include <Poco/Base64Encoder.h>
 #include <Poco/SHA1Engine.h>
-#include <Common/StringUtils/StringUtils.h>
+#include "Common/StringUtils.h"
 #include <Common/ZooKeeper/IKeeper.h>
 
 namespace RK

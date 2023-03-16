@@ -42,7 +42,7 @@ if (ARCH_AMD64 AND OS_LINUX AND NOT OS_ANDROID)
     set (HARMFUL_LIB harmful)
 endif ()
 
-target_link_libraries (raftkeeper PRIVATE raftkeeper_common_io string_utils ${HARMFUL_LIB})
+target_link_libraries (raftkeeper PRIVATE raftkeeper_common_io ${HARMFUL_LIB})
 target_include_directories (raftkeeper PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 raftkeeper_target_link_split_lib(raftkeeper server)
@@ -56,7 +56,6 @@ list(APPEND RAFTKEEPER_BUNDLE raftkeeper-server)
 add_custom_target (raftkeeper-converter ALL COMMAND ${CMAKE_COMMAND} -E create_symlink raftkeeper raftkeeper-converter DEPENDS raftkeeper)
 install (FILES ${CMAKE_CURRENT_BINARY_DIR}/raftkeeper-converter DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
 list(APPEND RAFTKEEPER_BUNDLE raftkeeper-converter)
-#endif ()
 
 install (TARGETS raftkeeper RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
 

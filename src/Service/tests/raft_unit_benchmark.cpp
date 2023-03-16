@@ -15,8 +15,8 @@
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/Application.h>
 #include <Poco/Util/LayeredConfiguration.h>
+#include "Common/StringUtils.h"
 #include <Common/Stopwatch.h>
-#include <Common/StringUtils/StringUtils.h>
 #include <Common/ThreadPool.h>
 #include <Common/ZooKeeper/IKeeper.h>
 #include <Common/ZooKeeper/KeeperException.h>
