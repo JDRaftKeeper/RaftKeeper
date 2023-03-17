@@ -25,7 +25,7 @@ protected:
     bool nextImpl() override;
 
 public:
-    explicit ReadBufferFromPocoSocket(Poco::Net::Socket & socket_, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE);
+    explicit ReadBufferFromPocoSocket(Poco::Net::Socket & socket_, size_t buf_size = DEFAULT_BUFFER_SIZE);
 
     bool poll(size_t timeout_microseconds) const;
 

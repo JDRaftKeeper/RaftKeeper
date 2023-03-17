@@ -1,7 +1,6 @@
 #include "Server.h"
 #include <memory>
 #include <Core/Context.h>
-#include <IO/UseSSL.h>
 #include <Service/ConnectionHandler.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
@@ -20,7 +19,6 @@
 #include <Common/ZooKeeper/ZooKeeperNodeCache.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
-#include <Common/getMappedArea.h>
 #include <common/ErrorHandlers.h>
 
 namespace RK

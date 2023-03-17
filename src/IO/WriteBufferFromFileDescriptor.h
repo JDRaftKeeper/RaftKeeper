@@ -21,7 +21,7 @@ protected:
 public:
     WriteBufferFromFileDescriptor(
         int fd_ = -1,
-        size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE,
+        size_t buf_size = DEFAULT_BUFFER_SIZE,
         char * existing_memory = nullptr,
         size_t alignment = 0);
 
