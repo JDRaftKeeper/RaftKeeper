@@ -2,7 +2,6 @@
 
 #if !defined(ARCADIA_BUILD)
 #    include <Common/config.h>
-#    include <Core/config_core.h>
 #endif
 
 #include <functional>

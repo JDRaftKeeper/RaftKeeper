@@ -3,7 +3,7 @@
 
 #include <boost/noncopyable.hpp>
 #include "Common/Allocator.h"
-#include "Core/Defines.h"
+#include <common/defines.h>
 #include "IReadableWriteBuffer.h"
 #include "WriteBuffer.h"
 

@@ -13,8 +13,8 @@
 #include "common/find_symbols.h"
 #include "common/wide_integer_to_string.h"
 
-#include "Core/Types.h"
-#include "Core/UUID.h"
+#include <common/types.h>
+#include "Common/UUID.h"
 
 #include "Common/Exception.h"
 #include "Common/StringUtils.h"

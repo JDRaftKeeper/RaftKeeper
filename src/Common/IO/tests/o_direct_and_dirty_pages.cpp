@@ -7,7 +7,7 @@
 #include "Common/IO/WriteBufferFromFile.h"
 #include "Common/IO/WriteHelpers.h"
 #include "common/getPageSize.h"
-#include "common/types.h"
+#include <common/types.h>
 
 int main(int, char **)
 {

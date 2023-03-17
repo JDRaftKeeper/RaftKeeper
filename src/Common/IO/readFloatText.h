@@ -1,9 +1,9 @@
 #pragma once
 #include <type_traits>
 #include <double-conversion/double-conversion.h>
+#include <common/defines.h>
 #include "Common/StringUtils.h"
 #include "common/shift10.h"
-#include "Core/Defines.h"
 #include "ReadHelpers.h"
 
 #ifdef __clang__

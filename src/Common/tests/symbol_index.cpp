@@ -1,10 +1,10 @@
-#include <Common/SymbolIndex.h>
-#include <Common/Elf.h>
-#include <Common/Dwarf.h>
-#include <Core/Defines.h>
-#include <common/demangle.h>
 #include <iostream>
 #include <dlfcn.h>
+#include <common/defines.h>
+#include <Common/Dwarf.h>
+#include <Common/Elf.h>
+#include <Common/SymbolIndex.h>
+#include <common/demangle.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"

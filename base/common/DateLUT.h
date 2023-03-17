@@ -2,7 +2,7 @@
 
 #include "DateLUTImpl.h"
 
-#include "defines.h"
+#include <common/types.h>
 
 #include <boost/noncopyable.hpp>
 

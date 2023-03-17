@@ -25,19 +25,14 @@ include (../cmake/version.cmake)
 message (STATUS "Will build ${VERSION_FULL}")
 configure_file (Common/config.h.in ${CONFIG_COMMON})
 configure_file (Common/config_version.h.in ${CONFIG_VERSION})
-configure_file (Core/config_core.h.in ${CMAKE_CURRENT_BINARY_DIR}/Core/config_core.h)
 
 if (COMPILER_GCC)
     add_definitions ("-fno-tree-loop-distribute-patterns")
 endif ()
 
 add_subdirectory (Common)
-add_subdirectory (Core)
 add_subdirectory (Common/IO)
 add_subdirectory (Service)
-
-set(dbms_headers)
-set(dbms_sources Core/Defines.h Core/Context.cpp Core/Context.h)
 
 add_headers_and_sources(raftkeeper_common_io Common)
 add_headers_and_sources(raftkeeper_common_io Common/IO)
@@ -47,6 +42,7 @@ list (APPEND raftkeeper_common_io_sources ${CONFIG_BUILD})
 list (APPEND raftkeeper_common_io_headers ${CONFIG_VERSION} ${CONFIG_COMMON})
 
 add_library(raftkeeper_common_io ${raftkeeper_common_io_headers} ${raftkeeper_common_io_sources})
+target_link_libraries(raftkeeper_common_io PUBLIC ${NURAFT_LIBRARY})
 
 add_library (raftkeeper_malloc OBJECT Common/malloc.cpp)
 set_source_files_properties(Common/malloc.cpp PROPERTIES COMPILE_FLAGS "-fno-builtin")
@@ -61,7 +57,17 @@ endif()
 add_subdirectory(ZooKeeper)
 add_subdirectory(Common/Config)
 
+set (DBMS_COMMON_LIBRARIES)
+# libgcc_s does not provide an implementation of an atomics library. Instead,
+# GCC’s libatomic library can be used to supply these when using libgcc_s.
+if ((NOT USE_LIBCXX) AND COMPILER_CLANG AND OS_LINUX)
+    list (APPEND DBMS_COMMON_LIBRARIES atomic)
+endif()
+
+set(dbms_headers)
+set(dbms_sources)
 set (all_modules)
+
 macro(add_object_library name common_path)
     if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
         add_headers_and_sources(dbms ${common_path})
@@ -73,15 +79,7 @@ macro(add_object_library name common_path)
     endif ()
 endmacro()
 
-add_object_library(raftkeeper_core Core)
 add_object_library(raftkeeper_service Service)
-
-set (DBMS_COMMON_LIBRARIES)
-# libgcc_s does not provide an implementation of an atomics library. Instead,
-# GCC’s libatomic library can be used to supply these when using libgcc_s.
-if ((NOT USE_LIBCXX) AND COMPILER_CLANG AND OS_LINUX)
-    list (APPEND DBMS_COMMON_LIBRARIES atomic)
-endif()
 
 if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
     add_library (dbms STATIC ${dbms_headers} ${dbms_sources})
@@ -104,11 +102,6 @@ endmacro ()
 
 dbms_target_include_directories (PUBLIC ${RaftKeeper_SOURCE_DIR}/src ${RaftKeeper_BINARY_DIR}/src)
 target_include_directories (raftkeeper_common_io PUBLIC ${RaftKeeper_SOURCE_DIR}/src ${RaftKeeper_BINARY_DIR}/src)
-
-if (USE_EMBEDDED_COMPILER)
-    dbms_target_link_libraries (PRIVATE ${REQUIRED_LLVM_LIBRARIES})
-    dbms_target_include_directories (SYSTEM BEFORE PUBLIC ${LLVM_INCLUDE_DIRS})
-endif ()
 
 # Otherwise it will slow down stack traces printing too much.
 set_source_files_properties(
@@ -163,9 +156,6 @@ dbms_target_link_libraries (
         boost::system
         raftkeeper_common_io
 )
-
-
-dbms_target_include_directories(SYSTEM BEFORE PUBLIC ${PDQSORT_INCLUDE_DIR})
 
 if (OPENSSL_CRYPTO_LIBRARY)
     dbms_target_link_libraries (PRIVATE ${OPENSSL_CRYPTO_LIBRARY})

@@ -21,11 +21,8 @@ namespace Poco
 namespace RK
 {
 
-class Context;
-class QueryStatus;
 class ThreadStatus;
 class QueryThreadLog;
-struct OpenTelemetrySpanHolder;
 class TasksStatsCounters;
 struct RUsageCounters;
 struct PerfEventsCounters;
@@ -50,9 +47,6 @@ public:
 
     ProfileEvents::Counters performance_counters{VariableContext::Process};
     MemoryTracker memory_tracker{VariableContext::Process};
-
-    Context * query_context = nullptr;
-    Context * global_context = nullptr;
 
     InternalTextLogsQueueWeakPtr logs_queue_ptr;
     std::function<void()> fatal_error_callback;
@@ -104,11 +98,6 @@ protected:
 
     std::atomic<int> thread_state{ThreadState::DetachedFromQuery};
 
-    /// Is set once
-    Context * global_context = nullptr;
-    /// Use it only from current thread
-    Context * query_context = nullptr;
-
     String query_id;
 
     /// A logs queue used by TCPHandler to pass logs to a client
@@ -157,11 +146,6 @@ public:
         return query_id;
     }
 
-    const Context * getQueryContext() const
-    {
-        return query_context;
-    }
-
     /// Starts new query and create new thread group for it, current thread becomes master thread of the query
     void initializeQuery();
 
@@ -179,35 +163,9 @@ public:
     void setFatalErrorCallback(std::function<void()> callback);
     void onFatalError();
 
-    /// Sets query context for current master thread and its thread group
-    /// NOTE: query_context have to be alive until detachQuery() is called
-    void attachQueryContext(Context & query_context);
-
     /// Update several ProfileEvents counters
     void updatePerformanceCounters();
 
-    /// Update ProfileEvents and dumps info to system.query_thread_log
-    void finalizePerformanceCounters();
-
-    /// Detaches thread from the thread group and the query, dumps performance counters if they have not been dumped
-    void detachQuery(bool exit_if_already_detached = false, bool thread_exits = false);
-
-protected:
-    void applyQuerySettings();
-
-    void initPerformanceCounters();
-
-    void initQueryProfiler();
-
-    void finalizeQueryProfiler();
-
-    void logToQueryThreadLog(QueryThreadLog & thread_log, const String & current_database, std::chrono::time_point<std::chrono::system_clock> now);
-
-    void assertState(const std::initializer_list<int> & permitted_states, const char * description = nullptr) const;
-
-
-private:
-    void setupState(const ThreadGroupStatusPtr & thread_group_);
 };
 
 /**

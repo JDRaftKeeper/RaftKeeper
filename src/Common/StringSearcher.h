@@ -2,12 +2,12 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <Core/Defines.h>
 #include <Poco/Unicode.h>
 #include <Common/Exception.h>
 #include <Common/UTF8Helpers.h>
 #include <common/getPageSize.h>
 #include <ext/range.h>
+#include <common/types.h>
 #include "StringUtils.h"
 
 #ifdef __SSE2__
