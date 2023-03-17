@@ -18,8 +18,6 @@ class MemoryTracker;
 namespace RK
 {
 
-class Context;
-class QueryStatus;
 struct Progress;
 class InternalTextLogsQueue;
 
@@ -79,26 +77,6 @@ public:
         return current_thread->getQueryId();
     }
 
-    /// Non-master threads call this method in destructor automatically
-    static void detachQuery();
-    static void detachQueryIfNotDetached();
-
-    /// Initializes query with current thread as master thread in constructor, and detaches it in destructor
-    struct QueryScope
-    {
-        explicit QueryScope(Context & query_context);
-        ~QueryScope();
-
-        void logPeakMemoryUsage();
-        bool log_peak_memory_usage_in_destructor = true;
-    };
-
-private:
-    static void defaultThreadDeleter();
-
-    /// Sets query_context for current thread group
-    /// Can by used only through QueryScope
-    static void attachQueryContext(Context & query_context);
 };
 
 }

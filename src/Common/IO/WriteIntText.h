@@ -1,7 +1,7 @@
 #pragma once
 
+#include <common/defines.h>
 #include "common/itoa.h"
-#include "Core/Defines.h"
 #include "WriteBuffer.h"
 
 /// 40 digits or 39 digits and a sign

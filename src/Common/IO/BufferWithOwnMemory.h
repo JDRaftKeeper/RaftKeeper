@@ -5,8 +5,8 @@
 #include "Common/Allocator.h"
 #include "Common/ProfileEvents.h"
 
+#include <common/defines.h>
 #include "Common/Exception.h"
-#include "Core/Defines.h"
 
 
 namespace ProfileEvents

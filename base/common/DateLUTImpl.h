@@ -1,7 +1,7 @@
 #pragma once
 
 #include "DayNum.h"
-#include "defines.h"
+#include <common/types.h>
 #include "types.h"
 
 #include <ctime>

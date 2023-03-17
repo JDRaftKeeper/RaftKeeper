@@ -1,7 +1,7 @@
 #pragma once
 
 #include <new>
-#include "defines.h"
+#include <common/types.h>
 
 #if USE_JEMALLOC
 #    include <jemalloc/jemalloc.h>

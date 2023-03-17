@@ -233,7 +233,7 @@ private:
     void onTerminate(const std::string & message, UInt32 thread_num) const
     {
         LOG_FATAL(
-            log, "(version {}{}, {}) (from thread {}) {}", VERSION_STRING, VERSION_OFFICIAL, daemon.build_id_info, thread_num, message);
+            log, "(version {}, {}) (from thread {}) {}", VERSION_STRING, daemon.build_id_info, thread_num, message);
     }
 
     void onFault(
@@ -261,9 +261,8 @@ private:
         {
             LOG_FATAL(
                 log,
-                "(version {}{}, {}) (from thread {}) (no query) Received signal {} ({})",
+                "(version {}, {}) (from thread {}) (no query) Received signal {} ({})",
                 VERSION_STRING,
-                VERSION_OFFICIAL,
                 daemon.build_id_info,
                 thread_num,
                 strsignal(sig),
@@ -273,9 +272,8 @@ private:
         {
             LOG_FATAL(
                 log,
-                "(version {}{}, {}) (from thread {}) (query_id: {}) Received signal {} ({})",
+                "(version {}, {}) (from thread {}) (query_id: {}) Received signal {} ({})",
                 VERSION_STRING,
-                VERSION_OFFICIAL,
                 daemon.build_id_info,
                 thread_num,
                 query_id,

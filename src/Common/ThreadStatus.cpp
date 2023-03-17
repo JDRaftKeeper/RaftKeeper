@@ -97,11 +97,6 @@ ThreadStatus::~ThreadStatus()
         /// We've already allocated a little bit more than the limit and cannot track it in the thread memory tracker or its parent.
     }
 
-#if !defined(ARCADIA_BUILD)
-    /// It may cause segfault if query_context was destroyed, but was not detached
-    assert((!query_context && query_id.empty()));
-#endif
-
     if (deleter)
         deleter();
     current_thread = nullptr;
@@ -119,20 +114,6 @@ void ThreadStatus::updatePerformanceCounters()
     {
         tryLogCurrentException(log);
     }
-}
-
-void ThreadStatus::assertState(const std::initializer_list<int> & permitted_states, const char * description) const
-{
-    for (auto permitted_state : permitted_states)
-    {
-        if (getCurrentState() == permitted_state)
-            return;
-    }
-
-    if (description)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected thread state {}: {}", getCurrentState(), description);
-    else
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Unexpected thread state {}", getCurrentState());
 }
 
 void ThreadStatus::attachInternalTextLogsQueue(const InternalTextLogsQueuePtr & logs_queue)

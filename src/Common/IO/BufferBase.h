@@ -1,7 +1,7 @@
 #pragma once
 
 #include <algorithm>
-#include "Core/Defines.h"
+#include <common/defines.h>
 
 
 namespace RK

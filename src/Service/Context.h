@@ -1,6 +1,5 @@
 #pragma once
 
-#include <common/types.h>
 #include <atomic>
 #include <condition_variable>
 #include <functional>
@@ -10,11 +9,7 @@
 #include <thread>
 #include <Poco/AutoPtr.h>
 #include <Poco/Util/AbstractConfiguration.h>
-
-#if !defined(ARCADIA_BUILD)
-#    include <Core/config_core.h>
-#endif
-
+#include "common/types.h"
 
 namespace RK
 {
