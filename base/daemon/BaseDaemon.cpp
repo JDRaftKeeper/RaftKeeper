@@ -42,7 +42,6 @@
 #include <Common/Exception.h>
 #include <Common/PipeFDs.h>
 #include <Common/StackTrace.h>
-#include <Common/getMultipleKeysFromConfig.h>
 
 #if !defined(ARCADIA_BUILD)
 #    include <Common/config_version.h>
