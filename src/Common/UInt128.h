@@ -4,8 +4,8 @@
 #include <iomanip>
 #include <city.h>
 
-#include <Core/Types.h>
 #include <Common/hex.h>
+#include <common/types.h>
 
 #ifdef __SSE4_2__
 #include <nmmintrin.h>

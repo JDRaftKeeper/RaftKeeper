@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Core/Types.h>
-#include <Common/IO/WriteBuffer.h>
 #include <Poco/FIFOBuffer.h>
+#include <common/types.h>
+#include <Common/IO/WriteBuffer.h>
 
 namespace RK
 {

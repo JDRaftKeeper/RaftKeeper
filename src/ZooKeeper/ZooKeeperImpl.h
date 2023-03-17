@@ -3,7 +3,7 @@
 #include "Common/ConcurrentBoundedQueue.h"
 #include "Common/CurrentMetrics.h"
 #include "Common/ThreadPool.h"
-#include "common/types.h"
+#include <common/types.h>
 #include "IKeeper.h"
 #include "ZooKeeperCommon.h"
 

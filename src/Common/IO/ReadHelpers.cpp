@@ -1,10 +1,10 @@
 #include <stdlib.h>
+#include <common/defines.h>
 #include "Common/PODArray.h"
 #include "Common/StringUtils.h"
 #include "Common/hex.h"
 #include "Common/memcpySmall.h"
 #include "common/find_symbols.h"
-#include "Core/Defines.h"
 #include "Operators.h"
 #include "WriteBufferFromString.h"
 #include "WriteHelpers.h"

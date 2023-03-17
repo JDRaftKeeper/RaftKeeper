@@ -12,8 +12,8 @@
 #include <Poco/SharedPtr.h>
 #include <vector>
 
-#include <Core/Context.h>
 #include <Service/SvsSocketReactor.h>
+#include "Context.h"
 
 
 using Poco::Net::Socket;

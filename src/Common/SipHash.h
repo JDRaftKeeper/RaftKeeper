@@ -13,11 +13,11 @@
   * (~ 700 MB/sec, 15 million strings per second)
   */
 
-#include <common/types.h>
-#include <common/unaligned.h>
 #include <string>
 #include <type_traits>
-#include <Core/Defines.h>
+#include <common/types.h>
+#include <common/unaligned.h>
+#include <common/defines.h>
 
 
 #define ROTL(x, b) static_cast<UInt64>(((x) << (b)) | ((x) >> (64 - (b))))
