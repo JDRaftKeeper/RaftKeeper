@@ -1,13 +1,13 @@
 #pragma once
 
-#include <IO/ReadBufferFromPocoSocket.h>
-#include <IO/WriteBufferFromPocoSocket.h>
+#include <Common/IO/ReadBufferFromPocoSocket.h>
+#include <Common/IO/WriteBufferFromPocoSocket.h>
 #include <Service/KeeperStore.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <libnuraft/async.hxx>
 #include <Poco/Net/StreamSocket.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 #include <common/logger_useful.h>
 
 namespace RK

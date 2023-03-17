@@ -1,6 +1,6 @@
-#include <IO/ReadHelpers.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/ReadBufferFromFile.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/WriteBufferFromString.h>
+#include <Common/IO/ReadBufferFromFile.h>
 #include <Common/ShellCommand.h>
 #include <Common/getMaxFileDescriptorCount.h>
 #include <filesystem>

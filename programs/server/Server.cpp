@@ -15,8 +15,8 @@
 #include <Common/ThreadFuzzer.h>
 #include <Common/ThreadProfileEvents.h>
 #include <Common/ThreadStatus.h>
-#include <Common/ZooKeeper/ZooKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperNodeCache.h>
+#include <ZooKeeper/ZooKeeper.h>
+#include <ZooKeeper/ZooKeeperNodeCache.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <common/ErrorHandlers.h>

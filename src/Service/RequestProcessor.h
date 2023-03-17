@@ -2,7 +2,7 @@
 
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
-#include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <ZooKeeper/ZooKeeperConstants.h>
 #include <Service/Types.h>
 
 namespace RK

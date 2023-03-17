@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-#include <IO/WriteBufferFromString.h>
+#include <Common/IO/WriteBufferFromString.h>
 #include <Service/KeeperDispatcher.h>
 
 #include <Common/config_version.h>

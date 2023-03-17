@@ -3,8 +3,8 @@
 #include <iomanip>
 
 #include <Common/SipHash.h>
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/ReadHelpers.h>
+#include <Common/IO/ReadBufferFromFileDescriptor.h>
+#include <Common/IO/ReadHelpers.h>
 #include <Common/Stopwatch.h>
 
 

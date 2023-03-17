@@ -6,8 +6,8 @@
 #include <cstring>
 #include <filesystem>
 #include <functional>
-#include <IO/Operators.h>
-#include <IO/WriteBufferFromString.h>
+#include <Common/IO/Operators.h>
+#include <Common/IO/WriteBufferFromString.h>
 #include <sys/utsname.h>
 #include <Poco/DOM/Attr.h>
 #include <Poco/DOM/Comment.h>
@@ -15,8 +15,8 @@
 #include <Poco/Util/XMLConfiguration.h>
 #include "Common/StringUtils.h"
 #include <Common/Exception.h>
-#include <Common/ZooKeeper/KeeperException.h>
-#include <Common/ZooKeeper/ZooKeeperNodeCache.h>
+#include <ZooKeeper/KeeperException.h>
+#include <ZooKeeper/ZooKeeperNodeCache.h>
 #include <common/errnoToString.h>
 #include <common/getResource.h>
 

@@ -1,7 +1,7 @@
 #include <Common/parseGlobs.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/ReadBufferFromString.h>
-#include <IO/Operators.h>
+#include <Common/IO/WriteBufferFromString.h>
+#include <Common/IO/ReadBufferFromString.h>
+#include <Common/IO/Operators.h>
 #include <re2/re2.h>
 #include <re2/stringpiece.h>
 #include <algorithm>

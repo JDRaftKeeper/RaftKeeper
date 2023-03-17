@@ -1,8 +1,8 @@
 #include "OwnPatternFormatter.h"
 
 #include <functional>
-#include <IO/WriteBufferFromString.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/WriteBufferFromString.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Common/CurrentThread.h>
 #include <common/terminalColors.h>
 #include "Loggers.h"

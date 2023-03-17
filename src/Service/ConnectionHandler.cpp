@@ -4,8 +4,8 @@
 #    include <Service/formatHex.h>
 #    include <Poco/Net/NetException.h>
 #    include <Common/Stopwatch.h>
-#    include <Common/ZooKeeper/ZooKeeperCommon.h>
-#    include <Common/ZooKeeper/ZooKeeperIO.h>
+#    include <ZooKeeper/ZooKeeperCommon.h>
+#    include <ZooKeeper/ZooKeeperIO.h>
 #    include <Common/setThreadName.h>
 
 namespace RK

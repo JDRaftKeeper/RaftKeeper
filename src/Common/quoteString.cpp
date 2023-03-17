@@ -1,6 +1,6 @@
 #include <Common/quoteString.h>
-#include <IO/WriteHelpers.h>
-#include <IO/WriteBufferFromString.h>
+#include <Common/IO/WriteHelpers.h>
+#include <Common/IO/WriteBufferFromString.h>
 
 
 namespace RK

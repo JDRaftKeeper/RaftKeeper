@@ -33,23 +33,18 @@ endif ()
 
 add_subdirectory (Common)
 add_subdirectory (Core)
-add_subdirectory (IO)
+add_subdirectory (Common/IO)
 add_subdirectory (Service)
 
 set(dbms_headers)
 set(dbms_sources Core/Defines.h Core/Context.cpp Core/Context.h Common/Names.h)
 
 add_headers_and_sources(raftkeeper_common_io Common)
-add_headers_and_sources(raftkeeper_common_io IO)
+add_headers_and_sources(raftkeeper_common_io Common/IO)
 list (REMOVE_ITEM raftkeeper_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
 
 list (APPEND raftkeeper_common_io_sources ${CONFIG_BUILD})
 list (APPEND raftkeeper_common_io_headers ${CONFIG_VERSION} ${CONFIG_COMMON})
-
-if (NOT ENABLE_SSL)
-    list (REMOVE_ITEM raftkeeper_common_io_sources Common/OpenSSLHelpers.cpp)
-    list (REMOVE_ITEM raftkeeper_common_io_headers Common/OpenSSLHelpers.h)
-endif ()
 
 add_library(raftkeeper_common_io ${raftkeeper_common_io_headers} ${raftkeeper_common_io_sources})
 
@@ -63,7 +58,7 @@ else()
     target_link_libraries (raftkeeper_new_delete PRIVATE raftkeeper_common_io jemalloc)
 endif()
 
-add_subdirectory(Common/ZooKeeper)
+add_subdirectory(ZooKeeper)
 add_subdirectory(Common/Config)
 
 set (all_modules)

@@ -1,7 +1,7 @@
 #include <chrono>
 #include <string>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Service/KeeperServer.h>
 #include <Service/LoggerWrapper.h>
 #include <Service/NuRaftStateMachine.h>
@@ -11,7 +11,7 @@
 #include <boost/algorithm/string.hpp>
 #include <libnuraft/async.hxx>
 #include <Poco/NumberFormatter.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 
 namespace RK
 {

@@ -5,7 +5,7 @@
 #include <Poco/Base64Encoder.h>
 #include <Poco/SHA1Engine.h>
 #include "Common/StringUtils.h"
-#include <Common/ZooKeeper/IKeeper.h>
+#include <ZooKeeper/IKeeper.h>
 
 namespace RK
 {

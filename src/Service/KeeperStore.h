@@ -4,8 +4,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <IO/Operators.h>
-#include <IO/WriteBufferFromString.h>
+#include <Common/IO/Operators.h>
+#include <Common/IO/WriteBufferFromString.h>
 #include <Service/ACLMap.h>
 #include <Service/SessionExpiryQueue.h>
 #include <Service/ThreadSafeQueue.h>
@@ -13,8 +13,8 @@
 #include <Poco/Logger.h>
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/ThreadPool.h>
-#include <Common/ZooKeeper/IKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 #include <common/logger_useful.h>
 
 namespace RK

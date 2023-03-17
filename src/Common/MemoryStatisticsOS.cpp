@@ -11,8 +11,8 @@
 #include <common/logger_useful.h>
 #include <common/getPageSize.h>
 #include <Common/Exception.h>
-#include <IO/ReadBufferFromMemory.h>
-#include <IO/ReadHelpers.h>
+#include <Common/IO/ReadBufferFromMemory.h>
+#include <Common/IO/ReadHelpers.h>
 
 
 namespace RK

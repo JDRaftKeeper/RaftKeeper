@@ -13,7 +13,7 @@
 #include <Service/proto/Log.pb.h>
 #include <Poco/File.h>
 #include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 
 
 #ifdef __clang__
