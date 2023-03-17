@@ -13,8 +13,8 @@
 #include <utility>
 #include <vector>
 #include "Common/StringUtils.h"
+#include "common/scope_guard.h"
 #include <common/phdr_cache.h>
-#include <ext/scope_guard.h>
 
 
 int mainEntryRaftKeeperServer(int argc, char ** argv);
