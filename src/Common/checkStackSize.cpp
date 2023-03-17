@@ -1,8 +1,8 @@
-#include <Common/checkStackSize.h>
-#include <Common/Exception.h>
-#include <ext/scope_guard.h>
-#include <pthread.h>
 #include <cstdint>
+#include <pthread.h>
+#include "common/scope_guard.h"
+#include <Common/Exception.h>
+#include <Common/checkStackSize.h>
 
 #if defined(__FreeBSD__)
 #   include <pthread_np.h>
