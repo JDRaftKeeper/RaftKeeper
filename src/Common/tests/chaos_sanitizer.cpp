@@ -1,9 +1,7 @@
 #include <thread>
 #include <iostream>
 #include <atomic>
-
 #include <common/sleep.h>
-
 #include <Common/IO/ReadHelpers.h>
 
 #include <Common/Exception.h>

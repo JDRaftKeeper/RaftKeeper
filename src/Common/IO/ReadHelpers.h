@@ -17,7 +17,6 @@
 #include "Core/Types.h"
 #include "Core/UUID.h"
 
-#include "Common/Arena.h"
 #include "Common/Exception.h"
 #include "Common/StringUtils.h"
 #include "Common/UInt128.h"
@@ -123,19 +122,6 @@ inline void readStringBinary(std::string & s, ReadBuffer & buf, size_t MAX_STRIN
     s.resize(size);
     buf.readStrict(s.data(), size);
 }
-
-
-inline StringRef readStringBinaryInto(Arena & arena, ReadBuffer & buf)
-{
-    size_t size = 0;
-    readVarUInt(size, buf);
-
-    char * data = arena.alloc(size);
-    buf.readStrict(data, size);
-
-    return StringRef(data, size);
-}
-
 
 template <typename T>
 void readVectorBinary(std::vector<T> & v, ReadBuffer & buf, size_t MAX_VECTOR_SIZE = DEFAULT_MAX_STRING_SIZE)
