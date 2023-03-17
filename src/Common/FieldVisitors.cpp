@@ -1,4 +1,3 @@
-#include <Core/UUID.h>
 #include <IO/ReadBuffer.h>
 #include <IO/WriteBuffer.h>
 #include <IO/WriteHelpers.h>
