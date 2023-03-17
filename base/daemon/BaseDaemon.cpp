@@ -1,75 +1,62 @@
 #include <daemon/BaseDaemon.h>
 
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <sys/resource.h>
-#include <Common/setThreadName.h>
 #include <thread>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <Common/setThreadName.h>
 #if defined(__linux__)
-    #include <sys/prctl.h>
+#    include <sys/prctl.h>
 #endif
-#include <fcntl.h>
 #include <errno.h>
-#include <string.h>
+#include <fcntl.h>
 #include <signal.h>
-#include <cxxabi.h>
+#include <string.h>
 #include <unistd.h>
 
-#include <typeinfo>
-#include <iostream>
 #include <fstream>
-#include <sstream>
+#include <iostream>
 #include <memory>
-#include <ext/scope_guard.h>
+#include <typeinfo>
 
-#include <Poco/Observer.h>
-#include <Poco/AutoPtr.h>
-#include <Poco/PatternFormatter.h>
-#include <Poco/File.h>
-#include <Poco/Path.h>
-#include <Poco/Message.h>
-#include <Poco/Util/Application.h>
-#include <Poco/Exception.h>
-#include <Poco/ErrorHandler.h>
 #include <Poco/Condition.h>
-#include <Poco/SyslogChannel.h>
-#include <Poco/DirectoryIterator.h>
+#include <Poco/ErrorHandler.h>
+#include <Poco/Exception.h>
+#include <Poco/File.h>
+#include <Poco/Message.h>
+#include <Poco/Path.h>
+#include <Poco/Util/Application.h>
 
-#include <common/logger_useful.h>
 #include <common/ErrorHandlers.h>
 #include <common/argsToConfig.h>
-#include <common/getThreadId.h>
 #include <common/coverage.h>
 #include <common/sleep.h>
 
-#include <IO/WriteBufferFromFile.h>
-#include <IO/WriteBufferFromFileDescriptorDiscardOnFailure.h>
 #include <IO/ReadBufferFromFileDescriptor.h>
 #include <IO/ReadHelpers.h>
+#include <IO/WriteBufferFromFileDescriptorDiscardOnFailure.h>
 #include <IO/WriteHelpers.h>
+#include <Common/Config/ConfigProcessor.h>
 #include <Common/Exception.h>
 #include <Common/PipeFDs.h>
 #include <Common/StackTrace.h>
 #include <Common/getMultipleKeysFromConfig.h>
-#include <Common/RaftKeeperRevision.h>
-#include <Common/Config/ConfigProcessor.h>
-#include <Common/MemorySanitizer.h>
-#include <Common/SymbolIndex.h>
-#include <Common/getExecutablePath.h>
-#include <Common/getHashOfLoadedBinary.h>
-#include <Common/Elf.h>
 
 #if !defined(ARCADIA_BUILD)
-#   include <Common/config_version.h>
+#    include <Common/config_version.h>
 #endif
 
 #if defined(OS_DARWIN)
-#   pragma GCC diagnostic ignored "-Wunused-macros"
-#   define _XOPEN_SOURCE 700  // ucontext is not available without _XOPEN_SOURCE
+#    pragma GCC diagnostic ignored "-Wunused-macros"
+#    define _XOPEN_SOURCE 700 // ucontext is not available without _XOPEN_SOURCE
 #endif
 #include <ucontext.h>
+#include <Common/SymbolIndex.h>
+#include <Common/getExecutablePath.h>
+#include <Common/getHashOfLoadedBinary.h>
+#include <IO/WriteBufferFromFile.h>
 
 
 RK::PipeFDs signal_pipe;
@@ -86,21 +73,16 @@ static void call_default_signal_handler(int sig)
 
 static constexpr size_t max_query_id_size = 127;
 
-static const size_t signal_pipe_buf_size =
-    sizeof(int)
-    + sizeof(siginfo_t)
-    + sizeof(ucontext_t)
-    + sizeof(StackTrace)
-    + sizeof(UInt32)
-    + max_query_id_size + 1    /// query_id + varint encoded length
-    + sizeof(void*);
+static const size_t signal_pipe_buf_size = sizeof(int) + sizeof(siginfo_t) + sizeof(ucontext_t) + sizeof(StackTrace) + sizeof(UInt32)
+    + max_query_id_size + 1 /// query_id + varint encoded length
+    + sizeof(void *);
 
 
-using signal_function = void(int, siginfo_t*, void*);
+using signal_function = void(int, siginfo_t *, void *);
 
 static void writeSignalIDtoSignalPipe(int sig)
 {
-    auto saved_errno = errno;   /// We must restore previous value of errno in signal handler.
+    auto saved_errno = errno; /// We must restore previous value of errno in signal handler.
 
     char buf[signal_pipe_buf_size];
     RK::WriteBufferFromFileDescriptor out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
@@ -129,7 +111,7 @@ static void terminateRequestedSignalHandler(int sig, siginfo_t *, void *)
 static void signalHandler(int sig, siginfo_t * info, void * context)
 {
     DENY_ALLOCATIONS_IN_SCOPE;
-    auto saved_errno = errno;   /// We must restore previous value of errno in signal handler.
+    auto saved_errno = errno; /// We must restore previous value of errno in signal handler.
 
     char buf[signal_pipe_buf_size];
     RK::WriteBufferFromFileDescriptorDiscardOnFailure out(signal_pipe.fds_rw[1], signal_pipe_buf_size, buf);
@@ -137,7 +119,7 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
     const ucontext_t signal_context = *reinterpret_cast<ucontext_t *>(context);
     const StackTrace stack_trace(signal_context);
 
-    StringRef query_id = RK::CurrentThread::getQueryId();   /// This is signal safe.
+    StringRef query_id = RK::CurrentThread::getQueryId(); /// This is signal safe.
     query_id.size = std::min(query_id.size, max_query_id_size);
 
     RK::writeBinary(sig, out);
@@ -153,7 +135,7 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
     if (sig != SIGTSTP) /// This signal is used for debugging.
     {
         /// The time that is usually enough for separate thread to print info into log.
-        sleepForSeconds(20);  /// FIXME: use some feedback from threads that process stacktrace
+        sleepForSeconds(20); /// FIXME: use some feedback from threads that process stacktrace
         call_default_signal_handler(sig);
     }
 
@@ -176,11 +158,7 @@ public:
         SanitizerTrap = -3,
     };
 
-    explicit SignalListener(BaseDaemon & daemon_)
-        : log(&Poco::Logger::get("BaseDaemon"))
-        , daemon(daemon_)
-    {
-    }
+    explicit SignalListener(BaseDaemon & daemon_) : log(&Poco::Logger::get("BaseDaemon")), daemon(daemon_) { }
 
     void run() override
     {
@@ -218,9 +196,7 @@ public:
 
                 onTerminate(message, thread_num);
             }
-            else if (sig == SIGINT ||
-                sig == SIGQUIT ||
-                sig == SIGTERM)
+            else if (sig == SIGINT || sig == SIGQUIT || sig == SIGTERM)
             {
                 daemon.handleSignal(sig);
             }
@@ -257,8 +233,8 @@ private:
 
     void onTerminate(const std::string & message, UInt32 thread_num) const
     {
-        LOG_FATAL(log, "(version {}{}, {}) (from thread {}) {}",
-            VERSION_STRING, VERSION_OFFICIAL, daemon.build_id_info, thread_num, message);
+        LOG_FATAL(
+            log, "(version {}{}, {}) (from thread {}) {}", VERSION_STRING, VERSION_OFFICIAL, daemon.build_id_info, thread_num, message);
     }
 
     void onFault(
@@ -284,15 +260,28 @@ private:
 
         if (query_id.empty())
         {
-            LOG_FATAL(log, "(version {}{}, {}) (from thread {}) (no query) Received signal {} ({})",
-                VERSION_STRING, VERSION_OFFICIAL, daemon.build_id_info,
-                thread_num, strsignal(sig), sig);
+            LOG_FATAL(
+                log,
+                "(version {}{}, {}) (from thread {}) (no query) Received signal {} ({})",
+                VERSION_STRING,
+                VERSION_OFFICIAL,
+                daemon.build_id_info,
+                thread_num,
+                strsignal(sig),
+                sig);
         }
         else
         {
-            LOG_FATAL(log, "(version {}{}, {}) (from thread {}) (query_id: {}) Received signal {} ({})",
-                VERSION_STRING, VERSION_OFFICIAL, daemon.build_id_info,
-                thread_num, query_id, strsignal(sig), sig);
+            LOG_FATAL(
+                log,
+                "(version {}{}, {}) (from thread {}) (query_id: {}) Received signal {} ({})",
+                VERSION_STRING,
+                VERSION_OFFICIAL,
+                daemon.build_id_info,
+                thread_num,
+                query_id,
+                strsignal(sig),
+                sig);
         }
 
         String error_message;
@@ -326,8 +315,11 @@ private:
         String calculated_binary_hash = getHashOfLoadedBinaryHex();
         if (daemon.stored_binary_hash.empty())
         {
-            LOG_FATAL(log, "Calculated checksum of the binary: {}."
-                " There is no information about the reference checksum.", calculated_binary_hash);
+            LOG_FATAL(
+                log,
+                "Calculated checksum of the binary: {}."
+                " There is no information about the reference checksum.",
+                calculated_binary_hash);
         }
         else if (calculated_binary_hash == daemon.stored_binary_hash)
         {
@@ -335,15 +327,18 @@ private:
         }
         else
         {
-            LOG_FATAL(log, "Calculated checksum of the ClickHouse binary ({0}) does not correspond"
+            LOG_FATAL(
+                log,
+                "Calculated checksum of the ClickHouse binary ({0}) does not correspond"
                 " to the reference checksum stored in the binary ({1})."
                 " It may indicate one of the following:"
                 " - the file was changed just after startup;"
                 " - the file is damaged on disk due to faulty hardware;"
                 " - the loaded executable is damaged in memory due to faulty hardware;"
                 " - the file was intentionally modified;"
-                " - logical error in code."
-                , calculated_binary_hash, daemon.stored_binary_hash);
+                " - logical error in code.",
+                calculated_binary_hash,
+                daemon.stored_binary_hash);
         }
 #endif
 
@@ -562,7 +557,9 @@ void debugIncreaseOOMScore()
     LOG_INFO(&Poco::Logger::root(), "Set OOM score adjustment to {}", new_score);
 }
 #else
-void debugIncreaseOOMScore() {}
+void debugIncreaseOOMScore()
+{
+}
 #endif
 }
 
@@ -657,14 +654,12 @@ void BaseDaemon::initialize(Application & self)
     if (!log_path.empty())
     {
         std::string path = createDirectory(log_path);
-        if (is_daemon
-            && chdir(path.c_str()) != 0)
+        if (is_daemon && chdir(path.c_str()) != 0)
             throw Poco::Exception("Cannot change directory to " + path);
     }
     else
     {
-        if (is_daemon
-            && chdir("/tmp") != 0)
+        if (is_daemon && chdir("/tmp") != 0)
             throw Poco::Exception("Cannot change directory to /tmp");
     }
 
@@ -701,7 +696,6 @@ void BaseDaemon::initialize(Application & self)
     initializeTerminationAndSignalProcessing();
     logRevision();
     debugIncreaseOOMScore();
-
 }
 
 
@@ -804,49 +798,38 @@ void BaseDaemon::initializeTerminationAndSignalProcessing()
 
 void BaseDaemon::logRevision() const
 {
-    Poco::Logger::root().information("Starting " + std::string{VERSION_FULL}
-        + ", " + build_id_info
-        + ", PID " + std::to_string(getpid()));
+    Poco::Logger::root().information("Starting " + std::string{VERSION_FULL} + ", " + build_id_info + ", PID " + std::to_string(getpid()));
 }
 
 void BaseDaemon::defineOptions(Poco::Util::OptionSet & new_options)
 {
-    new_options.addOption(
-        Poco::Util::Option("config-file", "C", "load configuration from a given file")
-            .required(false)
-            .repeatable(false)
-            .argument("<file>")
-            .binding("config-file"));
+    new_options.addOption(Poco::Util::Option("config-file", "C", "load configuration from a given file")
+                              .required(false)
+                              .repeatable(false)
+                              .argument("<file>")
+                              .binding("config-file"));
+
+    new_options.addOption(Poco::Util::Option("log-file", "L", "use given log file")
+                              .required(false)
+                              .repeatable(false)
+                              .argument("<file>")
+                              .binding("logger.path"));
+
+    new_options.addOption(Poco::Util::Option("errorlog-file", "E", "use given log file for errors only")
+                              .required(false)
+                              .repeatable(false)
+                              .argument("<file>")
+                              .binding("logger.err_log_path"));
 
     new_options.addOption(
-        Poco::Util::Option("log-file", "L", "use given log file")
-            .required(false)
-            .repeatable(false)
-            .argument("<file>")
-            .binding("logger.path"));
-
-    new_options.addOption(
-        Poco::Util::Option("errorlog-file", "E", "use given log file for errors only")
-            .required(false)
-            .repeatable(false)
-            .argument("<file>")
-            .binding("logger.err_log_path"));
-
-    new_options.addOption(
-        Poco::Util::Option("pid-file", "P", "use given pidfile")
-            .required(false)
-            .repeatable(false)
-            .argument("<file>")
-            .binding("pid"));
+        Poco::Util::Option("pid-file", "P", "use given pidfile").required(false).repeatable(false).argument("<file>").binding("pid"));
 
     Poco::Util::ServerApplication::defineOptions(new_options);
 }
 
 void BaseDaemon::handleSignal(int signal_id)
 {
-    if (signal_id == SIGINT ||
-        signal_id == SIGQUIT ||
-        signal_id == SIGTERM)
+    if (signal_id == SIGINT || signal_id == SIGQUIT || signal_id == SIGTERM)
     {
         std::unique_lock<std::mutex> lock(signal_handler_mutex);
         {
@@ -880,5 +863,5 @@ void BaseDaemon::waitForTerminationRequest()
 {
     /// NOTE: as we already process signals via pipe, we don't have to block them with sigprocmask in threads
     std::unique_lock<std::mutex> lock(signal_handler_mutex);
-    signal_event.wait(lock, [this](){ return terminate_signals_counter > 0; });
+    signal_event.wait(lock, [this]() { return terminate_signals_counter > 0; });
 }

@@ -22,7 +22,7 @@ protected:
     std::string getFileName() const override;
 
 public:
-    ReadBufferFromFileDescriptor(int fd_, size_t buf_size = DBMS_DEFAULT_BUFFER_SIZE, char * existing_memory = nullptr, size_t alignment = 0)
+    ReadBufferFromFileDescriptor(int fd_, size_t buf_size = DEFAULT_BUFFER_SIZE, char * existing_memory = nullptr, size_t alignment = 0)
         : ReadBufferFromFileBase(buf_size, existing_memory, alignment), fd(fd_), file_offset_of_buffer_end(0) {}
 
     int getFD() const
