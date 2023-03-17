@@ -2,9 +2,7 @@
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/formatHex.h>
 #include <Poco/NumberFormatter.h>
-#include <Common/DNSResolver.h>
 #include <Common/checkStackSize.h>
-#include <Common/isLocalAddress.h>
 #include <Common/setThreadName.h>
 
 namespace RK

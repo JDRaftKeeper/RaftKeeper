@@ -37,7 +37,7 @@ add_subdirectory (Common/IO)
 add_subdirectory (Service)
 
 set(dbms_headers)
-set(dbms_sources Core/Defines.h Core/Context.cpp Core/Context.h Common/Names.h)
+set(dbms_sources Core/Defines.h Core/Context.cpp Core/Context.h)
 
 add_headers_and_sources(raftkeeper_common_io Common)
 add_headers_and_sources(raftkeeper_common_io Common/IO)

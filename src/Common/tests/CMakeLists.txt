@@ -1,9 +1,6 @@
 add_executable (simple_cache simple_cache.cpp)
 target_link_libraries (simple_cache PRIVATE common)
 
-add_executable (compact_array compact_array.cpp)
-target_link_libraries (compact_array PRIVATE raftkeeper_common_io)
-
 add_executable (pod_array pod_array.cpp)
 target_link_libraries (pod_array PRIVATE raftkeeper_common_io)
 
