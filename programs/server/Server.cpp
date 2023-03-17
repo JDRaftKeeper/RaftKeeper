@@ -6,15 +6,15 @@
 #include <Service/FourLetterCommand.h>
 #include <Service/SvsSocketAcceptor.h>
 #include <Service/SvsSocketReactor.h>
+#include <ZooKeeper/ZooKeeper.h>
+#include <ZooKeeper/ZooKeeperNodeCache.h>
+#include <sys/resource.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/HelpFormatter.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/ThreadFuzzer.h>
-#include <Common/ThreadProfileEvents.h>
-#include <ZooKeeper/ZooKeeper.h>
-#include <ZooKeeper/ZooKeeperNodeCache.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <common/ErrorHandlers.h>
@@ -23,14 +23,9 @@ namespace RK
 {
 namespace ErrorCodes
 {
-    extern const int NO_ELEMENTS_IN_CONFIG;
-    extern const int SUPPORT_IS_DISABLED;
     extern const int ARGUMENT_OUT_OF_BOUND;
-    extern const int EXCESSIVE_ELEMENT_IN_CONFIG;
     extern const int INVALID_CONFIG_PARAMETER;
     extern const int SYSTEM_ERROR;
-    extern const int FAILED_TO_GETPWUID;
-    extern const int MISMATCHING_USERS_FOR_PROCESS_AND_DATA;
     extern const int NETWORK_ERROR;
 }
 
