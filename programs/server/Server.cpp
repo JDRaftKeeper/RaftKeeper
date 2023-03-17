@@ -11,10 +11,8 @@
 #include <Poco/Util/HelpFormatter.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/SensitiveDataMasker.h>
 #include <Common/ThreadFuzzer.h>
 #include <Common/ThreadProfileEvents.h>
-#include <Common/ThreadStatus.h>
 #include <ZooKeeper/ZooKeeper.h>
 #include <ZooKeeper/ZooKeeperNodeCache.h>
 #include <Common/config_version.h>

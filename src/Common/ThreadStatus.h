@@ -3,7 +3,6 @@
 #include <common/StringRef.h>
 #include <Common/ProfileEvents.h>
 #include <Common/MemoryTracker.h>
-#include <Common/OpenTelemetryTraceContext.h>
 
 #include <memory>
 #include <map>
@@ -25,8 +24,6 @@ namespace RK
 class Context;
 class QueryStatus;
 class ThreadStatus;
-class QueryProfilerReal;
-class QueryProfilerCpu;
 class QueryThreadLog;
 struct OpenTelemetrySpanHolder;
 class TasksStatsCounters;
@@ -102,12 +99,6 @@ public:
     using Deleter = std::function<void()>;
     Deleter deleter;
 
-    // This is the current most-derived OpenTelemetry span for this thread. It
-    // can be changed throughout the query execution, whenever we enter a new
-    // span or exit it. See OpenTelemetrySpanHolder that is normally responsible
-    // for these changes.
-    OpenTelemetryTraceContext thread_trace_context;
-
 protected:
     ThreadGroupStatusPtr thread_group;
 
@@ -128,10 +119,6 @@ protected:
     UInt64 query_start_time_microseconds = 0;
     time_t query_start_time = 0;
     size_t queries_started = 0;
-
-    // CPU and Real time query profilers
-    std::unique_ptr<QueryProfilerReal> query_profiler_real;
-    std::unique_ptr<QueryProfilerCpu> query_profiler_cpu;
 
     Poco::Logger * log = nullptr;
 

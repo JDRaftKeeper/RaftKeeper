@@ -1,6 +1,4 @@
 #include <iostream>
-#include <unistd.h>
-#include "Common/typeid_cast.h"
 #include "ZooKeeper/KeeperException.h"
 #include "ZooKeeper/ZooKeeper.h"
 

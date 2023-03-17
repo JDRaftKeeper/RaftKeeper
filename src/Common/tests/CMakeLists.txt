@@ -10,9 +10,6 @@ target_link_libraries (pod_array PRIVATE raftkeeper_common_io)
 add_executable (thread_creation_latency thread_creation_latency.cpp)
 target_link_libraries (thread_creation_latency PRIVATE raftkeeper_common_io)
 
-add_executable (array_cache array_cache.cpp)
-target_link_libraries (array_cache PRIVATE raftkeeper_common_io)
-
 add_executable (stopwatch stopwatch.cpp)
 target_link_libraries (stopwatch PRIVATE raftkeeper_common_io)
 
@@ -26,9 +23,6 @@ if (OS_LINUX)
     add_executable (memory_statistics_os_perf memory_statistics_os_perf.cpp)
     target_link_libraries (memory_statistics_os_perf PRIVATE raftkeeper_common_io)
 endif()
-
-add_executable (procfs_metrics_provider_perf procfs_metrics_provider_perf.cpp)
-target_link_libraries (procfs_metrics_provider_perf PRIVATE raftkeeper_common_io)
 
 add_executable (shell_command_inout shell_command_inout.cpp)
 target_link_libraries (shell_command_inout PRIVATE raftkeeper_common_io)

@@ -3,7 +3,6 @@
 #include <Poco/Event.h>
 #include <Poco/Logger.h>
 #include "Common/StringUtils.h"
-#include "Common/typeid_cast.h"
 #include "common/find_symbols.h"
 #include "ZooKeeper/ZooKeeperImpl.h"
 
