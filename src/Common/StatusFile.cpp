@@ -1,19 +1,18 @@
 #include "StatusFile.h"
 
-#include <sys/file.h>
 #include <fcntl.h>
 #include <errno.h>
 
 #include <Poco/File.h>
 #include <common/logger_useful.h>
 #include <common/errnoToString.h>
-#include <Common/RaftKeeperRevision.h>
 #include <common/LocalDateTime.h>
 
 #include <Common/IO/ReadBufferFromFile.h>
 #include <Common/IO/LimitReadBuffer.h>
 #include <Common/IO/WriteBufferFromFileDescriptor.h>
 #include <Common/IO/Operators.h>
+#include <sys/file.h>
 
 
 namespace RK

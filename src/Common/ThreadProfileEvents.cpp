@@ -3,7 +3,6 @@
 #if defined(__linux__)
 
 #include "TaskStatsInfoGetter.h"
-#include "ProcfsMetricsProvider.h"
 #include "hasLinuxCapability.h"
 
 #include <filesystem>
@@ -51,10 +50,6 @@ TasksStatsCounters::MetricsProvider TasksStatsCounters::findBestAvailableProvide
             {
                 return MetricsProvider::Netlink;
             }
-            else if (ProcfsMetricsProvider::isAvailable())
-            {
-                return MetricsProvider::Procfs;
-            }
             return MetricsProvider::None;
         }();
 
@@ -75,12 +70,6 @@ TasksStatsCounters::TasksStatsCounters(const UInt64 tid, const MetricsProvider p
                 };
         break;
     case MetricsProvider::Procfs:
-        stats_getter = [metrics_provider = std::make_shared<ProcfsMetricsProvider>(tid)]()
-                {
-                    ::taskstats result{};
-                    metrics_provider->getTaskStats(result);
-                    return result;
-                };
         break;
     case MetricsProvider::None:
         ;

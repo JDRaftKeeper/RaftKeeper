@@ -8,7 +8,6 @@
 #include <Poco/ConsoleChannel.h>
 #include <Poco/AutoPtr.h>
 #include <Poco/Logger.h>
-#include <common/logger_useful.h>
 
 
 int mainEntryRaftKeeperConverter(int argc, char ** argv)
