@@ -1,6 +1,6 @@
 #pragma once
 
-#include <IO/WriteBuffer.h>
+#include <Common/IO/WriteBuffer.h>
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 
 namespace RK

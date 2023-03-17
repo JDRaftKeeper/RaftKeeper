@@ -1,9 +1,9 @@
 #pragma once
 
-#include <IO/ReadBuffer.h>
-#include <IO/WriteBuffer.h>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/ReadBuffer.h>
+#include <Common/IO/WriteBuffer.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Core/Defines.h>
 
 namespace RK

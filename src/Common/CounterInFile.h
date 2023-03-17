@@ -10,10 +10,10 @@
 #include <Poco/File.h>
 #include <Poco/Exception.h>
 
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/WriteBufferFromFileDescriptor.h>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/ReadBufferFromFileDescriptor.h>
+#include <Common/IO/WriteBufferFromFileDescriptor.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/WriteHelpers.h>
 
 #include <Common/Exception.h>
 #include <common/types.h>

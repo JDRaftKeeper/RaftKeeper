@@ -1,7 +1,7 @@
 
 #include <Service/ForwardingConnection.h>
-#include <IO/WriteHelpers.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <Common/IO/WriteHelpers.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 
 namespace RK
 {

@@ -1,6 +1,6 @@
 #pragma once
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/IKeeper.h>
 #include <unordered_map>
 
 

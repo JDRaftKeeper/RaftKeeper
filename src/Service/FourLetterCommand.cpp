@@ -1,7 +1,7 @@
 #include <Service/FourLetterCommand.h>
 
-#include <IO/Operators.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/Operators.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Service/ConnectionHandler.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperDispatcher.h>

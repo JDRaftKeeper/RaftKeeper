@@ -5,11 +5,11 @@
 #include <cstdlib>
 #include <Poco/String.h>
 #include <common/logger_useful.h>
-#include <IO/WriteHelpers.h>
-#include <IO/ReadHelpers.h>
-#include <IO/Operators.h>
-#include <IO/ReadBufferFromString.h>
-#include <IO/ReadBufferFromFile.h>
+#include <Common/IO/WriteHelpers.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/Operators.h>
+#include <Common/IO/ReadBufferFromString.h>
+#include <Common/IO/ReadBufferFromFile.h>
 #include <common/demangle.h>
 #include <common/errnoToString.h>
 #include <Common/formatReadable.h>

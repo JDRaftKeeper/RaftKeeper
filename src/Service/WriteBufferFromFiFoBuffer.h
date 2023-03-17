@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Core/Types.h>
-#include <IO/WriteBuffer.h>
+#include <Common/IO/WriteBuffer.h>
 #include <Poco/FIFOBuffer.h>
 
 namespace RK

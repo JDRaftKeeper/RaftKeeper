@@ -5,8 +5,8 @@
 #endif
 
 #include <Common/CompactArray.h>
-#include <IO/WriteBufferFromFile.h>
-#include <IO/ReadBufferFromFile.h>
+#include <Common/IO/WriteBufferFromFile.h>
+#include <Common/IO/ReadBufferFromFile.h>
 #include <filesystem>
 #include <string>
 #include <iostream>

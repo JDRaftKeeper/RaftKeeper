@@ -10,10 +10,10 @@
 #include <Common/RaftKeeperRevision.h>
 #include <common/LocalDateTime.h>
 
-#include <IO/ReadBufferFromFile.h>
-#include <IO/LimitReadBuffer.h>
-#include <IO/WriteBufferFromFileDescriptor.h>
-#include <IO/Operators.h>
+#include <Common/IO/ReadBufferFromFile.h>
+#include <Common/IO/LimitReadBuffer.h>
+#include <Common/IO/WriteBufferFromFileDescriptor.h>
+#include <Common/IO/Operators.h>
 
 
 namespace RK

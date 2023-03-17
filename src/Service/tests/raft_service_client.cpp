@@ -10,11 +10,11 @@
 #include "Common/StringUtils.h"
 #include <Common/Stopwatch.h>
 #include <Common/ThreadPool.h>
-#include <Common/ZooKeeper/IKeeper.h>
-#include <Common/ZooKeeper/KeeperException.h>
-#include <Common/ZooKeeper/Types.h>
-#include <Common/ZooKeeper/ZooKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperImpl.h>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/KeeperException.h>
+#include <ZooKeeper/Types.h>
+#include <ZooKeeper/ZooKeeper.h>
+#include <ZooKeeper/ZooKeeperImpl.h>
 #include <Common/randomSeed.h>
 #include <common/argsToConfig.h>
 #include <common/find_symbols.h>

@@ -3,8 +3,8 @@
 #if defined(__linux__)
 
 #include <Common/Exception.h>
-#include <IO/ReadBufferFromMemory.h>
-#include <IO/ReadHelpers.h>
+#include <Common/IO/ReadBufferFromMemory.h>
+#include <Common/IO/ReadHelpers.h>
 
 #include <common/find_symbols.h>
 #include <common/logger_useful.h>

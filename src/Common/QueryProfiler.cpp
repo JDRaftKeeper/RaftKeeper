@@ -1,6 +1,6 @@
 #include "QueryProfiler.h"
 
-#include <IO/WriteHelpers.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Common/Exception.h>
 #include <Common/StackTrace.h>
 #include <Common/thread_local_rng.h>

@@ -3,17 +3,17 @@
 #include <unordered_map>
 #include <Core/Context.h>
 #include <Core/Types.h>
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/ReadBufferFromPocoSocket.h>
-#include <IO/WriteBufferFromPocoSocket.h>
+#include <Common/IO/ReadBufferFromFileDescriptor.h>
+#include <Common/IO/ReadBufferFromPocoSocket.h>
+#include <Common/IO/WriteBufferFromPocoSocket.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Poco/Net/TCPServerConnection.h>
 #include <Common/MultiVersion.h>
 #include <Common/PipeFDs.h>
 #include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
-#include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/ZooKeeperConstants.h>
 
 #if defined(POCO_HAVE_FD_EPOLL)
 #include <sys/epoll.h>

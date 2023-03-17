@@ -1,8 +1,8 @@
 #pragma once
 
 #include <memory>
-#include <IO/ReadBufferFromFile.h>
-#include <IO/WriteBufferFromFile.h>
+#include <Common/IO/ReadBufferFromFile.h>
+#include <Common/IO/WriteBufferFromFile.h>
 
 
 namespace RK
