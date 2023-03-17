@@ -1,7 +1,7 @@
 #include <filesystem>
-#include <IO/ReadBufferFromFile.h>
-#include <IO/VarInt.h>
-#include <IO/WriteBufferFromFile.h>
+#include <Common/IO/ReadBufferFromFile.h>
+#include <Common/IO/VarInt.h>
+#include <Common/IO/WriteBufferFromFile.h>
 #include <Service/NuRaftStateManager.h>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/File.h>

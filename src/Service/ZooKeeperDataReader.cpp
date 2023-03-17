@@ -1,9 +1,9 @@
 #include <Service/ZooKeeperDataReader.h>
 #include <filesystem>
 #include <cstdlib>
-#include <IO/ReadHelpers.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
-#include <IO/ReadBufferFromFile.h>
+#include <Common/IO/ReadHelpers.h>
+#include <ZooKeeper/ZooKeeperIO.h>
+#include <Common/IO/ReadBufferFromFile.h>
 #include <string>
 
 

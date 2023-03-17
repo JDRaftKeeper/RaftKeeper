@@ -1,8 +1,8 @@
-#include <IO/ReadBuffer.h>
-#include <IO/WriteBuffer.h>
-#include <IO/WriteHelpers.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/Operators.h>
+#include <Common/IO/ReadBuffer.h>
+#include <Common/IO/WriteBuffer.h>
+#include <Common/IO/WriteHelpers.h>
+#include <Common/IO/WriteBufferFromString.h>
+#include <Common/IO/Operators.h>
 #include <Common/FieldVisitors.h>
 #include <Common/SipHash.h>
 

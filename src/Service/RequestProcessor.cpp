@@ -1,6 +1,6 @@
 
 #include <Service/KeeperDispatcher.h>
-#include <Common/ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 #include <Common/setThreadName.h>
 
 namespace RK

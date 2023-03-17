@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ConnectionStats.h"
 #include <Poco/Delegate.h>
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
@@ -19,8 +20,7 @@
 #include <Service/SvsSocketAcceptor.h>
 #include <Service/SvsSocketReactor.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
-#include "ConnectionStats.h"
-#include "IO/WriteBufferFromString.h"
+#include <Common/IO/WriteBufferFromString.h>
 
 
 namespace RK

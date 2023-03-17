@@ -3,9 +3,9 @@
 #include <Common/ShellCommand.h>
 #include <Common/Exception.h>
 
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/WriteBufferFromFileDescriptor.h>
-#include <IO/copyData.h>
+#include <Common/IO/ReadBufferFromFileDescriptor.h>
+#include <Common/IO/WriteBufferFromFileDescriptor.h>
+#include <Common/IO/copyData.h>
 
 /** This example shows how we can proxy stdin to ShellCommand and obtain stdout in streaming fashion. */
 

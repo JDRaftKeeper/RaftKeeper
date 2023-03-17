@@ -1,10 +1,10 @@
 #pragma once
 
 #include <Core/Defines.h>
-#include <IO/WriteBufferFromString.h>
+#include <Common/IO/WriteBufferFromString.h>
 #include <Poco/Message.h>
 #include <Poco/Util/AbstractConfiguration.h>
-#include <Common/ZooKeeper/ZooKeeperConstants.h>
+#include <ZooKeeper/ZooKeeperConstants.h>
 #include <Service/LoggerWrapper.h>
 
 namespace RK

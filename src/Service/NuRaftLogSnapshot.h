@@ -2,13 +2,13 @@
 
 #include <map>
 #include <string>
-#include <IO/WriteBufferFromFile.h>
+#include <Common/IO/WriteBufferFromFile.h>
 #include <Service/KeeperCommon.h>
 #include <Service/KeeperStore.h>
 #include <Service/LogEntry.h>
 #include <Service/proto/Log.pb.h>
 #include <libnuraft/nuraft.hxx>
-#include <Common/ZooKeeper/IKeeper.h>
+#include <ZooKeeper/IKeeper.h>
 
 
 namespace RK

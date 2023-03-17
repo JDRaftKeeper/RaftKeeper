@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Service/KeeperCommon.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
@@ -15,7 +15,7 @@
 #include <Poco/NumberFormatter.h>
 #include <Common/Exception.h>
 #include <Common/Stopwatch.h>
-#include <Common/ZooKeeper/ZooKeeperIO.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push

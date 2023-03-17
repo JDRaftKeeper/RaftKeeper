@@ -7,8 +7,8 @@
 #include <Common/PipeFDs.h>
 #include <common/logger_useful.h>
 #include <common/errnoToString.h>
-#include <IO/WriteHelpers.h>
-#include <IO/Operators.h>
+#include <Common/IO/WriteHelpers.h>
+#include <Common/IO/Operators.h>
 #include <unistd.h>
 #include <csignal>
 

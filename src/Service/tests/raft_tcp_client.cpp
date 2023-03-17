@@ -1,18 +1,11 @@
-#include <iostream>
 #include <memory>
 #include <string>
-
-#include <thread>
-
 #include <Poco/Net/NetException.h>
-#include "Common/StringUtils.h"
-#include <Common/ZooKeeper/IKeeper.h>
-#include <Common/ZooKeeper/Types.h>
-#include <Common/ZooKeeper/ZooKeeper.h>
-#include <Common/ZooKeeper/ZooKeeperImpl.h>
-#include <Common/randomSeed.h>
-#include <common/find_symbols.h>
-#include <common/logger_useful.h>
+#include <Common/StringUtils.h>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/Types.h>
+#include <ZooKeeper/ZooKeeper.h>
+#include <ZooKeeper/ZooKeeperImpl.h>
 
 using namespace Coordination;
 

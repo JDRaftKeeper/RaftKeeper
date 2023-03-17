@@ -1,9 +1,9 @@
 #include <cmath>
 
 #include <Common/formatReadable.h>
-#include <IO/DoubleConverter.h>
-#include <IO/WriteBufferFromString.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/DoubleConverter.h>
+#include <Common/IO/WriteBufferFromString.h>
+#include <Common/IO/WriteHelpers.h>
 
 namespace RK
 {

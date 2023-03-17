@@ -23,7 +23,7 @@
     #pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
 #endif
 
-/// Basic idea is motivated by "iotop" tool.
+/// Basic idea is motivated by <Common/IO/top" tool.
 /// More info: https://www.kernel.org/doc/Documentation/accounting/taskstats.txt
 
 

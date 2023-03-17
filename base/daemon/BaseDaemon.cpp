@@ -34,10 +34,10 @@
 #include <common/coverage.h>
 #include <common/sleep.h>
 
-#include <IO/ReadBufferFromFileDescriptor.h>
-#include <IO/ReadHelpers.h>
-#include <IO/WriteBufferFromFileDescriptorDiscardOnFailure.h>
-#include <IO/WriteHelpers.h>
+#include <Common/IO/ReadBufferFromFileDescriptor.h>
+#include <Common/IO/ReadHelpers.h>
+#include <Common/IO/WriteBufferFromFileDescriptorDiscardOnFailure.h>
+#include <Common/IO/WriteHelpers.h>
 #include <Common/Config/ConfigProcessor.h>
 #include <Common/Exception.h>
 #include <Common/PipeFDs.h>
@@ -56,7 +56,7 @@
 #include <Common/SymbolIndex.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getHashOfLoadedBinary.h>
-#include <IO/WriteBufferFromFile.h>
+#include <Common/IO/WriteBufferFromFile.h>
 
 
 RK::PipeFDs signal_pipe;
