@@ -97,7 +97,7 @@ struct RaftSettings
     /// How many time we will until RAFT to start
     UInt64 startup_timeout;
     /// Log internal RAFT logs into main server log level. Valid values: 'trace', 'debug', 'information', 'warning', 'error', 'fatal'
-    LogLevel raft_logs_level;
+    NuRaftLogLevel raft_logs_level;
     /// How many records will be stored in one log storage file. TODO remove
     UInt64 rotate_log_storage_interval;
     /// NuRaft thread pool size

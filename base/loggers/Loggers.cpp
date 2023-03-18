@@ -40,7 +40,7 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
     /// Use extended interface of Channel for more comprehensive logging.
     split = new Poco::SplitterChannel();
 
-    auto log_level = config.getString("logger.level", "trace");
+    auto log_level = config.getString("logger.level", "information");
     const auto log_path = config.getString("logger.path", "");
     if (!log_path.empty())
     {
@@ -82,7 +82,7 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
         Poco::AutoPtr<OwnPatternFormatter> pf = new OwnPatternFormatter(this);
 
         Poco::AutoPtr<RK::OwnFormattingChannel> error_log = new RK::OwnFormattingChannel(pf, error_log_file);
-        error_log->setLevel(Poco::Message::PRIO_NOTICE);
+        error_log->setLevel(Poco::Message::PRIO_WARNING);
         error_log->open();
         split->addChannel(error_log);
     }
@@ -90,7 +90,7 @@ void Loggers::buildLoggers(Poco::Util::AbstractConfiguration & config, Poco::Log
     bool should_log_to_console = isatty(STDIN_FILENO) || isatty(STDERR_FILENO);
     bool color_logs_by_default = isatty(STDERR_FILENO);
 
-    if (config.getBool("logger.log_to_console", true)
+    if (config.getBool("logger.log_to_console", false)
         || (!config.hasProperty("logger.log_to_console") && !is_daemon && should_log_to_console))
     {
         bool color_enabled = config.getBool("logger.color_terminal", color_logs_by_default);
