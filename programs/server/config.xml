@@ -127,7 +127,7 @@
             <server>
                 <id>1</id>
                 <host>host1</host>
-                <!-- <internal_port>8103</port> -->
+                <!-- <internal_port>8103</internal_port> -->
                 <!-- <forwarding_port>8102</forwarding_port> -->
                 <!-- `true` if this node is learner. Learner will not initiate or participate in leader election. -->
                 <!-- <learner>false</learner> -->
