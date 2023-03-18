@@ -122,6 +122,7 @@
             <!-- <log_fsync_interval>1000</log_fsync_interval> -->
         </raft_settings>
 
+        <!-- If you want a RaftKeeper cluster, you can uncomment this and configure it carefully -->
         <![CDATA[
         <cluster>
             <server>
