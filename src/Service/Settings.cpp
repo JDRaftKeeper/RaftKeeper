@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <Common/IO/WriteHelpers.h>
 #include <Service/Settings.h>
+#include <common/logger_useful.h>
 
 
 namespace RK
@@ -65,7 +66,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         shutdown_timeout = config.getUInt(get_key("shutdown_timeout"), 5000);
 
         String log_level = config.getString(get_key("raft_logs_level"), "information");
-        raft_logs_level = parseLogLevel(log_level);
+        raft_logs_level = parseNuRaftLogLevel(log_level);
         rotate_log_storage_interval = config.getUInt(get_key("rotate_log_storage_interval"), 100000);
         /// TODO set a value according to CPU size
         nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), 32);
@@ -100,7 +101,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->shutdown_timeout = 5000;
     settings->startup_timeout = 6000000;
 
-    settings->raft_logs_level = LogLevel::PRIO_INFORMATION;
+    settings->raft_logs_level = NuRaftLogLevel::LOG_INFORMATION;
     settings->rotate_log_storage_interval = 100000;
     settings->nuraft_thread_size = 32;
     settings->fresh_log_gap = 200;
@@ -208,7 +209,7 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     write_int(raft_settings->startup_timeout);
 
     writeText("raft_logs_level=", buf);
-    writeText(logLevelToString(raft_settings->raft_logs_level), buf);
+    writeText(nuRaftLogLevelToString(raft_settings->raft_logs_level), buf);
     buf.write('\n');
     writeText("rotate_log_storage_interval=", buf);
     write_int(raft_settings->rotate_log_storage_interval);

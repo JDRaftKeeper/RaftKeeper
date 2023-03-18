@@ -3,8 +3,8 @@
     <!-- System timezone, default is empty, will use OS default timezone. -->
     <!-- <timezone></timezone>-->
     <logger>
-        <!-- Valid values are: none(turn off), fatal, critical, error, warning, notice, information, debug, trace -->
-        <!-- <level>trace</level> -->
+        <!-- Valid values are: fatal, error, warning, information, debug, trace -->
+        <!-- <level>information</level> -->
         <!-- Logger file path, default is empty string. If is empty string will not log to file -->
         <path>./log/raftkeeper.log</path>
         <!-- Error logger file path, default is empty string. If is empty string will not log to file -->
@@ -13,8 +13,10 @@
         <!-- <size>100M</size> -->
         <!-- How many log file to keep, default is 10. -->
         <!-- <count>10</count> -->
-        <!-- Whether print log to console, default is true-->
-        <log_to_console>true</log_to_console>
+        <!-- Whether compress log, default is true. -->
+        <!-- <compress>true</compress> -->
+        <!-- Whether print log to console, default is false-->
+        <!-- <log_to_console>false</log_to_console> -->
     </logger>
 
     <!-- <core_dump> -->
