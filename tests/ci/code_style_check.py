@@ -113,7 +113,12 @@ if __name__ == "__main__":
     # print(repo_path)
     # print(temp_path)
 
-    subprocess.check_output(f"cd ../../utils/check-style && ./check-style -n |& tee ../../tests/ci/temp/style_check/style_output.txt && ./check-typos |& tee ../../tests/ci/temp/style_check/typos_output.txt && ./check-whitespaces -n |& tee ../../tests/ci/temp/style_check/whitespaces_output.txt && ./check-duplicate-includes.sh |& tee ../../tests/ci/temp/style_check/duplicate_output.txt && python3 process_style_check_result.py", shell=True)
+    subprocess.check_output(f"mkdir -p temp/style_check", shell=True)
+    subprocess.check_output(f"../../utils/check-style/check-style -n 2>&1 | tee temp/style_check/style_output.txt", shell=True)
+    subprocess.check_output(f"../../utils/check-style/check-typos 2>&1 | tee temp/style_check/typos_output.txt ", shell=True)
+    subprocess.check_output(f"../../utils/check-style/check-whitespaces -n 2>&1 | tee temp/style_check/whitespaces_output.txt ", shell=True)
+    subprocess.check_output(f"../../utils/check-style/check-duplicate-includes.sh 2>&1 | tee temp/style_check/duplicate_output.txt", shell=True)
+    subprocess.check_output(f"python3 process_style_check_result.py", shell=True)
 
     state, description, test_results, additional_files = process_result(temp_path)
 
