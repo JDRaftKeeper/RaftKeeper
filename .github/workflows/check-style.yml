@@ -7,7 +7,7 @@ on:
     branches: [ "master" , "ci-test" ]
 
 jobs:
-  build-and-test:
+  check-style:
     runs-on: ubuntu-22.04
 
     steps:
