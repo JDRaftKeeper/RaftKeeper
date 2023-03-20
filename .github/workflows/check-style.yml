@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "ci-test" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master" , "ci-test" ]
 
 jobs:
   build-and-test:
