@@ -37,9 +37,26 @@ def started_cluster():
 def start(node):
     node.start_raftkeeper()
 
+def wait_node(node):
+    for _ in range(30):
+        zk = None
+        try:
+            zk = get_fake_zk(node.name, timeout=3.0)
+            zk.create("/test", sequence=True)
+            print("node", node.name, "ready")
+            break
+        except Exception as ex:
+            time.sleep(1)
+            print("Waiting until", node.name, "will be ready, exception", ex)
+        finally:
+            destroy_zk_client(zk)
+    else:
+        raise Exception("Can't wait node", node.name, "to become ready")
+
 def get_fake_zk(node, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node.name) + ":8101", timeout=timeout)
     _fake_zk_instance.start()
+    wait_node(node)
     return _fake_zk_instance
 
 
@@ -72,8 +89,6 @@ def test_node_replace(started_cluster):
 
     # The configuration update of 3 here is because 3 may be the leader at this time, and deletion of 3 requires leader participation, and then 3 triggers yield_leadership re-election. In the future, when the real online operation is performed, 3 may be the faulty node, and the leader should be 1 and 2. At this time, the configuration of 3 does not need to be replaced.
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
-
-    time.sleep(8)
 
     zk_conn4 = get_fake_zk(node4)
     zk_conn4.sync("/test_four_0")

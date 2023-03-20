@@ -17,7 +17,7 @@ do
     echo -e "\n================= Run test $test_case ================="
     ./runner --binary "${work_dir}"/../../build/programs/raftkeeper  \
              --base-configs-dir "${work_dir}"/../../programs/server \
-             --use-net-host "$test_case"
+             "$test_case"
     # shellcheck disable=SC2181
     if [ $? -ne 0 ]; then
          test_result="failed"

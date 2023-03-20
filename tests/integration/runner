@@ -139,12 +139,6 @@ if __name__ == "__main__":
         help="Set it to run some other command in container (for example bash)")
 
     parser.add_argument(
-        "--disable-net-host",
-        action='store_true',
-        default=False,
-        help="Don't use net host in parent docker container")
-
-    parser.add_argument(
         "--docker-image-version",
         default="latest",
         help="Version of docker image which runner will use to run tests")
@@ -156,8 +150,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--use-net-host",
-        default=True,
-        help="Whether use host net in runner.")
+        action="store_true",
+        help="Whether use host net in runner, if false, will use bridge host.")
 
     parser.add_argument('pytest_args', nargs='*', help="args for pytest command")
 
@@ -166,7 +160,9 @@ if __name__ == "__main__":
     check_args_and_update_paths(args)
 
     net = ""
+    print("use_net_host:", args.use_net_host)
     if args.use_net_host:
+        print("use_net_host:", args.use_net_host)
         net = "--net=host"
 
     env_tags = ""
