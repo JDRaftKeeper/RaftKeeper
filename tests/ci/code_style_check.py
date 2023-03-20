@@ -73,22 +73,22 @@ def printFile(file):
     f = open(file)
     if "style_output.txt" in file:
         for line in f:
-            # 清理多余的头文件报错
+
             patternDoth = re.compile(r'.h:[\s]+')
             subStrDoth = patternDoth.findall(line)
             if len(subStrDoth) > 0:
                 continue
-            # 清理多余的cpp文件报错
+
             patternDotcpp = re.compile(r'.cpp:[\s]+')
             subStrDotcpp = patternDotcpp.findall(line)
             if len(subStrDotcpp) > 0:
                 continue
-            # 清理多余的python文件报错
+
             patternDotpy = re.compile(r'.py:[\s]+')
             subStrDotpy = patternDotpy.findall(line)
             if len(subStrDotpy) > 0:
                 continue
-            # 处理输出文件
+
             pattern = re.compile(r':[0-9]+:')
             subStrArr = pattern.findall(line)
             if len(subStrArr) == 0:
@@ -96,7 +96,7 @@ def printFile(file):
                 continue
             subStr = subStrArr[0]
             res = line.split(subStr, 1)
-            # 标记 write space error
+
             if res[1].isspace():
                 print(res[0],subStr," whitespace error")
             else:
@@ -109,7 +109,7 @@ def printFile(file):
 
 if __name__ == "__main__":
     repo_path = os.path.join(os.getenv("GITHUB_WORKSPACE", os.path.abspath("../../")))
-    temp_path = os.path.join(os.getenv("RUNNER_TEMP", os.path.abspath("./temp")), 'style_check')
+    temp_path = "./temp/style_check"
     # print(repo_path)
     # print(temp_path)
 
@@ -122,7 +122,7 @@ if __name__ == "__main__":
 
     state, description, test_results, additional_files = process_result(temp_path)
 
-    if state == "failure":
+    if state == "failure" or state == "exception":
         printErrorFile(temp_path)
         raise RuntimeError('code style check failed')
     else:
