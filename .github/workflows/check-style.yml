@@ -1,0 +1,23 @@
+name: check-style
+
+on:
+  push:
+    branches: [ "ci-test" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
+
+      - name: Check style
+        working-directory: ${{github.workspace}}/utils/check-style
+        run: ./check-style -n |& tee style_output.txt && ./check-typos |& tee typos_output.txt && ./check-whitespaces -n |& tee whitespaces_output.txt && ./check-duplicate-includes.sh |& tee duplicate_output.txt && true
