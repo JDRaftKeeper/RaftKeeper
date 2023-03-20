@@ -20,7 +20,7 @@ def process_result(result_folder):
     status = []
     status_path = os.path.join(result_folder, "check_status.tsv")
     if os.path.exists(status_path):
-        logging.info("Found test_results.tsv")
+        logging.info("Found check_status.tsv")
         with open(status_path, 'r', encoding='utf-8') as status_file:
             status = list(csv.reader(status_file, delimiter='\t'))
     if len(status) != 1 or len(status[0]) != 2:
@@ -113,10 +113,7 @@ if __name__ == "__main__":
     # print(repo_path)
     # print(temp_path)
 
-    name = "codeStyleCheck_ck"
-    docker_image = "yandex/clickhouse-style-test:latest"
-
-    subprocess.check_output(f"docker run --net=host --rm --name {name} --privileged --volume={repo_path}:/ClickHouse --volume={temp_path}:/test_output {docker_image}", shell=True)
+    subprocess.check_output(f"cd ../../utils/check-style && ./check-style -n |& tee ../../tests/ci/temp/style_check/style_output.txt && ./check-typos |& tee ../../tests/ci/temp/style_check/typos_output.txt && ./check-whitespaces -n |& tee ../../tests/ci/temp/style_check/whitespaces_output.txt && ./check-duplicate-includes.sh |& tee ../../tests/ci/temp/style_check/duplicate_output.txt && python3 process_style_check_result.py", shell=True)
 
     state, description, test_results, additional_files = process_result(temp_path)
 
