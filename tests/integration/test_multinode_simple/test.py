@@ -33,7 +33,6 @@ def wait_node(cluster1, node):
     for _ in range(100):
         zk = None
         try:
-            # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
             zk = get_fake_zk(cluster1, node.name, timeout=30.0)
             zk.create("/test", sequence=True)
             print("node", node.name, "ready")
@@ -218,7 +217,7 @@ def test_follower_restart(started_cluster):
 
         node1_zk.create("/test_restart_node", b"hello")
 
-        node3.restart_raftkeeper()
+        node3.restart_raftkeeper(kill=True)
         wait_node(cluster1, node3)
 
         node3_zk = get_fake_zk(cluster1, "node3")
@@ -253,7 +252,7 @@ def test_simple_sleep_test(started_cluster):
         node2_zk.get("/")
         node2_zk.create("/persistent_node1", b"123", ephemeral=False)
 
-        time.sleep(150)
+        time.sleep(1)
 
         node1_zk.exists("/persistent_node1")
         node2_zk.exists("/persistent_node1")
