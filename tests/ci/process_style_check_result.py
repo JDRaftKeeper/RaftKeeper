@@ -49,7 +49,7 @@ def write_results(results_file, status_file, results, status):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     parser = argparse.ArgumentParser(
-        description="ClickHouse script for parsing results of style check"
+        description="RaftKeeper script for parsing results of style check"
     )
     parser.add_argument("--in-results-dir", default="./temp/style_check")
     parser.add_argument("--out-results-file", default="./temp/style_check/test_results.tsv")
