@@ -11,7 +11,7 @@
         <raft_settings>
             <raft_logs_level>trace</raft_logs_level>
             <session_timeout_ms>10000</session_timeout_ms>
-            <operation_timeout_ms>5000</operation_timeout_ms>
+            <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>30</snapshot_distance>
             <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
             <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>

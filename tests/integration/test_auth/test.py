@@ -7,7 +7,7 @@ from helpers.cluster_service import RaftKeeperCluster
 
 
 cluster = RaftKeeperCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/enable_test_keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True, stay_alive=True)
+node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True, stay_alive=True)
 from kazoo.client import KazooClient, KazooState, KeeperState
 
 def get_genuine_zk():

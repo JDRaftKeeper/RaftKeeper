@@ -8,7 +8,7 @@
         <four_letter_word_white_list>*</four_letter_word_white_list>
 
         <raft_settings>
-            <operation_timeout_ms>5000</operation_timeout_ms>
+            <operation_timeout_ms>1000</operation_timeout_ms>
             <session_timeout_ms>30000</session_timeout_ms>
             <snapshot_distance>3000000</snapshot_distance>
             <raft_logs_level>debug</raft_logs_level>
