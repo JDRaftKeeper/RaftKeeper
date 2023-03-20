@@ -386,10 +386,11 @@ class RaftKeeperCluster:
                 instance.wait_for_start(start_deadline)
                 print("RaftKeeper-server started")
 
-                # instance.client = Client(instance.ip_address, command=self.client_bin_path)
-
             self.is_up = True
-            time.sleep(20) # wait cluster inited
+            # wait cluster init TODO use a deterministic way
+            time.sleep(5)
+            print("RaftKeeper Cluster started!")
+
         except BaseException as e:
             print("Failed to start cluster: ")
             print(str(e))
@@ -570,7 +571,7 @@ class RaftKeeperInstance:
         self.ipv6_address = ipv6_address
         self.with_installed_binary = with_installed_binary
 
-    def kill_raftkeeper(self, stop_start_wait_sec=5):
+    def kill_raftkeeper(self, stop_start_wait_sec=3):
         if self.use_old_bin:
             pid = self.get_process_pid("raftkeeper_old")
         else:
@@ -602,18 +603,18 @@ class RaftKeeperInstance:
             raise Exception("raftkeeper can be stopped only with stay_alive=True instance")
         try:
             if self.use_old_bin:
-                ps_raftkeeper = self.exec_in_container(["bash", "-c", "ps -C raftkeeper_old"], nothrow=True, user='root')
+                pid = self.get_process_pid("raftkeeper_old")
+                print("use_old_bin")
             else:
-                ps_raftkeeper = self.exec_in_container(["bash", "-c", "ps -C raftkeeper"], nothrow=True, user='root')
+                pid = self.get_process_pid("raftkeeper")
 
-            if ps_raftkeeper == "  PID TTY      STAT   TIME COMMAND" :
+            if pid is None:
                 logging.warning("RaftKeeper process already stopped")
                 return
 
-            if self.use_old_bin:
-                self.exec_in_container(["bash", "-c", "pkill {} raftkeeper_old".format("-9" if kill else "")], user='root')
-            else:
-                self.exec_in_container(["bash", "-c", "pkill {} raftkeeper".format("-9" if kill else "")], user='root')
+            # self.kill_raftkeeper()
+            output = self.exec_in_container(["bash", "-c", "kill {} {}".format("-9" if kill else "", pid)], user='root')
+            print(f"kill raftkeeper pid:{pid}, force:{kill}, command output:{output}")
 
             start_time = time.time()
             stopped = False
@@ -623,6 +624,7 @@ class RaftKeeperInstance:
                 else:
                     pid = self.get_process_pid("raftkeeper")
 
+                print("stop raftkeeper found pid ", pid)
                 if pid is None:
                     stopped = True
                     break
@@ -637,9 +639,8 @@ class RaftKeeperInstance:
                     pid = self.get_process_pid("raftkeeper")
 
                 if pid is not None:
-                    logging.warning(f"Force kill raftkeeper in stop_raftkeeper. ps:{pid}")
-                    # self.exec_in_container(["bash", "-c", f"gdb -batch -ex 'thread apply all bt full' -p {pid} > /var/log/raftkeeper-server/stdout.log"], user='root')
-                    self.stop_raftkeeper(kill=True)
+                    logging.warning(f"Force kill raftkeeper in stop_raftkeeper. pid:{pid}")
+                    self.kill_raftkeeper()
                 else:
                     ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
                     logging.warning(f"We want force stop raftkeeper, but no raftkeeper-server is running\n{ps_all}")
@@ -687,28 +688,26 @@ class RaftKeeperInstance:
 
         raise Exception("Cannot start RaftKeeper, see additional info in logs")
 
-    def wait_start(self, start_wait_sec):
-        for _ in range(100):
+    def wait_start(self, start_wait_sec=30):
+        start_time = time.time()
+        while start_time + start_wait_sec >= time.time():
             zk = None
             try:
-                # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
                 zk = self.get_fake_zk(start_wait_sec)
-                zk.create("/testadfasfjkn")
+                zk.get("/")
                 print("node", self.name, "ready")
-                zk.delete("/testadfasfjkn")
                 break
             except Exception as ex:
-                time.sleep(0.2)
+                time.sleep(0.5)
                 print("Waiting until", self.name, "will be ready, exception", ex)
             finally:
                 if zk:
                     zk.stop()
                     zk.close()
-        else:
-            raise Exception("Can't wait node", self.name, "to become ready")
+        raise Exception("Can't wait node", self.name, "to become ready")
 
-    def get_fake_zk(self, start_wait_sec):
-        _fake_zk_instance = KazooClient(hosts=self.ip_address + ":8101", timeout=start_wait_sec)
+    def get_fake_zk(self, session_timeout=10):
+        _fake_zk_instance = KazooClient(hosts=self.ip_address + ":8101", timeout=session_timeout)
         def reset_listener(state):
             nonlocal _fake_zk_instance
             # print("Fake zk callback called for state", state)
@@ -744,6 +743,8 @@ class RaftKeeperInstance:
         return self.cluster.copy_file_to_container(container_id, local_path, dest_path)
 
     def get_process_pid(self, process_name):
+        output1 = self.exec_in_container(["bash", "-c", "ps ax | grep '{}'".format(process_name)])
+        print(f"get_process_pid output {output1}")
         output = self.exec_in_container(["bash", "-c",
                                          "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | awk '{{print $1}}'".format(
                                              process_name)])

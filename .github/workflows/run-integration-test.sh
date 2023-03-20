@@ -7,7 +7,7 @@ cd "$work_dir"
 
 #test_cases=($(ls "$work_dir" | grep test_))
 test_cases=(test_multinode_simple)
- test_result="succeed"
+test_result="succeed"
 
 echo "Total ${#test_cases[*]} test cases to run."
 
@@ -29,9 +29,8 @@ do
         for raftkeeper_instance in ${raftkeeper_instances[*]}
         do
             echo -e "\n================= $test_case raftkeeper $raftkeeper_instance log ================="
-            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
+            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.err.log
         done
-        break;
     fi
 done
 

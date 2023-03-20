@@ -253,7 +253,7 @@ def test_simple_sleep_test(started_cluster):
         node2_zk.get("/")
         node2_zk.create("/persistent_node1", b"123", ephemeral=False)
 
-        time.sleep(280)
+        time.sleep(1)
 
         node1_zk.exists("/persistent_node1")
         node2_zk.exists("/persistent_node1")

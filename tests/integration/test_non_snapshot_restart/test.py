@@ -33,7 +33,6 @@ def wait_node(node):
     for _ in range(100):
         zk = None
         try:
-            # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
             zk = get_fake_zk(node, timeout=30.0)
             zk.get("/")
             print("node", node.name, "ready")
