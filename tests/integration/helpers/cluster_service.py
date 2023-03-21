@@ -1,17 +1,3 @@
-# Copyright 2016-2021 ClickHouse, Inc.
-# Copyright 2021-2023 JD.com, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 import base64
 import errno
 import logging
@@ -491,8 +477,15 @@ class RaftKeeperCluster:
 RAFTKEEPER_START_COMMAND = "raftkeeper server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 OLD_RAFTKEEPER_START_COMMAND = "raftkeeper_old server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 
-RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(RAFTKEEPER_START_COMMAND)
-OLD_RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(OLD_RAFTKEEPER_START_COMMAND)
+# RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon && tail -f /dev/null"'.format(RAFTKEEPER_START_COMMAND)
+# OLD_RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(OLD_RAFTKEEPER_START_COMMAND)
+
+RAFTKEEPER_STAY_ALIVE_COMMAND = "bash -c \"trap 'kill tail' INT TERM; {} --daemon; coproc tail -f /dev/null; wait $$!\"".format(
+    RAFTKEEPER_START_COMMAND
+)
+OLD_RAFTKEEPER_STAY_ALIVE_COMMAND = "bash -c \"trap 'kill tail' INT TERM; {} --daemon; coproc tail -f /dev/null; wait $$!\"".format(
+    OLD_RAFTKEEPER_START_COMMAND
+)
 
 DOCKER_COMPOSE_TEMPLATE = '''
 version: '2.3'
@@ -594,9 +587,6 @@ class RaftKeeperInstance:
             self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
         else:
             self.exec_in_container(["bash", "-c", "{} --daemon".format(RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
-        # from helpers.test_tools import assert_eq_with_retry
-        # wait start
-        # assert_eq_with_retry(self, "select 1", "1", retry_count=retries)
 
     def stop_raftkeeper(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:
@@ -650,7 +640,7 @@ class RaftKeeperInstance:
         except Exception as e:
             logging.warning(f"Stop RaftKeeper raised an error {e}")
 
-    def start_raftkeeper(self, start_wait_sec=60, start_wait=True):
+    def start_raftkeeper(self, start_wait_sec=60, start_wait=False):
         if not self.stay_alive:
             raise Exception("RaftKeeper can be started again only with stay_alive=True instance")
         start_time = time.time()
@@ -677,7 +667,7 @@ class RaftKeeperInstance:
                 logging.debug("RaftKeeper process running.")
                 print("RaftKeeper process running.")
                 try:
-                    self.wait_start(start_wait_sec)
+                    self.wait_join_cluster(start_wait_sec)
                     return
                 except Exception as e:
                     logging.warning(f"Current start attempt failed. Will kill {pid} just in case.")
@@ -688,7 +678,7 @@ class RaftKeeperInstance:
 
         raise Exception("Cannot start RaftKeeper, see additional info in logs")
 
-    def wait_start(self, start_wait_sec=30):
+    def wait_join_cluster(self, start_wait_sec=30):
         start_time = time.time()
         while start_time + start_wait_sec >= time.time():
             zk = None
@@ -696,7 +686,7 @@ class RaftKeeperInstance:
                 zk = self.get_fake_zk(start_wait_sec)
                 zk.get("/")
                 print("node", self.name, "ready")
-                break
+                return
             except Exception as ex:
                 time.sleep(0.5)
                 print("Waiting until", self.name, "will be ready, exception", ex)
@@ -743,10 +733,12 @@ class RaftKeeperInstance:
         return self.cluster.copy_file_to_container(container_id, local_path, dest_path)
 
     def get_process_pid(self, process_name):
-        output1 = self.exec_in_container(["bash", "-c", "ps ax | grep '{}'".format(process_name)])
+        output1 = self.exec_in_container(["bash", "-c", "ps -ef | grep '{}'".format(process_name)])
         print(f"get_process_pid output {output1}")
+        output2 = self.exec_in_container(["bash", "-c", "ps -ef | grep 'tail'"])
+        print(f"get_process_pid tailf output {output2}")
         output = self.exec_in_container(["bash", "-c",
-                                         "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | awk '{{print $1}}'".format(
+                                         "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | grep -v 'coproc' | grep -v 'defunct' | awk '{{print $1}}'".format(
                                              process_name)])
 
         if output:
@@ -808,9 +800,6 @@ class RaftKeeperInstance:
     def dict_to_xml(dictionary):
         xml_str = dicttoxml(dictionary, custom_root="yandex", attr_type=False)
         return xml.dom.minidom.parseString(xml_str).toprettyxml()
-
-    def replace_config(self, path_to_config, replacement):
-        self.exec_in_container(["bash", "-c", "echo '{}' > {}".format(replacement, path_to_config)])
 
     def create_dir(self, destroy_dir=True):
         """Create the instance directory and all the needed files there."""

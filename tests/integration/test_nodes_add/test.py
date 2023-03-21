@@ -36,7 +36,7 @@ def started_cluster():
         cluster.shutdown()
 
 def start(node):
-       node.start_raftkeeper()
+       node.start_raftkeeper(start_wait=True)
 
 
 def test_nodes_add(started_cluster):

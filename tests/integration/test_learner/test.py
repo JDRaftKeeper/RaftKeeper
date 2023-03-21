@@ -298,8 +298,8 @@ def test_stop_learner(started_cluster):
         node2.start_raftkeeper()
         node3.start_raftkeeper()
 
-        wait_node(cluster1, node2)
-        wait_node(cluster1, node3)
+        node2.wait_join_cluster()
+        node3.wait_join_cluster()
 
         node2_zk = get_fake_zk(cluster1, "node2")
         node3_zk = get_fake_zk(cluster1, "node3", timeout=3.0)

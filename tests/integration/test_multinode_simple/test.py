@@ -214,10 +214,9 @@ def test_follower_restart(started_cluster):
         wait_nodes(cluster1, node1, node2, node3)
 
         node1_zk = get_fake_zk(cluster1, "node1")
-
         node1_zk.create("/test_restart_node", b"hello")
 
-        node3.restart_raftkeeper(kill=True)
+        node3.restart_raftkeeper()
         wait_node(cluster1, node3)
 
         node3_zk = get_fake_zk(cluster1, "node3")

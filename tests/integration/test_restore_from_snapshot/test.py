@@ -70,7 +70,7 @@ def test_recover_from_snapshot(started_cluster):
 
     # stale node should recover from leader's snapshot
     # with some sanitizers can start longer than 5 seconds
-    node3.start_raftkeeper()
+    node3.start_raftkeeper(start_wait=True)
     print("Restarted")
 
     try:

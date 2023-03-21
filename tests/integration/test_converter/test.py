@@ -36,7 +36,7 @@ def stop_raftkeeper():
     node.stop_raftkeeper()
 
 def start_raftkeeper():
-    node.start_raftkeeper()
+    node.start_raftkeeper(start_wait=True)
 
 def copy_zookeeper_data(make_zk_snapshots):
     stop_zookeeper()

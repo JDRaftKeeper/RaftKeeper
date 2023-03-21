@@ -38,7 +38,7 @@ env:
 
 jobs:
   build-and-test:
-    name: "Ubuntu Clang"
+    name: "ubuntu clang"
     runs-on: ubuntu-22.04
 
     steps:
