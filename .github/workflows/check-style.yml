@@ -2,9 +2,13 @@ name: check-style
 
 on:
   push:
-    branches: [ "ci-test" ]
+    branches:
+      - master
   pull_request:
-    branches: [ "master" , "ci-test" ]
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 jobs:
   check-style:
