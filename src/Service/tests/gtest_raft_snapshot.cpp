@@ -271,7 +271,8 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
         auto & map = storage.container.getMap(i);
         auto & ano_map = ano_storage.container.getMap(i);
 
-        map.forEach([&ano_map](const auto & key, const auto & value){
+        map.forEach([&ano_map](const auto & key, const auto & value)
+        {
             /// TODO only compare data
             const auto * l = dynamic_cast<const KeeperNode *>(value.get());
             const auto * r = dynamic_cast<const KeeperNode *>(ano_map.get(key).get());
@@ -299,7 +300,8 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
         ASSERT_EQ(it.second, ano_storage.session_and_timeout.at(it.first));
     }
 
-    auto filter_auth = [] (KeeperStore::SessionAndAuth & auth_ids) {
+    auto filter_auth = [] (KeeperStore::SessionAndAuth & auth_ids)
+    {
         for (auto it = auth_ids.begin(); it != auth_ids.end();)
         {
             if (it->second.empty())
@@ -704,7 +706,8 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     std::condition_variable cv;
 
     std::atomic<bool> snapshot_done = false;
-    cmd_result<bool>::handler_type handler = [log, &snapshot_done, &mutex, &cv] (bool, ptr<std::exception>&) {
+    cmd_result<bool>::handler_type handler = [log, &snapshot_done, &mutex, &cv] (bool, ptr<std::exception>&)
+    {
         LOG_INFO(log, "snapshot done");
         std::unique_lock lock(mutex);
         cv.notify_all();
