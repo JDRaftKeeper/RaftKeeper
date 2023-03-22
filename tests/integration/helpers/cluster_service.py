@@ -575,18 +575,6 @@ class RaftKeeperInstance:
         self.exec_in_container(["bash", "-c", "kill -9 {}".format(pid)], user='root')
         time.sleep(stop_start_wait_sec)
 
-    def restore_raftkeeper(self, retries=100):
-        if self.use_old_bin:
-            pid = self.get_process_pid("raftkeeper_old")
-        else:
-            pid = self.get_process_pid("raftkeeper")
-
-        if pid:
-            raise Exception("RaftKeeper has already started")
-        if self.use_old_bin:
-            self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
-        else:
-            self.exec_in_container(["bash", "-c", "{} --daemon".format(RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
 
     def stop_raftkeeper(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:
@@ -733,12 +721,8 @@ class RaftKeeperInstance:
         return self.cluster.copy_file_to_container(container_id, local_path, dest_path)
 
     def get_process_pid(self, process_name):
-        output1 = self.exec_in_container(["bash", "-c", "ps -ef | grep '{}'".format(process_name)])
-        print(f"get_process_pid output {output1}")
-        output2 = self.exec_in_container(["bash", "-c", "ps -ef | grep 'tail'"])
-        print(f"get_process_pid tailf output {output2}")
         output = self.exec_in_container(["bash", "-c",
-                                         "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | grep -v 'coproc' | grep -v 'defunct' | awk '{{print $1}}'".format(
+                                         "ps ax | grep '{}' | grep -v 'grep' | grep -v 'bash -c' | grep -v 'coproc' | awk '{{print $1}}'".format(
                                              process_name)])
 
         if output:
@@ -922,4 +906,4 @@ class RaftKeeperKiller(object):
         self.raftkeeper_node.kill_raftkeeper()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.raftkeeper_node.restore_raftkeeper()
+        self.raftkeeper_node.start_raftkeeper()
