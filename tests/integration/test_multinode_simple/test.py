@@ -29,27 +29,12 @@ def started_cluster():
 def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
-def wait_node(cluster1, node):
-    for _ in range(100):
-        zk = None
-        try:
-            zk = get_fake_zk(cluster1, node.name, timeout=30.0)
-            zk.create("/test", sequence=True)
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(0.2)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            if zk:
-                zk.stop()
-                zk.close()
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
+def wait_node(node):
+    node.wait_for_join_cluster()
 
-def wait_nodes(cluster1, node1, node2, node3):
+def wait_nodes():
     for node in [node1, node2, node3]:
-        wait_node(cluster1, node)
+        wait_node(node)
 
 
 def get_fake_zk(cluster1, nodename, timeout=30.0):
@@ -67,7 +52,7 @@ def get_fake_zk(cluster1, nodename, timeout=30.0):
 def test_read_write_multinode(started_cluster):
     try:
 
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes()
 
         node1_zk = get_fake_zk(cluster1, "node1")
         node2_zk = get_fake_zk(cluster1, "node2")
@@ -112,7 +97,7 @@ def test_watch_on_follower(started_cluster):
 
     try:
 
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes()
 
         node1_zk = get_fake_zk(cluster1, "node1")
         node2_zk = get_fake_zk(cluster1, "node2")
@@ -169,7 +154,7 @@ def test_session_expiration(started_cluster):
 
     try:
 
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes()
 
         node1_zk = get_fake_zk(cluster1, "node1")
         node2_zk = get_fake_zk(cluster1, "node2")
@@ -211,13 +196,13 @@ def test_session_expiration(started_cluster):
 def test_follower_restart(started_cluster):
 
     try:
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes()
 
         node1_zk = get_fake_zk(cluster1, "node1")
         node1_zk.create("/test_restart_node", b"hello")
 
         node3.restart_raftkeeper()
-        wait_node(cluster1, node3)
+        wait_node(node3)
 
         node3_zk = get_fake_zk(cluster1, "node3")
 
@@ -238,7 +223,7 @@ def test_follower_restart(started_cluster):
 def test_simple_sleep_test(started_cluster):
     try:
 
-        wait_nodes(cluster1, node1, node2, node3)
+        wait_nodes()
 
         node1_zk = get_fake_zk(cluster1, "node1")
         node2_zk = get_fake_zk(cluster1, "node2")

@@ -69,7 +69,11 @@ def test_restart_multinode(started_cluster):
     node1.restart_raftkeeper(kill=True)
     node2.restart_raftkeeper(kill=True)
     node3.restart_raftkeeper(kill=True)
-    time.sleep(2)
+
+    node1.wait_for_join_cluster()
+    node2.wait_for_join_cluster()
+    node3.wait_for_join_cluster()
+
     for i in range(100):
         try:
             node1_zk = get_fake_zk("node1")

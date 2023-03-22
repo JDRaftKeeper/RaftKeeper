@@ -72,10 +72,6 @@ def test_nodes_add(started_cluster):
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_three_nodes_2.xml"), "/etc/raftkeeper-server/config.d/enable_keeper2.xml")
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_three_nodes_1.xml"), "/etc/raftkeeper-server/config.d/enable_keeper1.xml")
 
-    time.sleep(3)
-    # node1.query("SYSTEM RELOAD CONFIG")
-    # node2.query("SYSTEM RELOAD CONFIG")
-
     waiter.wait()
     zk_conn3 = get_fake_zk(node3)
 

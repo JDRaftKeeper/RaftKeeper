@@ -37,6 +37,7 @@ def stop_raftkeeper():
 
 def start_raftkeeper():
     node.start_raftkeeper(start_wait=True)
+    node.wait_for_join_cluster()
 
 def copy_zookeeper_data(make_zk_snapshots):
     stop_zookeeper()
@@ -70,6 +71,13 @@ def get_genuine_zk(timeout=60.0):
     _genuine_zk_instance = KazooClient(hosts=cluster.get_instance_ip('node') + ":2181", timeout=timeout)
     _genuine_zk_instance.start()
     return _genuine_zk_instance
+
+def close_zk(zk_conn):
+    try:
+        zk_conn.stop()
+        zk_conn.close()
+    except:
+        pass
 
 def compare_stats(stat1, stat2, path):
     assert stat1.czxid == stat2.czxid, "path " + path + " cxzids not equal for stats: " + str(stat1.czxid) + " != " + str(stat2.zxid)
@@ -116,12 +124,17 @@ def test_smoke(started_cluster, create_snapshots):
 
     assert genuine_connection.get("/test")[0] == b"data"
 
+    close_zk(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
     fake_connection = get_fake_zk()
 
     compare_states(genuine_connection, fake_connection)
+
+    close_zk(genuine_connection)
+    close_zk(fake_connection)
+
 
 def get_bytes(s):
     return s.encode()
@@ -161,6 +174,7 @@ def test_simple_crud_requests(started_cluster, create_snapshots):
     # for i in range(10):  create_snapshots is false raft deserialize session timeout is 0, so do'not compare ephemeral znode
     #     genuine_connection.create("/test_ephemeral/" + str(i), get_bytes("dataX" + str(i)), ephemeral=True)
 
+    close_zk(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
@@ -175,6 +189,9 @@ def test_simple_crud_requests(started_cluster, create_snapshots):
     first_children = list(sorted(genuine_connection.get_children("/test_sequential")))
     second_children = list(sorted(fake_connection.get_children("/test_sequential")))
     assert first_children == second_children, "Childrens are not equal on path " + path
+
+    close_zk(genuine_connection)
+    close_zk(fake_connection)
 
 @pytest.mark.parametrize(
     ('create_snapshots'),
@@ -218,12 +235,16 @@ def test_multi_and_failed_requests(started_cluster, create_snapshots):
     assert genuine_connection.exists('/test_bad_transaction2') is None
     assert genuine_connection.exists('/test_multitransactions/freddy0') is not None
 
+    close_zk(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
     fake_connection = get_fake_zk()
 
     compare_states(genuine_connection, fake_connection)
+
+    close_zk(genuine_connection)
+    close_zk(fake_connection)
 
 # @pytest.mark.parametrize(
 #     ('create_snapshots'),

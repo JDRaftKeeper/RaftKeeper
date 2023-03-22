@@ -31,22 +31,7 @@ def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
 def wait_node(node):
-    for _ in range(100):
-        zk = None
-        try:
-            zk = get_fake_zk(node.name, timeout=30.0)
-            zk.create("/test", sequence=True)
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(0.2)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            if zk:
-                zk.stop()
-                zk.close()
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
+    node.wait_for_join_cluster()
 
 def wait_nodes():
     for node in [node1, node2]:
@@ -90,11 +75,9 @@ def test_read_write_two_nodes(started_cluster):
             pass
 
 def test_read_write_two_nodes_with_blocade(started_cluster):
+    node1_zk = get_fake_zk("node1", timeout=5.0)
+    node2_zk = get_fake_zk("node2", timeout=5.0)
     try:
-        wait_nodes()
-        node1_zk = get_fake_zk("node1", timeout=5.0)
-        node2_zk = get_fake_zk("node2", timeout=5.0)
-
         print("Blocking nodes")
         with PartitionManager() as pm:
             pm.partition_instances(node2, node1)

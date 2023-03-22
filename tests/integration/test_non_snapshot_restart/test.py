@@ -30,24 +30,9 @@ def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
 def wait_node(node):
-    for _ in range(100):
-        zk = None
-        try:
-            zk = get_fake_zk(node, timeout=30.0)
-            zk.get("/")
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(0.2)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            if zk:
-                zk.stop()
-                zk.close()
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
+    node.wait_for_join_cluster()
 
-def wait_nodes(node1, node2, node3):
+def wait_nodes():
     for node in [node1, node2, node3]:
         wait_node(node)
 
@@ -77,14 +62,18 @@ def dump_states(zk1, d, path="/"):
     for children in first_children:
         dump_states(zk1, d, os.path.join(path, children))
 
+def close_fake_zks(fake_zks):
+    for zk_conn in fake_zks:
+        try:
+            zk_conn.stop()
+            zk_conn.close()
+        except:
+            pass
 
 def test_restart(started_cluster):
 
+    fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
     try:
-        wait_nodes(node1, node2, node3)
-
-        fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
-
         fake_zks[0].create("/test_restart_node", b"hello")
 
         for i in range(10):
@@ -116,6 +105,8 @@ def test_restart(started_cluster):
         d = {}
         dump_states(fake_zk, d)
 
+        close_fake_zks(fake_zks)
+
         print("stop nodes")
         node1.stop_raftkeeper()
         node2.stop_raftkeeper()
@@ -127,7 +118,7 @@ def test_restart(started_cluster):
         node2.start_raftkeeper(start_wait=False)
         node3.start_raftkeeper(start_wait=False)
 
-        wait_nodes(node1, node2, node3)
+        wait_nodes()
 
         fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
 
@@ -165,13 +156,5 @@ def test_restart(started_cluster):
         print("compare done")
 
     finally:
-        try:
-            for zk_conn in fake_zks:
-                try:
-                    zk_conn.stop()
-                    zk_conn.close()
-                except:
-                    pass
-        except:
-            pass
+        close_fake_zks(fake_zks)
 
