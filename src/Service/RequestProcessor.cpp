@@ -248,7 +248,7 @@ void RequestProcessor::processErrorRequest()
         {
             const auto & [session_id, xid] = it->first;
             auto & error_request = it->second;
-            
+
             LOG_WARNING(log, "Found error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
 
             auto & pending_requests_for_thread = pending_requests.find(getRunnerId(session_id))->second;

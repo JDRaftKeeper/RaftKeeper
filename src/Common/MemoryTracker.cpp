@@ -155,7 +155,7 @@ void MemoryTracker::alloc(Int64 size)
     /// for user-level memory tracker.
     ///
     /// And since total_memory_tracker is reset to the process resident
-    /// memory peridically (in AsynchronousMetrics::update()), any limit can be
+    /// memory periodically (in AsynchronousMetrics::update()), any limit can be
     /// capped to it, to avoid possible drift.
     if (unlikely(current_hard_limit
         && will_be > current_hard_limit

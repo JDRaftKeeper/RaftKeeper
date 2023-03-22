@@ -177,7 +177,7 @@ public:
     static ptr<LogSegmentStore> getInstance(const std::string & log_dir, bool force_new = false);
 
     // init log store, check consistency and integrity
-    int init(UInt32 max_log_size = MAX_LOG_SIZE, UInt32 max_segment_count = MAX_SEGMENT_COUNT);
+    int init(UInt32 max_log_file_size = MAX_LOG_SIZE, UInt32 max_log_segment_count = MAX_SEGMENT_COUNT);
     int close();
     UInt64 flush();
 
@@ -210,7 +210,7 @@ public:
     int removeSegment();
 
     // delete segment from storage's head, [1, first_index_kept) will be discarded
-    // The log segment to which first_index_kept belongs whill not be deleted.
+    // The log segment to which first_index_kept belongs will not be deleted.
     int removeSegment(UInt64 first_index_kept);
 
     // delete uncommitted logs from storage's tail, (last_index_kept, infinity) will be discarded
@@ -241,7 +241,7 @@ private:
 
     //for truncate
     /*
-    void popSegments(UInt64 first_index_kept, std::vector<ptr<LogSegment>> & poped);
+    void popSegments(UInt64 first_index_kept, std::vector<ptr<LogSegment>> & popped);
     void popSegmentsFromBack(const UInt64 first_index_kept, std::vector<ptr<LogSegment>> & popped, ptr<LogSegment> & last_segment);
     */
 

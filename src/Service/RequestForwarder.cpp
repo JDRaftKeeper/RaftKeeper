@@ -6,6 +6,12 @@
 namespace RK
 {
 
+namespace ErrorCodes
+{
+    extern const int RAFT_FORWARDING_ERROR;
+    extern const int RAFT_ERROR;
+}
+
 void RequestForwarder::push(RequestForSession request_for_session)
 {
     requests_queue->push(request_for_session);

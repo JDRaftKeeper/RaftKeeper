@@ -24,16 +24,6 @@
 namespace RK
 {
 
-namespace ErrorCodes
-{
-    extern const int SYSTEM_ERROR;
-    extern const int LOGICAL_ERROR;
-    extern const int UNEXPECTED_PACKET_FROM_CLIENT;
-    extern const int TIMEOUT_EXCEEDED;
-    extern const int READONLY;
-    extern const int RAFT_ERROR;
-}
-
 struct ConnectRequest
 {
     int32_t protocol_version;

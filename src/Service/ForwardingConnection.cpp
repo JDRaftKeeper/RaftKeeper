@@ -10,7 +10,6 @@ namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
-    extern const int RAFT_ERROR;
 }
 
 void ForwardingConnection::connect(Poco::Timespan connection_timeout)
@@ -90,7 +89,7 @@ void ForwardingConnection::send(KeeperStore::RequestForSession request_for_sessi
         Coordination::write(buf.str(), *out);
         out->next();
     }
-    catch(...)
+    catch (...)
     {
         LOG_ERROR(log, "Got exception while forwarding to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
@@ -132,7 +131,7 @@ bool ForwardingConnection::receive(ForwardResponse & response)
 
         return true;
     }
-    catch(...)
+    catch (...)
     {
         LOG_ERROR(log, "Got exception while receiving forward result {}, {}", endpoint, getCurrentExceptionMessage(true));
         /// TODO If it is a network exception, we receive the request by default. To be discussed.
@@ -168,7 +167,7 @@ void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t
 
         out->next();
     }
-    catch(...)
+    catch (...)
     {
         LOG_ERROR(log, "Got exception while send ping to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
@@ -207,7 +206,6 @@ void ForwardingConnection::receiveHandshake()
     int32_t opnum;
     Coordination::read(opnum, *in);
 }
-
 
 
 }

@@ -3,14 +3,14 @@
 #include <Service/ConnectionHandler.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
-#include <Service/SvsSocketAcceptor.h>
-#include <Service/SvsSocketReactor.h>
 #include <ZooKeeper/ZooKeeper.h>
 #include <ZooKeeper/ZooKeeperNodeCache.h>
 #include <sys/resource.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/HelpFormatter.h>
+#include <Common/NIO/SvsSocketAcceptor.h>
+#include <Common/NIO/SvsSocketReactor.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/ThreadFuzzer.h>
@@ -23,9 +23,6 @@ namespace RK
 {
 namespace ErrorCodes
 {
-    extern const int ARGUMENT_OUT_OF_BOUND;
-    extern const int INVALID_CONFIG_PARAMETER;
-    extern const int SYSTEM_ERROR;
     extern const int NETWORK_ERROR;
 }
 
@@ -138,7 +135,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
     }
 
     auto & global_context = Context::get();
-    
+
     std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_server;
     std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> nio_server_acceptor;
 
@@ -154,7 +151,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
     /// start server
     int32_t port = config().getInt("keeper.port", 8101);
-    createServer(listen_host, port, listen_try, [&](UInt16 listen_port) {
+    createServer(listen_host, port, listen_try, [&](UInt16 listen_port)
+    {
         Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
@@ -175,7 +173,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
     /// start forwarding server
     /// TODO ignore it when cluster has one node.
     int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
-    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port) {
+    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port)
+    {
         Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
@@ -199,7 +198,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
         config().getString("path", ""),
         std::move(unused_cache),
         unused_event,
-        [&](ConfigurationPtr config, bool /* initial_loading */) {
+        [&](ConfigurationPtr config, bool /* initial_loading */)
+        {
             if (config->has("keeper"))
                 global_context.updateServiceKeeperConfiguration(*config);
         },

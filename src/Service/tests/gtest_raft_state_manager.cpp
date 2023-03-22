@@ -13,7 +13,8 @@ using namespace nuraft;
 class MockedRaftStateManager : public NuRaftStateManager
 {
 public:
-    MockedRaftStateManager() : NuRaftStateManager() {
+    MockedRaftStateManager() : NuRaftStateManager()
+    {
         log = &(Poco::Logger::get("RaftStateManager"));
         srv_state_file = "./srv_state_test";
     }
