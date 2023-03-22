@@ -653,40 +653,6 @@ struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
     Coordination::OpNum getOpNum() const override { return OpNum::SessionID; }
 };
 
-struct ZooKeeperSetSeqNumRequest final : SetSeqNumRequest, ZooKeeperRequest
-{
-    OpNum getOpNum() const override { return OpNum::SetSeqNum; }
-    ZooKeeperSetSeqNumRequest() = default;
-
-    void writeImpl(WriteBuffer & out) const override;
-    void readImpl(ReadBuffer & in) override;
-
-    ZooKeeperResponsePtr makeResponse() const override;
-    bool isReadRequest() const override { return false; }
-    String toString() const override
-    {
-        return "";
-    }
-};
-
-struct ZooKeeperSetSeqNumResponse final : SetSeqNumResponse, ZooKeeperResponse
-{
-    void readImpl(ReadBuffer &) override {}
-    void writeImpl(WriteBuffer &) const override {}
-    OpNum getOpNum() const override { return OpNum::SetSeqNum; }
-
-    bool operator== (const ZooKeeperResponse &) const override
-    {
-        throw Exception("Unsupport operator.", Error::ZBADARGUMENTS);
-    }
-
-    String toString() const override
-    {
-        return "SetSeqNumResponse ";
-    }
-};
-
-
 class ZooKeeperRequestFactory final : private boost::noncopyable
 {
 

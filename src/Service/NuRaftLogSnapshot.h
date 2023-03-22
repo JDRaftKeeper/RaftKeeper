@@ -182,7 +182,7 @@ public:
     time_t getLastCreateTime();
     size_t loadSnapshotMetas();
     size_t removeSnapshots();
-    
+
 private:
     std::string snap_dir;
 #ifdef __clang__

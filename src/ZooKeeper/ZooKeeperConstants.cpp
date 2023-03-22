@@ -21,7 +21,6 @@ static const std::unordered_set<int32_t> VALID_OPERATIONS =
     static_cast<int32_t>(OpNum::Check),
     static_cast<int32_t>(OpNum::Multi),
     static_cast<int32_t>(OpNum::Auth),
-    static_cast<int32_t>(OpNum::SetSeqNum),
     static_cast<int32_t>(OpNum::SessionID),
     static_cast<int32_t>(OpNum::SetWatches),
     static_cast<int32_t>(OpNum::SetACL),
@@ -60,8 +59,6 @@ std::string toString(OpNum op_num)
             return "Heartbeat";
         case OpNum::Auth:
             return "Auth";
-        case OpNum::SetSeqNum:
-            return "SetSeqNum";
         case OpNum::SessionID:
             return "SessionID";
         case OpNum::SetWatches:

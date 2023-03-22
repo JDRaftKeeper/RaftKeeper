@@ -161,7 +161,8 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
     }
 
     std::string s;
-    std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
+    std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv)
+    {
         s += " ";
         s += srv->get_endpoint();
     });

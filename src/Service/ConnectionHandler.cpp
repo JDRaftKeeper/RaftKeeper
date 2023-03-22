@@ -13,12 +13,8 @@ namespace RK
 
 namespace ErrorCodes
 {
-    extern const int SYSTEM_ERROR;
-    extern const int LOGICAL_ERROR;
     extern const int UNEXPECTED_PACKET_FROM_CLIENT;
     extern const int TIMEOUT_EXCEEDED;
-    extern const int READONLY;
-    extern const int RAFT_ERROR;
 }
 
 using Poco::NObserver;
@@ -287,7 +283,8 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
+        {
             if (resp == is_close)
                 return false;
 
@@ -548,7 +545,7 @@ void ConnectionHandler::sendHandshake(HandShakeResult & result)
     else
         Coordination::write(42, out);
 
-    /// Session timout -1 represent session expired in Zookeeper
+    /// Session timeout -1 represent session expired in Zookeeper
     int32_t negotiated_session_timeout = result.session_expired ? -1 : session_timeout.totalMilliseconds();
     Coordination::write(negotiated_session_timeout, out);
 

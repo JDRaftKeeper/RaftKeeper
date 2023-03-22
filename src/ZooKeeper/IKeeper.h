@@ -334,20 +334,6 @@ struct MultiResponse : virtual Response
     void removeRootPath(const String & root_path) override;
 };
 
-struct SetSeqNumRequest : virtual Request
-{
-    String path;
-    int32_t seq_num;
-
-    String getPath() const override { return path; }
-};
-
-
-struct SetSeqNumResponse : virtual Response
-{
-
-};
-
 /// This response may be received only as an element of responses in MultiResponse.
 struct ErrorResponse : virtual Response
 {
@@ -362,7 +348,6 @@ using SetCallback = std::function<void(const SetResponse &)>;
 using ListCallback = std::function<void(const ListResponse &)>;
 using CheckCallback = std::function<void(const CheckResponse &)>;
 using MultiCallback = std::function<void(const MultiResponse &)>;
-using SetSeqNumCallback = std::function<void(const SetSeqNumResponse &)>;
 
 
 /// For watches.
@@ -483,8 +468,6 @@ public:
 
     /// Expire session and finish all pending requests
     virtual void finalize() = 0;
-
-    virtual void setSeqNum(const String &, int32_t, SetSeqNumCallback) {}
 
     virtual void watchCallBack(const WatchResponse &)
     {

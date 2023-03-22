@@ -14,7 +14,6 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int CANNOT_RESTORE_FROM_FIELD_DUMP;
-    extern const int DECIMAL_OVERFLOW;
 }
 
 inline Field getBinaryValue(UInt8 type, ReadBuffer & buf)

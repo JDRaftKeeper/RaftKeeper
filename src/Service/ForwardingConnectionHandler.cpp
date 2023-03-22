@@ -14,12 +14,7 @@ namespace RK
 
 namespace ErrorCodes
 {
-    extern const int SYSTEM_ERROR;
-    extern const int LOGICAL_ERROR;
-    extern const int UNEXPECTED_PACKET_FROM_CLIENT;
     extern const int TIMEOUT_EXCEEDED;
-    extern const int READONLY;
-    extern const int RAFT_ERROR;
 }
 
 using Poco::NObserver;
@@ -290,7 +285,8 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
+        {
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
                 /// add whole resp to send_buf

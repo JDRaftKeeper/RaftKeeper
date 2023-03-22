@@ -772,7 +772,7 @@ public:
 // Searches for needle surrounded by token-separators.
 // Separators are anything inside ASCII (0-128) and not alphanum.
 // Any value outside of basic ASCII (>=128) is considered a non-separator symbol, hence UTF-8 strings
-// should work just fine. But any Unicode whitespace is not considered a token separtor.
+// should work just fine. But any Unicode whitespace is not considered a token separator.
 template <typename StringSearcher>
 class TokenSearcher
 {

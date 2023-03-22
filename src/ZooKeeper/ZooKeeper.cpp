@@ -355,18 +355,6 @@ std::string ZooKeeper::create(const std::string & path, const std::string & data
     return path_created;
 }
 
-void ZooKeeper::setSeqNum(const std::string & path, int32_t seq_num)
-{
-    Poco::Event event;
-
-    auto callback = [&](const Coordination::SetSeqNumResponse &)
-    {
-        event.set();
-    };
-    impl->setSeqNum(path, seq_num, callback);
-    event.wait();
-}
-
 Coordination::Error ZooKeeper::tryCreate(const std::string & path, const std::string & data, int32_t mode, std::string & path_created)
 {
     Coordination::Error code = createImpl(path, data, mode, path_created);

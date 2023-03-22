@@ -415,7 +415,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         entry_str = LogEntry::serializeEntry(entry, entry_buf, buf_size);
         if (entry_str == nullptr || buf_size == 0)
         {
-            LOG_ERROR(log, "Cant get entry string buffer, size is {}.", buf_size);
+            LOG_ERROR(log, "Can't get entry string buffer, size is {}.", buf_size);
             return -1;
         }
         if (seg_fd < 0)
@@ -538,7 +538,7 @@ int NuRaftLogSegment::loadEntry(int fd, off_t offset, LogEntryHeader * header, p
     ssize_t ret = pread(fd, entry_str, header->data_length, offset + LogEntryHeader::HEADER_SIZE);
     if (ret < 0 || ret != header->data_length)
     {
-        LOG_ERROR(log, "Cant read app data from log segment, ret:{}, error:{}.", ret, strerror(errno));
+        LOG_ERROR(log, "Can't read app data from log segment, ret:{}, error:{}.", ret, strerror(errno));
         delete[] entry_str;
         return -1;
     }
@@ -702,24 +702,24 @@ ptr<LogSegmentStore> LogSegmentStore::getInstance(const std::string & log_dir_, 
     return segment_store;
 }
 
-int LogSegmentStore::init(UInt32 max_log_size_, UInt32 max_segment_count_)
+int LogSegmentStore::init(UInt32 max_log_file_size, UInt32 max_log_segment_count)
 {
-    LOG_INFO(log, "Begin init log segment store, max log size {} bytes, max segment count {}.", max_log_size_, max_segment_count_);
-    max_log_size = max_log_size_;
-    max_segment_count = max_segment_count_;    
+    LOG_INFO(log, "Begin init log segment store, max log size {} bytes, max segment count {}.", max_log_file_size, max_log_segment_count);
+    max_log_size = max_log_file_size;
+    max_segment_count = max_log_segment_count;
 
     if (Directory::createDir(log_dir) != 0)
     {
         LOG_ERROR(log, "Fail to create directory {}", log_dir);
         return -1;
     }
-    
+
     //Initialize class variables
     int ret = 0;
     first_log_index.store(1);
     last_log_index.store(0);
     open_segment = nullptr;
-    
+
     do
     {
         ret = listSegments();
@@ -797,7 +797,7 @@ int LogSegmentStore::openSegment()
     {
         open_segment->writeFileHeader();
     }
-    catch(...)
+    catch (...)
     {
         open_segment = nullptr;
         return -1;
@@ -945,7 +945,7 @@ ptr<log_entry> LogSegmentStore::getEntry(UInt64 index)
     std::shared_lock read_lock(seg_mutex);
     if (getSegment(index, seg) != 0)
     {
-        LOG_WARNING(log, "Cant find log segmtnt by index {}.", index);
+        LOG_WARNING(log, "Can't find log segmtnt by index {}.", index);
         return nullptr;
     }
     return seg->getEntry(index);

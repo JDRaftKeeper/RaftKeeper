@@ -31,11 +31,6 @@ namespace RK
 {
 namespace ErrorCodes
 {
-    extern const int LOGICAL_ERROR;
-    extern const int CANNOT_READ_FROM_FILE_DESCRIPTOR;
-    extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
-    extern const int CANNOT_FSYNC;
-    extern const int CANNOT_CLOSE_FILE;
     extern const int CHECKSUM_DOESNT_MATCH;
     extern const int CORRUPTED_DATA;
     extern const int UNKNOWN_FORMAT_VERSION;
@@ -473,7 +468,7 @@ void KeeperSnapshotStore::serializeNode(
             checksum = 0;
         }
         String new_obj_path;
-        /// for there are 4 objects before data ojects
+        /// for there are 4 objects before data objects
         getObjectPath(obj_id + 4, new_obj_path);
 
         LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 4, new_obj_path);
@@ -624,7 +619,7 @@ bool KeeperSnapshotStore::loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader &
     {
         if (!fs->eof())
         {
-            LOG_ERROR(log, "Cant read header data_length from snapshot file, error:{}.", strerror(errno));
+            LOG_ERROR(log, "Can't read header data_length from snapshot file, error:{}.", strerror(errno));
         }
         return false;
     }
@@ -633,7 +628,7 @@ bool KeeperSnapshotStore::loadHeader(ptr<std::fstream> fs, SnapshotBatchHeader &
     {
         if (!fs->eof())
         {
-            LOG_ERROR(log, "Cant read header data_crc from snapshot file, error:{}.", strerror(errno));
+            LOG_ERROR(log, "Can't read header data_crc from snapshot file, error:{}.", strerror(errno));
         }
         return false;
     }
@@ -707,7 +702,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, KeeperStore & sto
 
         if (!snap_fs->read(body_buf, header.data_length))
         {
-            LOG_ERROR(log, "Cant read snapshot object file {} size {}, only {} could be read", obj_path, header.data_length, snap_fs->gcount());
+            LOG_ERROR(log, "Can't read snapshot object file {} size {}, only {} could be read", obj_path, header.data_length, snap_fs->gcount());
             delete[] body_buf;
             return false;
         }
@@ -779,7 +774,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, KeeperStore & sto
                     {
                         LOG_WARNING(
                             log,
-                            "Cant read snapshot data {}, data index {}, key {}, excepiton {}",
+                            "Can't read snapshot data {}, data index {}, key {}, excepiton {}",
                             obj_path,
                             data_idx,
                             key,
@@ -825,7 +820,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, KeeperStore & sto
                     {
                         LOG_WARNING(
                             log,
-                            "Cant read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
+                            "Can't read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
                             obj_path,
                             data_idx,
                             e.displayText());
@@ -880,7 +875,7 @@ bool KeeperSnapshotStore::parseOneObject(std::string obj_path, KeeperStore & sto
                     {
                         LOG_WARNING(
                             log,
-                            "Cant read uint map snapshot {}, data index {}, key {}, excepiton {}",
+                            "Can't read uint map snapshot {}, data index {}, key {}, excepiton {}",
                             obj_path,
                             data_idx,
                             e.displayText());
@@ -933,7 +928,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store)
                     {
                         this->parseOneObject(it->second, store);
                     }
-                    catch(Exception & e)
+                    catch (Exception & e)
                     {
                         LOG_ERROR(log, "parseOneObject error {}, {}", it->second, getExceptionMessage(e, true));
                     }
@@ -960,7 +955,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store)
     }
     else
     {
-        LOG_INFO(log, "Cant find root path");
+        LOG_INFO(log, "Can't find root path");
     }
 }
 
@@ -1139,7 +1134,7 @@ bool KeeperSnapshotManager::loadSnapshotObject(const snapshot & meta, ulong obj_
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())
     {
-        LOG_WARNING(log, "Cant find snapshot, last log index {}", meta.get_last_log_idx());
+        LOG_WARNING(log, "Can't find snapshot, last log index {}", meta.get_last_log_idx());
         return false;
     }
     ptr<KeeperSnapshotStore> store = it->second;
@@ -1171,7 +1166,7 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & s
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())
     {
-        LOG_WARNING(log, "Cant find snapshot, last log index {}", meta.get_last_log_idx());
+        LOG_WARNING(log, "Can't find snapshot, last log index {}", meta.get_last_log_idx());
         return false;
     }
     ptr<KeeperSnapshotStore> store = it->second;

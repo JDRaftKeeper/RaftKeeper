@@ -4,8 +4,6 @@
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
 #include <Poco/NObserver.h>
-#include <Service/SocketNotification.h>
-#include <Service/SocketReactor.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
 #include <Poco/ThreadPool.h>
@@ -13,13 +11,15 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
+#include <Poco/Net/SocketNotification.h>
+#include <Poco/Net/SocketReactor.h>
 
-#include <Service/ConnCommon.h>
-#include <Service/SvsSocketAcceptor.h>
-#include <Service/SvsSocketReactor.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
 #include <unordered_set>
+#include <Service/ConnCommon.h>
 #include <Service/ForwardingConnection.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
+#include <Common/NIO/SvsSocketAcceptor.h>
+#include <Common/NIO/SvsSocketReactor.h>
 
 
 namespace RK

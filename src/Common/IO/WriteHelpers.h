@@ -271,7 +271,6 @@ inline void writeString(const StringRef & ref, WriteBuffer & buf)
     (buf).write((s), strlen(s))
 
 
-
 /** Will escape quote_character and a list of special characters('\b', '\f', '\n', '\r', '\t', '\0', '\\').
  *   - when escape_quote_with_quote is true, use backslash to escape list of special characters,
  *      and use quote_character to escape quote_character. such as: 'hello''world'

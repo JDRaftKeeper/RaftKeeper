@@ -9,11 +9,6 @@
 namespace RK
 {
 
-namespace ErrorCodes
-{
-    extern const int RAFT_ERROR;
-}
-
 class RequestForwarder
 {
 public:

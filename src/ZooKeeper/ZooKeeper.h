@@ -125,8 +125,6 @@ public:
     /// Does nothing if the node already exists.
     void createIfNotExists(const std::string & path, const std::string & data);
 
-    void setSeqNum(const std::string & path, int32_t seq_num);
-
     /// Creates all non-existent ancestors of the given path with empty contents.
     /// Does not create the node itself.
     void createAncestors(const std::string & path);

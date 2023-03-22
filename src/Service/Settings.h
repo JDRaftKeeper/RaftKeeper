@@ -22,7 +22,8 @@ enum FsyncMode
     FSYNC_BATCH
 };
 
-namespace FsyncModeNS {
+namespace FsyncModeNS
+{
 FsyncMode parseFsyncMode(const String & in);
 String toString(FsyncMode mode);
 }
