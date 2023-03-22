@@ -8,12 +8,6 @@
 namespace RK
 {
 
-namespace ErrorCodes
-{
-    extern const int RAFT_ERROR;
-    extern const int RAFT_FORWARDING_ERROR;
-}
-
 using RequestForSession = KeeperStore::RequestForSession;
 
 struct ErrorRequest
@@ -41,7 +35,7 @@ public:
     void run();
 
     void moveRequestToPendingQueue(RunnerId runner_id);
-    
+
     void processReadRequests(RunnerId runner_id);
     void processErrorRequest();
     void processCommittedRequest(size_t count);

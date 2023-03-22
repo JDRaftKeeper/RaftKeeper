@@ -14,7 +14,8 @@ using namespace Coordination;
 
 namespace RK
 {
-void cleanAll() {
+void cleanAll()
+{
     Poco::File log(LOG_DIR);
     Poco::File snap(LOG_DIR);
     if (log.exists())
@@ -187,7 +188,7 @@ TEST(RaftStateMachine, serializeAndParse)
         ASSERT_EQ(request_2->path, request->path);
         ASSERT_EQ(request_2->data, request->data);
     }
-    
+
     //machine.shutdown();
     cleanDirectory(snap_dir);
 }

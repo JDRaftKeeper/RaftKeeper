@@ -168,7 +168,7 @@ int main(int argc, char ** argv)
                 Coordination::Error ret = Coordination::Error::ZOK;
                 try
                 {
-                    ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);                
+                    ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);
                     //LOG_DEBUG(thread_log, "Response code {}, errmsg {}, key {}", ret, errorMessage(ret), key_buf);
                 }
                 catch (RK::Exception & ex)

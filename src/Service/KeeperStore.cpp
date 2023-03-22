@@ -317,27 +317,6 @@ struct SvsKeeperStorageSyncRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageSetSeqNumRequest final : public StoreRequest
-{
-    using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
-    {
-        auto response = zk_request->makeResponse();
-        Coordination::ZooKeeperSetSeqNumRequest & request = dynamic_cast<Coordination::ZooKeeperSetSeqNumRequest &>(*zk_request);
-        auto znode = store.container.get(request.path);
-        {
-            std::lock_guard lock(znode->mutex);
-            znode->stat.cversion = request.seq_num;
-        }
-
-        return {response, {}};
-    }
-};
-
-
 struct SvsKeeperStorageCreateRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
@@ -1297,7 +1276,6 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::SimpleList, SvsKeeperStorageListRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Check, SvsKeeperStorageCheckRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, SvsKeeperStorageMultiRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::SetSeqNum, SvsKeeperStorageSetSeqNumRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::SetACL, SvsKeeperStorageSetACLRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::GetACL, SvsKeeperStorageGetACLRequest>(*this);
 }

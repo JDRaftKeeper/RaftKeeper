@@ -312,7 +312,7 @@ public:
     {
         return container.size();
     }
-    
+
     uint64_t getApproximateDataSize() const
     {
         UInt64 node_count = container.size();

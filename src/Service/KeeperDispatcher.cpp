@@ -12,7 +12,6 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int TIMEOUT_EXCEEDED;
     extern const int SYSTEM_ERROR;
-    extern const int RAFT_ERROR;
 }
 
 namespace fs = std::filesystem;

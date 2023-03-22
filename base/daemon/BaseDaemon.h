@@ -88,7 +88,7 @@ protected:
     virtual void initializeTerminationAndSignalProcessing();
 
     void waitForTerminationRequest()
-#if defined(POCO_CLICKHOUSE_PATCH) || POCO_VERSION >= 0x02000000 // in old upstream poco not vitrual
+#if defined(POCO_CLICKHOUSE_PATCH) || POCO_VERSION >= 0x02000000 // in old upstream poco not virtual
     override
 #endif
     ;

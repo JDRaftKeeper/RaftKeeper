@@ -10,11 +10,11 @@ bool mapEquals(const std::unordered_map<Key, Val> & l, const std::unordered_map<
     if (l.size() != r.size())
         return false;
 
-    for(const auto & it : l)
+    for (const auto & it : l)
     {
-        if(!r.contains(it.first))
+        if (!r.contains(it.first))
             return false;
-        if(it.second != r.at(it.first))
+        if (it.second != r.at(it.first))
             return false;
     }
     return true;
@@ -128,11 +128,11 @@ bool ACLMap::operator==(const ACLMap & rhs) const
     if (acl_to_num.size() != rhs.acl_to_num.size())
         return false;
 
-    for(const auto & it : acl_to_num)
+    for (const auto & it : acl_to_num)
     {
-        if(!rhs.acl_to_num.contains(it.first))
+        if (!rhs.acl_to_num.contains(it.first))
             return false;
-        if(it.second != rhs.acl_to_num.at(it.first))
+        if (it.second != rhs.acl_to_num.at(it.first))
             return false;
     }
 

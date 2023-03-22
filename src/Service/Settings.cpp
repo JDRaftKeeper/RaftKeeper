@@ -11,7 +11,8 @@ namespace ErrorCodes
 extern const int UNKNOWN_SETTING;
 }
 
-namespace FsyncModeNS {
+namespace FsyncModeNS
+{
 FsyncMode parseFsyncMode(const String & in)
 {
     if (in == "fsync_parallel")

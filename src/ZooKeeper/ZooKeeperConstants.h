@@ -33,7 +33,6 @@ enum class OpNum : int32_t
     Multi = 14,
     Auth = 100,
     SetWatches = 101,
-    SetSeqNum = 200, /// Special internal request
     SessionID = 997, /// Special internal request
 };
 

@@ -1,17 +1,18 @@
 #pragma once
 
-#include <Service/SocketReactor.h>
-#include <Service/SocketNotification.h>
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Net/ServerSocket.h>
 #include <Poco/NObserver.h>
-#include <Poco/Thread.h>
+#include <Poco/Net/ServerSocket.h>
+#include <Poco/Net/StreamSocket.h>
 #include <Poco/SharedPtr.h>
+#include <Poco/Thread.h>
 #include <Common/setThreadName.h>
-
+#include <Poco/Net/SocketNotification.h>
+#include <Poco/Net/SocketReactor.h>
 
 
 namespace RK {
+
+    using namespace Poco::Net;
 
     template <class SR>
     class SvsSocketReactor : public SR

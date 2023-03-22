@@ -12,15 +12,13 @@
 #include <Poco/SharedPtr.h>
 #include <vector>
 
-#include <Service/SvsSocketReactor.h>
-#include "Context.h"
+#include <Service/Context.h>
+#include <Common/NIO/SvsSocketReactor.h>
 
 
 using Poco::Net::Socket;
 using Poco::Net::ServerSocket;
 using Poco::Net::StreamSocket;
-using Poco::NObserver;
-using Poco::AutoPtr;
 
 
 namespace RK {

@@ -769,7 +769,7 @@ int NuRaftStateMachine::read_logical_snp_obj(snapshot & s, void *& user_snp_ctx,
         //snap_mgr->createSnapshot(s, node_map);
         data_out = nullptr;
         is_last_obj = true;
-        LOG_INFO(log, "Cant find snapshot by last_log_idx {}, object id {}", s.get_last_log_idx(), obj_id);
+        LOG_INFO(log, "Can't find snapshot by last_log_idx {}, object id {}", s.get_last_log_idx(), obj_id);
         return 0;
     }
 

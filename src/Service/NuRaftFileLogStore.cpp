@@ -89,7 +89,7 @@ NuRaftFileLogStore::NuRaftFileLogStore(
         fsync_thread = ThreadFromGlobalPool([&thread_started, this] { fsyncThread(thread_started); });
 
         std::unique_lock lock(thread_mutex);
-        while(!cv.wait_for(lock, std::chrono::milliseconds (100), [&thread_started] {return thread_started;}))
+        while (!cv.wait_for(lock, std::chrono::milliseconds(100), [&thread_started] { return thread_started; }))
         {
             /// ignore
         }
@@ -418,7 +418,8 @@ bool NuRaftFileLogStore::flush()
 ulong NuRaftFileLogStore::last_durable_index()
 {
     uint64_t last_log = next_slot() - 1;
-    if (log_fsync_mode != FsyncMode::FSYNC_PARALLEL) {
+    if (log_fsync_mode != FsyncMode::FSYNC_PARALLEL)
+    {
         return last_log;
     }
 

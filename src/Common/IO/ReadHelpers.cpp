@@ -24,7 +24,6 @@ namespace ErrorCodes
     extern const int CANNOT_PARSE_QUOTED_STRING;
     extern const int CANNOT_PARSE_DATETIME;
     extern const int CANNOT_PARSE_DATE;
-    extern const int INCORRECT_DATA;
 }
 
 template <typename IteratorSrc, typename IteratorDst>

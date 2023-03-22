@@ -49,7 +49,7 @@ public:
     /// The order of fields matters for alignment and sizeof.
     struct Values
     {
-        /// Least significat 32 bits from time_t at beginning of the day.
+        /// Least significant 32 bits from time_t at beginning of the day.
         /// If the unix timestamp of beginning of the day is negative (example: 1970-01-01 MSK, where time_t == -10800), then value will overflow.
         /// Change to time_t; change constants above; and recompile the sources if you need to support time after 2105 year.
         UInt32 date;
