@@ -22,8 +22,6 @@
         <raft_settings>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <session_timeout_ms>3000</session_timeout_ms>
-            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
-            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
     </keeper>
 </raftkeeper>

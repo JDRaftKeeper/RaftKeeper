@@ -363,19 +363,18 @@ class RaftKeeperCluster:
             subprocess.check_output(raftkeeper_start_cmd)
             print("RaftKeeper instance created")
 
-            start_deadline = time.time() + 180.0  # seconds
             for instance in self.instances.values():
                 instance.docker_client = self.docker_client
                 instance.ip_address = self.get_instance_ip(instance.name)
 
                 print("Waiting for RaftKeeper-server start...")
-                instance.wait_for_start(start_deadline)
+                # instance.wait_for_start(timeout=180)
+                instance.wait_for_join_cluster()
                 print("RaftKeeper-server started")
 
-            self.is_up = True
-            # wait cluster init TODO use a deterministic way
-            time.sleep(5)
+            # wait cluster init
             print("RaftKeeper Cluster started!")
+            self.is_up = True
 
         except BaseException as e:
             print("Failed to start cluster: ")
@@ -652,7 +651,7 @@ class RaftKeeperInstance:
                 logging.debug("RaftKeeper process running.")
                 print("RaftKeeper process running.")
                 try:
-                    self.wait_join_cluster(start_wait_sec)
+                    self.wait_for_join_cluster(start_wait_sec)
                     return
                 except Exception as e:
                     logging.warning(f"Current start attempt failed. Will kill {pid} just in case.")
@@ -662,24 +661,6 @@ class RaftKeeperInstance:
                 return
 
         raise Exception("Cannot start RaftKeeper, see additional info in logs")
-
-    def wait_join_cluster(self, start_wait_sec=30):
-        start_time = time.time()
-        while start_time + start_wait_sec >= time.time():
-            zk = None
-            try:
-                zk = self.get_fake_zk(start_wait_sec)
-                zk.get("/")
-                print("node", self.name, "ready")
-                return
-            except Exception as ex:
-                time.sleep(0.5)
-                print("Waiting until", self.name, "will be ready, exception", ex)
-            finally:
-                if zk:
-                    zk.stop()
-                    zk.close()
-        raise Exception("Can't wait node", self.name, "to become ready")
 
     def get_fake_zk(self, session_timeout=10):
         _fake_zk_instance = KazooClient(hosts=self.ip_address + ":8101", timeout=session_timeout)
@@ -776,6 +757,24 @@ class RaftKeeperInstance:
                     raise
             finally:
                 sock.close()
+
+    def wait_for_join_cluster(self, start_wait_sec=30):
+        start_time = time.time()
+        while start_time + start_wait_sec >= time.time():
+            zk = None
+            try:
+                zk = self.get_fake_zk()
+                zk.get("/")
+                print("node", self.name, "ready")
+                return
+            except Exception as ex:
+                time.sleep(0.5)
+                print("Waiting until", self.name, "will be ready, exception", ex)
+            finally:
+                if zk:
+                    zk.stop()
+                    zk.close()
+        raise Exception("Can't wait node", self.name, "to become ready")
 
     @staticmethod
     def dict_to_xml(dictionary):
@@ -893,14 +892,3 @@ class RaftKeeperInstance:
     def destroy_dir(self):
         if p.exists(self.path):
             shutil.rmtree(self.path)
-
-
-class RaftKeeperKiller(object):
-    def __init__(self, raftkeeper_node):
-        self.raftkeeper_node = raftkeeper_node
-
-    def __enter__(self):
-        self.raftkeeper_node.kill_raftkeeper()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.raftkeeper_node.start_raftkeeper()

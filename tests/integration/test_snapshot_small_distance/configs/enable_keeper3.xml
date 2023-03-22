@@ -16,8 +16,6 @@
             <session_timeout_ms>80000</session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>75</snapshot_distance>
-            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
-            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
 
         <cluster>

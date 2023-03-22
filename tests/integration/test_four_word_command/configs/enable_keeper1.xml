@@ -12,8 +12,6 @@
             <session_timeout_ms>30000</session_timeout_ms>
             <snapshot_distance>3000000</snapshot_distance>
             <raft_logs_level>debug</raft_logs_level>
-            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
-            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
 
         <cluster>

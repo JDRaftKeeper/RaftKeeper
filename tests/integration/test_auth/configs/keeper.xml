@@ -7,8 +7,6 @@
         <superdigest>super:xQJmxLMiHGwaqBvst5y6rkB6HQs=</superdigest>
         <raft_settings>
             <snapshot_distance>75</snapshot_distance>
-            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
-            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
     </keeper>
 </raftkeeper>
