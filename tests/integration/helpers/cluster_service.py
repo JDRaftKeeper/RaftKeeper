@@ -477,9 +477,6 @@ class RaftKeeperCluster:
 RAFTKEEPER_START_COMMAND = "raftkeeper server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 OLD_RAFTKEEPER_START_COMMAND = "raftkeeper_old server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 
-# RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon && tail -f /dev/null"'.format(RAFTKEEPER_START_COMMAND)
-# OLD_RAFTKEEPER_STAY_ALIVE_COMMAND = 'bash -c "{} --daemon; tail -f /dev/null"'.format(OLD_RAFTKEEPER_START_COMMAND)
-
 RAFTKEEPER_STAY_ALIVE_COMMAND = "bash -c \"trap 'kill tail' INT TERM; {} --daemon; coproc tail -f /dev/null; wait $$!\"".format(
     RAFTKEEPER_START_COMMAND
 )
