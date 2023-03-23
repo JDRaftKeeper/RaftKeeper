@@ -85,7 +85,6 @@ if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
     add_library (dbms STATIC ${dbms_headers} ${dbms_sources})
     target_link_libraries (dbms PRIVATE jemalloc ${DBMS_COMMON_LIBRARIES})
     set (all_modules dbms)
-    message(STATUS "all_modules ${all_modules}")
 endif ()
 
 macro (dbms_target_include_directories)

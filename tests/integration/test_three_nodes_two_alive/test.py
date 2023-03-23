@@ -33,7 +33,7 @@ def started_cluster():
         cluster1.shutdown()
 
 def start(node):
-    node.start_raftkeeper()
+    node.start_raftkeeper(start_wait=True)
 
 
 def delete_with_retry(node_name, path):

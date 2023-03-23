@@ -16,8 +16,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: recursive
 
       - name: Install tools
         run: sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell

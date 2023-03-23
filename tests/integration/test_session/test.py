@@ -39,20 +39,7 @@ def destroy_zk_client(zk):
 
 
 def wait_node(node):
-    for _ in range(20):
-        zk = None
-        try:
-            zk = get_fake_zk(node.name, timeout=3.0)
-            # zk.create("/test", sequence=True)
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(1)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            destroy_zk_client(zk)
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
+    node.wait_for_join_cluster()
 
 
 def wait_nodes():
@@ -73,9 +60,9 @@ def restart_cluster(zk, first_session_id):
     node2.kill_raftkeeper(stop_start_wait_sec=0.1)
     node3.kill_raftkeeper(stop_start_wait_sec=0.1)
     time.sleep(3)
-    node1.restore_raftkeeper()
-    node2.restore_raftkeeper()
-    node3.restore_raftkeeper()
+    node1.start_raftkeeper()
+    node2.start_raftkeeper()
+    node3.start_raftkeeper()
 
     wait_nodes()
     print("Cluster started client session id is ", zk._session_id)

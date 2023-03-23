@@ -18,5 +18,9 @@
                 <host>node3</host>
             </server>
         </cluster>
+        <raft_settings>
+            <operation_timeout_ms>1000</operation_timeout_ms>
+            <session_timeout_ms>3000</session_timeout_ms>
+        </raft_settings>
     </keeper>
 </raftkeeper>
