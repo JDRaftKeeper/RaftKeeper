@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 
-import pytest
-from helpers.cluster_service import RaftKeeperCluster
-import random
-import string
-import os
 import time
-from multiprocessing.dummy import Pool
+
+import pytest
+
+from helpers.cluster_service import RaftKeeperCluster
 from helpers.network import PartitionManager
-from helpers.test_tools import assert_eq_with_retry
-from kazoo.retry import KazooRetry
+from helpers.utils import close_zk_clients
 
 cluster1 = RaftKeeperCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'],
+                              stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'],
+                              stay_alive=True)
 
-from kazoo.client import KazooClient, KazooState
 
 @pytest.fixture(scope="module")
 def started_cluster():
@@ -27,27 +25,25 @@ def started_cluster():
     finally:
         cluster1.shutdown()
 
+
 def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
+
 def wait_node(node):
     node.wait_for_join_cluster()
+
 
 def wait_nodes():
     for node in [node1, node2]:
         wait_node(node)
 
 
-def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":8101", timeout=timeout, connection_retry=KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1))
-    _fake_zk_instance.start()
-    return _fake_zk_instance
-
-def test_read_write_two_nodes(started_cluster):
+def test_read_write_two_nodes():
+    node1_zk = node2_zk = None
     try:
-        wait_nodes()
-        node1_zk = get_fake_zk("node1")
-        node2_zk = get_fake_zk("node2")
+        node1_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
 
         node1_zk.create("/test_read_write_multinode_node1", b"somedata1")
         node2_zk.create("/test_read_write_multinode_node2", b"somedata2")
@@ -67,17 +63,15 @@ def test_read_write_two_nodes(started_cluster):
         assert node1_zk.get("/test_read_write_multinode_node2")[0] == b"somedata2"
 
     finally:
-        try:
-            for zk_conn in [node1_zk, node2_zk]:
-                zk_conn.stop()
-                zk_conn.close()
-        except:
-            pass
+        close_zk_clients([node1_zk, node2_zk])
 
-def test_read_write_two_nodes_with_blocade(started_cluster):
-    node1_zk = get_fake_zk("node1", timeout=5.0)
-    node2_zk = get_fake_zk("node2", timeout=5.0)
+
+def test_read_write_two_nodes_with_blocade():
+    node1_zk = node2_zk = None
     try:
+        node1_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+
         print("Blocking nodes")
         with PartitionManager() as pm:
             pm.partition_instances(node2, node1)
@@ -91,16 +85,19 @@ def test_read_write_two_nodes_with_blocade(started_cluster):
             with pytest.raises(Exception):
                 node2_zk.create("/test_read_write_blocked_node2", b"somedata2")
 
-
         print("Nodes unblocked")
+
+        node1.wait_for_join_cluster()
+        node2.wait_for_join_cluster()
+
         for i in range(10):
             try:
-                node1_zk = get_fake_zk("node1")
-                node2_zk = get_fake_zk("node2")
+                node1_zk = node1.get_fake_zk()
+                node2_zk = node2.get_fake_zk()
                 break
             except:
+                close_zk_clients([node1_zk, node2_zk])
                 time.sleep(0.5)
-
 
         for i in range(100):
             try:
@@ -138,9 +135,4 @@ def test_read_write_two_nodes_with_blocade(started_cluster):
         assert node2_zk.exists("/test_after_block2") is not None
 
     finally:
-        try:
-            for zk_conn in [node1_zk, node2_zk]:
-                zk_conn.stop()
-                zk_conn.close()
-        except:
-            pass
+        close_zk_clients([node1_zk, node2_zk])

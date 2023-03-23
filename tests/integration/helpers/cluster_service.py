@@ -11,14 +11,10 @@ import socket
 import subprocess
 import time
 import traceback
-
 import docker
-import xml.dom.minidom
-from dicttoxml import dicttoxml
+
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
-
-# from .client import Client
 
 HELPERS_DIR = p.dirname(__file__)
 RAFTKEEPER_ROOT_DIR = p.join(p.dirname(__file__), "../../..")
@@ -35,18 +31,17 @@ def _create_env_file(path, variables, fname=DEFAULT_ENV_NAME):
             f.write("=".join([var, value]) + "\n")
     return full_path
 
+
 def subprocess_check_call(args):
-    # Uncomment for debugging
-    # print('run:', ' ' . join(args))
     subprocess.check_call(args)
 
 
 def subprocess_call(args):
-    # Uncomment for debugging..;
-    # print('run:', ' ' . join(args))
     subprocess.call(args)
 
-def run_and_check(args, env=None, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300, nothrow=False, detach=False):
+
+def run_and_check(args, env=None, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=300,
+                  nothrow=False, detach=False):
     if detach:
         subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env, shell=shell)
         return
@@ -90,7 +85,8 @@ class RaftKeeperCluster:
     these directories will contain logs, database files, docker-compose config, RaftKeeper configs etc.
     """
 
-    def __init__(self, base_path, name=None, base_config_dir=None, server_bin_path=None, zookeeper_config_path=None, custom_dockerd_host=None):
+    def __init__(self, base_path, name=None, base_config_dir=None, server_bin_path=None, zookeeper_config_path=None,
+                 custom_dockerd_host=None):
         for param in list(os.environ.keys()):
             print("ENV %40s %s" % (param, os.environ[param]))
         self.base_dir = p.dirname(base_path)
@@ -106,7 +102,7 @@ class RaftKeeperCluster:
             HELPERS_DIR, 'zookeeper_config.xml')
 
         self.project_name = pwd.getpwuid(os.getuid()).pw_name + p.basename(self.base_dir) + self.name
-        # docker-compose removes everything non-alphanumeric from project names so we do it too.
+        # docker-compose removes everything non-alphanumeric from project names, so we do it too.
         self.project_name = re.sub(r'[^a-z0-9]', '', self.project_name.lower())
         self.instances_dir = p.join(self.base_dir, '_instances' + ('' if not self.name else '_' + self.name))
         self.docker_logs_path = p.join(self.instances_dir, 'docker.log')
@@ -137,13 +133,12 @@ class RaftKeeperCluster:
                      raftkeeper_path_dir=None,
                      hostname=None, env_variables=None, image="raftkeeper/raftkeeper-integration-tests", tag=None,
                      stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None,
-                     zookeeper_docker_compose_path=None, zookeeper_use_tmpfs=True, use_old_bin=False):
+                     zookeeper_use_tmpfs=True, use_old_bin=False):
         """Add an instance to the cluster.
 
         name - the name of the instance directory and the value of the 'instance' macro in RaftKeeper.
-        base_config_dir - a directory with config.xml and users.xml files which will be copied to /etc/raftkeeper-server/ directory
+        base_config_dir - a directory with config.xml files which will be copied to /etc/raftkeeper-server/ directory
         main_configs - a list of config files that will be added to config.d/ directory
-        user_configs - a list of config files that will be added to users.d/ directory
         with_zookeeper - if True, add ZooKeeper configuration to configs and ZooKeeper instances to the cluster.
         """
 
@@ -194,9 +189,7 @@ class RaftKeeperCluster:
 
         cmds = []
         if with_zookeeper and not self.with_zookeeper:
-            if not zookeeper_docker_compose_path:
-                zookeeper_docker_compose_path = p.join(docker_compose_yml_dir, 'docker_compose_zookeeper.yml')
-
+            zookeeper_docker_compose_path = p.join(docker_compose_yml_dir, 'docker_compose_zookeeper.yml')
             self.with_zookeeper = True
             self.zookeeper_use_tmpfs = zookeeper_use_tmpfs
             self.base_cmd.extend(['--file', zookeeper_docker_compose_path])
@@ -208,8 +201,7 @@ class RaftKeeperCluster:
             for cmd in cmds:
                 cmd.extend(['--file', p.join(docker_compose_yml_dir, 'docker_compose_net.yml')])
 
-        print("Cluster name:{} project_name:{}. Added instance name:{} tag:{} base_cmd:{} docker_compose_yml_dir:{}".format(
-            self.name, self.project_name, name, tag, self.base_cmd, docker_compose_yml_dir))
+        print(f"Cluster name:{self.name} project_name:{self.project_name}. Added instance name:{name} tag:{tag} base_cmd:{self.base_cmd} docker_compose_yml_dir:{docker_compose_yml_dir}")
         return instance
 
     def get_instance_docker_id(self, instance_name):
@@ -224,9 +216,9 @@ class RaftKeeperCluster:
             p.write(data)
 
     def copy_file_from_container_to_container(self, src_node, src_path, dst_node, dst_path):
-        fname = os.path.basename(src_path)
+        file_name = os.path.basename(src_path)
         run_and_check([f"docker cp {src_node.docker_id}:{src_path} {self.instances_dir}"], shell=True)
-        run_and_check([f"docker cp {self.instances_dir}/{fname} {dst_node.docker_id}:{dst_path}"], shell=True)
+        run_and_check([f"docker cp {self.instances_dir}/{file_name} {dst_node.docker_id}:{dst_path}"], shell=True)
 
     def restart_instance_with_ip_change(self, node, new_ip):
         if '::' in new_ip:
@@ -312,7 +304,8 @@ class RaftKeeperCluster:
         raise Exception("Cannot wait ZooKeeper container")
 
     def start(self, destroy_dirs=True):
-        print("Cluster start called. is_up={}, destroy_dirs={}".format(self.is_up, destroy_dirs))
+        print(f"Cluster start called. is_up={self.is_up}, destroy_dirs={destroy_dirs}")
+        logging.info(f"Cluster start called. is_up={self.is_up}, destroy_dirs={destroy_dirs}")
         if self.is_up:
             return
 
@@ -320,8 +313,9 @@ class RaftKeeperCluster:
         try:
             print("Trying to kill unstopped containers...")
 
-            if not subprocess_call(['docker-compose', 'kill']):
-                subprocess_call(['docker-compose', 'down', '--volumes'])
+            # cd docker_compose_path
+            if not subprocess_call(self.base_cmd + ['kill']):
+                subprocess_call(self.base_cmd + ['down', '--volumes'])
             print("Unstopped containers killed")
         except:
             pass
@@ -360,6 +354,7 @@ class RaftKeeperCluster:
 
             raftkeeper_start_cmd = self.base_cmd + ['up', '-d', '--no-recreate']
             print(("Trying to create RaftKeeper instance by command %s", ' '.join(map(str, raftkeeper_start_cmd))))
+            print(f"start raftkeeper cluster current work dir {os.getcwd()}")
             subprocess.check_output(raftkeeper_start_cmd)
             print("RaftKeeper instance created")
 
@@ -387,7 +382,7 @@ class RaftKeeperCluster:
         with open(self.docker_logs_path, "w+") as f:
             try:
                 subprocess.check_call(self.base_cmd + ['logs'], stdout=f)
-            except Exception as e:
+            except Exception:
                 print("Unable to get logs from docker.")
             f.seek(0)
             for line in f:
@@ -415,7 +410,6 @@ class RaftKeeperCluster:
         for instance in list(self.instances.values()):
             instance.docker_client = None
             instance.ip_address = None
-            # instance.client = None
 
         if not self.zookeeper_use_tmpfs:
             for i in range(1, 4):
@@ -433,12 +427,8 @@ class RaftKeeperCluster:
     def pause_container(self, instance_name):
         subprocess_check_call(self.base_cmd + ['pause', instance_name])
 
-    #    subprocess_check_call(self.base_cmd + ['kill', '-s SIGSTOP', instance_name])
-
     def unpause_container(self, instance_name):
         subprocess_check_call(self.base_cmd + ['unpause', instance_name])
-
-    #    subprocess_check_call(self.base_cmd + ['kill', '-s SIGCONT', instance_name])
 
     def open_bash_shell(self, instance_name):
         os.system(' '.join(self.base_cmd + ['exec', instance_name, '/bin/bash']))
@@ -473,8 +463,12 @@ class RaftKeeperCluster:
             subprocess_check_call(self.base_zookeeper_cmd + ["start", n])
 
 
-RAFTKEEPER_START_COMMAND = "raftkeeper server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
-OLD_RAFTKEEPER_START_COMMAND = "raftkeeper_old server --config-file=/etc/raftkeeper-server/config.xml --log-file=/var/log/raftkeeper-server/raftkeeper-server.log --errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
+RAFTKEEPER_START_COMMAND = "raftkeeper server --config-file=/etc/raftkeeper-server/config.xml " \
+                           "--log-file=/var/log/raftkeeper-server/raftkeeper-server.log " \
+                           "--errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
+OLD_RAFTKEEPER_START_COMMAND = "raftkeeper_old server --config-file=/etc/raftkeeper-server/config.xml " \
+                               "--log-file=/var/log/raftkeeper-server/raftkeeper-server.log " \
+                               "--errorlog-file=/var/log/raftkeeper-server/raftkeeper-server.err.log"
 
 RAFTKEEPER_STAY_ALIVE_COMMAND = "bash -c \"trap 'kill tail' INT TERM; {} --daemon; coproc tail -f /dev/null; wait $$!\"".format(
     RAFTKEEPER_START_COMMAND
@@ -523,10 +517,12 @@ services:
 class RaftKeeperInstance:
 
     def __init__(
-            self, cluster, base_path, name, base_config_dir, custom_main_configs, with_zookeeper, zookeeper_config_path, server_bin_path, raftkeeper_path_dir,
+            self, cluster, base_path, name, base_config_dir, custom_main_configs, with_zookeeper, zookeeper_config_path,
+            server_bin_path, raftkeeper_path_dir,
             hostname=None, env_variables=None,
             image="raftkeeper/raftkeeper-integration-tests", tag="latest",
-            stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None, use_old_bin=False):
+            stay_alive=False, ipv4_address=None, ipv6_address=None, with_installed_binary=False, tmpfs=None,
+            use_old_bin=False):
 
         self.name = name
         self.base_cmd = cluster.base_cmd
@@ -560,7 +556,7 @@ class RaftKeeperInstance:
         self.ipv6_address = ipv6_address
         self.with_installed_binary = with_installed_binary
 
-    def kill_raftkeeper(self, stop_start_wait_sec=3):
+    def kill_raftkeeper(self, sleep=3):
         if self.use_old_bin:
             pid = self.get_process_pid("raftkeeper_old")
         else:
@@ -569,8 +565,7 @@ class RaftKeeperInstance:
         if not pid:
             raise Exception("No raftkeeper found")
         self.exec_in_container(["bash", "-c", "kill -9 {}".format(pid)], user='root')
-        time.sleep(stop_start_wait_sec)
-
+        time.sleep(sleep)
 
     def stop_raftkeeper(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:
@@ -642,9 +637,11 @@ class RaftKeeperInstance:
                 logging.debug("No raftkeeper process running. Start new one.")
                 print("No raftkeeper process running. Start new one.")
                 if self.use_old_bin:
-                    self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
+                    self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_RAFTKEEPER_START_COMMAND)],
+                                           user=str(os.getuid()))
                 else:
-                    self.exec_in_container(["bash", "-c", "{} --daemon".format(RAFTKEEPER_START_COMMAND)], user=str(os.getuid()))
+                    self.exec_in_container(["bash", "-c", "{} --daemon".format(RAFTKEEPER_START_COMMAND)],
+                                           user=str(os.getuid()))
                 time.sleep(1)
                 continue
             elif start_wait is True:
@@ -664,6 +661,7 @@ class RaftKeeperInstance:
 
     def get_fake_zk(self, session_timeout=10):
         _fake_zk_instance = KazooClient(hosts=self.ip_address + ":8101", timeout=session_timeout)
+
         def reset_listener(state):
             nonlocal _fake_zk_instance
             # print("Fake zk callback called for state", state)
@@ -674,9 +672,9 @@ class RaftKeeperInstance:
         _fake_zk_instance.start()
         return _fake_zk_instance
 
-    def restart_raftkeeper(self, stop_start_wait_sec=60, kill=False):
-        self.stop_raftkeeper(stop_start_wait_sec, kill)
-        self.start_raftkeeper(stop_start_wait_sec)
+    def restart_raftkeeper(self, timeout=30, kill=False):
+        self.stop_raftkeeper(timeout, kill)
+        self.start_raftkeeper(timeout)
 
     def replace_in_config(self, path_to_config, replace, replacement):
         self.exec_in_container(["bash", "-c", f"sed -i 's/{replace}/{replacement}/g' {path_to_config}"])
@@ -743,6 +741,7 @@ class RaftKeeperInstance:
 
             # Repeatedly poll the instance address until there is something that listens there.
             # Usually it means that RaftKeeper is ready to accept queries.
+            sock = None
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(time_left)
@@ -756,7 +755,8 @@ class RaftKeeperInstance:
                 else:
                     raise
             finally:
-                sock.close()
+                if sock is not None:
+                    sock.close()
 
     def wait_for_join_cluster(self, start_wait_sec=30):
         start_time = time.time()
@@ -775,11 +775,6 @@ class RaftKeeperInstance:
                     zk.stop()
                     zk.close()
         raise Exception("Can't wait node", self.name, "to become ready")
-
-    @staticmethod
-    def dict_to_xml(dictionary):
-        xml_str = dicttoxml(dictionary, custom_root="yandex", attr_type=False)
-        return xml.dom.minidom.parseString(xml_str).toprettyxml()
 
     def create_dir(self, destroy_dir=True):
         """Create the instance directory and all the needed files there."""
@@ -860,10 +855,8 @@ class RaftKeeperInstance:
                 net_aliases = "aliases:"
                 net_alias1 = "- " + self.hostname
 
-
         old_binary_volume = "- " + "/raftkeeper_old" + ":/usr/bin/raftkeeper_old"
         binary_volume = "- " + self.server_bin_path + ":/usr/bin/raftkeeper"
-
 
         with open(self.docker_compose_path, 'w') as docker_compose:
             docker_compose.write(DOCKER_COMPOSE_TEMPLATE.format(

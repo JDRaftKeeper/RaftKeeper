@@ -1,14 +1,14 @@
-import pytest
-from helpers.cluster_service import RaftKeeperCluster
-import time
 import socket
 import struct
+import time
 from multiprocessing.dummy import Pool
 
+import pytest
 from kazoo.client import KazooClient
 from kazoo.retry import KazooRetry
 
-# from kazoo.protocol.serialization import Connect, read_buffer, write_buffer
+from helpers.cluster_service import RaftKeeperCluster
+
 
 cluster = RaftKeeperCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/logs_conf.xml'],
@@ -18,7 +18,6 @@ node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
 
-
 bool_struct = struct.Struct("B")
 int_struct = struct.Struct("!i")
 int_int_struct = struct.Struct("!ii")
@@ -27,10 +26,9 @@ int_int_int_struct = struct.Struct("!iii")
 
 int_long_int_long_struct = struct.Struct("!iqiq")
 long_struct = struct.Struct("!q")
-multiheader_struct = struct.Struct("!iBi")
+multi_header_struct = struct.Struct("!iBi")
 reply_header_struct = struct.Struct("!iqi")
 stat_struct = struct.Struct("!qqqqiiiqiiq")
-
 
 
 @pytest.fixture(scope="module")
@@ -40,15 +38,6 @@ def started_cluster():
         yield cluster
     finally:
         cluster.shutdown()
-
-
-def destroy_zk_client(zk):
-    try:
-        if zk:
-            zk.stop()
-            zk.close()
-    except:
-        pass
 
 
 def wait_node(node):
@@ -65,6 +54,7 @@ def get_fake_zk(node_name, timeout=30.0):
     _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1)
     _fake_zk_instance.start()
     return _fake_zk_instance
+
 
 def get_keeper_socket(node_name):
     hosts = cluster.get_instance_ip(node_name)
@@ -94,7 +84,7 @@ def read_buffer(bytes, offset):
     else:
         index = offset
         offset += length
-        return bytes[index : index + length], offset
+        return bytes[index: index + length], offset
 
 
 def handshake(node_name=node1.name, session_timeout=11000, session_id=0):
@@ -141,6 +131,7 @@ def handshake(node_name=node1.name, session_timeout=11000, session_id=0):
     print("negotiated_timeout - session_id", negotiated_timeout, session_id)
     return client
 
+
 def heartbeat(client):
     length = 8
     xid = 1
@@ -166,9 +157,7 @@ def test_session_timeout(started_cluster):
     wait_nodes()
 
     client1 = handshake(node1.name)
-
     client2 = handshake(node2.name)
-
     client3 = handshake(node3.name)
 
     p = Pool(3)
