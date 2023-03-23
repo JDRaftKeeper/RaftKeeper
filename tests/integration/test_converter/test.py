@@ -48,7 +48,6 @@ def stop_raftkeeper():
 
 def start_raftkeeper():
     node.start_raftkeeper(start_wait=True)
-    node.wait_for_join_cluster()
 
 
 def copy_zookeeper_data(make_zk_snapshots):
