@@ -57,6 +57,7 @@ def test_state_after_restart(started_cluster):
 
 
         node.restart_raftkeeper(kill=True)
+        node.wait_for_join_cluster()
 
         node_zk2 = get_connection_zk("node")
 
@@ -105,6 +106,7 @@ def test_ephemeral_after_restart(started_cluster):
                 existing_children.append("node" + str(i))
 
         node.restart_raftkeeper(kill=True)
+        node.wait_for_join_cluster()
 
         node_zk2 = get_connection_zk("node")
 

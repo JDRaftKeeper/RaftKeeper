@@ -13,7 +13,6 @@
 #include <Common/NIO/SvsSocketReactor.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/ThreadFuzzer.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <common/ErrorHandlers.h>
@@ -95,9 +94,6 @@ int Server::main(const std::vector<std::string> & /*args*/)
     static ServerErrorHandler error_handler;
     Poco::ErrorHandler::set(&error_handler);
     Poco::Logger * log = &logger();
-
-    if (ThreadFuzzer::instance().isEffective())
-        LOG_WARNING(log, "ThreadFuzzer is enabled. Application will run slowly and unstable.");
 
 #if !defined(NDEBUG) || !defined(__OPTIMIZE__)
     LOG_WARNING(log, "Server was built in debug mode. It will work slowly.");

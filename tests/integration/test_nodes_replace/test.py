@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-
-#!/usr/bin/env python3
-
 import pytest
 from helpers.cluster_service import RaftKeeperCluster
 import random
@@ -27,32 +24,34 @@ node4 = cluster.add_instance('node4', main_configs=['configs/enable_keeper4.xml'
 def started_cluster():
     try:
         cluster.start()
-
         yield cluster
-
     finally:
         cluster.shutdown()
 
 
 def start(node):
-    node.start_raftkeeper()
+    node.start_raftkeeper(start_wait=True)
 
-def get_fake_zk(node, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node.name) + ":8101", timeout=timeout)
-    _fake_zk_instance.start()
-    return _fake_zk_instance
+
+def destroy_zk_client(zk):
+    try:
+        if zk:
+            zk.stop()
+            zk.close()
+    except:
+        pass
 
 
 def test_node_replace(started_cluster):
-    zk_conn = get_fake_zk(node1)
+    zk_conn = node1.get_fake_zk()
 
     for i in range(100):
         zk_conn.create("/test_four_" + str(i), b"somedata")
 
-    zk_conn2 = get_fake_zk(node2)
+    zk_conn2 = node2.get_fake_zk()
     zk_conn2.sync("/test_four_0")
 
-    zk_conn3 = get_fake_zk(node3)
+    zk_conn3 = node3.get_fake_zk()
     zk_conn3.sync("/test_four_0")
 
     for i in range(100):
@@ -73,9 +72,8 @@ def test_node_replace(started_cluster):
     # The configuration update of 3 here is because 3 may be the leader at this time, and deletion of 3 requires leader participation, and then 3 triggers yield_leadership re-election. In the future, when the real online operation is performed, 3 may be the faulty node, and the leader should be 1 and 2. At this time, the configuration of 3 does not need to be replaced.
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"), "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
 
-    time.sleep(8)
-
-    zk_conn4 = get_fake_zk(node4)
+    node4.wait_for_join_cluster()
+    zk_conn4 = node4.get_fake_zk()
     zk_conn4.sync("/test_four_0")
 
     for i in range(100):
@@ -84,6 +82,6 @@ def test_node_replace(started_cluster):
     with pytest.raises(Exception):
         # Adding and removing nodes is async operation
         for i in range(10):
-            zk_conn3 = get_fake_zk(node3)
+            zk_conn3 = node3.get_fake_zk()
             zk_conn3.sync("/test_four_0")
             time.sleep(i)

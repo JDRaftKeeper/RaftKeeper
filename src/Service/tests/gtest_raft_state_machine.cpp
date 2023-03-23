@@ -124,33 +124,6 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
 
 }
 
-TEST(RaftStateMachine, createSnapshotTime)
-{
-    BackendTimer timer;
-    timer.begin_second = 7200;
-    timer.end_second = 79200;
-    timer.interval = 1 * 3600;
-    timer.randomWindow = 60; // 60 seconds
-
-    //empty
-    ASSERT_TRUE(timer.isActionTime("", 1614190200));
-
-    //currtime 2021-02-24 3:01:01
-    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614106861));
-
-    //currtime 2021-02-24 22:00:00
-    ASSERT_TRUE(timer.isActionTime("20210224020000", 1614175200));
-
-    //currtime 2021-02-24 2:59:59
-    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614106799));
-
-    //currtime 2021-02-24 1:59:59
-    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614103199));
-
-    //currtime 2021-02-24 22:00:01
-    ASSERT_FALSE(timer.isActionTime("20210224020000", 1614175201));
-}
-
 TEST(RaftStateMachine, serializeAndParse)
 {
     std::string snap_dir(SNAP_DIR + "/0");

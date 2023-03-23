@@ -7,7 +7,7 @@ from helpers.cluster_service import RaftKeeperCluster
 
 
 cluster = RaftKeeperCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/enable_test_keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True, stay_alive=True)
+node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True, stay_alive=True)
 from kazoo.client import KazooClient, KazooState, KeeperState
 
 def get_genuine_zk():
@@ -26,25 +26,6 @@ def get_fake_zk():
     _fake_zk_instance.add_listener(reset_last_zxid_listener)
     _fake_zk_instance.start()
     return _fake_zk_instance
-
-def wait_node(cluster):
-    for _ in range(100):
-        zk = None
-        try:
-            # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
-            zk = get_fake_zk()
-            zk.create("/test", sequence=True)
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(0.2)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            if zk:
-                zk.stop()
-                zk.close()
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
 
 SUPERAUTH = "super:admin"
 
@@ -380,7 +361,7 @@ def test_auth_snapshot(started_cluster):
         connection.create(f"/test_snapshot_acl/path{i}", b"data", acl=[make_acl("auth", "", all=True)])
 
     node.restart_raftkeeper(kill=True)
-    wait_node(started_cluster)
+    node.wait_for_join_cluster()
 
     connection = get_fake_zk()
 

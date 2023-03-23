@@ -28,24 +28,8 @@ def started_cluster():
 def smaller_exception(ex):
     return '\n'.join(str(ex).split('\n')[0:2])
 
-def wait_node(cluster, node):
-    for _ in range(100):
-        zk = None
-        try:
-            # node.query("SELECT * FROM system.zookeeper WHERE path = '/'")
-            zk = get_fake_zk(cluster, node.name, timeout=30.0)
-            zk.get("/")
-            print("node", node.name, "ready")
-            break
-        except Exception as ex:
-            time.sleep(0.2)
-            print("Waiting until", node.name, "will be ready, exception", ex)
-        finally:
-            if zk:
-                zk.stop()
-                zk.close()
-    else:
-        raise Exception("Can't wait node", node.name, "to become ready")
+def wait_node(node):
+    node.wait_for_join_cluster()
 
 
 def get_fake_zk(cluster, nodename, timeout=30.0):
@@ -87,7 +71,7 @@ def test_data(started_cluster):
 
     try:
         # cluster1.start()
-        wait_node(cluster1, node1)
+        wait_node(node1)
         node1_zk = get_fake_zk(cluster1, "node")
 
         node1_zk.create("/test_restart_node", b"hello")
@@ -138,7 +122,7 @@ def test_data(started_cluster):
         node1.use_old_bin=False
 
         node1.start_raftkeeper()
-        wait_node(cluster1, node1)
+        wait_node(node1)
 
         output2 = node1.exec_in_container(["bash", "-c", "ps ax | grep raftkeeper"], user='root')
         print("ps ax | grep raftkeeper output: ", output2)

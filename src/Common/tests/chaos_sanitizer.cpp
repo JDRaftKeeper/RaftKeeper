@@ -5,7 +5,6 @@
 #include <Common/IO/ReadHelpers.h>
 
 #include <Common/Exception.h>
-#include <Common/ThreadFuzzer.h>
 
 
 /** Proves that ThreadFuzzer helps to find concurrency bugs.
@@ -16,8 +15,6 @@
 int main(int argc, char ** argv)
 {
     const size_t num_iterations = argc >= 2 ? RK::parse<size_t>(argv[1]) : 1000000000;
-
-    std::cerr << (RK::ThreadFuzzer::instance().isEffective() ? "ThreadFuzzer is enabled.\n" : "ThreadFuzzer is not enabled.\n");
 
     std::atomic<size_t> counter1 = 0;
     std::atomic<size_t> counter2 = 0;

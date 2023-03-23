@@ -124,6 +124,6 @@ if __name__ == "__main__":
 
     if state == "failure" or state == "exception":
         printErrorFile(temp_path)
-        raise RuntimeError('code style check failed')
+        sys.exit(1)
     else:
         sys.exit(0)

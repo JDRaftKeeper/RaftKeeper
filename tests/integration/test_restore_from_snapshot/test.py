@@ -23,11 +23,6 @@ def started_cluster():
     finally:
         cluster1.shutdown()
 
-def get_fake_zk(nodename, timeout=30.0):
-    _fake_zk_instance = KazooClient(hosts=cluster1.get_instance_ip(nodename) + ":8101", timeout=timeout)
-    _fake_zk_instance.start()
-    return _fake_zk_instance
-
 def stop_zk(zk):
     try:
         if zk:
@@ -38,11 +33,11 @@ def stop_zk(zk):
 
 
 def test_recover_from_snapshot(started_cluster):
+    node1_zk = node2_zk = node3_zk = None
     try:
-        node1_zk = node2_zk = node3_zk = None
-        node1_zk = get_fake_zk("node1")
-        node2_zk = get_fake_zk("node2")
-        node3_zk = get_fake_zk("node3")
+        node1_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk()
 
         node1_zk.create("/test_snapshot_multinode_recover", "somedata".encode())
 
@@ -54,8 +49,9 @@ def test_recover_from_snapshot(started_cluster):
         assert node3_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
 
         node3.stop_raftkeeper()
+        # node3 maybe leader we should wait new leader
+        node1.wait_for_join_cluster()
 
-        time.sleep(3)
         # at least we will have 2 snapshots
         for i in range(435):
             node1_zk.create("/test_snapshot_multinode_recover" + str(i), ("somedata" + str(i)).encode())
@@ -70,14 +66,13 @@ def test_recover_from_snapshot(started_cluster):
 
     # stale node should recover from leader's snapshot
     # with some sanitizers can start longer than 5 seconds
-    node3.start_raftkeeper()
+    node3.start_raftkeeper(start_wait=True)
     print("Restarted")
 
     try:
-        node1_zk = node2_zk = node3_zk = None
-        node1_zk = get_fake_zk("node1")
-        node2_zk = get_fake_zk("node2")
-        node3_zk = get_fake_zk("node3")
+        node1_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk()
 
         node1_zk.sync("/test_snapshot_multinode_recover")
         node2_zk.sync("/test_snapshot_multinode_recover")

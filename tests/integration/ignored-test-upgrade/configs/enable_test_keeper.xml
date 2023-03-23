@@ -12,7 +12,8 @@
             <raft_logs_level>trace</raft_logs_level>
             <nuraft_thread_size>32</nuraft_thread_size>
             <session_timeout_ms>80000</session_timeout_ms>
-            <operation_timeout_ms>50000</operation_timeout_ms>
+            <operation_timeout_ms>1000</operation_timeout_ms>
+            <snapshot_distance>13401</snapshot_distance>
         </raft_settings>
 
         <cluster>

@@ -52,35 +52,7 @@ struct BackendTimer
         return prev_time;
     }
 
-    bool isActionTime(const std::string & prev_date, time_t curr_time)
-    {
-        /// first snapshot
-        if (prev_date.empty())
-        {
-            return true;
-        }
-
-        if (curr_time == 0L)
-        {
-            time(&curr_time);
-        }
-        struct tm * curr_tm;
-        curr_tm = localtime(&curr_time);
-        UInt32 today_second = getTodaySeconds(curr_tm);
-        if (today_second < begin_second || today_second > end_second)
-        {
-            return false;
-        }
-
-        struct tm prev_tm;
-        memset(&prev_tm, 0, sizeof(tm));
-        strptime(prev_date.data(), TIME_FMT, &prev_tm);
-        time_t prev_time = mktime(&prev_tm);
-
-        return difftime(curr_time, prev_time) >= (interval + rand() % randomWindow);
-    }
-
-    bool isActionTime(time_t & prev_time, time_t & curr_time)
+    bool isActionTime(const time_t & prev_time, time_t curr_time)
     {
         if (curr_time == 0L)
         {
