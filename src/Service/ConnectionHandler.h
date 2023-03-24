@@ -4,6 +4,8 @@
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
 #include <Poco/NObserver.h>
+#include <Common/NIO/SocketNotification.h>
+#include <Common/NIO/SocketReactor.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
 #include <Poco/ThreadPool.h>
@@ -11,23 +13,18 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
-#include <Poco/Net/SocketNotification.h>
-#include <Poco/Net/SocketReactor.h>
-#include "ConnectionStats.h"
 
 #include <unordered_set>
 #include <Service/ConnCommon.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Common/NIO/SvsSocketAcceptor.h>
 #include <Common/NIO/SvsSocketReactor.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
+#include "ConnectionStats.h"
 #include <Common/IO/WriteBufferFromString.h>
 
 
 namespace RK
 {
-
-using namespace Poco::Net;
-
 using Poco::Net::StreamSocket;
 
 using Poco::AutoPtr;

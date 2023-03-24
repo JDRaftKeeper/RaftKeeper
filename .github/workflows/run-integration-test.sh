@@ -6,7 +6,7 @@ work_dir=$1
 cd "$work_dir"
 
 test_cases=($(ls "$work_dir" | grep test_))
-#test_cases=(test_multinode_simple/test.py::test_follower_restart)
+#test_cases=(test_three_nodes_two_alive/test.py)
 test_result="succeed"
 
 echo "Total ${#test_cases[*]} test cases to run."
@@ -26,8 +26,8 @@ do
         raftkeeper_instances=$(ls "$test_case"/_instances | grep node)
         for raftkeeper_instance in ${raftkeeper_instances[*]}
         do
-            echo -e "\n================= $test_case raftkeeper $raftkeeper_instance raftkeeper-server.err.log ================="
-            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.err.log
+            echo -e "\n================= $test_case raftkeeper $raftkeeper_instance raftkeeper-server.log ================="
+            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
             echo -e "\n================= $test_case raftkeeper $raftkeeper_instance stderr.log ================="
             sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/stderr.log
         done
