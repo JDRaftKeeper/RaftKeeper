@@ -36,6 +36,7 @@ add_subdirectory (Service)
 
 add_headers_and_sources(raftkeeper_common_io Common)
 add_headers_and_sources(raftkeeper_common_io Common/IO)
+add_headers_and_sources(raftkeeper_common_io Common/NIO)
 list (REMOVE_ITEM raftkeeper_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
 
 list (APPEND raftkeeper_common_io_sources ${CONFIG_BUILD})

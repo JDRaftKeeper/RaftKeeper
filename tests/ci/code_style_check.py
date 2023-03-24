@@ -123,6 +123,7 @@ if __name__ == "__main__":
     state, description, test_results, additional_files = process_result(temp_path)
 
     if state == "failure" or state == "exception":
+        print("state is {}".format(state))
         printErrorFile(temp_path)
         sys.exit(1)
     else:
