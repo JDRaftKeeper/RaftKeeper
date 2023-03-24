@@ -5,8 +5,8 @@ work_dir=$1
 # shellcheck disable=SC2164
 cd "$work_dir"
 
-#test_cases=($(ls "$work_dir" | grep test_))
-test_cases=(test_three_nodes_two_alive/test.py)
+test_cases=($(ls "$work_dir" | grep test_))
+#test_cases=(test_three_nodes_two_alive/test.py)
 test_result="succeed"
 
 echo "Total ${#test_cases[*]} test cases to run."
