@@ -1,24 +1,18 @@
 #include <iostream>
 #include <memory>
-#include <string>
-#include <thread>
 #include <time.h>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/Types.h>
+#include <ZooKeeper/ZooKeeper.h>
+#include <ZooKeeper/ZooKeeperImpl.h>
 #include <boost/program_options.hpp>
 #include <loggers/Loggers.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/Application.h>
-#include "Common/StringUtils.h"
 #include <Common/Stopwatch.h>
+#include <Common/StringUtils.h>
 #include <Common/ThreadPool.h>
-#include <ZooKeeper/IKeeper.h>
-#include <ZooKeeper/KeeperException.h>
-#include <ZooKeeper/Types.h>
-#include <ZooKeeper/ZooKeeper.h>
-#include <ZooKeeper/ZooKeeperImpl.h>
-#include <Common/randomSeed.h>
 #include <common/argsToConfig.h>
-#include <common/find_symbols.h>
-#include <common/logger_useful.h>
 
 using namespace Coordination;
 using namespace RK;
@@ -28,13 +22,12 @@ namespace RK
 class TestServer : public Poco::Util::Application, public Loggers
 {
 public:
-    TestServer() { }
-    ~TestServer() override { }
+    TestServer() = default;
+    ~TestServer() override = default;
     void init(int argc, char ** argv)
     {
         char * log_level = argv[7];
 
-        namespace po = boost::program_options;
         /// Don't parse options with Poco library, we prefer neat boost::program_options
         stopOptionsProcessing();
         /// Save received data into the internal config.
@@ -63,11 +56,11 @@ public:
 
 void getCurrentTime(std::string & date_str)
 {
-    const char TIME_FMT[] = "%Y%m%d%H%M%S";
+    const char time_fmt[] = "%Y%m%d%H%M%S";
     time_t curr_time;
     time(&curr_time);
     char tmp_buf[24];
-    std::strftime(tmp_buf, sizeof(tmp_buf), TIME_FMT, localtime(&curr_time));
+    std::strftime(tmp_buf, sizeof(tmp_buf), time_fmt, localtime(&curr_time));
     date_str = tmp_buf;
 }
 
@@ -106,7 +99,7 @@ int main(int argc, char ** argv)
     auto * log = &Poco::Logger::get("raft_service_client");
     LOG_INFO(log, "Run test server!");
 
-    std::string identity_ = "";
+    std::string identity;
     std::vector<std::string> hosts_strings;
     hosts_strings.emplace_back(ip_port);
     Coordination::ZooKeeper::Nodes nodes;
@@ -116,7 +109,7 @@ int main(int argc, char ** argv)
     {
         try
         {
-            bool secure = bool(startsWith(host_string, "secure://"));
+            bool secure = startsWith(host_string, "secure://");
             if (secure)
                 host_string.erase(0, strlen("secure://"));
 
@@ -168,12 +161,12 @@ int main(int argc, char ** argv)
                 Coordination::Error ret = Coordination::Error::ZOK;
                 try
                 {
-                    ret = zookeeper->tryCreate(key_buf, data.data(), zkutil::CreateMode::Persistent);
-                    //LOG_DEBUG(thread_log, "Response code {}, errmsg {}, key {}", ret, errorMessage(ret), key_buf);
+                    ret = zookeeper->tryCreate(key_buf, data, zkutil::CreateMode::Persistent);
                 }
                 catch (RK::Exception & ex)
                 {
-                    LOG_INFO(thread_log, "Response code {}, errmsg {}, key {}, exception {}", ret, errorMessage(ret), key_buf, ex.message());
+                    LOG_INFO(
+                        thread_log, "Response code {}, errmsg {}, key {}, exception {}", ret, errorMessage(ret), key_buf, ex.message());
                     sleep(1);
                     //make new
                     zookeeper = std::make_shared<zkutil::ZooKeeper>(ip_port, "", 60000, 30000);

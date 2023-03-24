@@ -6,9 +6,7 @@
 #include <boost/program_options.hpp>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
-#include <loggers/Loggers.h>
 #include <Poco/File.h>
-#include <Poco/Util/LayeredConfiguration.h>
 #include <common/argsToConfig.h>
 
 
@@ -168,19 +166,18 @@ TEST(RaftLog, serializeStr)
 TEST(RaftLog, serializeRaw)
 {
     const char * str = "a string buffer";
-    size_t size = sizeof(long) + strlen(str);
+    size_t size = sizeof(uint64_t) + strlen(str);
     ptr<buffer> msg_buf = buffer::alloc(size);
     msg_buf->put(static_cast<ulong>(strlen(str)));
     msg_buf->put_raw(reinterpret_cast<const byte *>(str), strlen(str));
     msg_buf->pos(0);
-    long len = msg_buf->get_ulong();
+    uint64_t len = msg_buf->get_ulong();
     const char * save_buf = reinterpret_cast<const char *>(msg_buf->get_raw(len));
     ASSERT_EQ(std::memcmp(save_buf, str, strlen(str)), 0);
 }
 
 TEST(RaftLog, serializeProto)
 {
-    //Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
     UInt64 term = 1, index = 1;
     std::string key("/ck/table/table1");
     std::string data("CREATE TABLE table1;");
@@ -220,10 +217,6 @@ TEST(RaftLog, serializeStr2Raw)
     entry_buf_2->put_raw(reinterpret_cast<const byte *>(save_buf), entry_buf_1->size());
     entry_buf_2->pos(0);
     ASSERT_EQ(entry_buf_2->get_ulong(), term);
-
-    //ASSERT_EQ(strlen(str), len);
-    //const char * str2 = reinterpret_cast<const char *>(msg_buf_2->get_raw(len));
-    //ASSERT_EQ(std::memcmp(str2, str, len), 0);
 }
 
 TEST(RaftLog, serializeEntry)

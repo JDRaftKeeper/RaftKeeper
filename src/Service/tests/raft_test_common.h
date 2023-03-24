@@ -7,8 +7,6 @@
 
 namespace RK
 {
-//#define _RAFT_UNIT_TEST_
-
 class TestServer : public Poco::Util::Application, public Loggers
 {
 public:
