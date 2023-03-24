@@ -49,15 +49,15 @@ def printErrorFile(result_folder):
         printFile(style_log_path)
 
     typos_log_path = '{}/typos_output.txt'.format(result_folder)
-    if not os.path.exists(style_log_path):
-        logging.info("No typos check log on path %s", style_log_path)
-    elif os.stat(style_log_path).st_size != 0:
+    if not os.path.exists(typos_log_path):
+        logging.info("No typos check log on path %s", typos_log_path)
+    elif os.stat(typos_log_path).st_size != 0:
         print("\n\033[31mTypos [Error] **********************************************************************************************************\033[0m\n")
         printFile(typos_log_path)
 
     whitespaces_log_path = '{}/whitespaces_output.txt'.format(result_folder)
-    if not os.path.exists(style_log_path):
-        logging.info("No whitespaces check log on path %s", style_log_path)
+    if not os.path.exists(whitespaces_log_path):
+        logging.info("No whitespaces check log on path %s", whitespaces_log_path)
     elif os.stat(whitespaces_log_path).st_size != 0:
         print("\n\033[31mWhitespace [Error] **********************************************************************************************************\033[0m\n")
         printFile(whitespaces_log_path)
@@ -110,8 +110,6 @@ def printFile(file):
 if __name__ == "__main__":
     repo_path = os.path.join(os.getenv("GITHUB_WORKSPACE", os.path.abspath("../../")))
     temp_path = "./temp/style_check"
-    # print(repo_path)
-    # print(temp_path)
 
     subprocess.check_output(f"mkdir -p temp/style_check", shell=True)
     subprocess.check_output(f"../../utils/check-style/check-style -n 2>&1 | tee temp/style_check/style_output.txt", shell=True)

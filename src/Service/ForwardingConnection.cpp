@@ -29,8 +29,8 @@ void ForwardingConnection::connect(Poco::Timespan connection_timeout)
 
             socket.connect(address, connection_timeout);
 
-            socket.setReceiveTimeout(operation_timeout);
-            socket.setSendTimeout(operation_timeout);
+            socket.setReceiveTimeout(socket_timeout);
+            socket.setSendTimeout(socket_timeout);
             socket.setNoDelay(true);
 
             in.emplace(socket);
@@ -68,7 +68,7 @@ void ForwardingConnection::send(KeeperStore::RequestForSession request_for_sessi
 {
     if (!connected)
     {
-        connect(operation_timeout.totalMicroseconds() / 3);
+        connect(socket_timeout.totalMicroseconds() / 3);
     }
 
     if (!connected)
@@ -144,7 +144,7 @@ void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t
 {
     if (!connected)
     {
-        connect(operation_timeout.totalMicroseconds() / 3);
+        connect(socket_timeout.totalMicroseconds() / 3);
     }
 
     if (!connected)
