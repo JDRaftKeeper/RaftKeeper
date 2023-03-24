@@ -1,61 +1,60 @@
 #pragma once
 
-#include <Poco/NObserver.h>
-#include <Poco/Net/ServerSocket.h>
+#include <Common/NIO/SocketReactor.h>
+#include <Common/NIO/SocketNotification.h>
 #include <Poco/Net/StreamSocket.h>
-#include <Poco/SharedPtr.h>
+#include <Poco/Net/ServerSocket.h>
+#include <Poco/NObserver.h>
 #include <Poco/Thread.h>
+#include <Poco/SharedPtr.h>
 #include <Common/setThreadName.h>
-#include <Poco/Net/SocketNotification.h>
-#include <Poco/Net/SocketReactor.h>
+
 
 
 namespace RK {
 
-    using namespace Poco::Net;
+template <class SR>
+class SvsSocketReactor : public SR
+{
+public:
+    using Ptr = Poco::SharedPtr<SvsSocketReactor>;
 
-    template <class SR>
-    class SvsSocketReactor : public SR
+    SvsSocketReactor(const std::string& name = "")
     {
-    public:
-        using Ptr = Poco::SharedPtr<SvsSocketReactor>;
+        _thread.start(*this);
+        if (!name.empty())
+            _thread.setName(name);
+    }
 
-        SvsSocketReactor(const std::string& name = "")
-        {
-            _thread.start(*this);
-            if (!name.empty())
-                _thread.setName(name);
-        }
+    SvsSocketReactor(const Poco::Timespan& timeout, const std::string& name = ""):
+        SR(timeout)
+    {
+        _thread.start(*this);
+        if (!name.empty())
+            _thread.setName(name);
+    }
 
-        SvsSocketReactor(const Poco::Timespan& timeout, const std::string& name = ""):
-            SR(timeout)
+    ~SvsSocketReactor() override
+    {
+        try
         {
-            _thread.start(*this);
-            if (!name.empty())
-                _thread.setName(name);
+            this->stop();
+            _thread.join();
         }
+        catch (...)
+        {
+        }
+    }
 
-        ~SvsSocketReactor() override
-        {
-            try
-            {
-                this->stop();
-                _thread.join();
-            }
-            catch (...)
-            {
-            }
-        }
-	
-    protected:
-        void onIdle() override
-        {
-            SR::onIdle();
-            Poco::Thread::yield();
-        }
-	
-    private:
-        Poco::Thread _thread;
-    };
+protected:
+    void onIdle() override
+    {
+        SR::onIdle();
+        Poco::Thread::yield();
+    }
+
+private:
+    Poco::Thread _thread;
+};
 
 }
