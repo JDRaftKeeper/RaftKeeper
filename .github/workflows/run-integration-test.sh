@@ -1,38 +1,60 @@
 #!/bin/bash
 
 # ${github.workspace}/tests/integration
-work_dir=$1
-# shellcheck disable=SC2164
-cd "$work_dir"
+tests_root_dir=$1
+cd "$tests_root_dir"
 
-test_cases=($(ls "$work_dir" | grep test_))
-#test_cases=(test_three_nodes_two_alive/test.py)
 test_result="succeed"
 
-echo "Total ${#test_cases[*]} test cases to run."
+function run_tests()
+{
+  ./runner --binary "${tests_root_dir}"/../../build/programs/raftkeeper  \
+                 --base-configs-dir "${tests_root_dir}"/../../programs/server \
+                 | tee /tmp/tests_output.log
 
-# shellcheck disable=SC1073
-for test_case in ${test_cases[*]}
-do
-    echo -e "\n================= Run test $test_case ================="
-    ./runner --binary "${work_dir}"/../../build/programs/raftkeeper  \
-             --base-configs-dir "${work_dir}"/../../programs/server \
-             "$test_case"
-    # shellcheck disable=SC2181
-    if [ $? -ne 0 ]; then
-         test_result="failed"
-        # print docker log and raftkeeper instances log
-        echo -e "\n================= Test $test_case failed! ================="
-        raftkeeper_instances=$(ls "$test_case"/_instances | grep node)
-        for raftkeeper_instance in ${raftkeeper_instances[*]}
-        do
-            echo -e "\n================= $test_case raftkeeper $raftkeeper_instance raftkeeper-server.log ================="
-            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
-            echo -e "\n================= $test_case raftkeeper $raftkeeper_instance stderr.log ================="
-            sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/stderr.log
-        done
-    fi
-done
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    test_result="failed"
+    failed_test_cases=($(grep -E '^test.*(FAILED|ERROR)' /tmp/tests_output.log | grep '/' | awk -F'/' '{print $1}' | sort | uniq))
+    for failed_test_case in ${failed_test_cases[*]}
+    do
+      raftkeeper_instances=$(ls "$failed_test_case"/_instances | grep node)
+      for raftkeeper_instance in ${raftkeeper_instances[*]}
+      do
+        echo -e "\n----------------- Captured $failed_test_case $raftkeeper_instance raftkeeper-server.log -----------------"
+        sudo cat "$failed_test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
+      done
+    done
+  fi
+}
+
+function run_tests_individually()
+{
+  # shellcheck disable=SC2207
+  test_cases=($(ls "$tests_root_dir" | grep test_))
+  #test_cases=(test_multinode_simple/test.py::test_follower_restart)
+  echo "Total ${#test_cases[*]} test cases to run."
+  # shellcheck disable=SC1073
+  for test_case in ${test_cases[*]}
+  do
+      echo -e "\n----------------- Run test $test_case -----------------"
+      ./runner --binary "${tests_root_dir}"/../../build/programs/raftkeeper  \
+               --base-configs-dir "${tests_root_dir}"/../../programs/server \
+               "$test_case"
+      # shellcheck disable=SC2181
+      if [ $? -ne 0 ]; then
+           test_result="failed"
+          raftkeeper_instances=$(ls "$test_case"/_instances | grep node)
+          for raftkeeper_instance in ${raftkeeper_instances[*]}
+          do
+              echo -e "\n----------------- Captured $test_case $raftkeeper_instance raftkeeper-server.log -----------------"
+              sudo cat "$test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
+          done
+      fi
+  done
+}
+
+
+run_tests
 
 if [ $test_result == "failed" ]; then
     exit 1;

@@ -11,10 +11,11 @@ import socket
 import subprocess
 import time
 import traceback
-import docker
 
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
+
+import docker
 
 HELPERS_DIR = p.dirname(__file__)
 RAFTKEEPER_ROOT_DIR = p.join(p.dirname(__file__), "../../..")
@@ -201,7 +202,8 @@ class RaftKeeperCluster:
             for cmd in cmds:
                 cmd.extend(['--file', p.join(docker_compose_yml_dir, 'docker_compose_net.yml')])
 
-        print(f"Cluster name:{self.name} project_name:{self.project_name}. Added instance name:{name} tag:{tag} base_cmd:{self.base_cmd} docker_compose_yml_dir:{docker_compose_yml_dir}")
+        print(
+            f"Cluster name:{self.name} project_name:{self.project_name}. Added instance name:{name} tag:{tag} base_cmd:{self.base_cmd} docker_compose_yml_dir:{docker_compose_yml_dir}")
         return instance
 
     def get_instance_docker_id(self, instance_name):
@@ -305,7 +307,6 @@ class RaftKeeperCluster:
 
     def start(self, destroy_dirs=True):
         print(f"Cluster start called. is_up={self.is_up}, destroy_dirs={destroy_dirs}")
-        logging.info(f"Cluster start called. is_up={self.is_up}, destroy_dirs={destroy_dirs}")
         if self.is_up:
             return
 
@@ -454,12 +455,12 @@ class RaftKeeperCluster:
 
     def stop_zookeeper_nodes(self, zk_nodes):
         for n in zk_nodes:
-            logging.info("Stopping zookeeper node: %s", n)
+            print(f"Stopping zookeeper node: {n}")
             subprocess_check_call(self.base_zookeeper_cmd + ["stop", n])
 
     def start_zookeeper_nodes(self, zk_nodes):
         for n in zk_nodes:
-            logging.info("Starting zookeeper node: %s", n)
+            print(f"Starting zookeeper node: {n}")
             subprocess_check_call(self.base_zookeeper_cmd + ["start", n])
 
 
@@ -758,7 +759,7 @@ class RaftKeeperInstance:
                 if sock is not None:
                     sock.close()
 
-    def wait_for_join_cluster(self, start_wait_sec=30):
+    def wait_for_join_cluster(self, start_wait_sec=60):
         start_time = time.time()
         while start_time + start_wait_sec >= time.time():
             zk = None
@@ -767,9 +768,8 @@ class RaftKeeperInstance:
                 zk.get("/")
                 print("node", self.name, "ready")
                 return
-            except Exception as ex:
+            except:
                 time.sleep(0.5)
-                print("Waiting until", self.name, "will be ready, exception", ex)
             finally:
                 if zk:
                     zk.stop()

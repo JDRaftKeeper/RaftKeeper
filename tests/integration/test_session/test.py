@@ -71,7 +71,7 @@ def test_reconnection(started_cluster):
         def data_watch(event_data, event_stat):
             global watch_triggered
             watch_triggered = True
-            print("Watch for /test_reconnection triggered, value is %s" % event_data)
+            print(f"Watch for /test_reconnection triggered, value is {event_data}, stat is {event_stat}")
 
         zk.get(path='/test_reconnection', watch=data_watch)
 

@@ -187,6 +187,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 {
     {
         std::lock_guard lock(session_to_response_callback_mutex);
+        /// session is expired by server
         if (session_to_response_callback.count(session_id) == 0)
             return false;
     }
@@ -203,8 +204,6 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
         toHexString(session_id),
         request->xid,
         Coordination::toString(request->getOpNum()));
-
-    //    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)

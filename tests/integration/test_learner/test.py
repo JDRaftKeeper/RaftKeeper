@@ -41,8 +41,8 @@ def test_read_write_multinode(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk()
 
         node1_zk.create("/test_read_write_multinode_node1", b"somedata1")
         node2_zk.create("/test_read_write_multinode_node2", b"somedata2")
@@ -78,8 +78,8 @@ def test_watch_on_follower(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk()
 
         node1_zk.create("/test_data_watches")
         node2_zk.set("/test_data_watches", b"hello")
@@ -130,8 +130,8 @@ def test_session_expiration(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk(session_timeout=3)
         print("Node3 session id", node3_zk._session_id)
 
         node3_zk.create("/test_ephemeral_node", b"world", ephemeral=True)
@@ -139,16 +139,16 @@ def test_session_expiration(started_cluster):
         with PartitionManager() as pm:
             pm.partition_instances(node3, node2)
             pm.partition_instances(node3, node1)
-            close_zk_client(node3_zk)
-            time.sleep(3)
-            for _ in range(100):
-                if node1_zk.exists("/test_ephemeral_node") is None and node2_zk.exists("/test_ephemeral_node") is None:
-                    break
-                print("Node1 exists", node1_zk.exists("/test_ephemeral_node"))
-                print("Node2 exists", node2_zk.exists("/test_ephemeral_node"))
-                time.sleep(0.1)
-                node1_zk.sync("/")
-                node2_zk.sync("/")
+
+            # wait new cluster initialized
+            node1.wait_for_join_cluster()
+            node2.wait_for_join_cluster()
+
+            # sleep 4s and node3_zk will expire
+            time.sleep(4)
+
+            print("Node1 exists", node1_zk.exists("/test_ephemeral_node"))
+            print("Node2 exists", node2_zk.exists("/test_ephemeral_node"))
 
         assert node1_zk.exists("/test_ephemeral_node") is None
         assert node2_zk.exists("/test_ephemeral_node") is None
@@ -178,8 +178,8 @@ def test_simple_sleep_test(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk(session_timeout=3)
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk(session_timeout=3)
 
         print("Node3 session id", node3_zk._session_id)
 
@@ -202,8 +202,8 @@ def test_stop_learner(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk(session_timeout=3)
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk(session_timeout=3)
 
         node2_zk.create("/test_stop_learner", b"", ephemeral=False)
         node3_zk.create("/test_stop_learner1", b"123", ephemeral=False)

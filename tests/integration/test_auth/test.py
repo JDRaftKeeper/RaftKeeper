@@ -1,34 +1,14 @@
 import pytest
-from kazoo.security import make_acl
-from kazoo.exceptions import AuthFailedError, InvalidACLError, NoAuthError, KazooException
-from helpers.cluster_service import RaftKeeperCluster
 from kazoo.client import KazooClient, KazooState
+from kazoo.exceptions import AuthFailedError, InvalidACLError, NoAuthError, KazooException
+from kazoo.security import make_acl
+
+from helpers.cluster_service import RaftKeeperCluster
+from helpers.utils import close_zk_client
 
 cluster = RaftKeeperCluster(__file__)
 node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True,
                             stay_alive=True)
-
-
-def get_genuine_zk():
-    return cluster.get_kazoo_client('zoo1')
-
-
-def get_fake_zk():
-    print("node", cluster.get_instance_ip("node"))
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
-
-    def reset_last_zxid_listener(state):
-        print("Fake zk callback called for state", state)
-        nonlocal _fake_zk_instance
-        if state != KazooState.CONNECTED:
-            _fake_zk_instance._reset()
-
-    _fake_zk_instance.add_listener(reset_last_zxid_listener)
-    _fake_zk_instance.start()
-    return _fake_zk_instance
-
-
-SUPERAUTH = "super:admin"
 
 
 @pytest.fixture(scope="module")
@@ -40,8 +20,28 @@ def started_cluster():
         cluster.shutdown()
 
 
+def get_genuine_zk():
+    return cluster.get_kazoo_client('zoo1')
+
+
+def get_fake_zk():
+    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node.name) + ":8101")
+
+    def reset_last_zxid_listener(state):
+        nonlocal _fake_zk_instance
+        if state != KazooState.CONNECTED:
+            _fake_zk_instance._reset()
+
+    _fake_zk_instance.add_listener(reset_last_zxid_listener)
+    _fake_zk_instance.start()
+    return _fake_zk_instance
+
+
+SUPER_AUTH = "super:admin"
+
+
 @pytest.mark.parametrize(
-    ('get_zk'),
+    'get_zk',
     [
         get_genuine_zk,
         get_fake_zk
@@ -108,11 +108,13 @@ def test_digest_auth_basic(started_cluster, get_zk):
         no_auth_connection.set(path, b"auth_added")
         assert no_auth_connection.get(path)[0] == b"auth_added"
 
+    close_zk_client(auth_connection)
+    close_zk_client(no_auth_connection)
     print("end test_digest_auth_basic")
 
 
 @pytest.mark.parametrize(
-    ('get_zk'),
+    'get_zk',
     [
         get_genuine_zk,
         get_fake_zk
@@ -174,6 +176,7 @@ def test_no_auth(started_cluster, get_zk):
     with pytest.raises(NoAuthError):
         no_auth_connection.delete("/test_no_auth4/c")
 
+    close_zk_client(no_auth_connection)
     print("end test_no_auth")
 
 
@@ -193,11 +196,12 @@ def test_super_auth(started_cluster):
         super_connection.set(path, b"value")
         assert super_connection.get(path)[0] == b"value"
 
+    close_zk_client(auth_connection)
     print("end test_super_auth")
 
 
 @pytest.mark.parametrize(
-    ('get_zk'),
+    'get_zk',
     [
         get_genuine_zk,
         get_fake_zk
@@ -225,11 +229,14 @@ def test_digest_auth_multiple(started_cluster, get_zk):
 
     assert other_auth_connection.get("/test_multi_all_acl")[0] == b"Y"
 
+    close_zk_client(auth_connection)
+    close_zk_client(one_auth_connection)
+    close_zk_client(other_auth_connection)
     print("end test_digest_auth_multiple")
 
 
 @pytest.mark.parametrize(
-    ('get_zk'),
+    'get_zk',
     [
         get_genuine_zk,
         get_fake_zk
@@ -273,6 +280,7 @@ def test_partial_auth(started_cluster, get_zk):
     with pytest.raises(NoAuthError):
         auth_connection.delete("/test_partial_acl_delete/subnode")
 
+    close_zk_client(auth_connection)
     print("end test_partial_auth")
 
 
@@ -350,7 +358,8 @@ def test_bad_auth(started_cluster):
         auth_connection.create("/test_bad_acl", b"data", acl=[
             make_acl("digest", "dsad:DSAa:d", read=True, write=False, create=True, delete=True, admin=True)])
 
-        print("end test_bad_auth")
+    close_zk_client(auth_connection)
+    print("end test_bad_auth")
 
 
 def test_auth_snapshot(started_cluster):
@@ -408,11 +417,14 @@ def test_auth_snapshot(started_cluster):
     with pytest.raises(NoAuthError):
         connection2.get("/test_snapshot_acl1")
 
+    close_zk_client(connection)
+    close_zk_client(connection1)
+    close_zk_client(connection2)
     print("end test_auth_snapshot")
 
 
 @pytest.mark.parametrize(
-    ('get_zk'),
+    'get_zk',
     [
         get_genuine_zk,
         get_fake_zk
@@ -455,4 +467,6 @@ def test_get_set_acl(started_cluster, get_zk):
     with pytest.raises(KazooException):
         other_auth_connection.set_acls("/test_set_get_acl", acls=[make_acl("auth", "", all=True)], version=0)
 
+    close_zk_client(auth_connection)
+    close_zk_client(other_auth_connection)
     print("end test_get_set_acl")

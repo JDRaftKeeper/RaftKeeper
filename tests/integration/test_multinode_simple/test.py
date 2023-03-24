@@ -4,7 +4,7 @@ import pytest
 
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.network import PartitionManager
-from helpers.utils import close_zk_clients, close_zk_client
+from helpers.utils import close_zk_clients
 
 cluster1 = RaftKeeperCluster(__file__)
 node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml', 'configs/log_conf.xml'],
@@ -24,25 +24,12 @@ def started_cluster():
         cluster1.shutdown()
 
 
-def smaller_exception(ex):
-    return '\n'.join(str(ex).split('\n')[0:2])
-
-
-def wait_node(node):
-    node.wait_for_join_cluster()
-
-
-def wait_nodes():
-    for node in [node1, node2, node3]:
-        wait_node(node)
-
-
 def test_read_write_multi_node(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node2.get_fake_zk()
 
         node1_zk.create("/ttest_read_write_multi_node_node1", b"somedata1")
         node2_zk.create("/ttest_read_write_multi_node_node2", b"somedata2")
@@ -78,8 +65,8 @@ def test_watch_on_follower(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk()
 
         node1_zk.create("/test_data_watches")
         node2_zk.set("/test_data_watches", b"hello")
@@ -130,26 +117,27 @@ def test_session_expiration(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk(session_timeout=3)
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node3.get_fake_zk(session_timeout=3)
 
         print("Node3 session id", node3_zk._session_id)
 
         node3_zk.create("/test_ephemeral_node", b"world", ephemeral=True)
+        time.sleep(1)
 
         with PartitionManager() as pm:
             pm.partition_instances(node3, node2)
             pm.partition_instances(node3, node1)
-            close_zk_client(node3_zk)
+
+            # node3 maybe leader, we should wait a new leader
+            node1.wait_for_join_cluster()
+            node2.wait_for_join_cluster()
+
+            # sleep 4s and node3_zk will expire
             time.sleep(3)
-            for _ in range(100):
-                if node1_zk.exists("/test_ephemeral_node") is None and node2_zk.exists("/test_ephemeral_node") is None:
-                    break
-                print("Node1 exists", node1_zk.exists("/test_ephemeral_node"))
-                print("Node2 exists", node2_zk.exists("/test_ephemeral_node"))
-                time.sleep(0.1)
-                node1_zk.sync("/")
-                node2_zk.sync("/")
+
+            print("Node1 exists", node1_zk.exists("/test_ephemeral_node"))
+            print("Node2 exists", node2_zk.exists("/test_ephemeral_node"))
 
         assert node1_zk.exists("/test_ephemeral_node") is None
         assert node2_zk.exists("/test_ephemeral_node") is None
@@ -164,8 +152,8 @@ def test_follower_restart(started_cluster):
         node1_zk = node1.get_fake_zk()
         node1_zk.create("/test_restart_node", b"hello")
 
-        node3.restart_raftkeeper()
-        wait_node(node3)
+        node3.restart_raftkeeper(kill=True)
+        node3.wait_for_join_cluster()
 
         node3_zk = node3.get_fake_zk()
 
@@ -180,8 +168,8 @@ def test_simple_sleep_test(started_cluster):
     node1_zk = node2_zk = node3_zk = None
     try:
         node1_zk = node1.get_fake_zk()
-        node2_zk = node1.get_fake_zk()
-        node3_zk = node1.get_fake_zk(session_timeout=3)
+        node2_zk = node2.get_fake_zk()
+        node3_zk = node2.get_fake_zk(session_timeout=3)
 
         print("Node3 session id", node3_zk._session_id)
 

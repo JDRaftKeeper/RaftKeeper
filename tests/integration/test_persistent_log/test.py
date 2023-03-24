@@ -34,7 +34,8 @@ def started_cluster():
 def test_state_after_restart(started_cluster):
     node_zk = node_zk2 = None
     try:
-        node_zk = node.get_fake_zk()
+        # use a long session timeout
+        node_zk = node.get_fake_zk(session_timeout=120)
 
         node_zk.create("/test_state_after_restart", b"somevalue")
         strs = []
@@ -65,7 +66,7 @@ def test_state_after_restart(started_cluster):
 def test_state_duplicate_restart(started_cluster):
     node_zk = node_zk2 = node_zk3 = None
     try:
-        node_zk = node.get_fake_zk()
+        node_zk = node.get_fake_zk(session_timeout=120)
 
         node_zk.create("/test_state_duplicated_restart", b"somevalue")
         strs = []
@@ -106,7 +107,7 @@ def test_state_duplicate_restart(started_cluster):
 def test_ephemeral_after_restart(started_cluster):
     node_zk = node_zk2 = None
     try:
-        node_zk = node.get_fake_zk()
+        node_zk = node.get_fake_zk(session_timeout=120)
 
         node_zk.create("/test_ephemeral_after_restart", b"somevalue")
         strs = []

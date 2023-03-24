@@ -19,54 +19,39 @@ node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml
 def started_cluster():
     try:
         cluster1.start()
-
         yield cluster1
-
     finally:
         cluster1.shutdown()
 
 
-def smaller_exception(ex):
-    return '\n'.join(str(ex).split('\n')[0:2])
-
-
-def wait_node(node):
-    node.wait_for_join_cluster()
-
-
-def wait_nodes():
-    for node in [node1, node2]:
-        wait_node(node)
-
-
-def test_read_write_two_nodes():
+def test_read_write_two_nodes(started_cluster):
     node1_zk = node2_zk = None
     try:
         node1_zk = node1.get_fake_zk()
         node2_zk = node2.get_fake_zk()
 
-        node1_zk.create("/test_read_write_multinode_node1", b"somedata1")
-        node2_zk.create("/test_read_write_multinode_node2", b"somedata2")
+        node1_zk.create("/test_read_write_multi_node_node1", b"some_data1")
+        node2_zk.create("/test_read_write_multi_node_node2", b"some_data2")
 
         # stale reads are allowed
-        while node1_zk.exists("/test_read_write_multinode_node2") is None:
+        while node1_zk.exists("/test_read_write_multi_node_node2") is None:
             time.sleep(0.1)
 
         # stale reads are allowed
-        while node2_zk.exists("/test_read_write_multinode_node1") is None:
+        while node2_zk.exists("/test_read_write_multi_node_node1") is None:
             time.sleep(0.1)
 
-        assert node2_zk.get("/test_read_write_multinode_node1")[0] == b"somedata1"
-        assert node1_zk.get("/test_read_write_multinode_node1")[0] == b"somedata1"
+        assert node2_zk.get("/test_read_write_multi_node_node1")[0] == b"some_data1"
+        assert node1_zk.get("/test_read_write_multi_node_node1")[0] == b"some_data1"
 
-        assert node2_zk.get("/test_read_write_multinode_node2")[0] == b"somedata2"
-        assert node1_zk.get("/test_read_write_multinode_node2")[0] == b"somedata2"
+        assert node2_zk.get("/test_read_write_multi_node_node2")[0] == b"some_data2"
+        assert node1_zk.get("/test_read_write_multi_node_node2")[0] == b"some_data2"
 
     finally:
         close_zk_clients([node1_zk, node2_zk])
 
 
-def test_read_write_two_nodes_with_blocade():
+def test_read_write_two_nodes_with_blocked(started_cluster):
     node1_zk = node2_zk = None
     try:
         node1_zk = node1.get_fake_zk()
@@ -76,58 +61,28 @@ def test_read_write_two_nodes_with_blocade():
         with PartitionManager() as pm:
             pm.partition_instances(node2, node1)
 
-            # We will respond conection loss but process this query
-            # after blocade will be removed
+            # We will respond connection loss but process this query
+            # after blocked will be removed
             with pytest.raises(Exception):
-                node1_zk.create("/test_read_write_blocked_node1", b"somedata1")
+                node1_zk.create("/test_read_write_blocked_node1", b"some_data1")
 
             # This node is not leader and will not process anything
             with pytest.raises(Exception):
-                node2_zk.create("/test_read_write_blocked_node2", b"somedata2")
+                node2_zk.create("/test_read_write_blocked_node2", b"some_data2")
 
         print("Nodes unblocked")
 
+        # After net partition, we should wait new cluster initialized
         node1.wait_for_join_cluster()
         node2.wait_for_join_cluster()
 
-        for i in range(10):
-            try:
-                node1_zk = node1.get_fake_zk()
-                node2_zk = node2.get_fake_zk()
-                break
-            except:
-                close_zk_clients([node1_zk, node2_zk])
-                time.sleep(0.5)
+        # renew connection
+        close_zk_clients([node1_zk, node2_zk])
+        node1_zk = node1.get_fake_zk()
+        node2_zk = node2.get_fake_zk()
 
-        for i in range(100):
-            try:
-                node1_zk.create("/test_after_block1", b"somedata12")
-                break
-            except:
-                time.sleep(0.1)
-        else:
-            raise Exception("node1 cannot recover after blockade")
-
-        print("Node1 created it's value")
-
-        for i in range(100):
-            try:
-                node2_zk.create("/test_after_block2", b"somedata12")
-                break
-            except:
-                time.sleep(0.1)
-        else:
-            raise Exception("node2 cannot recover after blockade")
-
-        print("Node2 created it's value")
-
-        # stale reads are allowed
-        while node1_zk.exists("/test_after_block2") is None:
-            time.sleep(0.1)
-
-        # stale reads are allowed
-        while node2_zk.exists("/test_after_block1") is None:
-            time.sleep(0.1)
+        node1_zk.create("/test_after_block1", b"some_data12")
+        node2_zk.create("/test_after_block2", b"some_data12")
 
         assert node1_zk.exists("/test_after_block1") is not None
         assert node1_zk.exists("/test_after_block2") is not None

@@ -26,7 +26,7 @@ def started_cluster():
 
 
 def start(node):
-    node.start_raftkeeper(start_wait=True)
+    node.start_raftkeeper(start_wait=False)
 
 
 def delete_with_retry(node, path):
@@ -56,6 +56,9 @@ def test_start_offline(started_cluster):
         time.sleep(3)
         p.map(start, [node2, node3])
 
+        node2.wait_for_join_cluster()
+        node3.wait_for_join_cluster()
+
         node2_zk = node2.get_fake_zk()
         node2_zk.create("/c", b"data")
 
@@ -80,17 +83,24 @@ def test_start_non_existing(started_cluster):
         time.sleep(3)
         p.map(start, [node2, node1])
 
+        node1.wait_for_join_cluster()
+        node2.wait_for_join_cluster()
+
         node2_zk = node2.get_fake_zk()
         node2_zk.create("/test_non_exising", b"data")
     finally:
         node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', 'non_existing_node', 'node3')
         node2.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper2.xml', 'non_existing_node', 'node3')
         p.map(start, [node1, node2, node3])
+        node2.wait_for_join_cluster()
+        node3.wait_for_join_cluster()
         delete_with_retry(node2, "/test_non_exising")
         close_zk_client(node2_zk)
 
 
 def test_restart_third_node(started_cluster):
+    node1.wait_for_join_cluster()
+
     node1_zk = node1.get_fake_zk()
     node1_zk.create("/test_restart", b"aaaa")
 
