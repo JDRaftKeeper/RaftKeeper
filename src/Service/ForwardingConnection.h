@@ -83,11 +83,11 @@ struct ForwardResponse
 class ForwardingConnection
 {
 public:
-    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout_ms)
+    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout)
         : my_server_id(server_id_)
         , thread_id(thread_id_)
         , endpoint(endpoint_)
-        , operation_timeout(operation_timeout_ms)
+        , socket_timeout(operation_timeout)
         , log(&Poco::Logger::get("ForwardingConnection"))
     {
     }
@@ -125,7 +125,7 @@ private:
     int32_t thread_id;
     bool connected{false};
     String endpoint;
-    Poco::Timespan operation_timeout;
+    Poco::Timespan socket_timeout;
     Poco::Net::StreamSocket socket;
     std::optional<ReadBufferFromPocoSocket> in;
     std::optional<WriteBufferFromPocoSocket> out;
