@@ -1,12 +1,11 @@
 #include <Service/ForwardingConnectionHandler.h>
-
 #include <Service/ForwardingConnection.h>
 #include <Service/FourLetterCommand.h>
 #include <Service/formatHex.h>
-#include <Poco/Net/NetException.h>
-#include <Common/Stopwatch.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperIO.h>
+#include <Poco/Net/NetException.h>
+#include <Common/Stopwatch.h>
 #include <Common/setThreadName.h>
 
 namespace RK
@@ -107,7 +106,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (unlikely (current_package.protocol == PkgType::Handshake))
+                if (unlikely(current_package.protocol == PkgType::Handshake))
                 {
                     if (!req_body_buf)
                     {
@@ -285,8 +284,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
-        {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
                 /// add whole resp to send_buf
@@ -375,7 +373,12 @@ std::tuple<int64_t, int64_t, Coordination::OpNum> ForwardingConnectionHandler::r
     request->readImpl(body);
 
     LOG_TRACE(
-        log, "Receive forwarding request: session {}, xid {}, length {}, opnum {}", toHexString(session_id), xid, length, Coordination::toString(opnum));
+        log,
+        "Receive forwarding request: session {}, xid {}, length {}, opnum {}",
+        toHexString(session_id),
+        xid,
+        length,
+        Coordination::toString(opnum));
 
     if (!keeper_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
