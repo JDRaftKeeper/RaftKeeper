@@ -6,7 +6,7 @@ work_dir=$1
 cd "$work_dir"
 
 #test_cases=($(ls "$work_dir" | grep test_))
-test_cases=(test_three_nodes_two_alive/test.py::test_restart_third_node)
+test_cases=(test_three_nodes_two_alive/test.py)
 test_result="succeed"
 
 echo "Total ${#test_cases[*]} test cases to run."
