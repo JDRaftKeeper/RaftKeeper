@@ -542,7 +542,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
                     "Commit log {} request process time {}ms, session {} xid {} req type {}",
                     log_idx,
                     elapsed,
-                    request_for_session.session_id,
+                    toHexString(request_for_session.session_id),
                     request_for_session.request->xid,
                     Coordination::toString(request_for_session.request->getOpNum()));
         }

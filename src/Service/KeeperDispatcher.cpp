@@ -61,7 +61,7 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         request_for_session.request->getOpNum());
                     request_processor->push(request_for_session);
                 }
-                else if (!request_for_session.isForwardRequest())
+                else if (!request_for_session.isForwardRequest() && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
                     LOG_WARNING(log, "not local session {}", toHexString(request_for_session.session_id));
                 }
@@ -425,7 +425,7 @@ void KeeperDispatcher::sessionCleanerTask()
 
                 for (int64_t dead_session : dead_sessions)
                 {
-                    LOG_INFO(log, "Found dead session {}, will try to close it", dead_session);
+                    LOG_INFO(log, "Found dead session {}, will try to close it", toHexString(dead_session));
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;
@@ -536,7 +536,7 @@ void KeeperDispatcher::filterLocalSessions(std::unordered_map<int64_t, int64_t> 
     {
         if (!session_to_response_callback.contains(it->first))
         {
-            LOG_TRACE(log, "Not local session {}", it->first);
+            LOG_TRACE(log, "Not local session {}", toHexString(it->first));
             it = session_to_expiration_time.erase(it);
         }
         else
