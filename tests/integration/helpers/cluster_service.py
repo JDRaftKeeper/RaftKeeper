@@ -1,4 +1,5 @@
 import base64
+import datetime
 import errno
 import logging
 import os
@@ -761,20 +762,39 @@ class RaftKeeperInstance:
 
     def wait_for_join_cluster(self, start_wait_sec=60):
         start_time = time.time()
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} start to wait {self.name} join cluster")
         while start_time + start_wait_sec >= time.time():
             zk = None
             try:
-                zk = self.get_fake_zk()
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} wait {self.name} join cluster")
+                sock = None
+                try:
+                    sock = socket.socket()
+                    sock.settimeout(2)
+                    sock.connect((self.ip_address, 8101))
+                    sock.send('ruok'.encode())
+                    data = sock.recv(100_000)
+                    data = data.decode()
+                    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} receive data {data}")
+                except Exception as ex:
+                    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} except for socket {ex}")
+                finally:
+                    if sock is not None:
+                        sock.close()
+                zk = self.get_fake_zk(3)
                 zk.get("/")
-                print("node", self.name, "ready")
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} node {self.name} ready")
                 return
-            except:
+            except Exception as e:
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} except for wait join cluster {e}")
                 time.sleep(0.5)
             finally:
                 if zk:
                     zk.stop()
                     zk.close()
-        raise Exception("Can't wait node", self.name, "to become ready")
+
+        print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.name} join failed")
+        raise Exception(f"Can't wait node {self.name} to become ready")
 
     def create_dir(self, destroy_dir=True):
         """Create the instance directory and all the needed files there."""
