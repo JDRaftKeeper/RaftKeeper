@@ -11,4 +11,4 @@ Problems and issues with code of RaftKeeper. If this doesn’t look right, choos
 
 <!-- (At least include the following, feel free to add if you have more content) -->
 
-### Discribe your doubt
+### Describe your doubt

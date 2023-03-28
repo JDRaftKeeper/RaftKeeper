@@ -11,8 +11,8 @@ Problems and issues with code of RaftKeeper. If this doesn’t look right, choos
 
 <!-- (At least include the following, feel free to add if you have more content) -->
 
-### RaftKeeper version (Required)
+### RaftKeeper version
 
-### How to reprocuce (Required)
+### How to reproduce 
 
-### Expected behavior (Required)
+### Expected behavior
