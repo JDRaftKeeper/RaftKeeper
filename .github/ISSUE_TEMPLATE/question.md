@@ -1,8 +1,8 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Question
+about: If you have any questions you can start an issue.
 title: ''
-labels: bug
+labels: question
 assignees: ''
 
 ---
@@ -11,8 +11,4 @@ Problems and issues with code of RaftKeeper. If this doesn’t look right, choos
 
 <!-- (At least include the following, feel free to add if you have more content) -->
 
-### RaftKeeper version (Required)
-
-### How to reprocuce (Required)
-
-### Expected behavior (Required)
+### Discribe your doubt
