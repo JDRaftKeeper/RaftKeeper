@@ -17,8 +17,12 @@
 
         <cluster>
             <server>
-                <id>3</id>
-                <host>node3</host>
+                <id>1</id>
+                <host>node1</host>
+            </server>
+            <server>
+                <id>2</id>
+                <host>node2</host>
             </server>
         </cluster>
     </keeper>
