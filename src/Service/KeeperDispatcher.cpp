@@ -61,6 +61,7 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                         request_for_session.request->getOpNum());
                     request_processor->push(request_for_session);
                 }
+                /// we should skip close requests from clear session task
                 else if (!request_for_session.isForwardRequest() && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
                     LOG_WARNING(log, "not local session {}", toHexString(request_for_session.session_id));
