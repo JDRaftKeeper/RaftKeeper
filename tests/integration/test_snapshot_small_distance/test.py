@@ -52,7 +52,7 @@ def stop_raftkeeper(node):
 
 
 def start_raftkeeper(node):
-    node.start_raftkeeper(60, True)
+    node.start_raftkeeper(60)
     node.wait_for_join_cluster()
 
 
@@ -118,7 +118,7 @@ def test_snapshot_and_load(started_cluster):
         cluster1.copy_file_from_container_to_container(node1, '/var/lib/raftkeeper/data/raft_snapshot', node,
                                                        '/var/lib/raftkeeper/data')
 
-    print("Starting raftkeepers")
+    print("Starting RaftKeepers")
 
     p = Pool(3)
     result = p.map_async(start_raftkeeper, [node1, node2, node3])
