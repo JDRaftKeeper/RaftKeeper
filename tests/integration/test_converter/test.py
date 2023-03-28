@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-import pytest
-from helpers.cluster_service import RaftKeeperCluster
-from kazoo.client import KazooClient, KazooState
-from kazoo.security import ACL, make_digest_acl, make_acl
-from kazoo.exceptions import AuthFailedError, InvalidACLError, NoAuthError, KazooException
 import os
 
-cluster = RaftKeeperCluster(__file__)
+import pytest
+from kazoo.client import KazooClient
 
+from helpers.cluster_service import RaftKeeperCluster
+from helpers.utils import close_zk_client
+
+cluster = RaftKeeperCluster(__file__)
 node = cluster.add_instance('node', main_configs=['configs/keeper_config.xml', 'configs/logs_conf.xml'],
                             stay_alive=True)
 
@@ -68,31 +68,15 @@ def copy_zookeeper_data(make_zk_snapshots):
 def started_cluster():
     try:
         cluster.start()
-
         yield cluster
-
     finally:
         cluster.shutdown()
-
-
-def get_fake_zk(timeout=60.0):
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip('node') + ":8101", timeout=timeout)
-    _fake_zk_instance.start()
-    return _fake_zk_instance
 
 
 def get_genuine_zk(timeout=60.0):
     _genuine_zk_instance = KazooClient(hosts=cluster.get_instance_ip('node') + ":2181", timeout=timeout)
     _genuine_zk_instance.start()
     return _genuine_zk_instance
-
-
-def close_zk(zk_conn):
-    try:
-        zk_conn.stop()
-        zk_conn.close()
-    except:
-        pass
 
 
 def compare_stats(stat1, stat2, path):
@@ -138,7 +122,7 @@ def compare_states(zk1, zk2, path="/"):
 
 
 @pytest.mark.parametrize(
-    ('create_snapshots'),
+    'create_snapshots',
     [
         True, False
     ]
@@ -151,16 +135,16 @@ def test_smoke(started_cluster, create_snapshots):
 
     assert genuine_connection.get("/test")[0] == b"data"
 
-    close_zk(genuine_connection)
+    close_zk_client(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
-    fake_connection = get_fake_zk()
+    fake_connection = node.get_fake_zk()
 
     compare_states(genuine_connection, fake_connection)
 
-    close_zk(genuine_connection)
-    close_zk(fake_connection)
+    close_zk_client(genuine_connection)
+    close_zk_client(fake_connection)
 
 
 def get_bytes(s):
@@ -202,11 +186,11 @@ def test_simple_crud_requests(started_cluster, create_snapshots):
     # ephemeral znode genuine_connection.create("/test_ephemeral/" + str(i), get_bytes("dataX" + str(i)),
     # ephemeral=True)
 
-    close_zk(genuine_connection)
+    close_zk_client(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
-    fake_connection = get_fake_zk()
+    fake_connection = node.get_fake_zk()
 
     compare_states(genuine_connection, fake_connection)
 
@@ -219,8 +203,8 @@ def test_simple_crud_requests(started_cluster, create_snapshots):
     second_children = list(sorted(fake_connection.get_children("/test_sequential")))
     assert first_children == second_children, "Childrens are not equal on path " + path
 
-    close_zk(genuine_connection)
-    close_zk(fake_connection)
+    close_zk_client(genuine_connection)
+    close_zk_client(fake_connection)
 
 
 @pytest.mark.parametrize(
@@ -266,16 +250,16 @@ def test_multi_and_failed_requests(started_cluster, create_snapshots):
     assert genuine_connection.exists('/test_bad_transaction2') is None
     assert genuine_connection.exists('/test_multitransactions/freddy0') is not None
 
-    close_zk(genuine_connection)
+    close_zk_client(genuine_connection)
     copy_zookeeper_data(create_snapshots)
 
     genuine_connection = get_genuine_zk()
-    fake_connection = get_fake_zk()
+    fake_connection = node.get_fake_zk()
 
     compare_states(genuine_connection, fake_connection)
 
-    close_zk(genuine_connection)
-    close_zk(fake_connection)
+    close_zk_client(genuine_connection)
+    close_zk_client(fake_connection)
 
 # @pytest.mark.parametrize(
 #     ('create_snapshots'),

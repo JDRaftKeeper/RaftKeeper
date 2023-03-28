@@ -1,35 +1,25 @@
 #!/usr/bin/env python3
 import pytest
+
 from helpers.cluster_service import RaftKeeperCluster
-import random
-import string
-import os
-import time
+from helpers.utils import close_zk_clients
 
 cluster1 = RaftKeeperCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'], stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'], stay_alive=True)
-node3 = cluster1.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/log_conf.xml'], stay_alive=True)
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'],
+                              stay_alive=True)
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'],
+                              stay_alive=True)
+node3 = cluster1.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/log_conf.xml'],
+                              stay_alive=True)
 
-from kazoo.client import KazooClient, KazooState
 
 @pytest.fixture(scope="module")
 def started_cluster():
     try:
         cluster1.start()
-
         yield cluster1
-
     finally:
         cluster1.shutdown()
-
-def stop_zk(zk):
-    try:
-        if zk:
-            zk.stop()
-            zk.close()
-    except:
-        pass
 
 
 def test_recover_from_snapshot(started_cluster):
@@ -39,14 +29,14 @@ def test_recover_from_snapshot(started_cluster):
         node2_zk = node2.get_fake_zk()
         node3_zk = node3.get_fake_zk()
 
-        node1_zk.create("/test_snapshot_multinode_recover", "somedata".encode())
+        node1_zk.create("/test_recover_from_snapshot", "somedata".encode())
 
-        node2_zk.sync("/test_snapshot_multinode_recover")
-        node3_zk.sync("/test_snapshot_multinode_recover")
+        node2_zk.sync("/test_recover_from_snapshot")
+        node3_zk.sync("/test_recover_from_snapshot")
 
-        assert node1_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
-        assert node2_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
-        assert node3_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
+        assert node1_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
+        assert node2_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
+        assert node3_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
 
         node3.stop_raftkeeper()
         # node3 maybe leader we should wait new leader
@@ -54,15 +44,14 @@ def test_recover_from_snapshot(started_cluster):
 
         # at least we will have 2 snapshots
         for i in range(435):
-            node1_zk.create("/test_snapshot_multinode_recover" + str(i), ("somedata" + str(i)).encode())
+            node1_zk.create("/test_recover_from_snapshot" + str(i), ("somedata" + str(i)).encode())
 
         for i in range(435):
             if i % 10 == 0:
-                node1_zk.delete("/test_snapshot_multinode_recover" + str(i))
+                node1_zk.delete("/test_recover_from_snapshot" + str(i))
 
     finally:
-        for zk in [node1_zk, node2_zk, node3_zk]:
-            stop_zk(zk)
+        close_zk_clients([node1_zk, node2_zk, node3_zk])
 
     # stale node should recover from leader's snapshot
     # with some sanitizers can start longer than 5 seconds
@@ -74,23 +63,22 @@ def test_recover_from_snapshot(started_cluster):
         node2_zk = node2.get_fake_zk()
         node3_zk = node3.get_fake_zk()
 
-        node1_zk.sync("/test_snapshot_multinode_recover")
-        node2_zk.sync("/test_snapshot_multinode_recover")
-        node3_zk.sync("/test_snapshot_multinode_recover")
+        node1_zk.sync("/test_recover_from_snapshot")
+        node2_zk.sync("/test_recover_from_snapshot")
+        node3_zk.sync("/test_recover_from_snapshot")
 
-        assert node1_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
-        assert node2_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
-        assert node3_zk.get("/test_snapshot_multinode_recover")[0] == b"somedata"
+        assert node1_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
+        assert node2_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
+        assert node3_zk.get("/test_recover_from_snapshot")[0] == b"somedata"
 
         for i in range(435):
             if i % 10 != 0:
-                assert node1_zk.get("/test_snapshot_multinode_recover" + str(i))[0] == ("somedata" + str(i)).encode()
-                assert node2_zk.get("/test_snapshot_multinode_recover" + str(i))[0] == ("somedata" + str(i)).encode()
-                assert node3_zk.get("/test_snapshot_multinode_recover" + str(i))[0] == ("somedata" + str(i)).encode()
+                assert node1_zk.get("/test_recover_from_snapshot" + str(i))[0] == ("somedata" + str(i)).encode()
+                assert node2_zk.get("/test_recover_from_snapshot" + str(i))[0] == ("somedata" + str(i)).encode()
+                assert node3_zk.get("/test_recover_from_snapshot" + str(i))[0] == ("somedata" + str(i)).encode()
             else:
-                assert node1_zk.exists("/test_snapshot_multinode_recover" + str(i)) is None
-                assert node2_zk.exists("/test_snapshot_multinode_recover" + str(i)) is None
-                assert node3_zk.exists("/test_snapshot_multinode_recover" + str(i)) is None
+                assert node1_zk.exists("/test_recover_from_snapshot" + str(i)) is None
+                assert node2_zk.exists("/test_recover_from_snapshot" + str(i)) is None
+                assert node3_zk.exists("/test_recover_from_snapshot" + str(i)) is None
     finally:
-        for zk in [node1_zk, node2_zk, node3_zk]:
-            stop_zk(zk)
+        close_zk_clients([node1_zk, node2_zk, node3_zk])

@@ -83,23 +83,23 @@ struct ForwardResponse
 class ForwardingConnection
 {
 public:
-    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan operation_timeout)
+    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan socket_timeout_)
         : my_server_id(server_id_)
         , thread_id(thread_id_)
         , endpoint(endpoint_)
-        , socket_timeout(operation_timeout)
+        , socket_timeout(socket_timeout_)
         , log(&Poco::Logger::get("ForwardingConnection"))
     {
     }
 
-    void connect(Poco::Timespan connection_timeout);
+    void connect();
     void send(KeeperStore::RequestForSession request_for_session);
     bool receive(ForwardResponse & response);
     void disconnect();
 
     void sendHandshake();
 
-    void receiveHandshake();
+    [[maybe_unused]] [[maybe_unused]] void receiveHandshake();
 
     void sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
@@ -125,6 +125,9 @@ private:
     int32_t thread_id;
     bool connected{false};
     String endpoint;
+    /// socket send and receive timeout, but it not work for socket is non-blocking
+    ///     For sending: loop to send n length @see WriteBufferFromPocoSocket.
+    ///     For receiving: use poll to wait socket to be available.
     Poco::Timespan socket_timeout;
     Poco::Net::StreamSocket socket;
     std::optional<ReadBufferFromPocoSocket> in;
