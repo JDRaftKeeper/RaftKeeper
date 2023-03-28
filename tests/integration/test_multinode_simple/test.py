@@ -133,8 +133,13 @@ def test_session_expiration(started_cluster):
             node1.wait_for_join_cluster()
             node2.wait_for_join_cluster()
 
-            # sleep 4s and node3_zk will expire
+            # sleep 3s and node3_zk will expire
             time.sleep(3)
+
+            # renew connection
+            close_zk_clients([node1_zk, node2_zk])
+            node1_zk = node1.get_fake_zk()
+            node2_zk = node2.get_fake_zk()
 
             print("Node1 exists", node1_zk.exists("/test_ephemeral_node"))
             print("Node2 exists", node2_zk.exists("/test_ephemeral_node"))

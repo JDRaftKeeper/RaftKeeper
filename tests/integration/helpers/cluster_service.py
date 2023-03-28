@@ -766,27 +766,11 @@ class RaftKeeperInstance:
         while start_time + start_wait_sec >= time.time():
             zk = None
             try:
-                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} wait {self.name} join cluster")
-                sock = None
-                try:
-                    sock = socket.socket()
-                    sock.settimeout(2)
-                    sock.connect((self.ip_address, 8101))
-                    sock.send('ruok'.encode())
-                    data = sock.recv(100_000)
-                    data = data.decode()
-                    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} receive data {data}")
-                except Exception as ex:
-                    print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} except for socket {ex}")
-                finally:
-                    if sock is not None:
-                        sock.close()
                 zk = self.get_fake_zk(3)
                 zk.get("/")
                 print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} node {self.name} ready")
                 return
-            except Exception as e:
-                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} except for wait join cluster {e}")
+            except:
                 time.sleep(0.5)
             finally:
                 if zk:

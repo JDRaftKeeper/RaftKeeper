@@ -11,7 +11,6 @@
 #include <libnuraft/async.hxx>
 #include <Poco/NumberFormatter.h>
 #include "Common/Stopwatch.h"
-#include <Common/IO/ReadHelpers.h>
 #include <Common/IO/WriteHelpers.h>
 
 namespace RK
@@ -84,6 +83,7 @@ void KeeperServer::startup()
     params.return_method_ = nuraft::raft_params::blocking;
     params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
     params.auto_forwarding_ = true;
+    params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
     // TODO set max_batch_size to NuRaft
 
     nuraft::asio_service::options asio_opts{};
