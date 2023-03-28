@@ -1,7 +1,7 @@
 <raftkeeper>
     <shutdown_wait_unfinished>3</shutdown_wait_unfinished>
     <logger>
-        <level>trace</level>
+        <level>debug</level>
         <log>/var/log/raftkeeper-server/log.log</log>
         <errorlog>/var/log/raftkeeper-server/log.err.log</errorlog>
         <size>1000M</size>

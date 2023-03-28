@@ -12,8 +12,10 @@ namespace ErrorCodes
     extern const int NETWORK_ERROR;
 }
 
-void ForwardingConnection::connect(Poco::Timespan connection_timeout)
+void ForwardingConnection::connect()
 {
+    auto connection_timeout = socket_timeout.totalMicroseconds() / 3;
+
     Poco::Net::SocketAddress address{endpoint};
     static constexpr size_t num_tries = 3;
 
@@ -68,7 +70,7 @@ void ForwardingConnection::send(KeeperStore::RequestForSession request_for_sessi
 {
     if (!connected)
     {
-        connect(socket_timeout.totalMicroseconds() / 3);
+        connect();
     }
 
     if (!connected)
@@ -144,7 +146,7 @@ void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t
 {
     if (!connected)
     {
-        connect(socket_timeout.totalMicroseconds() / 3);
+        connect();
     }
 
     if (!connected)
@@ -185,7 +187,7 @@ void ForwardingConnection::sendHandshake()
 }
 
 
-void ForwardingConnection::receiveHandshake()
+[[maybe_unused]] void ForwardingConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);

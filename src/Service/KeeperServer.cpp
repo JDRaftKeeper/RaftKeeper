@@ -1,17 +1,17 @@
 #include <chrono>
 #include <string>
-#include <Common/IO/ReadHelpers.h>
-#include <Common/IO/WriteHelpers.h>
 #include <Service/KeeperServer.h>
 #include <Service/LoggerWrapper.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/NuRaftStateManager.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 #include <boost/algorithm/string.hpp>
 #include <libnuraft/async.hxx>
 #include <Poco/NumberFormatter.h>
-#include <ZooKeeper/ZooKeeperIO.h>
+#include "Common/Stopwatch.h"
+#include <Common/IO/WriteHelpers.h>
 
 namespace RK
 {
@@ -83,6 +83,7 @@ void KeeperServer::startup()
     params.return_method_ = nuraft::raft_params::blocking;
     params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
     params.auto_forwarding_ = true;
+    params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
     // TODO set max_batch_size to NuRaft
 
     nuraft::asio_service::options asio_opts{};
@@ -235,12 +236,14 @@ int64_t KeeperServer::getSessionID(int64_t session_timeout_ms)
 
     int64_t sid;
     {
-        std::lock_guard lock(append_entries_mutex);
-
+        Stopwatch sw;
         auto result = raft_instance->append_entries({entry});
 
         if (!result->has_result())
             result->get();
+
+        sw.stop();
+        LOG_TRACE(log, "append entries for new session cost {}ms", sw.elapsedMilliseconds());
 
         if (!result->get_accepted())
             throw Exception(ErrorCodes::RAFT_ERROR, "Cannot send session_id request to RAFT, reason {}", result->get_result_str());

@@ -221,7 +221,8 @@ class _NetworkManager:
                 # before running
                 for i in range(5):
                     try:
-                        subprocess.check_call("docker pull yandex/clickhouse-integration-helper", shell=True)   # STYLE_CHECK_ALLOW_SUBPROCESS_CHECK_CALL
+                        # STYLE_CHECK_ALLOW_SUBPROCESS_CHECK_CALL
+                        subprocess.check_call("docker pull yandex/clickhouse-integration-helper", shell=True)
                         break
                     except:
                         time.sleep(i)

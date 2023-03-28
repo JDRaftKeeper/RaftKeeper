@@ -1,16 +1,13 @@
-import socket
-import pytest
-from helpers.cluster_service import RaftKeeperCluster
-import random
-import string
-import os
-import time
-from multiprocessing.dummy import Pool
-from helpers.network import PartitionManager
-from helpers.test_tools import assert_eq_with_retry
-from io import StringIO
 import csv
 import re
+import socket
+import time
+
+import pytest
+from kazoo.client import KazooClient
+
+from helpers.cluster_service import RaftKeeperCluster
+from helpers.utils import close_zk_client
 
 cluster = RaftKeeperCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/logs_conf.xml'],
@@ -20,27 +17,14 @@ node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
 
-from kazoo.client import KazooClient, KazooState
-
 
 @pytest.fixture(scope="module")
 def started_cluster():
     try:
         cluster.start()
-
         yield cluster
-
     finally:
         cluster.shutdown()
-
-
-def destroy_zk_client(zk):
-    try:
-        if zk:
-            zk.stop()
-            zk.close()
-    except:
-        pass
 
 
 def clear_znodes():
@@ -51,7 +35,7 @@ def clear_znodes():
         for node in [n for n in nodes if 'test_4lw_' in n]:
             zk.delete('/' + node)
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def wait_node(node):
@@ -197,7 +181,6 @@ def test_cmd_mntr(started_cluster):
         assert int(result["zk_min_latency"]) <= int(result["zk_avg_latency"])
         assert int(result["zk_max_latency"]) >= int(result["zk_avg_latency"])
 
-
         assert int(result["zk_num_alive_connections"]) == 1
         assert int(result["zk_outstanding_requests"]) == 0
 
@@ -222,7 +205,7 @@ def test_cmd_mntr(started_cluster):
         assert int(result["zk_packets_sent"]) >= 31
         assert int(result["zk_packets_received"]) >= 31
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_srst(started_cluster):
@@ -347,7 +330,7 @@ def test_cmd_srvr(started_cluster):
         assert result['Node count'] == '11'
 
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_stat(started_cluster):
@@ -402,7 +385,7 @@ def test_cmd_stat(started_cluster):
         assert result['sent'] == '10'
 
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_cons(started_cluster):
@@ -447,7 +430,7 @@ def test_cmd_cons(started_cluster):
         assert int(result['maxlat']) >= 0
 
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_crst(started_cluster):
@@ -494,7 +477,7 @@ def test_cmd_crst(started_cluster):
         assert int(result['maxlat']) == 0
 
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_dump(started_cluster):
@@ -520,7 +503,7 @@ def test_cmd_dump(started_cluster):
         assert '\t' + '/test_4lw_ephemeral_node_0' in list_data
         assert '\t' + '/test_4lw_ephemeral_node_1' in list_data
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_wchs(started_cluster):
@@ -551,7 +534,7 @@ def test_cmd_wchs(started_cluster):
         assert watch_path_count == 2
         assert watch_count == 2
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_wchc(started_cluster):
@@ -575,7 +558,7 @@ def test_cmd_wchc(started_cluster):
         assert '\t' + '/test_4lw_normal_node_0' in list_data
         assert '\t' + '/test_4lw_normal_node_1' in list_data
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_wchp(started_cluster):
@@ -599,7 +582,7 @@ def test_cmd_wchp(started_cluster):
         assert '/test_4lw_normal_node_0' in list_data
         assert '/test_4lw_normal_node_1' in list_data
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_csnp(started_cluster):
@@ -618,7 +601,7 @@ def test_cmd_csnp(started_cluster):
         except ValueError:
             assert False
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_lgif(started_cluster):
@@ -651,7 +634,7 @@ def test_cmd_lgif(started_cluster):
         assert int(result["target_committed_log_idx"]) >= 1
         assert int(result["last_snapshot_idx"]) >= 1
     finally:
-        destroy_zk_client(zk)
+        close_zk_client(zk)
 
 
 def test_cmd_rqld(started_cluster):

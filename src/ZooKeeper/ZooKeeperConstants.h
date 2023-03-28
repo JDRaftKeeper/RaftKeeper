@@ -12,6 +12,8 @@ using XID = int32_t;
 static constexpr XID WATCH_XID = -1;
 static constexpr XID PING_XID  = -2;
 static constexpr XID AUTH_XID  = -4;
+/// Used when RaftKeeper server close a session.
+/// But when client send a close request xid can be any digit.
 static constexpr XID CLOSE_XID = 0x7FFFFFFF;
 
 enum class OpNum : int32_t

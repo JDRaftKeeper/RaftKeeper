@@ -1,12 +1,8 @@
-import socket
 import pytest
-import subprocess
-from helpers.cluster_service import RaftKeeperCluster
-from helpers.network import PartitionManager
-import time
-
-from kazoo import client
 from kazoo.retry import KazooRetry
+
+from helpers.cluster_service import RaftKeeperCluster
+from helpers.utils import close_zk_client
 
 cluster = RaftKeeperCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/logs_conf.xml'],
@@ -16,8 +12,7 @@ node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
 
-from kazoo.client import KazooClient, KazooState
-from kazoo.exceptions import ZookeeperError, NoNodeError
+from kazoo.client import KazooClient
 
 
 @pytest.fixture(scope="module")
@@ -29,15 +24,6 @@ def started_cluster():
         cluster.shutdown()
 
 
-def destroy_zk_client(zk):
-    try:
-        if zk:
-            zk.stop()
-            zk.close()
-    except:
-        pass
-
-
 def wait_node(node):
     node.wait_for_join_cluster()
 
@@ -47,6 +33,7 @@ def wait_nodes():
         wait_node(n)
 
 
+# get client with retry policy
 def get_fake_zk(node_name, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node_name) + ":8101", timeout=timeout)
     _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1)
@@ -56,13 +43,9 @@ def get_fake_zk(node_name, timeout=30.0):
 
 def restart_cluster(zk, first_session_id):
     print("Restarting cluster, client previous session id is ", first_session_id)
-    node1.kill_raftkeeper(stop_start_wait_sec=0.1)
-    node2.kill_raftkeeper(stop_start_wait_sec=0.1)
-    node3.kill_raftkeeper(stop_start_wait_sec=0.1)
-    time.sleep(3)
-    node1.start_raftkeeper()
-    node2.start_raftkeeper()
-    node3.start_raftkeeper()
+    node1.restart_raftkeeper()
+    node2.restart_raftkeeper()
+    node3.restart_raftkeeper()
 
     wait_nodes()
     print("Cluster started client session id is ", zk._session_id)
@@ -88,7 +71,7 @@ def test_reconnection(started_cluster):
         def data_watch(event_data, event_stat):
             global watch_triggered
             watch_triggered = True
-            print("Watch for /test_reconnection triggered, value is %s" % event_data)
+            print(f"Watch for /test_reconnection triggered, value is {event_data}, stat is {event_stat}")
 
         zk.get(path='/test_reconnection', watch=data_watch)
 
@@ -107,10 +90,7 @@ def test_reconnection(started_cluster):
         assert zk._session_id == first_session_id
 
     finally:
-        if zk is not None:
-            zk.stop()
-            zk.close()
-
+        close_zk_client(zk)
 
 # def test_session_expired(started_cluster):
 #     wait_nodes()
