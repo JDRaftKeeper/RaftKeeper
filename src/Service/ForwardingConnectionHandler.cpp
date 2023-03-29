@@ -1,5 +1,5 @@
-#include <Service/ForwardingConnectionHandler.h>
 #include <Service/ForwardingConnection.h>
+#include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -19,36 +19,36 @@ namespace ErrorCodes
 using Poco::NObserver;
 
 
-ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor)
+ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_)
     : log(&Logger::get("ForwardingConnectionHandler"))
-    , socket_(socket)
-    , reactor_(reactor)
+    , sock(socket_)
+    , reactor(reactor_)
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
     , responses(std::make_unique<ThreadSafeResponseQueue>())
 {
-    LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
 
-    reactor_.addEventHandler(
-        socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
-    reactor_.addEventHandler(
-        socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
-    reactor_.addEventHandler(
-        socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
+    reactor.addEventHandler(
+        sock, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
+    reactor.addEventHandler(
+        sock, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
+    reactor.addEventHandler(
+        sock, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
 }
 
 ForwardingConnectionHandler::~ForwardingConnectionHandler()
 {
     try
     {
-        reactor_.removeEventHandler(
-            socket_, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
+        reactor.removeEventHandler(
+            sock, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
+        reactor.removeEventHandler(
+            sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+        reactor.removeEventHandler(
+            sock, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
+        reactor.removeEventHandler(
+            sock, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
@@ -60,14 +60,14 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
     try
     {
         LOG_TRACE(log, "Forwarding handler socket readable");
-        if (!socket_.available())
+        if (!sock.available())
         {
-            LOG_INFO(log, "Client close connection! errno {}", errno);
+            LOG_INFO(log, "Client close connection!");
             destroyMe();
             return;
         }
 
-        while (socket_.available())
+        while (sock.available())
         {
             LOG_TRACE(log, "forwarding handler socket available");
 
@@ -77,22 +77,24 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                 if (!req_header_buf.isFull())
                 {
-                    socket_.receiveBytes(req_header_buf);
+                    sock.receiveBytes(req_header_buf);
                     if (!req_header_buf.isFull())
                         continue;
                 }
 
-                /// read forward_protocol
-                int8_t forward_protocol{};
-                ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
-                Coordination::read(forward_protocol, read_buf);
-                req_header_buf.drain(req_header_buf.used());
-                current_package.protocol = static_cast<PkgType>(forward_protocol);
+                /// read pkg_type
+                int8_t pkg_type{};
 
-                LOG_TRACE(log, "Receive {}", current_package.protocol);
+                ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
+                Coordination::read(pkg_type, read_buf);
+
+                req_header_buf.drain(req_header_buf.used());
+                current_package.pkg_type = static_cast<PkgType>(pkg_type);
+
+                LOG_TRACE(log, "Receive {}", toString(current_package.pkg_type));
 
                 WriteBufferFromFiFoBuffer out;
-                switch (forward_protocol)
+                switch (pkg_type)
                 {
                     case PkgType::Handshake:
                     case PkgType::Session:
@@ -106,14 +108,15 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (unlikely(current_package.protocol == PkgType::Handshake))
+                /// process handshake
+                if (unlikely(current_package.pkg_type == PkgType::Handshake))
                 {
                     if (!req_body_buf)
                     {
                         /// server client
                         req_body_buf = std::make_shared<FIFOBuffer>(8);
                     }
-                    socket_.receiveBytes(*req_body_buf);
+                    sock.receiveBytes(*req_body_buf);
                     if (!req_body_buf->isFull())
                         continue;
 
@@ -122,27 +125,26 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     Coordination::read(server_id, body);
                     Coordination::read(client_id, body);
 
-                    /// register session response callback
+                    /// register forwarding response callback
                     auto response_callback = [this](const ForwardResponse & response) { sendResponse(response); };
-
                     keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
 
                     LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
 
                     keeper_dispatcher->sendAppendEntryResponse(
-                        server_id,
-                        client_id,
+                        {server_id, client_id},
                         {PkgType::Handshake,
                          true,
                          nuraft::cmd_result_code::OK,
                          ForwardResponse::non_session_id,
                          ForwardResponse::non_xid,
-                         Coordination::OpNum::Error});
+                         Coordination::OpNum::Unknown});
 
                     req_body_buf.reset();
                     current_package.is_done = true;
                 }
-                else if (current_package.protocol == PkgType::Data)
+                /// process common user requests
+                else if (current_package.pkg_type == PkgType::Data)
                 {
                     std::tuple<int64_t, int64_t, Coordination::OpNum> session_xid_opnum{
                         ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
@@ -152,7 +154,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         {
                             if (!req_body_len_buf.isFull())
                             {
-                                socket_.receiveBytes(req_body_len_buf);
+                                sock.receiveBytes(req_body_len_buf);
                                 if (!req_body_len_buf.isFull())
                                     continue;
                             }
@@ -160,15 +162,15 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             /// request body length
                             int32_t body_len{};
                             ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
+
                             Coordination::read(body_len, read_buf);
                             req_body_len_buf.drain(req_body_len_buf.used());
 
-                            LOG_TRACE(log, "Read request done, body length : {}", body_len);
-
+                            LOG_TRACE(log, "Read request body length done, body length : {}", body_len);
                             req_body_buf = std::make_shared<FIFOBuffer>(body_len);
                         }
 
-                        socket_.receiveBytes(*req_body_buf);
+                        sock.receiveBytes(*req_body_buf);
                         if (!req_body_buf->isFull())
                             continue;
 
@@ -180,55 +182,58 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     catch (...)
                     {
                         ForwardResponse response{
-                            PkgType::Result,
+                            PkgType::Data,
                             false,
-                            nuraft::cmd_result_code::CANCELLED,
+                            nuraft::cmd_result_code::FAILED,
                             std::get<0>(session_xid_opnum),
                             std::get<1>(session_xid_opnum),
                             std::get<2>(session_xid_opnum)};
-                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
                         tryLogCurrentException(log, "Error processing request.");
                     }
                 }
-                else if (current_package.protocol == PkgType::Session)
+                /// process sessions
+                else if (current_package.pkg_type == PkgType::Session)
                 {
                     try
                     {
+                        int32_t session_count{};
                         if (!req_body_buf) /// new data package
                         {
                             if (!req_body_len_buf.isFull())
                             {
-                                socket_.receiveBytes(req_body_len_buf);
+                                sock.receiveBytes(req_body_len_buf);
                                 if (!req_body_len_buf.isFull())
                                     continue;
                             }
 
                             /// request body length
-                            int32_t session_size{};
                             ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
-                            Coordination::read(session_size, read_buf);
+
+                            int32_t req_body_len{};
+                            Coordination::read(req_body_len, read_buf);
                             req_body_len_buf.drain(req_body_len_buf.used());
 
-                            LOG_TRACE(log, "Read request done, session size : {}", session_size);
+                            session_count = req_body_len / 16;
 
-                            req_body_buf = std::make_shared<FIFOBuffer>(session_size * 16);
+                            LOG_TRACE(log, "Read request done, session count : {}", session_count);
+                            req_body_buf = std::make_shared<FIFOBuffer>(req_body_len);
                         }
 
-                        socket_.receiveBytes(*req_body_buf);
+                        sock.receiveBytes(*req_body_buf);
                         if (!req_body_buf->isFull())
                             continue;
 
                         ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-                        size_t session_size = req_body_buf->size() / 16;
-                        for (size_t i = 0; i < session_size; ++i)
+                        for (auto i = 0; i < session_count; ++i)
                         {
                             int64_t session_id;
                             Coordination::read(session_id, body);
+
                             int64_t expiration_time;
                             Coordination::read(expiration_time, body);
 
                             LOG_TRACE(log, "Receive remote session {}, expiration time {}", session_id, expiration_time);
-
                             keeper_dispatcher->handleRemoteSession(session_id, expiration_time);
                         }
 
@@ -241,9 +246,9 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             nuraft::cmd_result_code::OK,
                             ForwardResponse::non_session_id,
                             ForwardResponse::non_xid,
-                            /// TODO add new OpNum
-                            Coordination::OpNum::Error};
-                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                            Coordination::OpNum::Unknown};
+
+                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
                     }
                     catch (...)
                     {
@@ -253,8 +258,8 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             nuraft::cmd_result_code::OK,
                             ForwardResponse::non_session_id,
                             ForwardResponse::non_xid,
-                            Coordination::OpNum::Error};
-                        keeper_dispatcher->sendAppendEntryResponse(server_id, client_id, response);
+                            Coordination::OpNum::Unknown};
+                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
                         tryLogCurrentException(log, "Error processing ping request.");
                     }
                 }
@@ -268,7 +273,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
     }
     catch (...)
     {
-        tryLogCurrentException(log, "Fatal error when handling request, will close connection.");
+        tryLogCurrentException(log, "Error when handling request, will close connection.");
         destroyMe();
     }
 }
@@ -306,7 +311,7 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         });
 
         /// 2. send data
-        size_t sent = socket_.sendBytes(send_buf);
+        size_t sent = sock.sendBytes(send_buf);
 
         /// 3. remove sent responses
 
@@ -330,15 +335,14 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         /// If all sent unregister writable event.
         if (responses->empty() && send_buf.used() == 0)
         {
-            LOG_TRACE(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
-            reactor_.removeEventHandler(
-                socket_,
-                NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+            LOG_TRACE(log, "Remove socket writable event handler - session {}", sock.peerAddress().toString());
+            reactor.removeEventHandler(
+                sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
         }
     }
     catch (...)
     {
-        tryLogCurrentException(log, "Fatal error when sending data to client, will close connection.");
+        tryLogCurrentException(log, "Error when sending data to client, will close connection.");
         destroyMe();
     }
 }
@@ -396,8 +400,8 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
     responses->push(buf.getBuffer());
 
     /// Trigger socket writable event
-    reactor_.addEventHandler(
-        socket_, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+    reactor.addEventHandler(
+        sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
     LOG_TRACE(
         log,
@@ -405,7 +409,7 @@ void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
         Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
         getThreadName());
 
-    reactor_.wakeUp();
+    reactor.wakeUp();
 }
 
 void ForwardingConnectionHandler::destroyMe()

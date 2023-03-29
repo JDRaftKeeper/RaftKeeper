@@ -157,18 +157,18 @@ void KeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKe
         session_to_response_callback.erase(session_writer);
 }
 
-void KeeperDispatcher::sendAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response)
+void KeeperDispatcher::sendAppendEntryResponse(ForwardingClientId client_id, const ForwardResponse & response)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
-    auto forward_response_writer = forward_to_response_callback.find({server_id, client_id});
+    auto forward_response_writer = forward_to_response_callback.find(client_id);
     if (forward_response_writer == forward_to_response_callback.end())
         return;
 
     LOG_TRACE(
         log,
-        "[sendAppendEntryResponse]server_id {}, client_id {}, session {}, xid {}",
-        server_id,
-        client_id,
+        "[sendAppendEntryResponse] server_id {}, client_id {}, session {}, xid {}",
+        client_id.first,
+        client_id.second,
         toHexString(response.session_id),
         response.xid);
     forward_response_writer->second(response);
@@ -212,8 +212,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
         if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
-    else if (!requests_queue->tryPush(
-                 std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
+    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
         throw Exception(
             "Cannot push request to queue within operation timeout, requests_queue size {}",
             requests_queue->size(),
@@ -251,8 +250,7 @@ bool KeeperDispatcher::putForwardingRequest(
         if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
-    else if (!requests_queue->tryPush(
-                 std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
+    else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
@@ -295,8 +293,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
 
     if (session_consistent)
     {
-        UInt64 session_sync_period_ms
-            = configuration_and_settings->raft_settings->dead_session_check_period_ms / 2;
+        UInt64 session_sync_period_ms = configuration_and_settings->raft_settings->dead_session_check_period_ms / 2;
         request_forwarder.initialize(thread_count, server, shared_from_this(), session_sync_period_ms);
         request_accumulator.initialize(
             1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
@@ -392,15 +389,12 @@ void KeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCall
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", toHexString(session_id));
 }
 
-void KeeperDispatcher::registerForward(ServerForClient server_client, ForwardResponseCallback callback)
+void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResponseCallback callback)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
-    if (!forward_to_response_callback.try_emplace(server_client, callback).second)
+    if (!forward_to_response_callback.try_emplace(client_id, callback).second)
         throw Exception(
-            RK::ErrorCodes::LOGICAL_ERROR,
-            "Server {} client {} already registered in dispatcher",
-            server_client.first,
-            server_client.second);
+            RK::ErrorCodes::LOGICAL_ERROR, "Server {} client {} already registered in dispatcher", client_id.first, client_id.second);
 }
 
 void KeeperDispatcher::sessionCleanerTask()
@@ -417,8 +411,8 @@ void KeeperDispatcher::sessionCleanerTask()
         {
             if (isLeader())
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(
-                    configuration_and_settings->raft_settings->dead_session_check_period_ms));
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(configuration_and_settings->raft_settings->dead_session_check_period_ms));
 
                 auto dead_sessions = server->getDeadSessions();
                 if (!dead_sessions.empty())
@@ -446,8 +440,8 @@ void KeeperDispatcher::sessionCleanerTask()
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(
-                    configuration_and_settings->raft_settings->dead_session_check_period_ms));
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(configuration_and_settings->raft_settings->dead_session_check_period_ms));
             }
         }
         catch (...)

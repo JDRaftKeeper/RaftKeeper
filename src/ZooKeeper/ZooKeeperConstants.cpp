@@ -67,6 +67,8 @@ std::string toString(OpNum op_num)
             return "SetACL";
         case OpNum::GetACL:
             return "GetACL";
+        case OpNum::Unknown:
+            return "Unknown";
     }
     int32_t raw_op = static_cast<int32_t>(op_num);
     throw Exception("Operation " + std::to_string(raw_op) + " is unknown", Error::ZUNIMPLEMENTED);

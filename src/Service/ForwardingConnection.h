@@ -18,9 +18,30 @@ enum PkgType : int8_t
     Unknown = -1,
     Handshake = 1,
     Session = 2,
-    Data = 3,
-    /// TODO remove Result
-    Result = 4
+    Data = 3
+};
+
+std::string toString(PkgType pkg_type);
+
+struct ForwardRequest
+{
+    /// serialize a ForwardRequest
+    static void writeData(WriteBuffer & out, KeeperStore::RequestForSession request_for_session)
+    {
+        Coordination::write(PkgType::Data, out);
+        WriteBufferFromOwnString buf;
+        Coordination::write(request_for_session.session_id, buf);
+
+        /// TODO use request_for_session.request.write()
+        Coordination::write(request_for_session.request->xid, buf);
+        Coordination::write(request_for_session.request->getOpNum(), buf);
+        request_for_session.request->writeImpl(buf);
+
+        Coordination::write(buf.str(), out);
+        out.next();
+    }
+
+    /// TODO add writeSession etc.
 };
 
 struct ForwardResponse
@@ -28,7 +49,7 @@ struct ForwardResponse
     static constexpr int64_t non_session_id = -1;
     static constexpr int64_t non_xid = -1;
 
-    PkgType protocol{-1};
+    PkgType pkg_type{-1};
 
     /// result info
     bool accepted{true};
@@ -41,12 +62,14 @@ struct ForwardResponse
     Coordination::OpNum opnum{Coordination::OpNum::Error};
 
     /// serialize a ForwardResponse
-    void write(WriteBufferFromFiFoBuffer & buf) const
+    void write(WriteBuffer & buf) const
     {
-        Coordination::write(protocol, buf);
+        Coordination::write(pkg_type, buf);
         Coordination::write(accepted, buf);
+
         Coordination::write(error_code, buf);
         Coordination::write(session_id, buf);
+
         Coordination::write(xid, buf);
         Coordination::write(opnum, buf);
     }
@@ -55,7 +78,7 @@ struct ForwardResponse
     {
         String res;
 
-        switch (protocol)
+        switch (pkg_type)
         {
             case Handshake:
                 res += "Handshake";
@@ -65,9 +88,6 @@ struct ForwardResponse
                 break;
             case Data:
                 res += "Data";
-                break;
-            case Result:
-                res += "Result";
                 break;
             default:
                 res += "Unknown";
@@ -106,7 +126,7 @@ public:
 
     [[maybe_unused]] [[maybe_unused]] void receiveHandshake();
 
-    void send(KeeperStore::RequestForSession request_for_session);
+    void send(const KeeperStore::RequestForSession & request_for_session);
     bool receive(ForwardResponse & response);
 
     /// Send session to leader every session_sync_period_ms.

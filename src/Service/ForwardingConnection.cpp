@@ -1,7 +1,7 @@
 
 #include <Service/ForwardingConnection.h>
-#include <Common/IO/WriteHelpers.h>
 #include <ZooKeeper/ZooKeeperIO.h>
+#include <Common/IO/WriteHelpers.h>
 
 namespace RK
 {
@@ -10,6 +10,21 @@ namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
+}
+
+std::string toString(PkgType pkg_type)
+{
+    switch (pkg_type)
+    {
+        case Unknown:
+            return "Unknown";
+        case Handshake:
+            return "Handshake";
+        case Session:
+            return "Session";
+        case Data:
+            return "Data";
+    }
 }
 
 void ForwardingConnection::connect()
@@ -24,15 +39,17 @@ void ForwardingConnection::connect()
     {
         try
         {
-            LOG_TRACE(log, "Try connect {}", endpoint);
-            /// Reset the state of previous attempt.
+            LOG_TRACE(log, "Try connect forward server {}", endpoint);
 
+            /// Reset the state of previous attempt.
             socket = Poco::Net::StreamSocket();
 
             socket.connect(address, connection_timeout);
 
             socket.setReceiveTimeout(socket_timeout);
             socket.setSendTimeout(socket_timeout);
+
+            /// non blocking socket
             socket.setNoDelay(true);
 
             in.emplace(socket);
@@ -42,16 +59,16 @@ void ForwardingConnection::connect()
             LOG_TRACE(log, "Sent handshake {}", endpoint);
 
             // TODO receiveHandshake
-//            receiveHandshake();
-//            LOG_TRACE(log, "received handshake {}", endpoint);
+            // receiveHandshake();
+            // LOG_TRACE(log, "received handshake {}", endpoint);
 
             connected = true;
-            LOG_TRACE(log, "Connect succ {}", endpoint);
+            LOG_TRACE(log, "Connect success {}", endpoint);
             break;
         }
         catch (...)
         {
-            LOG_ERROR(log, "Got exception connection {}, {}: {}", endpoint, address.toString(), getCurrentExceptionMessage(true));
+            LOG_ERROR(log, "Exception when connect to server {}, {}: {}", endpoint, address.toString(), getCurrentExceptionMessage(true));
         }
     }
 }
@@ -62,42 +79,35 @@ void ForwardingConnection::disconnect()
     {
         socket.close();
         connected = false;
+        /// reset errno if any
         errno = 0;
     }
 }
 
-void ForwardingConnection::send(KeeperStore::RequestForSession request_for_session)
+void ForwardingConnection::send(const KeeperStore::RequestForSession & request_for_session)
 {
     if (!connected)
-    {
         connect();
-    }
 
     if (!connected)
-    {
-        throw Exception("ForwardingConnection connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
-    }
+        throw Exception("Connect to server failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
 
-    LOG_TRACE(log, "Forwarding session {}, xid {} to endpoint {}", toHexString(request_for_session.session_id), request_for_session.request->xid, endpoint);
+    LOG_TRACE(
+        log,
+        "Forwarding session {}, xid {} to server {}",
+        toHexString(request_for_session.session_id),
+        request_for_session.request->xid,
+        endpoint);
 
     try
     {
-        Coordination::write(PkgType::Data, *out);
-        WriteBufferFromOwnString buf;
-        Coordination::write(request_for_session.session_id, buf);
-        Coordination::write(request_for_session.request->xid, buf);
-        Coordination::write(request_for_session.request->getOpNum(), buf);
-        request_for_session.request->writeImpl(buf);
-        Coordination::write(buf.str(), *out);
-        out->next();
+        ForwardRequest::writeData(*out, request_for_session);
     }
     catch (...)
     {
-        LOG_ERROR(log, "Got exception while forwarding to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
-        throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
+        throw Exception(ErrorCodes::NETWORK_ERROR, "Exception while send request to {}", endpoint);
     }
-
 }
 
 bool ForwardingConnection::poll(UInt64 max_wait)
@@ -113,13 +123,13 @@ bool ForwardingConnection::receive(ForwardResponse & response)
         return false;
 
     /// There are two situations,
-    /// 1. Feedback not accepted.
-    /// 2. Receiving network packets failed, which cannot determine whether the opposite end is accepted.
+    ///     1. Feedback not accepted.
+    ///     2. Receiving network packets failed, which cannot determine whether the opposite end is accepted.
     try
     {
         int8_t type;
         Coordination::read(type, *in);
-        response.protocol = static_cast<PkgType>(type);
+        response.pkg_type = static_cast<PkgType>(type);
 
         Coordination::read(response.accepted, *in);
 
@@ -135,9 +145,14 @@ bool ForwardingConnection::receive(ForwardResponse & response)
     }
     catch (...)
     {
-        LOG_ERROR(log, "Got exception while receiving forward result {}, {}", endpoint, getCurrentExceptionMessage(true));
-        /// TODO If it is a network exception, we receive the request by default. To be discussed.
+        tryLogCurrentException(log, "Exception while receiving forward result " + endpoint);
+
+        /// If it is a network exception occur, we does not know whether server process the request.
+        /// But here we just make it not accepted and leave client to determine how to process.
+
+        response.accepted = false;
         disconnect();
+
         return false;
     }
 }
@@ -145,21 +160,18 @@ bool ForwardingConnection::receive(ForwardResponse & response)
 void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
     if (!connected)
-    {
         connect();
-    }
 
     if (!connected)
-    {
-        throw Exception("ForwardingConnection connect failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
-    }
+        throw Exception(ErrorCodes::ALL_CONNECTION_TRIES_FAILED, "Connect to server {} failed when send session info", endpoint);
 
-    LOG_TRACE(log, "Send ping to endpoint {}", endpoint);
+    LOG_TRACE(log, "Send session info to server {}", endpoint);
 
     try
     {
         Coordination::write(PkgType::Session, *out);
-        Coordination::write(static_cast<int32_t>(session_to_expiration_time.size()), *out);
+        Coordination::write(static_cast<int32_t>(session_to_expiration_time.size() * 16), *out);
+
         for (const auto & session_expiration_time : session_to_expiration_time)
         {
             LOG_TRACE(log, "Send session {}, expiration time {}", session_expiration_time.first, session_expiration_time.second);
@@ -171,17 +183,16 @@ void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t
     }
     catch (...)
     {
-        LOG_ERROR(log, "Got exception while send ping to {}, {}", endpoint, getCurrentExceptionMessage(true));
         disconnect();
-        throw Exception("ForwardingConnection send failed", ErrorCodes::NETWORK_ERROR);
+        throw Exception(ErrorCodes::NETWORK_ERROR, "Exception while send session to ", endpoint);
     }
 }
 
 void ForwardingConnection::sendHandshake()
 {
+    LOG_TRACE(log, "send hand shake to {}, my_server_id {}, thread_id {}", endpoint, my_server_id, thread_id);
     Coordination::write(PkgType::Handshake, *out);
     Coordination::write(my_server_id, *out);
-    // TODO log
     Coordination::write(thread_id, *out);
     out->next();
 }
@@ -208,6 +219,5 @@ void ForwardingConnection::sendHandshake()
     int32_t opnum;
     Coordination::read(opnum, *in);
 }
-
 
 }

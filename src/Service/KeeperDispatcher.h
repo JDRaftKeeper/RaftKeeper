@@ -53,8 +53,10 @@ private:
         }
     };
 
-    using ServerForClient = std::pair<int32_t, int32_t>;
-    using ForwardToResponseCallback = std::unordered_map<ServerForClient, ForwardResponseCallback, PairHash>;
+    /// <server id, client id>
+    using ForwardingClientId = std::pair<int32_t, int32_t>;
+    using ForwardToResponseCallback = std::unordered_map<ForwardingClientId, ForwardResponseCallback, PairHash>;
+
     ForwardToResponseCallback forward_to_response_callback;
 
     using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
@@ -113,7 +115,7 @@ public:
         return server->updateSessionTimeout(session_id, session_timeout_ms);
     }
 
-    void registerForward(ServerForClient server_client, ForwardResponseCallback callback);
+    void registerForward(ForwardingClientId client_id, ForwardResponseCallback callback);
 
     void unRegisterForward(int32_t server_id, int32_t client_id);
 
@@ -140,7 +142,7 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
-    void sendAppendEntryResponse(int32_t server_id, int32_t client_id, const ForwardResponse & response);
+    void sendAppendEntryResponse(ForwardingClientId client_id, const ForwardResponse & response);
 
     /// Are we leader
     bool isLeader() const

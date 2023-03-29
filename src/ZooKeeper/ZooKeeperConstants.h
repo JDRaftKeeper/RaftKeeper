@@ -36,6 +36,7 @@ enum class OpNum : int32_t
     Auth = 100,
     SetWatches = 101,
     SessionID = 997, /// Special internal request
+    Unknown = 998,   /// Special internal request, never send to and receive from client
 };
 
 std::string toString(OpNum op_num);
