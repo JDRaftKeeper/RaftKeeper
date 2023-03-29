@@ -2,7 +2,6 @@
 #include <memory>
 #include <Service/KeeperDispatcher.h>
 #include <Poco/Util/Application.h>
-#include <Common/Config/ConfigProcessor.h>
 
 
 namespace RK

@@ -289,7 +289,8 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
+        {
             if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
             {
                 /// add whole resp to send_buf

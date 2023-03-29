@@ -61,11 +61,11 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     , keeper_dispatcher(global_context.getDispatcher())
     , operation_timeout(
           0,
-          global_context.getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
+          Context::getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
               * 1000)
     , session_timeout(
           0,
-          global_context.getConfigRef().getUInt("keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
+          Context::getConfigRef().getUInt("keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
@@ -273,7 +273,8 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
+        {
             if (resp == is_close)
                 return false;
 

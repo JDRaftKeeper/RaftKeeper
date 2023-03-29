@@ -153,7 +153,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         socket.setBlocking(false);
 
         Poco::Timespan timeout(
-            global_context.getConfigRef().getUInt(
+            Context::getConfigRef().getUInt(
                 "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
             * 1000);
         nio_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");

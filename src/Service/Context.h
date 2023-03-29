@@ -24,8 +24,6 @@ using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
 class Context
 {
 public:
-    using ConfigurationPtr = Poco::AutoPtr<Poco::Util::AbstractConfiguration>;
-
     static Context & get();
     ~Context() = default;
 
