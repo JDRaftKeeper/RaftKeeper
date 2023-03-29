@@ -130,7 +130,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
                     String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "8102");
                     String forwarding_endpoint = host + ":" + forwarding_port;
 
-                    LOG_INFO(log, "Create ForwardingConnection for {}, {}", id, forwarding_endpoint);
+                    LOG_DEBUG(log, "Create ForwardingConnection for {}, {}", id, forwarding_endpoint);
 
                     /// TODO use separate configuration
                     for (size_t i = 0; i < thread_count; ++i)

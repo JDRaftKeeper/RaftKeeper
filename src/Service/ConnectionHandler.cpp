@@ -1,12 +1,12 @@
-#    include "ConnectionHandler.h"
+#include "ConnectionHandler.h"
 
-#    include <Service/FourLetterCommand.h>
-#    include <Service/formatHex.h>
-#    include <Poco/Net/NetException.h>
-#    include <Common/Stopwatch.h>
-#    include <ZooKeeper/ZooKeeperCommon.h>
-#    include <ZooKeeper/ZooKeeperIO.h>
-#    include <Common/setThreadName.h>
+#include <Service/FourLetterCommand.h>
+#include <Service/formatHex.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
+#include <ZooKeeper/ZooKeeperIO.h>
+#include <Poco/Net/NetException.h>
+#include <Common/Stopwatch.h>
+#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -53,33 +53,28 @@ void ConnectionHandler::resetConnsStats()
     }
 }
 
-ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor)
+ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_)
     : log(&Logger::get("ConnectionHandler"))
-    , socket_(socket)
-    , reactor_(reactor)
+    , sock(socket_)
+    , reactor(reactor_)
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
     , operation_timeout(
           0,
-          global_context.getConfigRef().getUInt(
-              "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
+          global_context.getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS)
               * 1000)
     , session_timeout(
           0,
-          global_context.getConfigRef().getUInt(
-              "keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS)
-              * 1000)
+          global_context.getConfigRef().getUInt("keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_DEBUG(log, "New connection from {}", socket_.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
     registerConnection(this);
 
-    reactor_.addEventHandler(
-        socket_, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
-    reactor_.addEventHandler(socket_, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
-    reactor_.addEventHandler(
-        socket_, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
+    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
+    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
+    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
 }
 
 ConnectionHandler::~ConnectionHandler()
@@ -92,14 +87,10 @@ ConnectionHandler::~ConnectionHandler()
 
         unregisterConnection(this);
 
-        reactor_.removeEventHandler(
-            socket_, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
-        reactor_.removeEventHandler(
-            socket_, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
+        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
+        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
+        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
@@ -111,21 +102,21 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
     try
     {
         LOG_TRACE(log, "session {} socket readable", toHexString(session_id));
-        if (!socket_.available())
+        if (!sock.available())
         {
             LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
             destroyMe();
             return;
         }
 
-        while (socket_.available())
+        while (sock.available())
         {
             /// 1. Request header
             if (!next_req_header_read_done)
             {
                 if (!req_header_buf.isFull())
                 {
-                    socket_.receiveBytes(req_header_buf);
+                    sock.receiveBytes(req_header_buf);
                     if (!req_header_buf.isFull())
                         continue;
                 }
@@ -165,7 +156,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 previous_req_body_read_done = false;
             }
 
-            socket_.receiveBytes(*req_body_buf);
+            sock.receiveBytes(*req_body_buf);
 
             if (!req_body_buf->isFull())
                 continue;
@@ -233,7 +224,6 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                     if (received_op == Coordination::OpNum::Close)
                     {
                         LOG_DEBUG(log, "Received close event with xid {} for session {}", received_xid, toHexString(session_id));
-                        close_xid = received_xid;
                     }
                     else if (received_op == Coordination::OpNum::Heartbeat)
                     {
@@ -276,15 +266,14 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
     {
         LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
 
-        if (responses->size() == 0 && send_buf.used() == 0)
+        if (responses->empty() && send_buf.used() == 0)
             return;
 
         /// TODO use zero copy buffer
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
-        {
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
             if (resp == is_close)
                 return false;
 
@@ -309,7 +298,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         });
 
         /// 2. send data
-        size_t sent = socket_.sendBytes(send_buf);
+        size_t sent = sock.sendBytes(send_buf);
 
         /// 3. remove sent responses
 
@@ -340,11 +329,11 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         }
 
         /// If all sent unregister writable event.
-        if (responses->size() == 0 && send_buf.used() == 0)
+        if (responses->empty() && send_buf.used() == 0)
         {
-            LOG_DEBUG(log, "Remove socket writable event handler - session {}", socket_.peerAddress().toString());
-            reactor_.removeEventHandler(
-                socket_, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+            LOG_DEBUG(log, "Remove socket writable event handler - session {}", sock.peerAddress().toString());
+            reactor.removeEventHandler(
+                sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
         }
     }
     catch (...)
@@ -377,7 +366,7 @@ void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
     ConnectionStats stats = getConnectionStats();
 
     writeText(" ", buf);
-    writeText(socket_.peerAddress().toString(), buf);
+    writeText(sock.peerAddress().toString(), buf);
     writeText("(recved=", buf);
     writeIntText(stats.getPacketsReceived(), buf);
     writeText(",sent=", buf);
@@ -471,8 +460,8 @@ ConnectRequest ConnectionHandler::receiveHandshake(int32_t handshake_req_len)
 
 ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectRequest & connect_req)
 {
-    if (connect_req.timeout_ms != 0)
-        session_timeout = std::min(Poco::Timespan(connect_req.timeout_ms * 1000), session_timeout);
+    if (connect_req.session_timeout_ms != 0)
+        session_timeout = std::min(Poco::Timespan(connect_req.session_timeout_ms * 1000), session_timeout);
 
     LOG_INFO(log, "Negotiated session_timeout : {}", session_timeout.totalMilliseconds());
 
@@ -554,9 +543,9 @@ void ConnectionHandler::sendHandshake(HandShakeResult & result)
     Coordination::write(passwd, out);
 
     /// Set socket to blocking mode to simplify sending.
-    socket_.setBlocking(true);
-    socket_.sendBytes(*out.getBuffer());
-    socket_.setBlocking(false);
+    sock.setBlocking(true);
+    sock.sendBytes(*out.getBuffer());
+    sock.setBlocking(false);
 }
 
 bool ConnectionHandler::isHandShake(Int32 & handshake_length)
@@ -589,8 +578,8 @@ bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
             buf.write(res.data(), res.size());
 
             /// Set socket to blocking mode to simplify sending.
-            socket_.setBlocking(true);
-            socket_.sendBytes(*buf.getBuffer());
+            sock.setBlocking(true);
+            sock.sendBytes(*buf.getBuffer());
         }
         catch (...)
         {
@@ -649,8 +638,7 @@ void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & 
 
     LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
     /// Trigger socket writable event
-    reactor_.addEventHandler(
-        socket_, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+    reactor.addEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
     LOG_TRACE(
         log,
@@ -658,7 +646,7 @@ void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & 
         Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
         getThreadName());
 
-    reactor_.wakeUp();
+    reactor.wakeUp();
 }
 
 void ConnectionHandler::packageSent()

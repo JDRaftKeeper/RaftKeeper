@@ -608,8 +608,6 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
         const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
         auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
 
-        std::cout << "acl_usage_counter.size()" << acl_usage_counter.size() << std::endl;
-        std::cout << "new_acl_usage_counter.size()" << new_acl_usage_counter.size() << std::endl;
         ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
 
         const auto & acls_1020 = getACL(new_storage, "/1020");

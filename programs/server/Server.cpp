@@ -197,7 +197,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         [&](ConfigurationPtr config, bool /* initial_loading */)
         {
             if (config->has("keeper"))
-                global_context.updateServiceKeeperConfiguration(*config);
+                global_context.updateClusterConfiguration(*config);
         },
         /* already_loaded = */ false); /// Reload it right now (initial loading)
 

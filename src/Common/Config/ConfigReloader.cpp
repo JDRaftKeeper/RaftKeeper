@@ -103,7 +103,7 @@ void ConfigReloader::reloadIfNewer(bool force, bool throw_on_error, bool fallbac
             if (throw_on_error)
                 throw;
 
-            tryLogCurrentException(log, "ZooKeeper error when loading config from '" + path + "'");
+            tryLogCurrentException(log, "error when loading config from '" + path + "'");
             return;
         }
         catch (...)

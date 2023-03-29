@@ -12,7 +12,7 @@ using namespace Coordination;
 
 int main(int, char **)
 {
-    std::string identity_;
+    std::string identity;
 
     std::vector<std::string> hosts_strings;
     hosts_strings.emplace_back("127.0.0.1:8101");
@@ -23,7 +23,7 @@ int main(int, char **)
     {
         try
         {
-            bool secure = (startsWith(host_string, "secure://");
+            bool secure = (startsWith(host_string, "secure://"));
 
             if (secure)
                 host_string.erase(0, strlen("secure://"));
@@ -37,7 +37,7 @@ int main(int, char **)
     }
 
     zkutil::ZooKeeper::Ptr zookeeper
-        = std::make_shared<zkutil::ZooKeeper>(hosts_strings[0], identity_.empty() ? "" : "digest", 60000, 30000);
+        = std::make_shared<zkutil::ZooKeeper>(hosts_strings[0], identity.empty() ? "" : "digest", 60000, 30000);
 
     for (size_t i = 0; i < 100; ++i)
     {

@@ -165,7 +165,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                     if (!client)
                         LOG_DEBUG(log, "Not found client for runner {}, maybe no session attached to me", runner_id);
                     else if (!client->isConnected())
-                        LOG_DEBUG(log, "Client not connected for runner {}, maybe no session attached to me", runner_id);
+                        LOG_TRACE(log, "Client not connected for runner {}, maybe no session attached to me", runner_id);
                     std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
                 }
             }

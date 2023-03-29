@@ -4,7 +4,7 @@
 namespace RK
 {
 
-template<class Key, class Val>
+template <class Key, class Val>
 bool mapEquals(const std::unordered_map<Key, Val> & l, const std::unordered_map<Key, Val> & r)
 {
     if (l.size() != r.size())
@@ -124,7 +124,6 @@ void ACLMap::removeUsage(uint64_t acl_id)
 }
 bool ACLMap::operator==(const ACLMap & rhs) const
 {
-
     if (acl_to_num.size() != rhs.acl_to_num.size())
         return false;
 

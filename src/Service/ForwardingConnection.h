@@ -34,11 +34,13 @@ struct ForwardResponse
     bool accepted{true};
     int32_t error_code{nuraft::cmd_result_code::OK};
 
-    /// source info
+    /// {session_id, xid} is actually request id
     int64_t session_id{non_session_id};
     int64_t xid{non_xid};
+
     Coordination::OpNum opnum{Coordination::OpNum::Error};
 
+    /// serialize a ForwardResponse
     void write(WriteBufferFromFiFoBuffer & buf) const
     {
         Coordination::write(protocol, buf);
@@ -73,13 +75,16 @@ struct ForwardResponse
         }
         res += ", accepted: " + std::to_string(accepted);
         res += ", error_code: " + std::to_string(error_code);
-        res += ", session_id: " + std::to_string(session_id);
+        res += ", session_id: " + toHexString(session_id);
         res += ", xid: " + std::to_string(xid);
         res += ", opnum: " + Coordination::toString(opnum);
         return res;
     }
 };
 
+/**
+ * Client for forward request to leader.
+ */
 class ForwardingConnection
 {
 public:
@@ -93,16 +98,21 @@ public:
     }
 
     void connect();
-    void send(KeeperStore::RequestForSession request_for_session);
-    bool receive(ForwardResponse & response);
     void disconnect();
 
+    /// Send hand shake to forwarding server,
+    /// server will register me.
     void sendHandshake();
 
     [[maybe_unused]] [[maybe_unused]] void receiveHandshake();
 
+    void send(KeeperStore::RequestForSession request_for_session);
+    bool receive(ForwardResponse & response);
+
+    /// Send session to leader every session_sync_period_ms.
     void sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
+    /// Used to wait response.
     bool poll(UInt64 max_wait);
 
     bool isConnected() const { return connected; }
@@ -115,7 +125,8 @@ public:
         }
         catch (...)
         {
-            /// We must continue to execute all callbacks, because the user is waiting for them.
+            /// We must continue to execute all callbacks,
+            /// because the user is waiting for them.
             tryLogCurrentException(__PRETTY_FUNCTION__);
         }
     }
@@ -123,13 +134,19 @@ public:
 private:
     int32_t my_server_id;
     int32_t thread_id;
+
     bool connected{false};
+    /// server address who is cluster leader.
     String endpoint;
-    /// socket send and receive timeout, but it not work for socket is non-blocking
+
+    /// socket send and receive timeout, but it not work for
+    /// socket is non-blocking
     ///     For sending: loop to send n length @see WriteBufferFromPocoSocket.
     ///     For receiving: use poll to wait socket to be available.
     Poco::Timespan socket_timeout;
     Poco::Net::StreamSocket socket;
+
+    /// socket read and write buffer
     std::optional<ReadBufferFromPocoSocket> in;
     std::optional<WriteBufferFromPocoSocket> out;
 
