@@ -10,21 +10,7 @@ namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
-}
-
-std::string toString(PkgType pkg_type)
-{
-    switch (pkg_type)
-    {
-        case Unknown:
-            return "Unknown";
-        case Handshake:
-            return "Handshake";
-        case Session:
-            return "Session";
-        case Data:
-            return "Data";
-    }
+    extern const int UNEXPECTED_FORWARD_PACKET;
 }
 
 void ForwardingConnection::connect()
@@ -56,14 +42,15 @@ void ForwardingConnection::connect()
             out.emplace(socket);
 
             sendHandshake();
-            LOG_TRACE(log, "Sent handshake {}", endpoint);
+            LOG_TRACE(log, "Sent handshake to {}", endpoint);
 
-            // TODO receiveHandshake
-            // receiveHandshake();
-            // LOG_TRACE(log, "received handshake {}", endpoint);
+            if (!receiveHandshake())
+                throw;
+            LOG_TRACE(log, "Received handshake from {}", endpoint);
+
 
             connected = true;
-            LOG_TRACE(log, "Connect success {}", endpoint);
+            LOG_TRACE(log, "Connect to {} success", endpoint);
             break;
         }
         catch (...)
@@ -84,7 +71,7 @@ void ForwardingConnection::disconnect()
     }
 }
 
-void ForwardingConnection::send(const KeeperStore::RequestForSession & request_for_session)
+void ForwardingConnection::send(ForwardRequestPtr request)
 {
     if (!connected)
         connect();
@@ -92,16 +79,11 @@ void ForwardingConnection::send(const KeeperStore::RequestForSession & request_f
     if (!connected)
         throw Exception("Connect to server failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
 
-    LOG_TRACE(
-        log,
-        "Forwarding session {}, xid {} to server {}",
-        toHexString(request_for_session.session_id),
-        request_for_session.request->xid,
-        endpoint);
+    LOG_TRACE(log, "Forwarding to endpoint {}", endpoint);
 
     try
     {
-        ForwardRequest::writeData(*out, request_for_session);
+        request->write(*out);
     }
     catch (...)
     {
@@ -110,14 +92,14 @@ void ForwardingConnection::send(const KeeperStore::RequestForSession & request_f
     }
 }
 
-bool ForwardingConnection::poll(UInt64 max_wait)
+bool ForwardingConnection::poll(UInt64 timeout_microseconds)
 {
     if (!connected)
         return false;
-    return in->poll(max_wait);
+    return in->poll(timeout_microseconds);
 }
 
-bool ForwardingConnection::receive(ForwardResponse & response)
+bool ForwardingConnection::receive(ForwardResponsePtr & response)
 {
     if (!connected)
         return false;
@@ -129,18 +111,27 @@ bool ForwardingConnection::receive(ForwardResponse & response)
     {
         int8_t type;
         Coordination::read(type, *in);
-        response.pkg_type = static_cast<PkgType>(type);
 
-        Coordination::read(response.accepted, *in);
+        ForwardType response_type = static_cast<ForwardType>(type);
+        switch (response_type)
+        {
+            case Sessions:
+                response = std::make_shared<ForwardSessionResponse>();
+                break;
+            case GetSession:
+                response = std::make_shared<ForwardGetSessionResponse>();
+                break;
+            case UpdateSession:
+                response = std::make_shared<ForwardUpdateSessionResponse>();
+                break;
+            case Op:
+                response = std::make_shared<ForwardOpResponse>();
+                break;
+            default:
+                throw Exception("Unexpected forward package type " + std::to_string(response_type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);
+        }
 
-        int32_t code;
-        Coordination::read(code, *in);
-        response.error_code = code;
-
-        Coordination::read(response.session_id, *in);
-        Coordination::read(response.xid, *in);
-        Coordination::read(response.opnum, *in);
-
+        response->readImpl(*in);
         return true;
     }
     catch (...)
@@ -150,74 +141,33 @@ bool ForwardingConnection::receive(ForwardResponse & response)
         /// If it is a network exception occur, we does not know whether server process the request.
         /// But here we just make it not accepted and leave client to determine how to process.
 
-        response.accepted = false;
         disconnect();
 
         return false;
     }
 }
 
-void ForwardingConnection::sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
-{
-    if (!connected)
-        connect();
-
-    if (!connected)
-        throw Exception(ErrorCodes::ALL_CONNECTION_TRIES_FAILED, "Connect to server {} failed when send session info", endpoint);
-
-    LOG_TRACE(log, "Send session info to server {}", endpoint);
-
-    try
-    {
-        Coordination::write(PkgType::Session, *out);
-        Coordination::write(static_cast<int32_t>(session_to_expiration_time.size() * 16), *out);
-
-        for (const auto & session_expiration_time : session_to_expiration_time)
-        {
-            LOG_TRACE(log, "Send session {}, expiration time {}", session_expiration_time.first, session_expiration_time.second);
-            Coordination::write(session_expiration_time.first, *out);
-            Coordination::write(session_expiration_time.second, *out);
-        }
-
-        out->next();
-    }
-    catch (...)
-    {
-        disconnect();
-        throw Exception(ErrorCodes::NETWORK_ERROR, "Exception while send session to ", endpoint);
-    }
-}
-
 void ForwardingConnection::sendHandshake()
 {
-    LOG_TRACE(log, "send hand shake to {}, my_server_id {}, thread_id {}", endpoint, my_server_id, thread_id);
-    Coordination::write(PkgType::Handshake, *out);
+    Coordination::write(ForwardType::Handshake, *out);
     Coordination::write(my_server_id, *out);
     Coordination::write(thread_id, *out);
     out->next();
 }
 
 
-[[maybe_unused]] void ForwardingConnection::receiveHandshake()
+bool ForwardingConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);
-    assert(type == PkgType::Handshake);
+    assert(type == ForwardType::Handshake);
 
     bool accepted;
     Coordination::read(accepted, *in);
 
     int32_t code;
     Coordination::read(code, *in);
-
-    int64_t session_id;
-    Coordination::read(session_id, *in);
-
-    int64_t xid;
-    Coordination::read(xid, *in);
-
-    int32_t opnum;
-    Coordination::read(opnum, *in);
+    return accepted;
 }
 
 }

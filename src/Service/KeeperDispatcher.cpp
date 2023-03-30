@@ -157,7 +157,7 @@ void KeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKe
         session_to_response_callback.erase(session_writer);
 }
 
-void KeeperDispatcher::sendAppendEntryResponse(ForwardingClientId client_id, const ForwardResponse & response)
+void KeeperDispatcher::sendForwardResponse(int32_t server_id, int32_t client_id, ForwardResponsePtr response)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
     auto forward_response_writer = forward_to_response_callback.find(client_id);
@@ -166,11 +166,10 @@ void KeeperDispatcher::sendAppendEntryResponse(ForwardingClientId client_id, con
 
     LOG_TRACE(
         log,
-        "[sendAppendEntryResponse] server_id {}, client_id {}, session {}, xid {}",
-        client_id.first,
-        client_id.second,
-        toHexString(response.session_id),
-        response.xid);
+        "[sendForwardResponse]server_id {}, client_id {}, response {}",
+        server_id,
+        client_id,
+        response->toString());
     forward_response_writer->second(response);
 }
 
@@ -222,11 +221,10 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 
 
 bool KeeperDispatcher::putForwardingRequest(
-    size_t server_id, size_t client_id, const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
+    size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
-    KeeperStore::RequestForSession request_info;
-    request_info.request = request;
-    request_info.session_id = session_id;
+    KeeperStore::RequestForSession && request_info = request->requestForSession();
+
     using namespace std::chrono;
     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
@@ -238,14 +236,14 @@ bool KeeperDispatcher::putForwardingRequest(
         "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}",
         server_id,
         client_id,
-        toHexString(session_id),
-        request->xid,
-        Coordination::toString(request->getOpNum()));
+        toHexString(request_info.session_id),
+        request_info.request->xid,
+        Coordination::toString(request_info.request->getOpNum()));
 
     //    std::lock_guard lock(push_request_mutex);
 
     /// Put close requests without timeouts
-    if (request->getOpNum() == Coordination::OpNum::Close)
+    if (request_info.request->getOpNum() == Coordination::OpNum::Close)
     {
         if (!requests_queue->push(std::move(request_info)))
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);

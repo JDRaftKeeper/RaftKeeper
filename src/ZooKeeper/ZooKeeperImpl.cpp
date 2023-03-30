@@ -564,19 +564,8 @@ void ZooKeeper::sendThread()
                     }
 
                     info.request->addRootPath(root_path);
-
                     info.request->probably_sent = true;
-
-                    clock::time_point now_time = clock::now();
-                    UInt64 start_time = std::chrono::duration_cast<std::chrono::microseconds>(info.time.time_since_epoch()).count();
-                    UInt64 send_interval = std::chrono::duration_cast<std::chrono::microseconds>(now_time - info.time).count();
-                    if (send_interval > 3000000) /// 3s
-                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, info.time {}, session {}, xid {}", send_interval, start_time, session_id, info.request->xid);
-
                     info.request->write(*out);
-                    UInt64 write_interval = std::chrono::duration_cast<std::chrono::microseconds>(clock::now() - now_time).count();
-                    if (write_interval > 3000000) /// 3s
-                        LOG_WARNING(&Poco::Logger::get("ZooKeeperImpl"), "send_interval over 9s {}, info.time {}, session {}, xid {}", send_interval, start_time, session_id, info.request->xid);
 
                     /// We sent close request, exit
                     if (info.request->xid == CLOSE_XID)
