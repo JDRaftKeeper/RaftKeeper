@@ -6,9 +6,7 @@
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
-#include <loggers/Loggers.h>
 #include <Poco/File.h>
-#include <Poco/Util/LayeredConfiguration.h>
 #include <Common/Stopwatch.h>
 #include <common/argsToConfig.h>
 
@@ -47,9 +45,9 @@ TEST(RaftPerformance, appendLogPerformance)
     }
     Stopwatch watch;
     watch.start();
-    for (auto it = entry_vec.begin(); it != entry_vec.end(); it++)
+    for (auto & it : entry_vec)
     {
-        file_store->append(*it);
+        file_store->append(it);
     }
     watch.stop();
     int mill_second = watch.elapsedMilliseconds();
@@ -92,13 +90,11 @@ TEST(RaftPerformance, appendLogThread)
         data.append("v");
     }
 
-    //std::mutex index_mutex;
     std::vector<int> thread_vec = {1, 2, 4, 8};
     std::atomic<int> log_index = 0;
     int log_count = LOG_COUNT;
     for (auto thread_count : thread_vec)
     {
-        //int end_index = log_index + log_count;
         int thread_log_count = log_count / thread_count;
         FreeThreadPool thread_pool(thread_count);
         Stopwatch watch;
@@ -106,12 +102,10 @@ TEST(RaftPerformance, appendLogThread)
         for (int thread_idx = 0; thread_idx < thread_count; thread_idx++)
         {
             thread_pool.trySchedule([&file_store, &log_index, thread_log_count, &key, &data] {
-                UInt64 log_idx(0);
+                UInt64 log_idx;
                 UInt64 term = 1;
                 LogOpTypePB op = OP_TYPE_CREATE;
 
-                //auto * thread_log = &Poco::Logger::get("client_thread");
-                //LOG_INFO(thread_log, "Begin run thread size {}/{}, append count {}/{}", thread_idx, thread_count, thread_log_count, log_count);
                 for (auto idx = 0; idx < thread_log_count; idx++)
                 {
                     ptr<LogEntryPB> entry_pb;

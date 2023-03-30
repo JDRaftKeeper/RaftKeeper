@@ -153,7 +153,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         socket.setBlocking(false);
 
         Poco::Timespan timeout(
-            global_context.getConfigRef().getUInt(
+            Context::getConfigRef().getUInt(
                 "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
             * 1000);
         nio_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
@@ -197,7 +197,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         [&](ConfigurationPtr config, bool /* initial_loading */)
         {
             if (config->has("keeper"))
-                global_context.updateServiceKeeperConfiguration(*config);
+                global_context.updateClusterConfiguration(*config);
         },
         /* already_loaded = */ false); /// Reload it right now (initial loading)
 

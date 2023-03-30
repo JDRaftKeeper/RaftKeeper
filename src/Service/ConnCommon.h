@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <Service/Context.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -13,24 +14,42 @@
 #include <Common/PipeFDs.h>
 #include <Common/Stopwatch.h>
 #include <common/types.h>
-#include "Context.h"
 
 #if defined(POCO_HAVE_FD_EPOLL)
-#include <sys/epoll.h>
+#    include <sys/epoll.h>
 #else
-#include <poll.h>
+#    include <poll.h>
 #endif
 
 namespace RK
 {
 
+/**
+ * Client connection request.
+ */
 struct ConnectRequest
 {
+    /// network protocol version should be 0.
     int32_t protocol_version;
+
+    /// should be 0, if is new connection,
+    /// or else the last zxid client seen,
+    /// in which case means session is not timeout.
     int64_t last_zxid_seen;
-    int32_t timeout_ms;
+
+    /// session timeout client send,
+    /// the real timeout should be negotiated with server.
+    int32_t session_timeout_ms;
+
+    /// should be 0, if is new connection,
+    /// or else means session is not timeout.
     int64_t previous_session_id = 0;
+
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
+
+    /// Whether the connection is readonly.
+    /// It means no write requests is permitted.
+    /// TODO implementation
     bool readonly;
 };
 
@@ -45,11 +64,18 @@ struct LastOp;
 using LastOpMultiVersion = MultiVersion<LastOp>;
 using LastOpPtr = LastOpMultiVersion::Version;
 
+/**
+ * Last operation for a session or whole server.
+ */
 struct LastOp
 {
+    /// Short name for operation.
     String name{"NA"};
+    /// cxid for the operation
     int64_t last_cxid{-1};
+    /// zxid for the operation
     int64_t last_zxid{-1};
+    /// response timestamp for the operation in millisecond
     int64_t last_response_time{0};
 };
 

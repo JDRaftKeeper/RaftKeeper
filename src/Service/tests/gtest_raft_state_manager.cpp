@@ -1,9 +1,5 @@
-//
-// Created by JackyWoo on 2020/4/23.
-//
-
+#include <cstdio>
 #include <Service/NuRaftStateManager.h>
-#include<cstdio>
 #include <gtest/gtest.h>
 
 namespace RK
@@ -13,16 +9,13 @@ using namespace nuraft;
 class MockedRaftStateManager : public NuRaftStateManager
 {
 public:
-    MockedRaftStateManager() : NuRaftStateManager()
+    MockedRaftStateManager()
     {
         log = &(Poco::Logger::get("RaftStateManager"));
         srv_state_file = "./srv_state_test";
     }
 
-    ~MockedRaftStateManager() override
-    {
-        remove(srv_state_file.c_str());
-    }
+    ~MockedRaftStateManager() override { remove(srv_state_file.c_str()); }
 };
 
 

@@ -1,9 +1,7 @@
 #include "Context.h"
 #include <memory>
+#include <Service/KeeperDispatcher.h>
 #include <Poco/Util/Application.h>
-#include "Common/Config/ConfigProcessor.h"
-#include "Common/Stopwatch.h"
-#include "Service/KeeperDispatcher.h"
 
 
 namespace RK
@@ -20,12 +18,6 @@ Context & Context::get()
     return context;
 }
 
-void Context::setConfig(const ConfigurationPtr & config_)
-{
-    std::lock_guard lock(dispatcher_mutex);
-    config = config_;
-}
-
 std::shared_ptr<KeeperDispatcher> Context::getDispatcher() const
 {
     return dispatcher;
@@ -37,9 +29,8 @@ void Context::initializeDispatcher()
     if (dispatcher)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Trying to initialize keeper multiple times");
 
-    const auto & config_ = getConfigRef();
     dispatcher = std::make_shared<KeeperDispatcher>();
-    dispatcher->initialize(config_);
+    dispatcher->initialize(getConfigRef());
 }
 
 void Context::shutdownDispatcher()
@@ -52,24 +43,12 @@ void Context::shutdownDispatcher()
     }
 }
 
-void Context::updateServiceKeeperConfiguration(const Poco::Util::AbstractConfiguration & config_)
+void Context::updateClusterConfiguration(const Poco::Util::AbstractConfiguration & config)
 {
     std::lock_guard lock(dispatcher_mutex);
     if (!dispatcher)
         return;
-    dispatcher->updateConfiguration(config_);
-}
-
-void Context::setConfigReloadCallback(Context::ConfigReloadCallback && callback)
-{
-    config_reload_callback = std::move(callback);
-}
-
-void Context::reloadConfig() const
-{
-    if (!config_reload_callback)
-        throw Exception("Can't reload config because config_reload_callback is not set.", ErrorCodes::LOGICAL_ERROR);
-    config_reload_callback();
+    dispatcher->updateConfiguration(config);
 }
 
 void Context::shutdown()
@@ -77,10 +56,9 @@ void Context::shutdown()
     shutdownDispatcher();
 }
 
-const Poco::Util::AbstractConfiguration & Context::getConfigRef() const
+const Poco::Util::AbstractConfiguration & Context::getConfigRef()
 {
-    std::lock_guard lock(config_mutex);
-    return config ? *config : Poco::Util::Application::instance().config();
+    return Poco::Util::Application::instance().config();
 }
 
 }
