@@ -9,102 +9,12 @@
 #include <Common/IO/ReadBufferFromPocoSocket.h>
 #include <Common/IO/WriteBufferFromPocoSocket.h>
 #include <common/logger_useful.h>
+#include <Service/ForwardRequest.h>
+#include <Service/ForwardResponse.h>
 
 namespace RK
 {
 
-enum PkgType : int8_t
-{
-    Unknown = -1,
-    Handshake = 1,
-    Session = 2,
-    Data = 3
-};
-
-std::string toString(PkgType pkg_type);
-
-struct ForwardRequest
-{
-    /// serialize a ForwardRequest
-    static void writeData(WriteBuffer & out, KeeperStore::RequestForSession request_for_session)
-    {
-        Coordination::write(PkgType::Data, out);
-        WriteBufferFromOwnString buf;
-        Coordination::write(request_for_session.session_id, buf);
-
-        /// TODO use request_for_session.request.write()
-        Coordination::write(request_for_session.request->xid, buf);
-        Coordination::write(request_for_session.request->getOpNum(), buf);
-        request_for_session.request->writeImpl(buf);
-
-        Coordination::write(buf.str(), out);
-        out.next();
-    }
-
-    /// TODO add writeSession etc.
-};
-
-struct ForwardResponse
-{
-    static constexpr int64_t non_session_id = -1;
-    static constexpr int64_t non_xid = -1;
-
-    PkgType pkg_type{-1};
-
-    /// result info
-    bool accepted{true};
-    int32_t error_code{nuraft::cmd_result_code::OK};
-
-    /// {session_id, xid} is actually request id
-    int64_t session_id{non_session_id};
-    int64_t xid{non_xid};
-
-    Coordination::OpNum opnum{Coordination::OpNum::Error};
-
-    /// serialize a ForwardResponse
-    void write(WriteBuffer & buf) const
-    {
-        Coordination::write(pkg_type, buf);
-        Coordination::write(accepted, buf);
-
-        Coordination::write(error_code, buf);
-        Coordination::write(session_id, buf);
-
-        Coordination::write(xid, buf);
-        Coordination::write(opnum, buf);
-    }
-
-    String toString() const
-    {
-        String res;
-
-        switch (pkg_type)
-        {
-            case Handshake:
-                res += "Handshake";
-                break;
-            case Session:
-                res += "Session";
-                break;
-            case Data:
-                res += "Data";
-                break;
-            default:
-                res += "Unknown";
-                break;
-        }
-        res += ", accepted: " + std::to_string(accepted);
-        res += ", error_code: " + std::to_string(error_code);
-        res += ", session_id: " + toHexString(session_id);
-        res += ", xid: " + std::to_string(xid);
-        res += ", opnum: " + Coordination::toString(opnum);
-        return res;
-    }
-};
-
-/**
- * Client for forward request to leader.
- */
 class ForwardingConnection
 {
 public:
@@ -118,13 +28,17 @@ public:
     }
 
     void connect();
+
+    void send(ForwardRequestPtr request);
+    bool receive(ForwardResponsePtr & response);
+
     void disconnect();
 
     /// Send hand shake to forwarding server,
     /// server will register me.
     void sendHandshake();
 
-    [[maybe_unused]] [[maybe_unused]] void receiveHandshake();
+    [[maybe_unused]] [[maybe_unused]] bool receiveHandshake();
 
     void send(const KeeperStore::RequestForSession & request_for_session);
     bool receive(ForwardResponse & response);
@@ -132,8 +46,7 @@ public:
     /// Send session to leader every session_sync_period_ms.
     void sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
-    /// Used to wait response.
-    bool poll(UInt64 max_wait);
+    bool poll(UInt64 timeout_microseconds);
 
     bool isConnected() const { return connected; }
 
@@ -155,8 +68,7 @@ private:
     int32_t my_server_id;
     int32_t thread_id;
 
-    bool connected{false};
-    /// server address who is cluster leader.
+    std::atomic<bool> connected{false};
     String endpoint;
 
     /// socket send and receive timeout, but it not work for

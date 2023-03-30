@@ -14,6 +14,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int TIMEOUT_EXCEEDED;
+    extern const int SYSTEM_ERROR;
 }
 
 using Poco::NObserver;
@@ -82,34 +83,35 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         continue;
                 }
 
-                /// read pkg_type
-                int8_t pkg_type{};
-
+                /// read forward_protocol
+                int8_t forward_type{};
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
-                Coordination::read(pkg_type, read_buf);
-
+                Coordination::read(forward_type, read_buf);
                 req_header_buf.drain(req_header_buf.used());
-                current_package.pkg_type = static_cast<PkgType>(pkg_type);
+                current_package.protocol = static_cast<ForwardType>(forward_type);
 
-                LOG_TRACE(log, "Receive {}", toString(current_package.pkg_type));
+                LOG_TRACE(log, "Receive {}", toString(current_package.protocol));
 
                 WriteBufferFromFiFoBuffer out;
-                switch (pkg_type)
+
+                switch (forward_type)
                 {
-                    case PkgType::Handshake:
-                    case PkgType::Session:
-                    case PkgType::Data:
+                    case ForwardType::Handshake:
+                    case ForwardType::Sessions:
+                    case ForwardType::GetSession:
+                    case ForwardType::UpdateSession:
+                    case ForwardType::Op:
                         current_package.is_done = false;
                         break;
                     default:
+                        LOG_ERROR(log, "Got unexpected forward package type {}", forward_type);
                         destroyMe();
                         return;
                 }
             }
             else
             {
-                /// process handshake
-                if (unlikely(current_package.pkg_type == PkgType::Handshake))
+                if (unlikely (current_package.protocol == ForwardType::Handshake))
                 {
                     if (!req_body_buf)
                     {
@@ -125,29 +127,28 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     Coordination::read(server_id, body);
                     Coordination::read(client_id, body);
 
-                    /// register forwarding response callback
-                    auto response_callback = [this](const ForwardResponse & response) { sendResponse(response); };
+                    /// register session response callback
+                    auto response_callback = [this](ForwardResponsePtr response) { sendResponse(response); };
+
                     keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
 
                     LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
 
-                    keeper_dispatcher->sendAppendEntryResponse(
-                        {server_id, client_id},
-                        {PkgType::Handshake,
-                         true,
-                         nuraft::cmd_result_code::OK,
-                         ForwardResponse::non_session_id,
-                         ForwardResponse::non_xid,
-                         Coordination::OpNum::Unknown});
+
+                    std::shared_ptr<ForwardHandshakeResponse> response = std::make_shared<ForwardHandshakeResponse>();
+                    response->accepted = true;
+                    response->error_code = nuraft::cmd_result_code::OK;
+
+                    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
 
                     req_body_buf.reset();
                     current_package.is_done = true;
                 }
-                /// process common user requests
-                else if (current_package.pkg_type == PkgType::Data)
+                else if (
+                    current_package.protocol == ForwardType::Op || current_package.protocol == ForwardType::GetSession
+                    || current_package.protocol == ForwardType::UpdateSession)
                 {
-                    std::tuple<int64_t, int64_t, Coordination::OpNum> session_xid_opnum{
-                        ForwardResponse::non_session_id, ForwardResponse::non_xid, Coordination::OpNum::Error};
+                    auto request = ForwardRequestFactory::instance().get(current_package.protocol);
                     try
                     {
                         if (!req_body_buf) /// new data package
@@ -174,27 +175,38 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         if (!req_body_buf->isFull())
                             continue;
 
-                        session_xid_opnum = receiveRequest(req_body_buf->size());
+                        ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+
+                        request->readImpl(body);
+
+                        keeper_dispatcher->putForwardingRequest(server_id, client_id, request);
 
                         req_body_buf.reset();
                         current_package.is_done = true;
                     }
-                    catch (...)
+                    catch (Exception & e)
                     {
-                        ForwardResponse response{
-                            PkgType::Data,
-                            false,
-                            nuraft::cmd_result_code::FAILED,
-                            std::get<0>(session_xid_opnum),
-                            std::get<1>(session_xid_opnum),
-                            std::get<2>(session_xid_opnum)};
-                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
-                        tryLogCurrentException(log, "Error processing request.");
+                        if (e.code() == ErrorCodes::SYSTEM_ERROR || e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
+                        {
+                            auto response = request->makeResponse();
+                            keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
+                            LOG_ERROR(log, "Error processing request {}", e.displayText());
+                        }
+                        else
+                        {
+                            tryLogCurrentException(log, __PRETTY_FUNCTION__);
+                            throw e;
+                        }
+                    }
+                    catch (Poco::Exception & e)
+                    {
+                        tryLogCurrentException(log, __PRETTY_FUNCTION__);
+                        throw e;
                     }
                 }
-                /// process sessions
-                else if (current_package.pkg_type == PkgType::Session)
+                else if (current_package.protocol == ForwardType::Sessions)
                 {
+                    auto request = ForwardRequestFactory::instance().get(current_package.protocol);
                     try
                     {
                         int32_t session_count{};
@@ -240,26 +252,15 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         req_body_buf.reset();
                         current_package.is_done = true;
 
-                        ForwardResponse response{
-                            PkgType::Session,
-                            true,
-                            nuraft::cmd_result_code::OK,
-                            ForwardResponse::non_session_id,
-                            ForwardResponse::non_xid,
-                            Coordination::OpNum::Unknown};
+                        auto response = request->makeResponse();
 
-                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
+                        keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
                     }
                     catch (...)
                     {
-                        ForwardResponse response{
-                            PkgType::Session,
-                            false,
-                            nuraft::cmd_result_code::OK,
-                            ForwardResponse::non_session_id,
-                            ForwardResponse::non_xid,
-                            Coordination::OpNum::Unknown};
-                        keeper_dispatcher->sendAppendEntryResponse({server_id, client_id}, response);
+                        auto response = request->makeResponse();
+                        response->accepted = false;
+                        keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
                         tryLogCurrentException(log, "Error processing ping request.");
                     }
                 }
@@ -360,42 +361,11 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 }
 
 
-std::tuple<int64_t, int64_t, Coordination::OpNum> ForwardingConnectionHandler::receiveRequest(int32_t length)
+void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
-    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-
-    int64_t session_id;
-    Coordination::read(session_id, body);
-
-    int32_t xid;
-    Coordination::read(xid, body);
-
-    Coordination::OpNum opnum;
-    Coordination::read(opnum, body);
-
-    Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
-    request->xid = xid;
-    request->readImpl(body);
-
-    LOG_TRACE(
-        log,
-        "Receive forwarding request: session {}, xid {}, length {}, opnum {}",
-        toHexString(session_id),
-        xid,
-        length,
-        Coordination::toString(opnum));
-
-    if (!keeper_dispatcher->putForwardingRequest(server_id, client_id, request, session_id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
-
-    return {session_id, xid, opnum};
-}
-
-void ForwardingConnectionHandler::sendResponse(const ForwardResponse & response)
-{
-    LOG_TRACE(log, "Send response {}", response.toString());
+    LOG_TRACE(log, "Send response {}", response->toString());
     WriteBufferFromFiFoBuffer buf;
-    response.write(buf);
+    response->write(buf);
 
     /// TODO handle timeout
     responses->push(buf.getBuffer());

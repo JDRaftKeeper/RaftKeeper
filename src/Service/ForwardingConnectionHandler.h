@@ -45,9 +45,9 @@ public:
     void onSocketError(const AutoPtr<ErrorNotification> & pNf);
 
 private:
-    std::tuple<int64_t, int64_t, Coordination::OpNum> receiveRequest(int32_t length);
+    std::tuple<int64_t, int64_t, Coordination::OpNum> putRequest(ForwardRequestPtr request);
 
-    void sendResponse(const ForwardResponse & response);
+    void sendResponse(ForwardResponsePtr response);
 
     /// destroy connection
     void destroyMe();
@@ -68,9 +68,7 @@ private:
     /// Represent one read from socket.
     struct CurrentPackage
     {
-        /// request type
-        PkgType pkg_type;
-        /// whether a request read completes
+        ForwardType protocol;
         bool is_done;
     };
     CurrentPackage current_package{Unknown, true};

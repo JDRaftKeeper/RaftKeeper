@@ -7,15 +7,14 @@ namespace RK
 {
 
 /// Queue with mutex and condvar. As simple as possible.
-template <typename T>
+template <typename T, typename Queue = std::deque<T>>
 class ThreadSafeQueue
 {
 private:
     mutable std::mutex queue_mutex;
     std::condition_variable cv;
-    std::deque<T> queue;
+    Queue queue;
 public:
-
 
     using Func = std::function<bool(const T & e)>;
 
@@ -82,6 +81,44 @@ public:
             if (!func(e))
                 break;
         }
+    }
+
+    void findAndRemove(Func func)
+    {
+        for (auto it = queue.begin(); it != queue.end();)
+        {
+            if (func)
+            {
+                queue.erase(it);
+                break;
+            }
+            it++;
+        }
+    }
+
+    void removeFrontIf(Func func)
+    {
+        std::unique_lock lock(queue_mutex);
+
+        for (auto it = queue.begin(); it != queue.end();)
+        {
+            if (func)
+                it = queue.erase(it);
+            else
+                break;
+        }
+    }
+
+    bool removeFrontIf(Func func, T & newFront)
+    {
+        removeFrontIf(func);
+        return peek(newFront);
+    }
+
+    void clear()
+    {
+        std::unique_lock lock(queue_mutex);
+        queue.clear();
     }
 
     size_t size() const

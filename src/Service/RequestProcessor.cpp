@@ -208,7 +208,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 }
                 else
                 {
-                    LOG_WARNING(log, "Logic error, pending request for session {} is empty", toHexString(committed_request.session_id));
+                    LOG_WARNING(log, "Logic error, pending request is empty for session {}", toHexString(committed_request.session_id));
                 }
 
                 if (has_read_request || found_error)
@@ -249,7 +249,7 @@ void RequestProcessor::processErrorRequest()
             const auto & [session_id, xid] = it->first;
             auto & error_request = it->second;
 
-            LOG_WARNING(log, "Found error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
+            LOG_WARNING(log, "Try find error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
 
             auto & pending_requests_for_thread = pending_requests.find(getRunnerId(session_id))->second;
 

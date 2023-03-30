@@ -70,14 +70,11 @@ bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, cons
     {
         if (request_session.isForwardRequest())
         {
-            ForwardResponse response{
-                Data,
-                result_accepted,
-                prev_result->get_result_code(),
-                request_session.session_id,
-                request_session.request->xid,
-                request_session.request->getOpNum()};
-            keeper_dispatcher->sendAppendEntryResponse({request_session.server_id, request_session.client_id}, response);
+            auto request = ForwardRequestFactory::instance().convertFromRequest(request_session);
+            ForwardResponsePtr response = request->makeResponse();
+            response->setAppendEntryResult(result_accepted, prev_result->get_result_code());
+
+            keeper_dispatcher->sendForwardResponse({request_session.server_id, request_session.client_id}, response);
         }
         else if (!result_accepted || prev_result->get_result_code() != nuraft::cmd_result_code::OK)
         {

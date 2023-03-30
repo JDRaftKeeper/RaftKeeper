@@ -17,7 +17,7 @@ void RequestForwarder::push(RequestForSession request_for_session)
     requests_queue->push(request_for_session);
 }
 
-void RequestForwarder::run(RunnerId runner_id)
+void RequestForwarder::runSend(RunnerId runner_id)
 {
     setThreadName(("ReqFwdSend-" + toString(runner_id)).c_str());
 
@@ -37,20 +37,25 @@ void RequestForwarder::run(RunnerId runner_id)
         {
             try
             {
-                if (!server->isLeader() && server->isLeaderAlive())
+                if (server->isLeader())
                 {
-                    auto client = server->getLeaderClient(runner_id);
-                    if (client)
-                    {
-                        client->send(request_for_session);
-                    }
-                    else
-                    {
-                        throw Exception("Not found client for runner " + std::to_string(runner_id), ErrorCodes::RAFT_FORWARDING_ERROR);
-                    }
+                    LOG_WARNING(log, "A leader switch may have occurred suddenly");
+                    throw Exception("Can't forward request", ErrorCodes::RAFT_ERROR);
                 }
-                else
+
+                if (!server->isLeaderAlive())
                     throw Exception("Raft no leader", ErrorCodes::RAFT_ERROR);
+
+                auto client = server->getLeaderClient(runner_id);
+
+                if (!client)
+                    throw Exception("Not found client for runner " + std::to_string(runner_id), ErrorCodes::RAFT_FORWARDING_ERROR);
+
+                ForwardRequestPtr forward_request = ForwardRequestFactory::instance().convertFromRequest(request_for_session);
+                forward_request->send_time = clock::now();
+                client->send(forward_request);
+
+                forwarding_queues[runner_id]->push(forward_request);
             }
             catch (...)
             {
@@ -79,7 +84,11 @@ void RequestForwarder::run(RunnerId runner_id)
                         keeper_dispatcher->filterLocalSessions(session_to_expiration_time);
                         LOG_DEBUG(log, "Has {} local sessions to send", session_to_expiration_time.size());
                         if (!session_to_expiration_time.empty())
-                            client->sendSession(session_to_expiration_time);
+                        {
+                            ForwardRequestPtr forward_request = std::make_shared<ForwardSessionRequest>(std::move(session_to_expiration_time));
+                            client->send(forward_request);
+                            forwarding_queues[runner_id]->push(forward_request);
+                        }
                     }
                     else
                     {
@@ -111,54 +120,34 @@ void RequestForwarder::runReceive(RunnerId runner_id)
         try
         {
             UInt64 max_wait = session_sync_period_ms;
-            ForwardResponse response;
+            clock::time_point now = clock::now();
+
+            ForwardRequestPtr earliest_request;
+            if (forwarding_queues[runner_id]->peek(earliest_request))
+            {
+                auto earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
+                if (now > earliest_request_deadline)
+                {
+                    if (processTimeoutRequest(runner_id, earliest_request))
+                        earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
+                }
+
+                max_wait = std::min(max_wait, static_cast<UInt64>(std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline - now).count()));
+            }
+
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 auto client = server->getLeaderClient(runner_id);
                 if (client && client->isConnected())
                 {
                     if (!client->poll(max_wait * 1000))
-                        continue;
-
-                    client->receive(response);
-
-                    if (!response.accepted)
                     {
-                        /// common request
-                        if (response.pkg_type == Data && response.session_id != ForwardResponse::non_session_id)
-                        {
-                            LOG_ERROR(
-                                log,
-                                "Receive failed forward response with type(Result), session {}, xid {}, error code {}",
-                                response.session_id,
-                                response.xid,
-                                response.error_code);
-                            request_processor->onError(
-                                response.accepted,
-                                static_cast<nuraft::cmd_result_code>(response.error_code),
-                                response.session_id,
-                                response.xid,
-                                response.opnum);
-                        }
-                        else if (response.pkg_type == Session)
-                        {
-                            LOG_ERROR(
-                                log,
-                                "Receive failed forward response with type(Session), session {}, xid {}, error code {}",
-                                response.session_id,
-                                response.xid,
-                                response.error_code);
-                        }
-                        else if (response.pkg_type == Handshake)
-                        {
-                            LOG_ERROR(
-                                log,
-                                "Receive failed forward response with type(Handshake), session {}, xid {}, error code {}",
-                                response.session_id,
-                                response.xid,
-                                response.error_code);
-                        }
+                        continue;
                     }
+
+                    ForwardResponsePtr response;
+                    client->receive(response);
+                    processResponse(runner_id, response);
                 }
                 else
                 {
@@ -182,6 +171,56 @@ void RequestForwarder::runReceive(RunnerId runner_id)
     }
 }
 
+bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront)
+{
+    clock::time_point now = clock::now();
+
+    auto func = [this, now](const ForwardRequestPtr & request) -> bool
+    {
+        clock::time_point earliest_send_time = request->send_time;
+        auto earliest_operation_deadline
+            = clock::time_point(earliest_send_time) + std::chrono::microseconds(operation_timeout.totalMicroseconds());
+        if (now > earliest_operation_deadline)
+        {
+            ForwardResponsePtr response = request->makeResponse();
+            response->onError(*this); /// timeout
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    return forwarding_queues[runner_id]->removeFrontIf(func, newFront);
+}
+
+
+void RequestForwarder::removeFromQueue(RunnerId runner_id, ForwardResponsePtr forward_response_ptr)
+{
+    forwarding_queues[runner_id]->findAndRemove([forward_response_ptr](const ForwardRequestPtr & reuqest) -> bool
+    {
+        if (reuqest->forwardType() != forward_response_ptr->forwardType())
+            return false;
+
+        return forward_response_ptr->match(reuqest);
+    });
+}
+
+
+void RequestForwarder::processResponse(RunnerId runner_id, ForwardResponsePtr forward_response_ptr)
+{
+    removeFromQueue(runner_id, forward_response_ptr);
+
+    if (forward_response_ptr->accepted)
+        return;
+
+    /// common request
+    LOG_ERROR(log, "Receive failed forward response {}", forward_response_ptr->toString());
+
+    forward_response_ptr->onError(*this); /// for GetSession UpdateSession Op, maybe peer not accepted or raft not accepted
+}
+
 void RequestForwarder::shutdown()
 {
     LOG_INFO(log, "Shutting down request forwarder!");
@@ -193,27 +232,25 @@ void RequestForwarder::shutdown()
     request_thread->wait();
     response_thread->wait();
 
+    for (auto & forwarding_queue : forwarding_queues)
+    {
+        forwarding_queue->forEach([this](const ForwardRequestPtr & request) -> bool
+        {
+            ForwardResponsePtr response = request->makeResponse();
+            response->onError(*this); /// shutdown
+            return true;
+        });
+    }
+
     KeeperStore::RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
-        try
-        {
-            auto client = server->getLeaderClient(0);
-
-            if (client)
-                client->send(request_for_session);
-            else
-                LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), 0);
-        }
-        catch (...)
-        {
-            request_processor->onError(
-                false,
-                nuraft::cmd_result_code::CANCELLED,
-                request_for_session.session_id,
-                request_for_session.request->xid,
-                request_for_session.request->getOpNum());
-        }
+        request_processor->onError(
+            false,
+            nuraft::cmd_result_code::CANCELLED,
+            request_for_session.session_id,
+            request_for_session.request->xid,
+            request_for_session.request->getOpNum());
     }
 }
 
@@ -228,11 +265,19 @@ void RequestForwarder::initialize(
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
-    request_thread = std::make_shared<ThreadPool>(thread_count);
 
-    for (size_t i = 0; i < thread_count; i++)
+    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
     {
-        request_thread->trySchedule([this, i] { run(i); });
+        forwarding_queues.push_back(std::make_unique<ForwardingQueue>());
+    }
+
+//    session_sync_thread = ThreadFromGlobalPool(&RequestForwarder::runSessionSync, this);
+    //connections.
+
+    request_thread = std::make_shared<ThreadPool>(thread_count);
+    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
+    {
+        request_thread->trySchedule([this, runner_id] { runSend(runner_id); });
     }
 
     response_thread = std::make_shared<ThreadPool>(thread_count);
