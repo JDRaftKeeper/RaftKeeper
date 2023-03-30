@@ -1,9 +1,9 @@
 #pragma once
 
-#include <common/types.h>
-#include <memory>
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <common/types.h>
 
 namespace RK
 {
@@ -33,7 +33,7 @@ private:
     void resetLatency();
     void resetRequestCounters();
 
-    /// all response with watch response included
+    /// all responses with watch response included
     uint64_t packets_sent = 0;
     /// All user requests
     uint64_t packets_received = 0;
@@ -41,12 +41,13 @@ private:
     /// For consistent with zookeeper measured by millisecond,
     /// otherwise maybe microsecond is better
     uint64_t total_latency = 0;
+
     uint64_t max_latency = 0;
     uint64_t min_latency = std::numeric_limits<uint64_t>::max();
 
     /// last operation latency
     uint64_t last_latency = 0;
-
+    /// request count
     uint64_t count = 0;
 };
 

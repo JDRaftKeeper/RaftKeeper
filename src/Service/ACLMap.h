@@ -1,7 +1,7 @@
 #pragma once
-#include <ZooKeeper/ZooKeeperCommon.h>
-#include <ZooKeeper/IKeeper.h>
 #include <unordered_map>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 
 
 namespace RK
@@ -33,8 +33,8 @@ private:
     UsageCounter usage_counter;
     mutable std::recursive_mutex acl_mutex;
     uint64_t max_acl_id{1};
-public:
 
+public:
     /// Convert ACL to number. If it's new ACL than adds it to map
     /// with new id.
     uint64_t convertACLs(const Coordination::ACLs & acls);

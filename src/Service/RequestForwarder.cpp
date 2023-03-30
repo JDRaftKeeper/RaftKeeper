@@ -125,7 +125,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                     if (!response.accepted)
                     {
                         /// common request
-                        if (response.protocol == Result && response.session_id != ForwardResponse::non_session_id)
+                        if (response.pkg_type == Data && response.session_id != ForwardResponse::non_session_id)
                         {
                             LOG_ERROR(
                                 log,
@@ -140,7 +140,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                                 response.xid,
                                 response.opnum);
                         }
-                        else if (response.protocol == Session)
+                        else if (response.pkg_type == Session)
                         {
                             LOG_ERROR(
                                 log,
@@ -149,7 +149,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                                 response.xid,
                                 response.error_code);
                         }
-                        else if (response.protocol == Handshake)
+                        else if (response.pkg_type == Handshake)
                         {
                             LOG_ERROR(
                                 log,
@@ -165,7 +165,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                     if (!client)
                         LOG_DEBUG(log, "Not found client for runner {}, maybe no session attached to me", runner_id);
                     else if (!client->isConnected())
-                        LOG_DEBUG(log, "Client not connected for runner {}, maybe no session attached to me", runner_id);
+                        LOG_TRACE(log, "Client not connected for runner {}, maybe no session attached to me", runner_id);
                     std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
                 }
             }
@@ -199,14 +199,11 @@ void RequestForwarder::shutdown()
         try
         {
             auto client = server->getLeaderClient(0);
+
             if (client)
-            {
                 client->send(request_for_session);
-            }
             else
-            {
                 LOG_WARNING(log, "Not found client for {} {}", server->getLeader(), 0);
-            }
         }
         catch (...)
         {

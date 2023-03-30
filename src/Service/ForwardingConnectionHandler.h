@@ -1,11 +1,13 @@
 #pragma once
 
+#include <unordered_set>
+#include <Service/ConnCommon.h>
+#include <Service/ForwardingConnection.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Poco/Delegate.h>
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
 #include <Poco/NObserver.h>
-#include <Common/NIO/SocketNotification.h>
-#include <Common/NIO/SocketReactor.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
 #include <Poco/ThreadPool.h>
@@ -13,13 +15,10 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
-
-#include <Service/ConnCommon.h>
+#include <Common/NIO/SocketNotification.h>
+#include <Common/NIO/SocketReactor.h>
 #include <Common/NIO/SvsSocketAcceptor.h>
 #include <Common/NIO/SvsSocketReactor.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
-#include <unordered_set>
-#include <Service/ForwardingConnection.h>
 
 
 namespace RK
@@ -27,15 +26,17 @@ namespace RK
 using Poco::Net::StreamSocket;
 
 using Poco::AutoPtr;
-using Poco::Thread;
 using Poco::FIFOBuffer;
 using Poco::Logger;
+using Poco::Thread;
 
+/**
+ * Server endpoint for forwarding request.
+ */
 class ForwardingConnectionHandler
 {
-
 public:
-    ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket, SocketReactor & reactor);
+    ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_);
     ~ForwardingConnectionHandler();
 
     void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
@@ -56,18 +57,20 @@ private:
 
     Logger * log;
 
-    StreamSocket socket_;
-    SocketReactor & reactor_;
+    StreamSocket sock;
+    SocketReactor & reactor;
 
     std::shared_ptr<FIFOBuffer> req_body_buf;
     FIFOBuffer req_header_buf = FIFOBuffer(1);
 
     FIFOBuffer req_body_len_buf = FIFOBuffer(4);
 
-    /// PkgType and is_done
+    /// Represent one read from socket.
     struct CurrentPackage
     {
-        PkgType protocol;
+        /// request type
+        PkgType pkg_type;
+        /// whether a request read completes
         bool is_done;
     };
     CurrentPackage current_package{Unknown, true};
@@ -78,7 +81,9 @@ private:
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
 
+    /// server id in client endpoint which actually is Raft ID
     int32_t server_id;
+    /// client id in client endpoint
     int32_t client_id;
 };
 

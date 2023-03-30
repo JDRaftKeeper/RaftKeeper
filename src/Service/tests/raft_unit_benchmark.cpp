@@ -1,32 +1,23 @@
 #include <iostream>
 #include <memory>
 #include <string>
-#include <thread>
 #include <time.h>
 #include <Service/KeeperCommon.h>
 #include <Service/LogEntry.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/Settings.h>
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperImpl.h>
 #include <boost/program_options.hpp>
 #include <libnuraft/nuraft.hxx>
 #include <loggers/Loggers.h>
 #include <Poco/File.h>
-#include <Poco/Net/NetException.h>
 #include <Poco/Util/Application.h>
-#include <Poco/Util/LayeredConfiguration.h>
-#include "Common/StringUtils.h"
 #include <Common/Stopwatch.h>
 #include <Common/ThreadPool.h>
-#include <ZooKeeper/IKeeper.h>
-#include <ZooKeeper/KeeperException.h>
-#include <ZooKeeper/Types.h>
-#include <ZooKeeper/ZooKeeper.h>
-#include <ZooKeeper/ZooKeeperImpl.h>
 #include <Common/randomSeed.h>
 #include <common/argsToConfig.h>
-#include <common/find_symbols.h>
-#include <common/logger_useful.h>
 
 using namespace Coordination;
 using namespace RK;
@@ -54,7 +45,7 @@ void setNode(KeeperStore & storage, const std::string key, const std::string val
     request->acls = default_acls;
     request->xid = 1;
     KeeperStore::KeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue ,request, session_id, {}, /* check_acl = */ false, /*ignore_response*/true);
+    storage.processRequest(responses_queue, request, session_id, {}, {}, /* check_acl = */ false, /*ignore_response*/ true);
 }
 
 int parseLine(char * line)
@@ -69,46 +60,45 @@ int parseLine(char * line)
     return i;
 }
 
-typedef struct
+struct ProcessMem
 {
-    uint32_t virtualMem;
-    uint32_t physicalMem;
-} processMem_t;
+    uint32_t virtual_mem;
+    uint32_t physical_mem;
+};
 
-processMem_t GetProcessMemory()
+ProcessMem getProcessMem()
 {
     FILE * file = fopen("/proc/self/status", "r");
     char line[128];
-    processMem_t processMem;
+    ProcessMem process_mem;
 
     while (fgets(line, 128, file) != nullptr)
     {
         if (strncmp(line, "VmSize:", 7) == 0)
         {
-            processMem.virtualMem = parseLine(line);
+            process_mem.virtual_mem = parseLine(line);
             break;
         }
 
         if (strncmp(line, "VmRSS:", 6) == 0)
         {
-            processMem.physicalMem = parseLine(line);
+            process_mem.physical_mem = parseLine(line);
             break;
         }
     }
     fclose(file);
-    return processMem;
+    return process_mem;
 }
 
 class TestServer : public Poco::Util::Application, public Loggers
 {
 public:
-    TestServer() { }
-    ~TestServer() override { }
+    TestServer() = default;
+    ~TestServer() override = default;
     void init(int argc, char ** argv)
     {
         char * log_level = argv[2];
 
-        namespace po = boost::program_options;
         /// Don't parse options with Poco library, we prefer neat boost::program_options
         stopOptionsProcessing();
         /// Save received data into the internal config.
@@ -142,7 +132,7 @@ void cleanDirectory(const std::string & log_dir, bool remove_dir = true)
     {
         std::vector<std::string> files;
         dir_obj.list(files);
-        for (auto file : files)
+        for (const auto& file : files)
         {
             Poco::File(log_dir + "/" + file).remove();
         }
@@ -167,11 +157,11 @@ void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key,
 
 void getCurrentTime(std::string & date_str)
 {
-    const char TIME_FMT[] = "%Y%m%d%H%M%S";
+    const char time_fmt[] = "%Y%m%d%H%M%S";
     time_t curr_time;
     time(&curr_time);
     char tmp_buf[24];
-    std::strftime(tmp_buf, sizeof(tmp_buf), TIME_FMT, localtime(&curr_time));
+    std::strftime(tmp_buf, sizeof(tmp_buf), time_fmt, localtime(&curr_time));
     date_str = tmp_buf;
 }
 
@@ -222,7 +212,7 @@ void logSegmentThread()
         {
             thread_pool.trySchedule(
                 [&log_store, &log_index, thread_count, thread_idx, thread_log_count, log_count, max_seg_count, &key, &data] {
-                    UInt64 log_idx(0);
+                    UInt64 log_idx;
                     UInt64 term = 1;
                     LogOpTypePB op = OP_TYPE_CREATE;
 
@@ -234,8 +224,7 @@ void logSegmentThread()
                         thread_count,
                         thread_log_count,
                         log_count);
-                    // try
-                    // {
+
                     for (auto idx = 0; idx < thread_log_count; idx++)
                     {
                         std::shared_ptr<LogEntryPB> entry_pb;
@@ -323,7 +312,7 @@ void snapshotVolume(int last_index)
     RaftSettingsPtr raft_settings(RaftSettings::getDefault());
     KeeperStore storage(raft_settings->dead_session_check_period_ms);
 
-    auto mem1 = GetProcessMemory();
+    auto mem1 = getProcessMem();
     Stopwatch watch;
     watch.start();
     UInt32 term = 1;
@@ -368,7 +357,7 @@ void snapshotVolume(int last_index)
     int total_size = 1.0 * (value_bytes + 100) * last_index / 1000000; //MB
     double byte_rate = 1.0 * total_size / mill_second * 1000;
     double count_rate = 1.0 * last_index / mill_second * 1000;
-    auto mem2 = GetProcessMemory();
+    auto mem2 = getProcessMem();
     LOG_INFO(
         log,
         "Append log : count {}, total_size {} M, milli second {}, byte rate {} M/S, TPS {}, physicalMem {} M, virtualMem {}",
@@ -377,8 +366,8 @@ void snapshotVolume(int last_index)
         mill_second,
         byte_rate,
         count_rate,
-        1.0 * (mem2.physicalMem - mem1.physicalMem) / 1000000,
-        1.0 * (mem2.virtualMem - mem1.virtualMem) / 1000000);
+        1.0 * (mem2.physical_mem - mem1.physical_mem) / 1000000,
+        1.0 * (mem2.virtual_mem - mem1.virtual_mem) / 1000000);
 
     watch.start();
     snapshot meta(last_index, term, config);

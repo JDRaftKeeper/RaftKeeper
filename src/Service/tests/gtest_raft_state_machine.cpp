@@ -31,7 +31,6 @@ uint64_t createSession(NuRaftStateMachine & machine)
 
 void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
 {
-    //Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
     ACLs default_acls;
     ACL acl;
     acl.permissions = ACL::All;
@@ -227,7 +226,7 @@ TEST(RaftStateMachine, modifyEntry)
 
 TEST(RaftStateMachine, createSnapshot)
 {
-    auto log = &(Poco::Logger::get("Test_RaftStateMachine"));
+    auto *log = &(Poco::Logger::get("Test_RaftStateMachine"));
     std::string snap_dir(SNAP_DIR + "/3");
     cleanDirectory(snap_dir);
 
@@ -276,8 +275,10 @@ TEST(RaftStateMachine, syncSnapshot)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine_source(queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
-    NuRaftStateMachine machine_target(queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine_source(
+        queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine_target(
+        queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
@@ -318,7 +319,7 @@ TEST(RaftStateMachine, syncSnapshot)
 
 TEST(RaftStateMachine, initStateMachine)
 {
-    auto *log = &(Poco::Logger::get("Test_RaftStateMachine"));
+    auto * log = &(Poco::Logger::get("Test_RaftStateMachine"));
     std::string snap_dir(SNAP_DIR + "/6");
     std::string log_dir(LOG_DIR + "/6");
 
@@ -336,7 +337,8 @@ TEST(RaftStateMachine, initStateMachine)
         std::mutex new_session_id_callback_mutex;
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+        NuRaftStateMachine machine(
+            queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
 
         ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
         UInt32 last_index = 128;
@@ -379,7 +381,8 @@ TEST(RaftStateMachine, initStateMachine)
         std::mutex new_session_id_callback_mutex;
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-        NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+        NuRaftStateMachine machine(
+            queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
         LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
         ASSERT_EQ(machine.last_commit_index(), 256);
         machine.shutdown();
@@ -388,4 +391,3 @@ TEST(RaftStateMachine, initStateMachine)
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
 }
-
