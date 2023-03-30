@@ -24,7 +24,7 @@
 namespace RK
 {
 using ZooKeeperResponseCallback = std::function<void(const Coordination::ZooKeeperResponsePtr & response)>;
-using ForwardResponseCallback = std::function<void(const ForwardResponse & response)>;
+using ForwardResponseCallback = std::function<void(ForwardResponsePtr response)>;
 
 class KeeperDispatcher : public std::enable_shared_from_this<KeeperDispatcher>
 {
@@ -107,7 +107,7 @@ public:
 
     bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
-    bool putForwardingRequest(size_t server_id, size_t client_id, const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
+    bool putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
     int64_t getSessionID(int64_t session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
@@ -142,7 +142,11 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
+<<<<<<< HEAD
     void sendAppendEntryResponse(ForwardingClientId client_id, const ForwardResponse & response);
+=======
+    void sendForwardResponse(int32_t server_id, int32_t client_id, ForwardResponsePtr response);
+>>>>>>> b96b61005f... refactor forwarder
 
     /// Are we leader
     bool isLeader() const

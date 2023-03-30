@@ -551,6 +551,39 @@ void ZooKeeperSessionIDResponse::writeImpl(WriteBuffer & out) const
     Coordination::write(server_id, out);
 }
 
+void ZooKeeperUpdateSessionRequest::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(session_id, out);
+    Coordination::write(session_timeout_ms, out);
+    Coordination::write(server_id, out);
+}
+
+void ZooKeeperUpdateSessionRequest::readImpl(ReadBuffer & in)
+{
+    Coordination::read(session_id, in);
+    Coordination::read(session_timeout_ms, in);
+    Coordination::read(server_id, in);
+}
+
+Coordination::ZooKeeperResponsePtr ZooKeeperUpdateSessionRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperUpdateSessionResponse>();
+}
+
+void ZooKeeperUpdateSessionResponse::readImpl(ReadBuffer & in)
+{
+    Coordination::read(session_id, in);
+    Coordination::read(update_success, in);
+    Coordination::read(server_id, in);
+}
+
+void ZooKeeperUpdateSessionResponse::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(session_id, out);
+    Coordination::write(update_success, out);
+    Coordination::write(server_id, out);
+}
+
 void ZooKeeperRequestFactory::registerRequest(OpNum op_num, Creator creator)
 {
     if (!op_num_to_request.try_emplace(op_num, creator).second)
