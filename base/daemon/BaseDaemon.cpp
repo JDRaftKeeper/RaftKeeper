@@ -261,7 +261,7 @@ private:
         {
             LOG_FATAL(
                 log,
-                "(version {}, {}) (from thread {}) (no query) Received signal {} ({})",
+                "(version {}, {}) (from thread {}) Received signal {} ({})",
                 VERSION_STRING,
                 daemon.build_id_info,
                 thread_num,

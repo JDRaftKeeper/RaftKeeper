@@ -91,8 +91,8 @@ public :
     const ptr<LogSegmentStore> segmentStore() const { return segment_store; }
 
 private:
-    static ptr<log_entry> make_clone(const ptr<log_entry> & entry);
-    void fsyncThread();
+    /// Thread used to flush log, only used in FSYNC_PARALLEL mode
+    void fsyncThread(bool & thread_started);
 
     Poco::Logger * log;
     ptr<LogSegmentStore> segment_store;

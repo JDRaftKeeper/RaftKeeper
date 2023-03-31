@@ -12,7 +12,6 @@
     <keeper>
         <my_id>1</my_id>
         <host>node1</host>
-        <snapshot_start_time>7200</snapshot_start_time>
         <snapshot_create_interval>86400</snapshot_create_interval>
         <forwarding_port>8102</forwarding_port>
         <port>8101</port>

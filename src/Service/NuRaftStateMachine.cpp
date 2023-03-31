@@ -1,7 +1,5 @@
 #include <atomic>
 #include <cassert>
-#include <fstream>
-#include <iostream>
 #include <mutex>
 #include <string>
 #include <math.h>
@@ -10,10 +8,9 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
-#include <Service/proto/Log.pb.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 #include <Poco/File.h>
 #include <Common/Stopwatch.h>
-#include <ZooKeeper/ZooKeeperIO.h>
 
 
 #ifdef __clang__
@@ -24,9 +21,9 @@
 
 using namespace nuraft;
 
-
 namespace RK
 {
+
 struct ReplayLogBatch
 {
     ulong batch_start_index = 0;
@@ -35,24 +32,10 @@ struct ReplayLogBatch
     ptr<std::vector<ptr<KeeperStore::RequestForSession>>> request_vec;
 };
 
-nuraft::ptr<nuraft::buffer> writeResponses(KeeperStore::ResponsesForSessions & responses)
-{
-    WriteBufferFromNuraftBuffer buffer;
-    for (const auto & response_and_session : responses)
-    {
-        writeIntBinary(response_and_session.session_id, buffer);
-        response_and_session.response->write(buffer);
-    }
-    return buffer.getBuffer();
-}
-
-
 NuRaftStateMachine::NuRaftStateMachine(
     KeeperResponsesQueue & responses_queue_,
     const RaftSettingsPtr & raft_settings_,
     std::string & snap_dir,
-    UInt32 snap_begin_second,
-    UInt32 snap_end_second,
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     std::mutex & new_session_id_callback_mutex_,
@@ -73,9 +56,6 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "begin init state machine, snapshot directory {}", snap_dir);
 
     snapshot_dir = snap_dir;
-
-    timer.begin_second = snap_begin_second;
-    timer.end_second = snap_end_second;
     timer.interval = internal;
 
     task_manager = cs_new<RaftTaskManager>(snapshot_dir);
@@ -84,10 +64,13 @@ NuRaftStateMachine::NuRaftStateMachine(
     task_manager->getLastCommitted(prev_last_committed_idx);
 
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
-    //load snapshot meta from disk
+
+    /// load snapshot meta from disk
     size_t meta_size = snap_mgr->loadSnapshotMetas();
-    //get last snapshot
+
+    /// get last snapshot
     auto last_snapshot = snap_mgr->lastSnapshot();
+
     if (last_snapshot != nullptr)
     {
         last_committed_idx = last_snapshot->get_last_log_idx();
@@ -100,18 +83,18 @@ NuRaftStateMachine::NuRaftStateMachine(
 
     LOG_INFO(log, "Load snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
 
-    //[ batch_start_index, batch_end_index )
+    /// [ batch_start_index, batch_end_index )
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
+
     if (log_store_ != nullptr)
     {
         std::mutex load_mutex;
         std::condition_variable load_cond;
+
         ulong last_log_index = log_store_->next_slot() - 1;
         if (prev_last_committed_idx != 0 && prev_last_committed_idx < last_log_index)
-        {
             last_log_index = prev_last_committed_idx;
-        }
 
         batch_start_index = last_committed_idx + 1;
         std::queue<ReplayLogBatch> log_queue;
@@ -124,88 +107,82 @@ NuRaftStateMachine::NuRaftStateMachine(
             prev_last_committed_idx,
             log_store_->next_slot() - 1);
 
-        UInt32 REPLAY_THREAD_NUM = 1;
-        ThreadPool object_thread_pool(REPLAY_THREAD_NUM);
-        for (UInt32 thread_idx = 0; thread_idx < REPLAY_THREAD_NUM; thread_idx++)
+        UInt32 replay_thread_num = 1;
+        ThreadPool object_thread_pool(replay_thread_num);
+
+        for (UInt32 thread_idx = 0; thread_idx < replay_thread_num; thread_idx++)
         {
-            object_thread_pool.trySchedule([this,
-                                            thread_idx,
-                                            last_log_index,
-                                            &load_mutex,
-                                            &log_queue,
-                                            &batch_start_index,
-                                            &batch_end_index,
-                                            &log_store_] {
-                Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-                while (batch_start_index < last_log_index)
-                {
-                    while (log_queue.size() >= 10)
+            object_thread_pool.trySchedule(
+                [this, thread_idx, last_log_index, &load_mutex, &log_queue, &batch_start_index, &batch_end_index, &log_store_] {
+                    Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+                    while (batch_start_index < last_log_index)
                     {
-                        LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
-                        sleep(1);
-                        //load_cond.wait();
+                        while (log_queue.size() >= 10)
+                        {
+                            LOG_DEBUG(thread_log, "Sleep 1s wait for replay log");
+                            sleep(1);
+                        }
+
+                        //0.3 * 10000 = 3M
+                        batch_end_index = batch_start_index + 10000;
+                        if (batch_end_index > last_log_index + 1)
+                            batch_end_index = last_log_index + 1;
+
+                        LOG_INFO(
+                            thread_log,
+                            "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+
+                        ReplayLogBatch batch;
+                        batch.log_vec = dynamic_cast<NuRaftFileLogStore *>(log_store_.get())
+                                            ->log_entries_version_ext(batch_start_index, batch_end_index, 0);
+
+                        batch.batch_start_index = batch_start_index;
+                        batch.batch_end_index = batch_end_index;
+                        batch.request_vec = cs_new<std::vector<ptr<KeeperStore::RequestForSession>>>();
+
+                        for (auto entry : *(batch.log_vec))
+                        {
+                            if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
+                            {
+                                batch.request_vec->push_back(nullptr);
+                                LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
+                                continue;
+                            }
+
+                            if (isNewSessionRequest(entry.entry->get_buf()))
+                            {
+                                batch.request_vec->push_back(nullptr);
+                            }
+                            else if (isUpdateSessionRequest(entry.entry->get_buf()))
+                            {
+                                batch.request_vec->push_back(nullptr);
+                            }
+                            else
+                            {
+                                /// replay nodes
+                                ptr<KeeperStore::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
+                                LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
+
+                                batch.request_vec->push_back(ptr_request);
+                            }
+                        }
+
+                        {
+                            std::lock_guard queue_lock(load_mutex);
+                            log_queue.push(batch);
+                        }
+                        LOG_INFO(
+                            thread_log,
+                            "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
+                            thread_idx,
+                            batch_start_index,
+                            batch_end_index);
+                        batch_start_index = batch_end_index;
                     }
-
-                    //0.3 * 10000 = 3M
-                    batch_end_index = batch_start_index + 10000;
-                    if (batch_end_index > last_log_index + 1)
-                        batch_end_index = last_log_index + 1;
-
-                    LOG_INFO(
-                        thread_log,
-                        "Begin load batch log to state machine, thread {}, batch [ {} , {} )",
-                        thread_idx,
-                        batch_start_index,
-                        batch_end_index);
-
-                    ReplayLogBatch batch;
-                    batch.log_vec = dynamic_cast<NuRaftFileLogStore *>(log_store_.get())
-                                        ->log_entries_version_ext(batch_start_index, batch_end_index, 0);
-
-                    batch.batch_start_index = batch_start_index;
-                    batch.batch_end_index = batch_end_index;
-                    batch.request_vec = cs_new<std::vector<ptr<KeeperStore::RequestForSession>>>();
-
-                    for (auto entry : *(batch.log_vec))
-                    {
-                        if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
-                        {
-                            batch.request_vec->push_back(nullptr);
-                            LOG_WARNING(thread_log, "Replay log, not app log {}", entry.entry->get_val_type());
-                            continue;
-                        }
-
-                        if (isNewSessionRequest(entry.entry->get_buf()))
-                        {
-                            batch.request_vec->push_back(nullptr);
-                        }
-                        else if (isUpdateSessionRequest(entry.entry->get_buf()))
-                        {
-                            batch.request_vec->push_back(nullptr);
-                        }
-                        else
-                        {
-                            /// replay nodes
-                            ptr<KeeperStore::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
-                            LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
-
-                            batch.request_vec->push_back(ptr_request);
-                        }
-                    }
-
-                    {
-                        std::lock_guard queue_lock(load_mutex);
-                        log_queue.push(batch);
-                    }
-                    LOG_INFO(
-                        thread_log,
-                        "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
-                        thread_idx,
-                        batch_start_index,
-                        batch_end_index);
-                    batch_start_index = batch_end_index;
-                }
-            });
+                });
         }
 
         while (!log_queue.empty() || batch_start_index < last_log_index)
@@ -249,7 +226,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                 }
                 else if (isUpdateSessionRequest(entry.entry->get_buf()))
                 {
-                    // replay update session
+                    /// replay update session
                     nuraft::buffer_serializer data_serializer(entry.entry->get_buf());
                     int64_t session_id = data_serializer.get_i64();
                     int64_t session_timeout_ms = data_serializer.get_i64();
@@ -263,7 +240,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                     auto & request = (*batch.request_vec)[i];
                     LOG_TRACE(
                         log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
-                    store.processRequest(responses_queue, request->request, request->session_id, request->create_time, {}, true, true);
+                    store.processRequest(responses_queue, *request, {}, true, true);
                     if (request->session_id > store.session_id_counter)
                     {
                         LOG_WARNING(
@@ -275,14 +252,18 @@ NuRaftStateMachine::NuRaftStateMachine(
                     }
                 }
             }
+
             log_queue.pop();
             last_committed_idx = batch.batch_end_index - 1;
+
             LOG_INFO(log, "Replay start index {}, commit index {}", batch.batch_start_index, last_committed_idx);
+
             batch.log_vec = nullptr;
             batch.request_vec = nullptr;
             batch.batch_start_index = 0;
             batch.batch_end_index = 0;
         }
+
         object_thread_pool.wait();
 
         size_t ephemeral_nodes = 0;
@@ -290,6 +271,7 @@ NuRaftStateMachine::NuRaftStateMachine(
         {
             ephemeral_nodes += paths.second.size();
         }
+
         LOG_INFO(log, "Apply log done, ephemeral sessions {} nodes {}", store.ephemerals.size(), ephemeral_nodes);
 
         /// In order to meet the initial application of snapshot in the cluster. At this time, the log index is less than the last index of the snapshot, and compact is required.
@@ -306,12 +288,9 @@ NuRaftStateMachine::NuRaftStateMachine(
 ptr<KeeperStore::RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
 {
     if (entry->get_val_type() != nuraft::log_val_type::app_log)
-    {
         return nullptr;
-    }
 
     ReadBufferFromNuraftBuffer buffer(entry->get_buf());
-
     ptr<KeeperStore::RequestForSession> request_for_session = cs_new<KeeperStore::RequestForSession>();
 
     readIntBinary(request_for_session->session_id, buffer);
@@ -327,28 +306,21 @@ ptr<KeeperStore::RequestForSession> NuRaftStateMachine::createRequestSession(ptr
     {
         return nullptr;
     }
-    //LOG_DEBUG(log, "length {}", length);
 
     int32_t xid;
     Coordination::read(xid, buffer);
-    //LOG_DEBUG(log, "xid {}", xid);
 
     Coordination::OpNum opnum;
     Coordination::read(opnum, buffer);
-    //LOG_DEBUG(log, "opnum {}", opnum);
 
     request_for_session->request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request_for_session->request->xid = xid;
     request_for_session->request->readImpl(buffer);
 
     if (buffer.eof())
-    {
         request_for_session->create_time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    }
     else
-    {
         Coordination::read(request_for_session->create_time, buffer);
-    }
 
     return request_for_session;
 }
@@ -437,32 +409,28 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(KeeperStore::RequestForSession 
 
 ptr<buffer> NuRaftStateMachine::pre_commit(const ulong log_idx, buffer & data)
 {
-    // Nothing to do with pre-commit in this example.
     LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
     return nullptr;
 }
 
+/// Do nothing, as this example doesn't do anything on pre-commit.
 void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 {
-    // Nothing to do with rollback,
-    // as this example doesn't do anything on pre-commit.
-    LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_TRACE(log, "pre commit, log index {}, data size {}", log_idx, data.size());
 }
 
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data, bool ignore_response)
 {
-    //2^19 = 524,288
-    //    if (log_idx << 45 == 0)
-    //    {
-    LOG_DEBUG(log, "Begin commit log index {}", log_idx);
-    //    }
+    LOG_TRACE(log, "Begin commit log index {}", log_idx);
 
     if (isNewSessionRequest(data))
     {
         nuraft::buffer_serializer timeout_data(data);
         int64_t session_timeout_ms = timeout_data.get_i64();
+
         auto response = nuraft::buffer::alloc(sizeof(int64_t));
         int64_t session_id;
+
         nuraft::buffer_serializer bs(response);
         {
             std::unique_lock session_id_lock(new_session_id_callback_mutex);
@@ -470,20 +438,17 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             bs.put_i64(session_id);
 
             LOG_DEBUG(log, "Commit session id {} with timeout {}", toHexString(session_id), session_timeout_ms);
+
             last_committed_idx = log_idx;
             task_manager->afterCommitted(last_committed_idx);
 
             if (new_session_id_callback.contains(session_id))
-            {
                 new_session_id_callback.find(session_id)->second->notify_all();
-            }
             else
-            {
                 LOG_DEBUG(
                     log,
                     "Not found callback for session id {}, maybe time out or before wait or not allocate from local",
                     toHexString(session_id));
-            }
         }
 
         return response;
@@ -507,16 +472,12 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             task_manager->afterCommitted(last_committed_idx);
 
             if (new_session_id_callback.contains(session_id))
-            {
                 new_session_id_callback.find(session_id)->second->notify_all();
-            }
             else
-            {
                 LOG_DEBUG(
                     log,
                     "Not found callback for session id {}, maybe time out or before wait or not allocate from local",
                     toHexString(session_id));
-            }
         }
 
         return response;
@@ -525,7 +486,8 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     {
         auto request_for_session = parseRequest(data);
         KeeperStore::ResponsesForSessions responses_for_sessions;
-        LOG_DEBUG(
+
+        LOG_TRACE(
             log,
             "Commit log index {}, session {}, xid {}, request {}",
             log_idx,
@@ -548,20 +510,9 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         }
 
         if (request_processor)
-        {
             request_processor->commit(request_for_session);
-        }
         else
-        {
-            store.processRequest(
-                responses_queue,
-                request_for_session.request,
-                request_for_session.session_id,
-                request_for_session.create_time,
-                {},
-                true,
-                ignore_response);
-        }
+            store.processRequest(responses_queue, request_for_session, {}, true, ignore_response);
 
         last_committed_idx = log_idx;
         task_manager->afterCommitted(last_committed_idx);
@@ -577,7 +528,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
 
 void NuRaftStateMachine::processReadRequest(const KeeperStore::RequestForSession & request_for_session)
 {
-    store.processRequest(responses_queue, request_for_session.request, request_for_session.session_id, request_for_session.create_time);
+    store.processRequest(responses_queue, request_for_session);
 }
 
 std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
@@ -657,18 +608,6 @@ void NuRaftStateMachine::shutdown()
     task_manager->shutDown();
     snap_thread.join();
     LOG_INFO(log, "State machine shut down done!");
-}
-
-bool compareTime(const std::string & s1, const std::string & s2)
-{
-    return (s1 > s2);
-}
-
-void getDateFromFile(const std::string file_name, std::string & date)
-{
-    std::size_t p1 = file_name.find('_');
-    std::size_t p2 = file_name.rfind('_');
-    date = file_name.substr(p1 + 1, p2);
 }
 
 bool NuRaftStateMachine::chk_create_snapshot()
@@ -763,10 +702,8 @@ int NuRaftStateMachine::read_snapshot_data(snapshot & s, const ulong offset, buf
 int NuRaftStateMachine::read_logical_snp_obj(snapshot & s, void *& user_snp_ctx, ulong obj_id, ptr<buffer> & data_out, bool & is_last_obj)
 {
     std::lock_guard<std::mutex> lock(snapshot_mutex);
-    // Snapshot doesn't exist.
     if (!snap_mgr->existSnapshot(s))
     {
-        //snap_mgr->createSnapshot(s, node_map);
         data_out = nullptr;
         is_last_obj = true;
         LOG_INFO(log, "Can't find snapshot by last_log_idx {}, object id {}", s.get_last_log_idx(), obj_id);
@@ -786,11 +723,9 @@ int NuRaftStateMachine::read_logical_snp_obj(snapshot & s, void *& user_snp_ctx,
 
     // Object ID > 0: second object, put actual value.
     snap_mgr->loadSnapshotObject(s, obj_id, data_out);
-
     is_last_obj = !(snap_mgr->existSnapshotObject(s, obj_id + 1));
 
     LOG_INFO(log, "Read snapshot object, last_log_idx {}, object id {}, is_last {}", s.get_last_log_idx(), obj_id, is_last_obj);
-
     user_snp_ctx = nullptr;
 
     return 0;
@@ -801,7 +736,7 @@ void NuRaftStateMachine::save_logical_snp_obj(snapshot & s, ulong & obj_id, buff
     if (obj_id == 0)
     {
         // Object ID == 0: it contains dummy value, create snapshot context.
-        snap_mgr->receiveSnapshot(s);
+        snap_mgr->receiveSnapshotMeta(s);
     }
     else
     {
@@ -810,18 +745,17 @@ void NuRaftStateMachine::save_logical_snp_obj(snapshot & s, ulong & obj_id, buff
         snap_mgr->saveSnapshotObject(s, obj_id, data);
     }
     LOG_INFO(log, "Save logical snapshot , object id {}, is_first_obj {}, is_last_obj {}", obj_id, is_first_obj, is_last_obj);
-    // Request next object.
     obj_id++;
 }
 
-bool NuRaftStateMachine::exist_snapshot_object(snapshot & s, ulong obj_id)
+bool NuRaftStateMachine::existSnapshotObject(snapshot & s, ulong obj_id)
 {
     return snap_mgr->existSnapshotObject(s, obj_id);
 }
 
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
-    //TODO: double buffer load or multi thread load
+    /// TODO: double buffer load or multi thread load
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     return snap_mgr->parseSnapshot(s, store);
@@ -829,8 +763,8 @@ bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 
 void NuRaftStateMachine::free_user_snp_ctx(void *& user_snp_ctx)
 {
-    // In this example, `read_logical_snp_obj` doesn't create
-    // `user_snp_ctx`. Nothing to do in this function.
+    /// In this example, `read_logical_snp_obj` doesn't create
+    /// `user_snp_ctx`. Nothing to do in this function.
     if (user_snp_ctx != nullptr)
     {
         free(user_snp_ctx);
@@ -840,7 +774,7 @@ void NuRaftStateMachine::free_user_snp_ctx(void *& user_snp_ctx)
 
 ptr<snapshot> NuRaftStateMachine::last_snapshot()
 {
-    // Just return the latest snapshot.
+    /// Just return the latest snapshot.
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     LOG_INFO(log, "last_snapshot invoke");
     return snap_mgr->lastSnapshot();

@@ -2,8 +2,8 @@
 
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
-#include <ZooKeeper/ZooKeeperConstants.h>
 #include <Service/Types.h>
+#include <ZooKeeper/ZooKeeperConstants.h>
 
 namespace RK
 {
@@ -21,7 +21,7 @@ struct ErrorRequest
 
 class KeeperDispatcher;
 
-/**Handle user read request and Raft committed write request.
+/** Handle user read request and Raft committed write request.
  */
 class RequestProcessor
 {
@@ -58,11 +58,7 @@ public:
     size_t commitQueueSize() { return committed_queue.size(); }
 
 private:
-
-    size_t getRunnerId(int64_t session_id) const
-    {
-        return session_id % runner_count;
-    }
+    size_t getRunnerId(int64_t session_id) const { return session_id % runner_count; }
 
 
     using RequestForSessions = std::vector<KeeperStore::RequestForSession>;

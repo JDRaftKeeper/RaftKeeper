@@ -6,6 +6,9 @@
 namespace RK
 {
 
+/**
+ * writer buffer for NuRaft Buffer.
+ */
 class WriteBufferFromNuraftBuffer : public WriteBuffer
 {
 private:
@@ -22,7 +25,6 @@ public:
 
     void finalize() override final;
     nuraft::ptr<nuraft::buffer> getBuffer();
-    bool isFinished() const { return is_finished; }
 
     ~WriteBufferFromNuraftBuffer() override;
 };

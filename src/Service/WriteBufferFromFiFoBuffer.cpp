@@ -24,17 +24,10 @@ void WriteBufferFromFiFoBuffer::nextImpl()
         memcpy(new_buffer->begin(), buffer->begin(), old_size);
         buffer = new_buffer;
     }
-    internal_buffer = Buffer(
-        reinterpret_cast<Position>(buffer->begin() + pos_offset),
-        reinterpret_cast<Position>(buffer->begin() + buffer->size()));
+    internal_buffer
+        = Buffer(reinterpret_cast<Position>(buffer->begin() + pos_offset), reinterpret_cast<Position>(buffer->begin() + buffer->size()));
     working_buffer = internal_buffer;
 }
-
-//WriteBufferFromFiFoBuffer::WriteBufferFromFiFoBuffer() : WriteBuffer(nullptr, 0)
-//{
-//    buffer = std::make_shared<FIFOBuffer>(initial_size);
-//    set(reinterpret_cast<Position>(buffer->begin()), buffer->size());
-//}
 
 WriteBufferFromFiFoBuffer::WriteBufferFromFiFoBuffer(size_t size) : WriteBuffer(nullptr, 0)
 {

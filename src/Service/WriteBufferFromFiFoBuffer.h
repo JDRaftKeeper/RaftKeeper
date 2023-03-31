@@ -9,6 +9,9 @@ namespace RK
 
 using Poco::FIFOBuffer;
 
+/**
+ * writer buffer for Poco FiFoBuffer
+ **/
 class WriteBufferFromFiFoBuffer : public WriteBuffer
 {
 private:
@@ -25,7 +28,6 @@ public:
 
     void finalize() override final;
     std::shared_ptr<FIFOBuffer> getBuffer();
-    bool isFinished() const { return is_finished; }
 
     ~WriteBufferFromFiFoBuffer() override;
 };

@@ -176,7 +176,7 @@ TEST(RaftStateMachine, appendEntry)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     std::string key("/table1");
     std::string data("CREATE TABLE table1;");
     createZNode(machine, key, data);
@@ -198,7 +198,7 @@ TEST(RaftStateMachine, modifyEntry)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     std::string key("/table1");
     std::string data1("CREATE TABLE table1;");
     //LogOpTypePB op = OP_TYPE_CREATE;
@@ -236,7 +236,7 @@ TEST(RaftStateMachine, createSnapshot)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -276,9 +276,9 @@ TEST(RaftStateMachine, syncSnapshot)
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     NuRaftStateMachine machine_source(
-        queue, setting_ptr, snap_dir_1, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+        queue, setting_ptr, snap_dir_1, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     NuRaftStateMachine machine_target(
-        queue, setting_ptr, snap_dir_2, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+        queue, setting_ptr, snap_dir_2, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
@@ -308,7 +308,7 @@ TEST(RaftStateMachine, syncSnapshot)
 
     for (auto i = 1; i < obj_id; i++)
     {
-        ASSERT_TRUE(machine_target.exist_snapshot_object(meta, i));
+        ASSERT_TRUE(machine_target.existSnapshotObject(meta, i));
     }
 
     machine_source.shutdown();
@@ -338,7 +338,7 @@ TEST(RaftStateMachine, initStateMachine)
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
         NuRaftStateMachine machine(
-            queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+            queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
 
         ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
         UInt32 last_index = 128;
@@ -382,7 +382,7 @@ TEST(RaftStateMachine, initStateMachine)
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
         NuRaftStateMachine machine(
-            queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+            queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
         LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
         ASSERT_EQ(machine.last_commit_index(), 256);
         machine.shutdown();

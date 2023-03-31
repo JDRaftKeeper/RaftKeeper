@@ -37,7 +37,7 @@ void setNode(KeeperStore & storage, const std::string key, const std::string val
     request->xid = 1;
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, session_id, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
 ptr<buffer> createSessionLog(int64_t session_timeout_ms)
@@ -185,7 +185,7 @@ void setACLNode(
 
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
 void setACLNode(KeeperStore & storage, const std::string key, const std::string value, const ACLs & acls)
@@ -200,10 +200,10 @@ void setACLNode(KeeperStore & storage, const std::string key, const std::string 
 
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
-void addAuth(KeeperStore & storage, uint64_t session_id, const std::string & scheme, const std::string & id)
+void addAuth(KeeperStore & storage, int64_t session_id, const std::string & scheme, const std::string & id)
 {
     //    'digest', 'user1:password1'
     //    String scheme = "digest";
@@ -215,7 +215,7 @@ void addAuth(KeeperStore & storage, uint64_t session_id, const std::string & sch
 
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, session_id, time, {}, /* check_acl = */ true, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, session_id, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
 ACLs getACL(KeeperStore & storage, const std::string key)
@@ -225,7 +225,7 @@ ACLs getACL(KeeperStore & storage, const std::string key)
 
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/ false);
+    storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ false);
 
     KeeperStore::ResponseForSession responses;
     responses_queue.tryPop(responses);
@@ -250,7 +250,7 @@ void setEphemeralNode(KeeperStore & storage, const std::string key, const std::s
     request->xid = 1;
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, request, 1, time, {}, /* check_acl = */ true, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
 void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
@@ -271,8 +271,7 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
         auto & map = storage.container.getMap(i);
         auto & ano_map = ano_storage.container.getMap(i);
 
-        map.forEach([&ano_map](const auto & key, const auto & value)
-        {
+        map.forEach([&ano_map](const auto & key, const auto & value) {
             /// TODO only compare data
             const auto * l = dynamic_cast<const KeeperNode *>(value.get());
             const auto * r = dynamic_cast<const KeeperNode *>(ano_map.get(key).get());
@@ -300,8 +299,7 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
         ASSERT_EQ(it.second, ano_storage.session_and_timeout.at(it.first));
     }
 
-    auto filter_auth = [](KeeperStore::SessionAndAuth & auth_ids)
-    {
+    auto filter_auth = [](KeeperStore::SessionAndAuth & auth_ids) {
         for (auto it = auth_ids.begin(); it != auth_ids.end();)
         {
             if (it->second.empty())
@@ -326,12 +324,10 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
 TEST(RaftSnapshot, whenToSnapshot)
 {
     BackendTimer timer;
-    /// after 2:00
-    timer.begin_second = 7200;
     /// every 1 day
     timer.interval = 24 * 3600;
 
-    // first snapshot
+    /// first snapshot
     bool is_time = timer.isActionTime(0, 0);
     ASSERT_EQ(is_time, true);
 }
@@ -407,7 +403,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     ASSERT_EQ(object_size, 11 + 1 + 1 + 1);
 
     ulong obj_id = 0;
-    snap_mgr_save.receiveSnapshot(meta);
+    snap_mgr_save.receiveSnapshotMeta(meta);
     while (true)
     {
         obj_id++;
@@ -539,7 +535,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
             }
 
             ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
-            ASSERT_EQ(new_node->is_sequental, it->second->is_sequental);
+            ASSERT_EQ(new_node->is_sequential, it->second->is_sequential);
             ASSERT_EQ(new_node->stat, it->second->stat);
             ASSERT_EQ(new_node->children, it->second->children);
         }
@@ -664,7 +660,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, store);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, store);
 
     int64_t last_log_term = store->term_at(store->next_slot() - 1);
     int64_t term = last_log_term == 0 ? 1 : last_log_term;
@@ -704,8 +700,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     std::condition_variable cv;
 
     std::atomic<bool> snapshot_done = false;
-    cmd_result<bool>::handler_type handler = [log, &snapshot_done, &mutex, &cv](bool, ptr<std::exception> &)
-    {
+    cmd_result<bool>::handler_type handler = [log, &snapshot_done, &mutex, &cv](bool, ptr<std::exception> &) {
         LOG_INFO(log, "snapshot done");
         std::unique_lock lock(mutex);
         cv.notify_all();
@@ -753,7 +748,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
 
     NuRaftStateMachine ano_machine(
-        ano_queue, setting_ptr, snap_dir, 0, 3600, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
+        ano_queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
 
     assertStateMachineEquals(machine.getStore(), ano_machine.getStore());
 

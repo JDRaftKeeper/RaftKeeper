@@ -1,9 +1,9 @@
 #pragma once
 
+#include <chrono>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
-#include <map>
-#include <chrono>
 
 namespace RK
 {
@@ -36,19 +36,13 @@ private:
 
     /// Round time to the next expiration interval. The result used as a key for
     /// expiry_to_sessions map.
-    int64_t roundToNextInterval(int64_t time) const
-    {
-        return (time / expiration_interval + 1) * expiration_interval;
-    }
+    int64_t roundToNextInterval(int64_t time) const { return (time / expiration_interval + 1) * expiration_interval; }
 
 public:
     /// expiration_interval -- how often we will check new sessions and how small
     /// buckets we will have. In ZooKeeper normal session timeout is around 30 seconds
     /// and expiration_interval is about 500ms.
-    explicit SessionExpiryQueue(int64_t expiration_interval_)
-        : expiration_interval(expiration_interval_)
-    {
-    }
+    explicit SessionExpiryQueue(int64_t expiration_interval_) : expiration_interval(expiration_interval_) { }
 
     /// Session was actually removed
     bool remove(int64_t session_id);

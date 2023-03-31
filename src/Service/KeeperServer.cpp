@@ -5,13 +5,10 @@
 #include <Service/NuRaftStateMachine.h>
 #include <Service/NuRaftStateManager.h>
 #include <Service/ReadBufferFromNuraftBuffer.h>
-#include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
-#include <boost/algorithm/string.hpp>
 #include <libnuraft/async.hxx>
 #include <Poco/NumberFormatter.h>
-#include "Common/Stopwatch.h"
-#include <Common/IO/WriteHelpers.h>
+#include <Common/Stopwatch.h>
 
 namespace RK
 {
@@ -22,24 +19,6 @@ namespace ErrorCodes
 }
 
 using Poco::NumberFormatter;
-
-namespace
-{
-    std::string checkAndGetSuperdigest(const String & user_and_digest)
-    {
-        if (user_and_digest.empty())
-            return "";
-
-        std::vector<std::string> scheme_and_id;
-        boost::split(scheme_and_id, user_and_digest, [](char c) { return c == ':'; });
-        if (scheme_and_id.size() != 2 || scheme_and_id[0] != "super")
-            throw Exception(
-                ErrorCodes::INVALID_CONFIG_PARAMETER, "Incorrect superdigest in keeper_server config. Must be 'super:base64string'");
-
-        return user_and_digest;
-    }
-
-}
 
 KeeperServer::KeeperServer(
     const SettingsPtr & settings_,
@@ -58,8 +37,6 @@ KeeperServer::KeeperServer(
         responses_queue_,
         settings->raft_settings,
         settings->snapshot_dir,
-        settings->snapshot_start_time,
-        settings->snapshot_end_time,
         settings->snapshot_create_interval,
         settings->raft_settings->max_stored_snapshots,
         new_session_id_callback_mutex,
@@ -69,12 +46,10 @@ KeeperServer::KeeperServer(
         KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
         request_processor_);
 }
-
-
-void KeeperServer::startup()
+namespace
 {
-    auto raft_settings = settings->raft_settings;
-    nuraft::raft_params params;
+void initializeRaftParams(nuraft::raft_params & params, RaftSettingsPtr & raft_settings)
+{
     params.heart_beat_interval_ = raft_settings->heart_beat_interval_ms;
     params.election_timeout_lower_bound_ = raft_settings->election_timeout_lower_bound_ms;
     params.election_timeout_upper_bound_ = raft_settings->election_timeout_upper_bound_ms;
@@ -86,10 +61,20 @@ void KeeperServer::startup()
     params.auto_forwarding_ = true;
     params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
     // TODO set max_batch_size to NuRaft
+}
+}
+
+void KeeperServer::startup()
+{
+    auto raft_settings = settings->raft_settings;
+
+    nuraft::raft_params params;
+    initializeRaftParams(params, raft_settings);
 
     nuraft::asio_service::options asio_opts{};
     asio_opts.thread_pool_size_ = raft_settings->nuraft_thread_size;
     nuraft::raft_server::init_options init_options;
+
     init_options.skip_initial_election_timeout_ = state_manager->shouldStartAsFollower();
     init_options.raft_callback_ = [this](nuraft::cb_func::Type type, nuraft::cb_func::Param * param) { return callbackFunc(type, param); };
 
@@ -105,7 +90,7 @@ void KeeperServer::startup()
         init_options);
 
     if (!raft_instance)
-        throw Exception(ErrorCodes::RAFT_ERROR, "Cannot allocate RAFT instance");
+        throw Exception(ErrorCodes::RAFT_ERROR, "Cannot initialized RAFT instance");
 
     /// used raft_instance notify_log_append_completion
     if (raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
@@ -123,25 +108,12 @@ void KeeperServer::shutdown()
     state_machine->shutdown();
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
-    //    state_manager->flushLogStore();
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
 
     if (!launcher.shutdown(settings->raft_settings->shutdown_timeout))
         LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
     LOG_INFO(log, "Shut down keeper server done!");
-}
-
-namespace
-{
-    nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request)
-    {
-        RK::WriteBufferFromNuraftBuffer buf;
-        RK::writeIntBinary(session_id, buf);
-        request->write(buf);
-        Coordination::write(time, buf);
-        return buf.getBuffer();
-    }
 }
 
 void KeeperServer::putRequest(const KeeperStore::RequestForSession & request_for_session)
@@ -168,7 +140,6 @@ void KeeperServer::putRequest(const KeeperStore::RequestForSession & request_for
 
         ptr<nuraft::cmd_result<ptr<buffer>>> result;
         {
-            //            std::lock_guard lock(append_entries_mutex);
             result = raft_instance->append_entries(entries);
         }
 
@@ -336,7 +307,7 @@ void KeeperServer::handleRemoteSession(int64_t session_id, int64_t expiration_ti
     state_machine->getStore().handleRemoteSession(session_id, expiration_time);
 }
 
-int64_t KeeperServer::getSessionTimeout(int64_t session_id)
+[[maybe_unused]] int64_t KeeperServer::getSessionTimeout(int64_t session_id)
 {
     LOG_DEBUG(log, "get session timeout for {}", session_id);
     if (state_machine->getStore().session_and_timeout.contains(session_id))
@@ -401,12 +372,6 @@ nuraft::cb_func::ReturnCode KeeperServer::callbackFunc(nuraft::cb_func::Type typ
         std::unique_lock lock(initialized_mutex);
         initialized_flag = true;
         initialized_cv.notify_all();
-    }
-    else if (type == nuraft::cb_func::NewConfig)
-    {
-        /// Update Forward connections
-        if (update_forward_listener)
-            update_forward_listener();
     }
     return nuraft::cb_func::ReturnCode::Ok;
 }
@@ -620,11 +585,6 @@ KeeperLogInfo KeeperServer::getKeeperLogInfo()
 bool KeeperServer::requestLeader()
 {
     return isLeader() || raft_instance->request_leadership();
-}
-
-void KeeperServer::registerForWardListener(UpdateForwardListener forward_listener)
-{
-    update_forward_listener = forward_listener;
 }
 
 }

@@ -18,7 +18,6 @@ bool SessionExpiryQueue::remove(int64_t session_id)
             expiry_to_sessions.erase(set_it);
 
         session_to_expiration_time.erase(session_it);
-
         return true;
     }
 
