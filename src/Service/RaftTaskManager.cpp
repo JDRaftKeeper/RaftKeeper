@@ -7,17 +7,6 @@
 
 namespace RK
 {
-class CommittedTask : public BaseTask
-{
-public:
-    CommittedTask() : BaseTask(TaskType::COMMITTED), size(sizeof(nuraft::ulong)) { }
-    nuraft::ulong last_committed_index;
-    int write(int & fd);
-    int read(int & fd);
-
-private:
-    int size;
-};
 
 int CommittedTask::write(int & fd)
 {
@@ -74,17 +63,17 @@ RaftTaskManager::RaftTaskManager(const std::string & snapshot_dir) : thread_pool
     //task file names
     task_file_names.push_back(snapshot_dir + "/committed.task");
     //task file description
-    for (auto fileName : task_file_names)
+    for (auto file_name : task_file_names)
     {
         errno = 0;
-        int fd = ::open(fileName.c_str(), O_RDWR | O_CREAT, 0644);
+        int fd = ::open(file_name.c_str(), O_RDWR | O_CREAT, 0644);
         if (fd < 0)
         {
-            LOG_ERROR(log, "Fail to open {}, error:{}", fileName, strerror(errno));
+            LOG_ERROR(log, "Fail to open {}, error:{}", file_name, strerror(errno));
             return;
         }
         task_files.push_back(fd);
-        LOG_INFO(log, "Open task for task, fd {}, path {}", fd, fileName);
+        LOG_INFO(log, "Open task for task, fd {}, path {}", fd, file_name);
     }
     thread_pool.trySchedule([this] {
         auto thread_log = &Poco::Logger::get("RaftTaskManager");
@@ -96,14 +85,14 @@ RaftTaskManager::RaftTaskManager(const std::string & snapshot_dir) : thread_pool
             UInt32 batchSize = 0;
             while (true)
             {
-                if (!task_queue.tryPop(task, GetTaskTimeoutMS))
+                if (!task_queue.tryPop(task, get_task_timeout_ms))
                 {
                     break;
                 }
                 batchSize++;
-                if (task_queue.size() == 0 || batchSize == BatchSize)
+                if (task_queue.size() == 0 || batchSize == batch_size)
                 {
-                    if (task->task_type == TaskType::COMMITTED)
+                    if (task->task_type == TaskType::TYPE_COMMITTED)
                     {
                         auto committedTask = std::static_pointer_cast<CommittedTask>(task);
                         std::lock_guard write_lock(write_file);
@@ -148,7 +137,7 @@ void RaftTaskManager::getLastCommitted(nuraft::ulong & last_committed_index)
         LOG_WARNING(log, "Task files is empty");
         return;
     }
-    int fd = task_files[TaskType::COMMITTED];
+    int fd = task_files[TaskType::TYPE_COMMITTED];
     if (fd < 0)
     {
         LOG_WARNING(log, "Task file fd is {}", fd);

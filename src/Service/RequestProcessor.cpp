@@ -279,7 +279,7 @@ void RequestProcessor::processErrorRequest()
                     ZooKeeperRequestPtr auth_request = std::make_shared<ZooKeeperAuthRequest>();
                     using namespace std::chrono;
                     int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                    RequestForSession request1{static_cast<int64_t>(session_id), auth_request, now, -1, -1};
+                    RequestForSession request1{auth_request, static_cast<int64_t>(session_id), now};
                     request.emplace(request1);
                 }
                 else
@@ -425,7 +425,7 @@ void RequestProcessor::applyRequest(const RequestForSession & request) const
             if (!server->isLeaderAlive())
                 LOG_WARNING(log, "Apply write request but leader not alive.");
             server->getKeeperStateMachine()->getStore().processRequest(
-                responses_queue, request.request, request.session_id, request.create_time, {}, true, false);
+                responses_queue, request, {}, true, false);
         }
     }
     catch (...)

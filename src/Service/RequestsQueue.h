@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Common/ConcurrentBoundedQueue.h>
 #include <Service/NuRaftStateMachine.h>
 #include <boost/lockfree/queue.hpp>
+#include <Common/ConcurrentBoundedQueue.h>
 
 namespace RK
 {
@@ -32,8 +32,7 @@ struct RequestsQueue
 
     bool tryPush(const KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
     {
-        return queues[request.session_id % queues.size()]->tryPush(
-            std::forward<const KeeperStore::RequestForSession>(request), wait_ms);
+        return queues[request.session_id % queues.size()]->tryPush(std::forward<const KeeperStore::RequestForSession>(request), wait_ms);
     }
 
     bool pop(size_t queue_id, KeeperStore::RequestForSession & request)
@@ -79,10 +78,7 @@ struct RequestsQueue
         return queues[queue_id]->size();
     }
 
-    bool empty() const
-    {
-        return size() == 0;
-    }
+    bool empty() const { return size() == 0; }
 };
 
 }

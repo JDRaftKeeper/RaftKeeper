@@ -3,36 +3,27 @@
 #include <fstream>
 #include <time.h>
 #include <Service/Crc32.h>
-#include <libnuraft/nuraft.hxx>
 #include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
+#include <libnuraft/log_entry.hxx>
+#include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
 
 
 namespace RK
 {
-struct RaftWatchResponse : Coordination::WatchResponse
-{
-    std::string endpoint;
-    std::string callback;
-};
 
-using RaftWatchCallback = std::function<void(const RaftWatchResponse &)>;
+std::string checkAndGetSuperdigest(const String & user_and_digest);
+nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
+nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 
 struct BackendTimer
 {
     static constexpr char TIME_FMT[] = "%Y%m%d%H%M%S";
 
-    //Only [2:00 - 22:00] can create snapshot
-    UInt32 begin_second = 7200;
-    UInt32 end_second = 79200;
-    //default min interval is 1 hour
+    /// default min interval is 1 hour
     UInt32 interval = 1 * 3600;
-    //100,000,000 * 0.3K / 200M = 100M * 0.3K / 200M = 150 S
-    UInt32 randomWindow = 1200; //20 minutes
-
-    inline UInt32 getTodaySeconds(struct tm * curr_tm) { return curr_tm->tm_hour * 3600 + curr_tm->tm_min * 60 + curr_tm->tm_sec; }
-
-    static void getInitTime(std::string & init_str) { init_str = "20210101000000"; }
+    UInt32 random_window = 1200; //20 minutes
 
     static void getCurrentTime(std::string & date_str)
     {
@@ -52,13 +43,11 @@ struct BackendTimer
         return prev_time;
     }
 
-    bool isActionTime(const time_t & prev_time, time_t curr_time)
+    bool isActionTime(const time_t & prev_time, time_t curr_time) const
     {
         if (curr_time == 0L)
-        {
             time(&curr_time);
-        }
-        return difftime(curr_time, prev_time) >= (interval + rand() % randomWindow);
+        return difftime(curr_time, prev_time) >= (interval + rand() % random_window);
     }
 };
 
@@ -98,6 +87,5 @@ inline int writeUInt64(nuraft::ptr<std::fstream> & fs, const UInt64 & x)
     fs->write(reinterpret_cast<const char *>(&x), sizeof(UInt64));
     return fs->good() ? 0 : -1;
 }
-
 
 }

@@ -15,19 +15,19 @@ void RequestAccumulator::run(RunnerId runner_id)
 {
     setThreadName(("ReqAccumu-" + toString(runner_id)).c_str());
 
-    NuRaftResult result = nullptr;
+    NuRaftResult result;
 
     KeeperStore::RequestsForSessions to_append_batch;
-    UInt64 max_wait = operation_timeout_ms;
+    UInt64 max_wait = std::min(static_cast<uint64_t>(1000), operation_timeout_ms);
 
     while (!shutdown_called)
     {
         KeeperStore::RequestForSession request_for_session;
 
-        bool pop_succ = false;
+        bool pop_success;
         if (to_append_batch.empty())
         {
-            pop_succ = requests_queue->tryPop(runner_id, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait));
+            pop_success = requests_queue->tryPop(runner_id, request_for_session, max_wait);
         }
         else
         {
@@ -39,10 +39,10 @@ void RequestAccumulator::run(RunnerId runner_id)
                 to_append_batch.clear();
                 continue;
             }
-            pop_succ = true;
+            pop_success = true;
         }
 
-        if (pop_succ)
+        if (pop_success)
         {
             to_append_batch.emplace_back(request_for_session);
 
