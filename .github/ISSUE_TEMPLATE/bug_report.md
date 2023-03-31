@@ -11,6 +11,7 @@ assignees: ''
 
 ### RaftKeeper version
 
+### Description
+
 ### How to reproduce 
 
-### Expected behavior
