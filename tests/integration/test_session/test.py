@@ -36,16 +36,16 @@ def wait_nodes():
 # get client with retry policy
 def get_fake_zk(node_name, timeout=30.0):
     _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip(node_name) + ":8101", timeout=timeout)
-    _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=1.0, max_tries=1)
+    _fake_zk_instance.retry = KazooRetry(ignore_expire=False, max_delay=60, max_tries=1000)
     _fake_zk_instance.start()
     return _fake_zk_instance
 
 
 def restart_cluster(zk, first_session_id):
     print("Restarting cluster, client previous session id is ", first_session_id)
-    node1.restart_raftkeeper()
-    node2.restart_raftkeeper()
-    node3.restart_raftkeeper()
+    node1.restart_raftkeeper(kill=True)
+    node2.restart_raftkeeper(kill=True)
+    node3.restart_raftkeeper(kill=True)
 
     wait_nodes()
     print("Cluster started client session id is ", zk._session_id)

@@ -167,7 +167,7 @@ public:
      * @param obj_id [in,out]
      *     Object ID.
      *     As a result of this API call, the next object ID
-     *     that reciever wants to get should be set to
+     *     that receiver wants to get should be set to
      *     this parameter.
      * @param data Payload of given object.
      * @param is_first_obj `true` if this is the first object.
@@ -182,7 +182,7 @@ public:
      * Apply received snapshot to state machine.
      *
      * @param s Snapshot instance to apply.
-     * @returm `true` on success.
+     * @return `true` on success.
      */
     bool apply_snapshot(snapshot & s) override;
 

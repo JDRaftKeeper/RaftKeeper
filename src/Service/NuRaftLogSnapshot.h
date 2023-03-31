@@ -166,7 +166,7 @@ private:
     /// append node to batch
     inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
-    /// snapshot directory, note than the directory may contain ore than one snapshot.
+    /// snapshot directory, note than the directory may contain more than one snapshot.
     std::string snap_dir;
 
     /// an object can contain how many items

@@ -9,10 +9,10 @@
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/NetException.h>
 #include <Poco/Util/HelpFormatter.h>
-#include <Common/NIO/SvsSocketAcceptor.h>
-#include <Common/NIO/SvsSocketReactor.h>
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
+#include <Common/NIO/SvsSocketAcceptor.h>
+#include <Common/NIO/SvsSocketReactor.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <common/ErrorHandlers.h>
@@ -132,56 +132,52 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
     auto & global_context = Context::get();
 
-    std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_server;
-    std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> nio_server_acceptor;
-
-    //get port from config
+    /// get port from config
     std::string listen_host = config().getString("keeper.host", "0.0.0.0");
     bool listen_try = config().getBool("listen_try", false);
 
-    //Init global thread pool
-    GlobalThreadPool::initialize(config().getUInt("max_thread_pool_size", 10000));
+    /// Init global thread pool
+    GlobalThreadPool::initialize(config().getUInt("max_thread_pool_size", 1000));
 
     global_context.initializeDispatcher();
     FourLetterCommandFactory::registerCommands(*global_context.getDispatcher());
 
+    uint64_t operation_timeout_ms
+        = global_context.getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS);
+
     /// start server
+    std::shared_ptr<SvsSocketReactor<SocketReactor>> server;
+    std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> conn_acceptor;
     int32_t port = config().getInt("keeper.port", 8101);
-    createServer(listen_host, port, listen_try, [&](UInt16 listen_port)
-    {
+
+    createServer(listen_host, port, listen_try, [&](UInt16 listen_port) {
         Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
-        Poco::Timespan timeout(
-            Context::getConfigRef().getUInt(
-                "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
-            * 1000);
-        nio_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
+        Poco::Timespan timeout(operation_timeout_ms * 1000);
+        server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-SrvAcceptor");
+
         /// TODO add io thread count to config
-        nio_server_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
-            "NIO-HANDLER", global_context, socket, *nio_server, timeout);
+        conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
+            "IO-SrvHandler", global_context, socket, *server, timeout);
         LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
     });
 
-    std::shared_ptr<SvsSocketReactor<SocketReactor>> nio_forwarding_server;
-    std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> nio_forwarding_server_acceptor;
-
     /// start forwarding server
-    /// TODO ignore it when cluster has one node.
+    std::shared_ptr<SvsSocketReactor<SocketReactor>> forwarding_server;
+    std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> forwarding_conn_acceptor;
     int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
-    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port)
-    {
+
+    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port) {
         Poco::Net::ServerSocket socket(listen_port);
         socket.setBlocking(false);
 
-        Poco::Timespan timeout(
-            global_context.getConfigRef().getUInt(
-                "keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS * 1000)
-            * 1000);
-        nio_forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "NIO-ACCEPTOR");
+        Poco::Timespan timeout(operation_timeout_ms * 1000);
+        forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-FwdAcceptor");
+
         /// TODO add io thread count to config
-        nio_forwarding_server_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-            "NIO-HANDLER", global_context, socket, *nio_forwarding_server, timeout);
+        forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
+            "IO-FwdHandler", global_context, socket, *forwarding_server, timeout);
         LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
     });
 
@@ -194,8 +190,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         config().getString("path", ""),
         std::move(unused_cache),
         unused_event,
-        [&](ConfigurationPtr config, bool /* initial_loading */)
-        {
+        [&](ConfigurationPtr config, bool /* initial_loading */) {
             if (config->has("keeper"))
                 global_context.updateClusterConfiguration(*config);
         },
@@ -216,10 +211,10 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
         /// shutdown TCP servers
         LOG_INFO(log, "Waiting for current connections to close.");
-        if (nio_server)
-            nio_server->stop();
-        if (nio_forwarding_server)
-            nio_forwarding_server->stop();
+        if (server)
+            server->stop();
+        if (forwarding_server)
+            forwarding_server->stop();
 
         LOG_INFO(log, "RaftKeeper shutdown gracefully.");
         _exit(Application::EXIT_OK);
@@ -234,7 +229,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 void Server::defineOptions(Poco::Util::OptionSet & options)
 {
     options.addOption(Poco::Util::Option("help", "h", "show help and exit").required(false).repeatable(false).binding("help"));
-    options.addOption(Poco::Util::Option("version", "V", "show version and exit").required(false).repeatable(false).binding("version"));
+    options.addOption(Poco::Util::Option("version", "v", "show version and exit").required(false).repeatable(false).binding("version"));
     BaseDaemon::defineOptions(options);
 }
 
@@ -246,7 +241,6 @@ int mainEntryRaftKeeperServer(int argc, char ** argv)
     try
     {
         RK::Server server;
-        //master.init(argc, argv);
         return server.run(argc, argv);
     }
     catch (...)

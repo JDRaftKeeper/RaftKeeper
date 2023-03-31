@@ -46,7 +46,9 @@ def test_nodes_add(started_cluster):
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper1.xml")
 
+    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
     time.sleep(3)
+
     waiter.wait()
     zk_conn2 = node2.get_fake_zk()
 
@@ -68,6 +70,9 @@ def test_nodes_add(started_cluster):
                                  "/etc/raftkeeper-server/config.d/enable_keeper2.xml")
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_three_nodes_1.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper1.xml")
+
+    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
+    time.sleep(3)
 
     waiter.wait()
     zk_conn3 = node3.get_fake_zk()

@@ -28,7 +28,7 @@ KeeperDispatcher::KeeperDispatcher()
 
 void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 {
-    setThreadName(("K - " + std::to_string(thread_index)).c_str());
+    setThreadName(("ReqDispatcher-" + std::to_string(thread_index)).c_str());
 
     /// Result of requests batch from previous iteration
     nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
@@ -118,7 +118,7 @@ void KeeperDispatcher::requestThread()
 
 void KeeperDispatcher::responseThread()
 {
-    setThreadName("KeeperRspT");
+    setThreadName("RspDispatcher");
 
     KeeperStore::ResponseForSession response_for_session;
     UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
