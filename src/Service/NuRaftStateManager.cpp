@@ -1,10 +1,10 @@
 #include <filesystem>
-#include <Common/IO/ReadBufferFromFile.h>
-#include <Common/IO/VarInt.h>
-#include <Common/IO/WriteBufferFromFile.h>
 #include <Service/NuRaftStateManager.h>
 #include <libnuraft/nuraft.hxx>
 #include <Poco/File.h>
+#include <Common/IO/ReadBufferFromFile.h>
+#include <Common/IO/VarInt.h>
+#include <Common/IO/WriteBufferFromFile.h>
 
 namespace fs = std::filesystem;
 
@@ -12,15 +12,12 @@ namespace RK
 {
 using namespace nuraft;
 
-NuRaftStateManager::NuRaftStateManager(
-    int id_,
-    const Poco::Util::AbstractConfiguration & config_,
-    SettingsPtr settings_)
+NuRaftStateManager::NuRaftStateManager(int id_, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_)
     : settings(settings_), my_id(id_), my_host(settings_->host), my_internal_port(settings_->internal_port), log_dir(settings_->log_dir)
 {
     log = &(Poco::Logger::get("NuRaftStateManager"));
-    curr_log_store = cs_new<NuRaftFileLogStore>(
-        log_dir, false, settings->raft_settings->log_fsync_mode, settings->raft_settings->log_fsync_interval);
+    curr_log_store
+        = cs_new<NuRaftFileLogStore>(log_dir, false, settings->raft_settings->log_fsync_mode, settings->raft_settings->log_fsync_interval);
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
@@ -131,8 +128,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
     }
 
     std::string s;
-    std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv)
-    {
+    std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv) {
         s += " ";
         s += srv->get_endpoint();
     });

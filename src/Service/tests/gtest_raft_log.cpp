@@ -325,7 +325,7 @@ TEST(RaftLog, splitSegment)
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
-    ASSERT_EQ(log_store->getSegments().size(), 3);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 3);
     ASSERT_EQ(log_store->close(), 0);
     cleanDirectory(log_dir);
 }
@@ -347,13 +347,13 @@ TEST(RaftLog, removeSegment)
     }
 
     //[1,2],[3,4],[5,6],[7，8],[9,open]
-    ASSERT_EQ(log_store->getSegments().size(), 4);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 4);
     ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]
-    ASSERT_EQ(log_store->getSegments().size(), 3);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 3);
     ASSERT_EQ(log_store->firstLogIndex(), 3);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
     ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment
-    ASSERT_EQ(log_store->getSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
+    ASSERT_EQ(log_store->getClosedSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
     ASSERT_EQ(log_store->firstLogIndex(), 5);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
     ASSERT_EQ(log_store->close(), 0);
@@ -375,10 +375,10 @@ TEST(RaftLog, truncateLog)
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
-    ASSERT_EQ(log_store->getSegments().size(), 7);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 7);
     ASSERT_EQ(log_store->lastLogIndex(), 16);
 
-    ASSERT_EQ(log_store->truncateLog(15), 0); //tuncate open segment
+    ASSERT_EQ(log_store->truncateLog(15), 0); //truncate open segment
     ASSERT_EQ(log_store->lastLogIndex(), 15);
 
     ptr<log_entry> log = log_store->getEntry(15);
@@ -390,12 +390,12 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("/ck/table/table1", pb->data(0).key());
     ASSERT_EQ("CREATE TABLE table1;", pb->data(0).data());
 
-    ASSERT_EQ(log_store->getSegments().size(), 7);
-    ASSERT_EQ(log_store->truncateLog(13), 0); //tuncate close and open segment
-    ASSERT_EQ(log_store->getSegments().size(), 6);
-    ASSERT_EQ(log_store->lastLogIndex(), 13); //tuncate close and open segment
+    ASSERT_EQ(log_store->getClosedSegments().size(), 7);
+    ASSERT_EQ(log_store->truncateLog(13), 0); //truncate close and open segment
+    ASSERT_EQ(log_store->getClosedSegments().size(), 6);
+    ASSERT_EQ(log_store->lastLogIndex(), 13); //truncate close and open segment
 
-    ASSERT_EQ(log_store->truncateLog(2), 0); //tuncate close and open segment
+    ASSERT_EQ(log_store->truncateLog(2), 0); //truncate close and open segment
 
     ptr<log_entry> log2 = log_store->getEntry(2);
     ASSERT_EQ(log2->get_term(), 1);
@@ -406,7 +406,7 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("/ck/table/table1", pb2->data(0).key());
     ASSERT_EQ("CREATE TABLE table1;", pb2->data(0).data());
 
-    ASSERT_EQ(log_store->truncateLog(1), 0); //tuncate close and open segment
+    ASSERT_EQ(log_store->truncateLog(1), 0); //truncate close and open segment
 
     ptr<log_entry> log3 = log_store->getEntry(1);
     ASSERT_EQ(log3->get_term(), 1);
@@ -524,14 +524,14 @@ TEST(RaftLog, compact)
         ASSERT_EQ(file_store->append(entry_log), i + 1);
     }
 
-    ASSERT_EQ(file_store->segmentStore()->getSegments().size(), 7);
+    ASSERT_EQ(file_store->segmentStore()->getClosedSegments().size(), 7);
 
     file_store->compact(3);
 
     ASSERT_EQ(file_store->start_index(), 3);
     ASSERT_EQ(file_store->segmentStore()->lastLogIndex(), 16);
 
-    ASSERT_EQ(file_store->segmentStore()->getSegments().size(), 6);
+    ASSERT_EQ(file_store->segmentStore()->getClosedSegments().size(), 6);
     ptr<log_entry> log1 = file_store->entry_at(3);
     ASSERT_EQ(log1->get_term(), 1);
     ASSERT_EQ(log1->get_val_type(), app_log);

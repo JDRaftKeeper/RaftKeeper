@@ -1,11 +1,11 @@
 #include <functional>
 #include <iomanip>
 #include <Service/KeeperStore.h>
+#include <ZooKeeper/IKeeper.h>
 #include <boost/algorithm/string.hpp>
 #include <Poco/Base64Encoder.h>
 #include <Poco/SHA1Engine.h>
-#include "Common/StringUtils.h"
-#include <ZooKeeper/IKeeper.h>
+#include <Common/StringUtils.h>
 
 namespace RK
 {
@@ -171,8 +171,8 @@ static bool fixupACL(
     return valid_found;
 }
 
-static KeeperStore::ResponsesForSessions processWatchesImpl(
-    const String & path, KeeperStore::Watches & watches, KeeperStore::Watches & list_watches, Coordination::Event event_type)
+static KeeperStore::ResponsesForSessions
+processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperStore::Watches & list_watches, Coordination::Event event_type)
 {
     static auto * log = &(Poco::Logger::get("KeeperStore"));
     KeeperStore::ResponsesForSessions result;
@@ -212,7 +212,8 @@ static KeeperStore::ResponsesForSessions processWatchesImpl(
         it = list_watches.find(path_to_check);
         if (it != list_watches.end())
         {
-            std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_list_response = std::make_shared<Coordination::ZooKeeperWatchResponse>();
+            std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_list_response
+                = std::make_shared<Coordination::ZooKeeperWatchResponse>();
             watch_list_response->path = path_to_check;
             watch_list_response->xid = Coordination::WATCH_XID;
             watch_list_response->zxid = -1;
@@ -235,7 +236,8 @@ static KeeperStore::ResponsesForSessions processWatchesImpl(
  */
 static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_request)
 {
-    return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+    return !(
+        dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
@@ -244,7 +246,8 @@ static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_requ
         || dynamic_cast<Coordination::ZooKeeperSimpleListRequest *>(zk_request.get()));
 }
 
-KeeperStore::KeeperStore(int64_t tick_time_ms, const String & super_digest_) : session_expiry_queue(tick_time_ms), super_digest(super_digest_)
+KeeperStore::KeeperStore(int64_t tick_time_ms, const String & super_digest_)
+    : session_expiry_queue(tick_time_ms), super_digest(super_digest_)
 {
     log = &(Poco::Logger::get("KeeperStore"));
     container.emplace("/", std::make_shared<KeeperNode>());
@@ -257,10 +260,8 @@ struct StoreRequest
     Coordination::ZooKeeperRequestPtr zk_request;
 
     explicit StoreRequest(const Coordination::ZooKeeperRequestPtr & zk_request_) : zk_request(zk_request_) { }
-    virtual std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t zxid,
-        int64_t session_id,
-        int64_t time) const = 0;
+    virtual std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const = 0;
     virtual bool checkAuth(KeeperStore & /*storage*/, int64_t /*session_id*/) const { return true; }
 
     virtual KeeperStore::ResponsesForSessions
@@ -275,10 +276,8 @@ struct StoreRequest
 struct SvsKeeperStorageHeartbeatRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & /* store */,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & /* store */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
         return {zk_request->makeResponse(), {}};
     }
@@ -287,10 +286,8 @@ struct SvsKeeperStorageHeartbeatRequest final : public StoreRequest
 struct SvsKeeperStorageSetWatchesRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & /* storage */,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & /* storage */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
         return {zk_request->makeResponse(), {}};
     }
@@ -305,10 +302,8 @@ struct SvsKeeperStorageSetWatchesRequest final : public StoreRequest
 struct SvsKeeperStorageSyncRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & /* storage */,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & /* storage */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         dynamic_cast<Coordination::ZooKeeperSyncResponse *>(response.get())->path
@@ -321,8 +316,7 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
 
-    KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
     {
         return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::CREATED);
     }
@@ -355,10 +349,8 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
         }
     }
 
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t zxid,
-        int64_t session_id,
-        int64_t time) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const override
     {
         Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageCreateRequest"));
 
@@ -435,7 +427,7 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
         created_node->is_ephemeral = request.is_ephemeral;
         if (request.is_ephemeral)
             created_node->stat.ephemeralOwner = session_id;
-        created_node->is_sequental = request.is_sequential;
+        created_node->is_sequential = request.is_sequential;
 
         int64_t pzxid;
 
@@ -467,7 +459,8 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
                 pzxid,
                 is_ephemeral = request.is_ephemeral,
                 parent_path = parentPath(request.path),
-                child_path, acl_id] {
+                child_path,
+                acl_id] {
             {
                 store.container.erase(path_created);
                 store.acl_map.removeUsage(acl_id);
@@ -490,7 +483,6 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
         response.error = Coordination::Error::ZOK;
         return {response_ptr, undo};
     }
-
 };
 
 struct SvsKeeperStorageGetRequest final : public StoreRequest
@@ -524,10 +516,8 @@ struct SvsKeeperStorageGetRequest final : public StoreRequest
     }
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetResponse & response = dynamic_cast<Coordination::ZooKeeperGetResponse &>(*response_ptr);
@@ -582,10 +572,8 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
 
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t zxid,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t zxid, int64_t /* session_id */, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperRemoveResponse & response = dynamic_cast<Coordination::ZooKeeperRemoveResponse &>(*response_ptr);
@@ -658,8 +646,7 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
         return {response_ptr, undo};
     }
 
-    KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
     {
         return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::DELETED);
     }
@@ -668,10 +655,8 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
 struct SvsKeeperStorageExistsRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t /* zxid */,
-        int64_t /* session_id */,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperExistsResponse & response = dynamic_cast<Coordination::ZooKeeperExistsResponse &>(*response_ptr);
@@ -724,10 +709,8 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
     }
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t zxid,
-        int64_t /* session_id */,
-        int64_t time) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t zxid, int64_t /* session_id */, int64_t time) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperSetResponse & response = dynamic_cast<Coordination::ZooKeeperSetResponse &>(*response_ptr);
@@ -755,9 +738,7 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
             response.stat = node->statForResponse();
             response.error = Coordination::Error::ZOK;
 
-            undo = [prev_node, &store, path = request.path] {
-                store.container.emplace(path, prev_node);
-            };
+            undo = [prev_node, &store, path = request.path] { store.container.emplace(path, prev_node); };
         }
         else
         {
@@ -767,8 +748,7 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
         return {response_ptr, undo};
     }
 
-    KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
     {
         return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::CHANGED);
     }
@@ -803,10 +783,8 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
     }
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t /*zxid*/,
-        int64_t /*session_id*/,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
@@ -864,10 +842,8 @@ struct SvsKeeperStorageCheckRequest final : public StoreRequest
     }
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t /*zxid*/,
-        int64_t /*session_id*/,
-        int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperCheckResponse & response = dynamic_cast<Coordination::ZooKeeperCheckResponse &>(*response_ptr);
@@ -918,8 +894,8 @@ struct SvsKeeperStorageSetACLRequest final : public StoreRequest
     }
 
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id,
-                                                                int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
         auto & container = store.container;
 
@@ -961,7 +937,7 @@ struct SvsKeeperStorageSetACLRequest final : public StoreRequest
         }
 
         /// It cannot be used insied multitransaction?
-        return { response_ptr, {} };
+        return {response_ptr, {}};
     }
 };
 
@@ -995,8 +971,8 @@ struct SvsKeeperStorageGetACLRequest final : public StoreRequest
 
     using StoreRequest::StoreRequest;
 
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/,
-                                                                int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperGetACLResponse & response = dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*response_ptr);
@@ -1021,12 +997,12 @@ struct SvsKeeperStorageGetACLRequest final : public StoreRequest
 struct SvsKeeperStorageAuthRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id,
-                                                                int64_t /* time */) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
         Coordination::ZooKeeperAuthRequest & auth_request = dynamic_cast<Coordination::ZooKeeperAuthRequest &>(*zk_request);
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
-        Coordination::ZooKeeperAuthResponse & auth_response =  dynamic_cast<Coordination::ZooKeeperAuthResponse &>(*response_ptr);
+        Coordination::ZooKeeperAuthResponse & auth_response = dynamic_cast<Coordination::ZooKeeperAuthResponse &>(*response_ptr);
         auto & sessions_and_auth = store.session_and_auth;
 
         if (auth_request.scheme != "digest" || std::count(auth_request.data.begin(), auth_request.data.end(), ':') != 1)
@@ -1052,16 +1028,14 @@ struct SvsKeeperStorageAuthRequest final : public StoreRequest
                 if (std::find(session_ids.begin(), session_ids.end(), auth) == session_ids.end())
                     sessions_and_auth[session_id].emplace_back(auth);
             }
-
         }
 
-        return { response_ptr, {} };
+        return {response_ptr, {}};
     }
 };
 
 struct SvsKeeperStorageMultiRequest final : public StoreRequest
 {
-
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         for (const auto & concrete_request : concrete_requests)
@@ -1101,10 +1075,8 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
         }
     }
 
-    std::pair<Coordination::ZooKeeperResponsePtr, Undo> process(KeeperStore & store,
-        int64_t zxid,
-        int64_t session_id,
-        int64_t time) const override
+    std::pair<Coordination::ZooKeeperResponsePtr, Undo>
+    process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Coordination::ZooKeeperMultiResponse & response = dynamic_cast<Coordination::ZooKeeperMultiResponse &>(*response_ptr);
@@ -1157,8 +1129,7 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
         }
     }
 
-    KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
     {
         KeeperStore::ResponsesForSessions result;
         for (const auto & generic_request : concrete_requests)
@@ -1174,8 +1145,7 @@ struct SvsKeeperStorageCloseRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(KeeperStore & /* store */, int64_t, int64_t,
-            int64_t /* time */) const override
+    process(KeeperStore & /* store */, int64_t, int64_t, int64_t /* time */) const override
     {
         throw RK::Exception("Called process on close request", ErrorCodes::LOGICAL_ERROR);
     }
@@ -1283,24 +1253,26 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
 
 void KeeperStore::processRequest(
     ThreadSafeQueue<ResponseForSession> & responses_queue,
-    const Coordination::ZooKeeperRequestPtr & zk_request,
-    int64_t session_id,
-    int64_t time,
+    const RequestForSession & request_for_session,
     std::optional<int64_t> new_last_zxid,
     bool check_acl [[maybe_unused]],
     bool ignore_response)
 {
+    const auto & zk_request = request_for_session.request;
+    const auto session_id = request_for_session.session_id;
+
     LOG_TRACE(
         log,
         "[process request]SessionID/xid #{}#{}, opnum {}",
-        toHexString(session_id),
+        toHexString(request_for_session.session_id),
         zk_request->xid,
         Coordination::toString(zk_request->getOpNum()));
 
     if (new_last_zxid)
     {
         if (zxid >= *new_last_zxid)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
+            throw Exception(
+                ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
         zxid = *new_last_zxid;
     }
 
@@ -1317,7 +1289,11 @@ void KeeperStore::processRequest(
                     auto parent = container.at(parentPath(ephemeral_path));
                     if (!parent)
                     {
-                        LOG_ERROR(log, "Logical error, disconnect session {}, ephemeral znode parent not exist {}", toHexString(session_id), ephemeral_path);
+                        LOG_ERROR(
+                            log,
+                            "Logical error, disconnect session {}, ephemeral znode parent not exist {}",
+                            toHexString(session_id),
+                            ephemeral_path);
                     }
                     else
                     {
@@ -1379,7 +1355,7 @@ void KeeperStore::processRequest(
     if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
         StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = store_request->process(*this, zxid, session_id, time);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
         response->xid = zk_request->xid;
         /// Heartbeat not increase zxid
         response->zxid = zxid;
@@ -1388,7 +1364,7 @@ void KeeperStore::processRequest(
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
-        auto [response, _] = store_request->process(*this, zxid, session_id, time);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
         response->xid = zk_request->xid;
         /// SetWatches not increase zxid
         response->zxid = zxid;
@@ -1407,13 +1383,15 @@ void KeeperStore::processRequest(
             auto node = container.get(path);
             if (!node)
             {
-                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
+                LOG_TRACE(
+                    log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
             else if (node->stat.mzxid > request->relative_zxid)
             {
-                LOG_TRACE(log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
+                LOG_TRACE(
+                    log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHANGED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1430,7 +1408,8 @@ void KeeperStore::processRequest(
             auto node = container.get(path);
             if (node)
             {
-                LOG_TRACE(log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
+                LOG_TRACE(
+                    log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CREATED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1447,13 +1426,15 @@ void KeeperStore::processRequest(
             auto node = container.get(path);
             if (node == nullptr)
             {
-                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
+                LOG_TRACE(
+                    log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
             else if (node->stat.pzxid > request->relative_zxid)
             {
-                LOG_TRACE(log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
+                LOG_TRACE(
+                    log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
                 auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHILD);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
@@ -1475,10 +1456,10 @@ void KeeperStore::processRequest(
         }
         else
         {
-            response = store_request->process(*this, zxid, session_id, time).first;
+            response = store_request->process(*this, zxid, session_id, request_for_session.create_time).first;
         }
 
-        response->request_created_time_ms = time;
+        response->request_created_time_ms = request_for_session.create_time;
 
         response->xid = zk_request->xid;
         response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
@@ -1518,7 +1499,7 @@ void KeeperStore::processRequest(
                 {
                     /// 1. register watch
                     auto & watches_type
-                    = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
+                        = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
                         ? list_watches
                         : watches;
                     watches_type[zk_request->getPath()].emplace_back(session_id);
@@ -1578,7 +1559,6 @@ void KeeperStore::processRequest(
 
             /// push response to queue
             set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
-
         }
     }
 }
@@ -1602,10 +1582,10 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
     /// build children
     for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
     {
-        for (const auto& it : container.getMap(block_idx).getMap())
+        for (const auto & it : container.getMap(block_idx).getMap())
         {
             if (it.first == "/")
-               continue;
+                continue;
 
             auto parent_path = parentPath(it.first);
             auto child_path = getBaseName(it.first);
@@ -1622,7 +1602,6 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
             }
         }
     }
-
 }
 
 void KeeperStore::clearDeadWatches(int64_t session_id)
@@ -1671,7 +1650,6 @@ void KeeperStore::clearDeadWatches(int64_t session_id)
 
 void KeeperStore::dumpWatches(WriteBufferFromOwnString & buf) const
 {
-//    std::lock_guard session_lock(session_mutex);
     std::lock_guard lock(watch_mutex);
     for (const auto & [session_id, watches_paths] : sessions_and_watchers)
     {
@@ -1683,8 +1661,7 @@ void KeeperStore::dumpWatches(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 {
-    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids)
-    {
+    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids) {
         for (int64_t session_id : session_ids)
         {
             buf << "\t" << toHexString(session_id) << "\n";
@@ -1707,8 +1684,7 @@ void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const
 {
-    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths)
-    {
+    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths) {
         for (const String & path : ephemeral_paths)
         {
             buf << "\t" << path << "\n";

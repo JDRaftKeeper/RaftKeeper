@@ -34,8 +34,7 @@ public:
     bool tryPop(T & response, int64_t timeout_ms = 0)
     {
         std::unique_lock lock(queue_mutex);
-        if (!cv.wait_for(lock,
-                         std::chrono::milliseconds(timeout_ms), [this] { return !queue.empty(); }))
+        if (!cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), [this] { return !queue.empty(); }))
             return false;
 
         response = queue.front();
@@ -119,10 +118,7 @@ public:
         return queue.size();
     }
 
-    bool empty() const
-    {
-        return size() == 0;
-    }
+    bool empty() const { return size() == 0; }
 };
 
 }

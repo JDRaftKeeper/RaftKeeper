@@ -28,13 +28,18 @@ int64_t getZxidFromName(const std::string & filename)
 void deserializeSnapshotMagic(ReadBuffer & in)
 {
     int32_t magic_header, version;
+    /// not used
     int64_t dbid;
+
     Coordination::read(magic_header, in);
     Coordination::read(version, in);
+
     if (version != 2)
         throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Cannot deserialize ZooKeeper data other than version 2, got version {}", version);
+
     Coordination::read(dbid, in);
     static constexpr int32_t SNP_HEADER = 1514885966; /// "ZKSN"
+
     if (magic_header != SNP_HEADER)
         throw Exception(ErrorCodes::CORRUPTED_DATA ,"Incorrect magic header in file, expected {}, got {}", SNP_HEADER, magic_header);
 }
@@ -44,6 +49,7 @@ int64_t deserializeSessionAndTimeout(KeeperStore & store, ReadBuffer & in)
     int32_t count;
     Coordination::read(count, in);
     int64_t max_session_id = 0;
+
     while (count > 0)
     {
         int64_t session_id;
@@ -51,8 +57,10 @@ int64_t deserializeSessionAndTimeout(KeeperStore & store, ReadBuffer & in)
 
         Coordination::read(session_id, in);
         Coordination::read(timeout, in);
+
         store.addSessionID(session_id, timeout);
         max_session_id = std::max(session_id, max_session_id);
+
         count--;
     }
     return max_session_id;
@@ -62,6 +70,7 @@ void deserializeACLMap(KeeperStore & store, ReadBuffer & in)
 {
     int32_t count;
     Coordination::read(count, in);
+
     while (count > 0)
     {
         int64_t map_index;
@@ -80,8 +89,8 @@ void deserializeACLMap(KeeperStore & store, ReadBuffer & in)
             acls.push_back(acl);
             acls_len--;
         }
-        store.acl_map.addMapping(map_index, acls);
 
+        store.acl_map.addMapping(map_index, acls);
         count--;
     }
 }
@@ -90,19 +99,22 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
 {
     int64_t max_zxid = 0;
     std::string path;
+
     Coordination::read(path, in);
     size_t count = 0;
+
     while (path != "/")
     {
         std::shared_ptr<KeeperNode> node = std::make_shared<KeeperNode>();
         Coordination::read(node->data, in);
+
         size_t acl_id;
         Coordination::read(acl_id, in);
-//        Coordination::read(node.acl_id, in);
 
         /// Deserialize stat
         Coordination::read(node->stat.czxid, in);
         Coordination::read(node->stat.mzxid, in);
+
         /// For some reason ZXID specified in filename can be smaller
         /// then actual zxid from nodes. In this case we will use zxid from nodes.
         max_zxid = std::max(max_zxid, node->stat.mzxid);
@@ -114,7 +126,9 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
         Coordination::read(node->stat.aversion, in);
         Coordination::read(node->stat.ephemeralOwner, in);
         Coordination::read(node->stat.pzxid, in);
+
         node->stat.numChildren = 0;
+
         if (!path.empty())
         {
             node->stat.dataLength = node->data.length();
@@ -126,8 +140,10 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
                 store.ephemerals[node->stat.ephemeralOwner].insert(path);
             }
         }
+
         Coordination::read(path, in);
         count++;
+
         if (count % 1000 == 0)
             LOG_INFO(log, "Deserialized nodes from snapshot: {}", count);
     }
@@ -144,7 +160,6 @@ void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string &
     int64_t zxid = getZxidFromName(snapshot_path);
 
     ReadBufferFromFile reader(snapshot_path);
-
     deserializeSnapshotMagic(reader);
 
     LOG_INFO(log, "Magic deserialized, looks OK");
@@ -181,11 +196,13 @@ void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::stri
 {
     namespace fs = std::filesystem;
     std::map<int64_t, std::string> existing_snapshots;
+
     for (const auto & p : fs::directory_iterator(path))
     {
         const auto & log_path = p.path();
         if (!log_path.has_filename() || !startsWith(log_path.filename(), "snapshot."))
             continue;
+
         int64_t zxid = getZxidFromName(log_path);
         existing_snapshots[zxid] = p.path();
     }
@@ -202,6 +219,7 @@ void deserializeLogMagic(ReadBuffer & in)
 {
     int32_t magic_header, version;
     int64_t dbid;
+
     Coordination::read(magic_header, in);
     Coordination::read(version, in);
     Coordination::read(dbid, in);
@@ -388,8 +406,6 @@ Coordination::ZooKeeperRequestPtr deserializeTxnImpl(ReadBuffer & in, bool subtx
 
     int64_t in_count_before = in.count();
 
-//    if (subtxn)
-//        LOG_INFO(log, "type {}", type);
     switch (type)
     {
         case 1:
@@ -444,7 +460,6 @@ Coordination::ZooKeeperRequestPtr deserializeMultiTxn(ReadBuffer & in, Poco::Log
     Coordination::read(length, in);
 
     std::shared_ptr<Coordination::ZooKeeperMultiRequest> result = std::make_shared<Coordination::ZooKeeperMultiRequest>();
-//    LOG_INFO(log, "deserializeMultiTxn length {}", length);
     while (length > 0)
     {
         auto subrequest = deserializeTxnImpl(in, true, 0, log);
@@ -499,8 +514,6 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
     if (bytes_read < txn_len)
         in.ignore(txn_len - bytes_read);
 
-//    LOG_INFO(log, "txn_len is {}, count_before {}, bytes_read {}", txn_len, count_before, bytes_read);
-
     /// We don't need to apply error requests
     if (isErrorRequest(request))
         return true;
@@ -522,7 +535,7 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
                 return true;
 
             KeeperStore::KeeperResponsesQueue responses_queue;
-            store.processRequest(responses_queue, request, session_id, time, zxid, /* check_acl = */ false, /*ignore_response*/true);
+            store.processRequest(responses_queue, {request, session_id, time}, zxid, /* check_acl = */ false, /*ignore_response*/true);
         }
     }
 
@@ -535,9 +548,10 @@ void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_
 
     LOG_INFO(log, "Deserializing log {}", log_path);
     deserializeLogMagic(reader);
-    LOG_INFO(log, "Header looks OK");
 
+    LOG_INFO(log, "Header looks OK");
     size_t counter = 0;
+
     while (!reader.eof() && deserializeTxn(store, reader, log))
     {
         counter++;
@@ -557,11 +571,13 @@ void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & pat
 {
     namespace fs = std::filesystem;
     std::map<int64_t, std::string> existing_logs;
+
     for (const auto & p : fs::directory_iterator(path))
     {
         const auto & log_path = p.path();
         if (!log_path.has_filename() || !startsWith(log_path.filename(), "log."))
             continue;
+
         int64_t zxid = getZxidFromName(log_path);
         existing_logs[zxid] = p.path();
     }

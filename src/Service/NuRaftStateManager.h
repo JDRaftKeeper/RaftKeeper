@@ -42,10 +42,7 @@ using ConfigUpdateActions = std::vector<ConfigUpdateAction>;
 class NuRaftStateManager : public nuraft::state_mgr
 {
 public:
-    NuRaftStateManager(
-        int id,
-        const Poco::Util::AbstractConfiguration & config_,
-        SettingsPtr settings_);
+    NuRaftStateManager(int id, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_);
 
     ~NuRaftStateManager() override = default;
 

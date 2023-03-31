@@ -1,4 +1,3 @@
-#include <cassert>
 #include <memory>
 #include <unistd.h>
 #include <Service/LogEntry.h>
@@ -9,64 +8,52 @@ namespace RK
 {
 using namespace nuraft;
 
-ptr<log_entry> makeClone(const ptr<log_entry> & entry)
-{
-    ptr<log_entry> clone = cs_new<log_entry>(entry->get_term(), buffer::clone(entry->get_buf()), entry->get_val_type());
-    return clone;
-}
-
 ptr<log_entry> LogEntryQueue::getEntry(const UInt64 & index)
 {
-    //LOG_DEBUG(log,"get entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), index >> BIT_SIZE);
+    LOG_TRACE(log, "get entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), index >> BIT_SIZE);
     std::shared_lock read_lock(queue_mutex);
+
+    /// match index
     if (index > max_index || max_index - index >= MAX_VECTOR_SIZE)
         return nullptr;
 
+    /// match cycle
     if (index >> BIT_SIZE == batch_index || index >> BIT_SIZE == batch_index - 1)
-    {
         return entry_vec[index & (MAX_VECTOR_SIZE - 1)];
-    }
-    else
-    {
-        return nullptr;
-    }
+
+    return nullptr;
 }
 
 void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
 {
+    LOG_TRACE(log, "put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
     std::lock_guard write_lock(queue_mutex);
     entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
     batch_index = std::max(batch_index, index >> BIT_SIZE);
     max_index = std::max(max_index, index);
-    //LOG_DEBUG(log,"put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
 }
 
-void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
+[[maybe_unused]] void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
 {
     std::lock_guard write_lock(queue_mutex);
     if (index >> BIT_SIZE == batch_index || index >> BIT_SIZE == batch_index - 1)
     {
         entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
         max_index = index;
+        return;
     }
-    else
-    {
-        LOG_DEBUG(log, "clear log queue.");
-        batch_index = 0;
-        max_index = 0;
-        for (size_t i = 0; i < MAX_VECTOR_SIZE; ++i)
-            entry_vec[i] = nullptr;
-    }
+    /// next cycle
+    clear();
 }
 
 void LogEntryQueue::clear()
 {
-    LOG_DEBUG(log, "clear log queue.");
+    LOG_INFO(log, "clear log queue.");
     std::lock_guard write_lock(queue_mutex);
     batch_index = 0;
     max_index = 0;
-    for (size_t i = 0; i < MAX_VECTOR_SIZE; ++i)
-        entry_vec[i] = nullptr;
+    for (auto & i : entry_vec)
+        i = nullptr;
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
@@ -100,14 +87,10 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     }
 
     if (segment_store->lastLogIndex() < 1)
-    {
         /// no log entry exists, return a dummy constant entry with value set to null and term set to  zero
         last_log_entry = cs_new<log_entry>(0, nuraft::buffer::alloc(0));
-    }
     else
-    {
         last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
-    }
 
     disk_last_durable_index = segment_store->lastLogIndex();
 }
@@ -152,12 +135,6 @@ void NuRaftFileLogStore::fsyncThread()
     LOG_INFO(log, "shutdown background raft log fsync thread.");
 }
 
-ptr<log_entry> NuRaftFileLogStore::make_clone(const ptr<log_entry> & entry)
-{
-    ptr<log_entry> clone = cs_new<log_entry>(entry->get_term(), buffer::clone(entry->get_buf()), entry->get_val_type());
-    return clone;
-}
-
 ulong NuRaftFileLogStore::next_slot() const
 {
     return segment_store->lastLogIndex() + 1;
@@ -170,9 +147,8 @@ ulong NuRaftFileLogStore::start_index() const
 
 ptr<log_entry> NuRaftFileLogStore::last_entry() const
 {
-    //    std::lock_guard<std::recursive_mutex> lock(log_lock);
     if (last_log_entry)
-        return make_clone(last_log_entry);
+        return makeClone(last_log_entry);
     else
         return nullptr;
 }
@@ -194,13 +170,11 @@ ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 {
     if (segment_store->writeAt(index, entry) == index)
-    {
         log_queue.clear();
-    }
 
-    //last_log_entry = std::dynamic_pointer_cast<log_entry>(ch_entry);
     last_log_entry = entry;
 
+    /// notify parallel fsync thread
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
         parallel_fsync_event->set();
 
@@ -232,11 +206,9 @@ void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
 ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries(ulong start, ulong end)
 {
     ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
-    //segment_store->getEntries(start, end, ret);
     for (auto i = start; i < end; i++)
     {
         ret->push_back(entry_at(i));
-        //ptr<nuraft::log_entry> src = nullptr;
     }
     LOG_DEBUG(log, "log entries, start {} end {}", start, end);
     return ret;
@@ -245,9 +217,8 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries(ulong start, ul
 ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
 {
     ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
-    //segment_store->getEntriesExt(start, end, batch_size_hint_in_bytes, ret);
     int64 get_size = 0;
-    int64 entry_size = 0;
+    int64 entry_size;
     for (auto i = start; i < end; i++)
     {
         auto entry_ptr = entry_at(i);
@@ -266,9 +237,8 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start
 ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
 {
     ptr<std::vector<VersionLogEntry>> ret = cs_new<std::vector<VersionLogEntry>>();
-    //segment_store->getEntriesExt(start, end, batch_size_hint_in_bytes, ret);
     int64 get_size = 0;
-    int64 entry_size = 0;
+    int64 entry_size;
     for (auto i = start; i < end; i++)
     {
         auto entry_ptr = entry_at(i);
@@ -277,29 +247,25 @@ ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ul
         {
             break;
         }
-        ret->push_back({ segment_store->getVersion(i), entry_ptr });
+        ret->push_back({segment_store->getVersion(i), entry_ptr});
         get_size += entry_size;
     }
     LOG_DEBUG(log, "log entries ext, start {} end {}, real size {}, max size {}", start, end, get_size, batch_size_hint_in_bytes);
     return ret;
 }
 
-
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
-    ptr<nuraft::log_entry> src = nullptr;
+    ptr<nuraft::log_entry> src;
     {
-        //std::lock_guard write_lock(index_mutex);
         src = log_queue.getEntry(index);
         if (src == nullptr)
         {
             src = segment_store->getEntry(index);
             LOG_TRACE(log, "get entry {} from disk", index);
-            //2^16, 65536
+            /// 2^16, 65536
             if (index << 48 == 0)
-            {
-                //LOG_DEBUG(log, "get entry {} from disk", index);
-            }
+                LOG_TRACE(log, "get entry {} from disk", index);
         }
         else
         {
@@ -307,14 +273,13 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
         }
     }
     if (src)
-        return make_clone(src);
+        return makeClone(src);
     else
         return nullptr;
 }
 
 ulong NuRaftFileLogStore::term_at(ulong index)
 {
-    /// TODO zx
     if (entry_at(index))
         return entry_at(index)->get_term();
     else
@@ -327,9 +292,8 @@ ptr<buffer> NuRaftFileLogStore::pack(ulong index, int32 cnt)
 
     std::vector<ptr<buffer>> logs;
     size_t size_total = 0;
-    for (auto it = entries->begin(); it != entries->end(); it++)
+    for (const auto & le : *entries)
     {
-        ptr<log_entry> le = *it;
         ptr<buffer> buf = le->serialize();
         size_total += buf->size();
         logs.push_back(buf);
@@ -356,9 +320,9 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
     pack.pos(0);
     int32 num_logs = pack.get_int();
 
-    for (int32 ii = 0; ii < num_logs; ++ii)
+    for (int32 i = 0; i < num_logs; ++i)
     {
-        ulong cur_idx = index + ii;
+        ulong cur_idx = index + i;
         int32 buf_size = pack.get_int();
 
         ptr<buffer> buf_local = buffer::alloc(buf_size);
@@ -370,34 +334,22 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
             LOG_DEBUG(log, "cur_idx {}, segment_store last_log_index {}", cur_idx, segment_store->lastLogIndex());
 
         ptr<log_entry> le = log_entry::deserialize(*buf_local);
-        //if (cur_idx - segment_store->lastLogIndex() == 1)
-        //  segment_store->appendEntry(le);
-        {
-            segment_store->writeAt(cur_idx, le);
-        }
+        segment_store->writeAt(cur_idx, le);
     }
+
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
         parallel_fsync_event->set();
+
     LOG_DEBUG(log, "apply pack {}", index);
 }
 
-//last_log_index : last removed log index
 bool NuRaftFileLogStore::compact(ulong last_log_index)
 {
-    //std::lock_guard<std::recursive_mutex> lock(log_lock);
     segment_store->removeSegment(last_log_index + 1);
     log_queue.clear();
-    //start_idx = last_log_index + 1;
     LOG_DEBUG(log, "compact last_log_index {}", last_log_index);
     return true;
 }
-
-/*
-void FileLogStore::close()
-{
-    segment_store->close();
-}
-*/
 
 bool NuRaftFileLogStore::flush()
 {

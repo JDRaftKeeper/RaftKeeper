@@ -1,41 +1,40 @@
 #include <filesystem>
-#include <Common/IO/WriteHelpers.h>
 #include <Service/Settings.h>
-#include <common/logger_useful.h>
+#include <Common/IO/WriteHelpers.h>
 
 
 namespace RK
 {
 namespace ErrorCodes
 {
-extern const int UNKNOWN_SETTING;
+    extern const int UNKNOWN_SETTING;
 }
 
 namespace FsyncModeNS
 {
-FsyncMode parseFsyncMode(const String & in)
-{
-    if (in == "fsync_parallel")
-        return FsyncMode::FSYNC_PARALLEL;
-    else if (in == "fsync")
-        return FsyncMode::FSYNC;
-    else if (in == "fsync_batch")
-        return FsyncMode::FSYNC_BATCH;
-    else
-        throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
-}
+    FsyncMode parseFsyncMode(const String & in)
+    {
+        if (in == "fsync_parallel")
+            return FsyncMode::FSYNC_PARALLEL;
+        else if (in == "fsync")
+            return FsyncMode::FSYNC;
+        else if (in == "fsync_batch")
+            return FsyncMode::FSYNC_BATCH;
+        else
+            throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
+    }
 
-String toString(FsyncMode mode)
-{
-    if (mode == FsyncMode::FSYNC_PARALLEL)
-        return "fsync_parallel";
-    else if (mode == FsyncMode::FSYNC)
-        return "fsync";
-    else if (mode == FsyncMode::FSYNC_BATCH)
-        return "fsync_batch";
-    else
-        throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
-}
+    String toString(FsyncMode mode)
+    {
+        if (mode == FsyncMode::FSYNC_PARALLEL)
+            return "fsync_parallel";
+        else if (mode == FsyncMode::FSYNC)
+            return "fsync";
+        else if (mode == FsyncMode::FSYNC_BATCH)
+            return "fsync_batch";
+        else
+            throw Exception("Unknown config 'log_fsync_mode'.", ErrorCodes::UNKNOWN_SETTING);
+    }
 
 }
 
@@ -49,10 +48,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
 
     try
     {
-        auto get_key = [&config_elem] (String key)-> String
-        {
-            return config_elem + "." + key;
-        };
+        auto get_key = [&config_elem](String key) -> String { return config_elem + "." + key; };
 
         session_timeout_ms = config.getUInt(get_key("session_timeout_ms"), Coordination::DEFAULT_SESSION_TIMEOUT_MS);
         operation_timeout_ms = config.getUInt(get_key("operation_timeout_ms"), Coordination::DEFAULT_OPERATION_TIMEOUT_MS);
@@ -92,7 +88,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     RaftSettingsPtr settings = std::make_shared<RaftSettings>();
     settings->session_timeout_ms = Coordination::DEFAULT_SESSION_TIMEOUT_MS;
     settings->operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
-    settings->dead_session_check_period_ms =100;
+    settings->dead_session_check_period_ms = 100;
     settings->heart_beat_interval_ms = 500;
     settings->election_timeout_lower_bound_ms = 10000;
     settings->election_timeout_upper_bound_ms = 20000;
@@ -102,7 +98,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->shutdown_timeout = 5000;
     settings->startup_timeout = 6000000;
 
-    settings->raft_logs_level = NuRaftLogLevel::LOG_INFORMATION;
+    settings->raft_logs_level = NuRaftLogLevel::RAFT_LOG_INFORMATION;
     settings->rotate_log_storage_interval = 100000;
     settings->nuraft_thread_size = 32;
     settings->fresh_log_gap = 200;
@@ -118,28 +114,23 @@ RaftSettingsPtr RaftSettings::getDefault()
 
 const String Settings::DEFAULT_FOUR_LETTER_WORD_CMD = "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld";
 
-Settings::Settings()
-: my_id(NOT_EXIST)
-, port(NOT_EXIST)
-, standalone_keeper(false)
-, raft_settings(RaftSettings::getDefault())
+Settings::Settings() : my_id(NOT_EXIST), port(NOT_EXIST), standalone_keeper(false), raft_settings(RaftSettings::getDefault())
 {
 }
 
 void Settings::dump(WriteBufferFromOwnString & buf) const
 {
-    auto write_int = [&buf](int64_t value)
-    {
+    auto write_int = [&buf](int64_t value) {
         writeIntText(value, buf);
         buf.write('\n');
     };
 
-//    auto write_bool = [&buf](bool value)
-//    {
-//        String str_val = value ? "true" : "false";
-//        writeText(str_val, buf);
-//        buf.write('\n');
-//    };
+    //    auto write_bool = [&buf](bool value)
+    //    {
+    //        String str_val = value ? "true" : "false";
+    //        writeText(str_val, buf);
+    //        buf.write('\n');
+    //    };
 
     writeText("my_id=", buf);
     write_int(my_id);
@@ -162,12 +153,6 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
 
     writeText("snapshot_create_interval=", buf);
     write_int(snapshot_create_interval);
-
-    writeText("snapshot_start_time=", buf);
-    write_int(snapshot_start_time);
-
-    writeText("snapshot_end_time=", buf);
-    write_int(snapshot_end_time);
 
     writeText("four_letter_word_white_list=", buf);
     writeText(four_letter_word_white_list, buf);
@@ -225,7 +210,6 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     write_int(raft_settings->nuraft_thread_size);
     writeText("fresh_log_gap=", buf);
     write_int(raft_settings->fresh_log_gap);
-
 }
 
 SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_)
@@ -244,9 +228,6 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
 
     ret->snapshot_create_interval = config.getInt("keeper.snapshot_create_interval", 3600);
     ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1);
-
-    ret->snapshot_start_time = config.getInt("keeper.snapshot_start_time", 7200);
-    ret->snapshot_end_time = config.getInt("keeper.snapshot_end_time", 79200);
 
     ret->super_digest = config.getString("keeper.superdigest", "");
 

@@ -142,6 +142,7 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
+    /// Send forwarding response
     void sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response);
 
     /// Are we leader
@@ -160,8 +161,10 @@ public:
         return server->isObserver();
     }
 
+    /// get log size in bytes
     uint64_t getLogDirSize() const;
 
+    /// get snapshot size in bytes
     uint64_t getSnapDirSize() const;
 
     /// Request statistics such as qps, latency etc.

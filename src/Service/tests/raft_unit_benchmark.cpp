@@ -45,7 +45,7 @@ void setNode(KeeperStore & storage, const std::string key, const std::string val
     request->acls = default_acls;
     request->xid = 1;
     KeeperStore::KeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue, request, session_id, {}, {}, /* check_acl = */ false, /*ignore_response*/ true);
+    storage.processRequest(responses_queue, {request, session_id, {}}, {}, /* check_acl = */ false, /*ignore_response*/ true);
 }
 
 int parseLine(char * line)
@@ -264,7 +264,7 @@ void logSegmentThread()
                         ASSERT_EQ_LOG(thread_log, data, pb->data(0).data())
 
                         log_index.store(log_idx, std::memory_order_release);
-                        if (log_store->getSegments().size() + 1 >= max_seg_count)
+                        if (log_store->getClosedSegments().size() + 1 >= max_seg_count)
                         {
                             //remove segment
                             log_store->removeSegment();

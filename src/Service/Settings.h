@@ -4,8 +4,8 @@
 #include <ZooKeeper/ZooKeeperConstants.h>
 #include <Poco/Message.h>
 #include <Poco/Util/AbstractConfiguration.h>
-#include <common/defines.h>
 #include <Common/IO/WriteBufferFromString.h>
+#include <common/defines.h>
 
 namespace RK
 {
@@ -24,8 +24,8 @@ enum FsyncMode
 
 namespace FsyncModeNS
 {
-FsyncMode parseFsyncMode(const String & in);
-String toString(FsyncMode mode);
+    FsyncMode parseFsyncMode(const String & in);
+    String toString(FsyncMode mode);
 }
 
 struct RaftSettings;
@@ -51,10 +51,6 @@ struct Settings
     int snapshot_create_interval;
     int thread_count;
 
-    /// TODO remove
-    int snapshot_start_time;
-    int snapshot_end_time;
-
     String four_letter_word_white_list;
 
     String super_digest;
@@ -63,8 +59,7 @@ struct Settings
     RaftSettingsPtr raft_settings;
 
     void dump(WriteBufferFromOwnString & buf) const;
-    static std::shared_ptr<Settings>
-    loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+    static std::shared_ptr<Settings> loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
 
 private:
     static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);

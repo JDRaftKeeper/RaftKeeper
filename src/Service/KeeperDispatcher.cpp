@@ -44,8 +44,6 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
         if (requests_queue->tryPop(thread_index, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait)))
         {
-            //            LOG_TRACE(log, "1 requests_queue tryPop session {}, xid {}", request_for_session.session_id, request_for_session.request->xid);
-
             if (shutdown_called)
                 break;
 
