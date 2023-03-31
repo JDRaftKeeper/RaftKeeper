@@ -645,7 +645,7 @@ class RaftKeeperInstance:
                 pid = self.get_process_pid("raftkeeper")
 
             if pid is None:
-                logging.warning("RaftKeeper process already stopped")
+                print("RaftKeeper process already stopped")
                 return
 
             # self.kill_raftkeeper()
@@ -675,16 +675,16 @@ class RaftKeeperInstance:
                     pid = self.get_process_pid("raftkeeper")
 
                 if pid is not None:
-                    logging.warning(f"Force kill raftkeeper in stop_raftkeeper. pid:{pid}")
+                    print(f"Force kill raftkeeper in stop_raftkeeper. pid:{pid}")
                     self.kill_raftkeeper()
                 else:
                     ps_all = self.exec_in_container(["bash", "-c", "ps aux"], nothrow=True, user='root')
-                    logging.warning(f"We want force stop raftkeeper, but no raftkeeper-server is running\n{ps_all}")
+                    print(f"We want force stop raftkeeper, but no raftkeeper-server is running\n{ps_all}")
                     return
             else:
                 print(self.name, "stopped")
         except Exception as e:
-            logging.warning(f"Stop RaftKeeper raised an error {e}")
+            print(f"Stop RaftKeeper raised an error {e}")
 
     def start_raftkeeper(self, start_wait_sec=60, start_wait=False):
         if not self.stay_alive:
@@ -701,7 +701,6 @@ class RaftKeeperInstance:
                 pid = self.get_process_pid("raftkeeper")
 
             if pid is None:
-                logging.debug("No raftkeeper process running. Start new one.")
                 print("No raftkeeper process running. Start new one.")
                 if self.use_old_bin:
                     self.exec_in_container(["bash", "-c", "{} --daemon".format(OLD_RAFTKEEPER_START_COMMAND)],
@@ -712,13 +711,12 @@ class RaftKeeperInstance:
                 time.sleep(1)
                 continue
             elif start_wait is True:
-                logging.debug("RaftKeeper process running.")
                 print("RaftKeeper process running.")
                 try:
                     self.wait_for_join_cluster(start_wait_sec)
                     return
-                except Exception as e:
-                    logging.warning(f"Current start attempt failed. Will kill {pid} just in case.")
+                except:
+                    print(f"Current start attempt failed. Will kill {pid} just in case.")
                     self.exec_in_container(["bash", "-c", f"kill -9 {pid}"], user='root', nothrow=True)
                     time.sleep(time_to_sleep)
             elif start_wait is False:
@@ -737,6 +735,8 @@ class RaftKeeperInstance:
 
         _fake_zk_instance.add_listener(reset_listener)
         _fake_zk_instance.start()
+
+        print(f"successfully create client to {self.name} with session id {_fake_zk_instance._session_id}")
         return _fake_zk_instance
 
     def restart_raftkeeper(self, timeout=30, kill=False):
@@ -831,12 +831,14 @@ class RaftKeeperInstance:
         while start_time + start_wait_sec >= time.time():
             zk = None
             try:
-                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} try connect to node {self.name}")
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} try get connection to node {self.name}")
                 zk = self.get_fake_zk(3)
                 zk.get("/")
                 print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} node {self.name} ready")
                 return
-            except:
+            except Exception as e:
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} node {self.name} connect failed"
+                      f" with exception {e}")
                 time.sleep(0.5)
             finally:
                 if zk:

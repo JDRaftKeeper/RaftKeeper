@@ -170,7 +170,6 @@ def test_cmd_mntr(started_cluster):
 
         # contains:
         #   10 nodes created by test
-        #   3 nodes created by clickhouse "/clickhouse/task_queue/ddl"
         #   1 root node
         assert int(result["zk_znode_count"]) == 11
         assert int(result["zk_watch_count"]) == 2

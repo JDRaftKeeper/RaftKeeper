@@ -1661,7 +1661,8 @@ void KeeperStore::dumpWatches(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 {
-    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids) {
+    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids)
+    {
         for (int64_t session_id : session_ids)
         {
             buf << "\t" << toHexString(session_id) << "\n";
@@ -1684,7 +1685,8 @@ void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const
 {
-    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths) {
+    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths)
+    {
         for (const String & path : ephemeral_paths)
         {
             buf << "\t" << path << "\n";

@@ -120,17 +120,11 @@ Settings::Settings() : my_id(NOT_EXIST), port(NOT_EXIST), standalone_keeper(fals
 
 void Settings::dump(WriteBufferFromOwnString & buf) const
 {
-    auto write_int = [&buf](int64_t value) {
+    auto write_int = [&buf](int64_t value)
+    {
         writeIntText(value, buf);
         buf.write('\n');
     };
-
-    //    auto write_bool = [&buf](bool value)
-    //    {
-    //        String str_val = value ? "true" : "false";
-    //        writeText(str_val, buf);
-    //        buf.write('\n');
-    //    };
 
     writeText("my_id=", buf);
     write_int(my_id);

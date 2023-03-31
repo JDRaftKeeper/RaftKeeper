@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import os
+import time
 
 import pytest
-import time
 
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients, close_zk_client
@@ -31,7 +31,7 @@ def test_nodes_remove(started_cluster):
     for i in range(100):
         zk_conn.create("/test_two_" + str(i), b"somedata")
 
-    zk_conn2 = node3.get_fake_zk()
+    zk_conn2 = node2.get_fake_zk()
     zk_conn2.sync("/test_two_0")
 
     zk_conn3 = node3.get_fake_zk()
@@ -43,12 +43,16 @@ def test_nodes_remove(started_cluster):
 
     node3_is_leader = node3.is_leader()
 
+    # remove node 3
     node1.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_1.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper1.xml")
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_2.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper2.xml")
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_3.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
+
+    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
+    time.sleep(3)
 
     # if node3 is leader, we should wait new leader appear.
     if node3_is_leader:
@@ -63,6 +67,7 @@ def test_nodes_remove(started_cluster):
 
     node1.wait_for_join_cluster()
     node2.wait_for_join_cluster()
+
     zk_conn2 = node2.get_fake_zk()
 
     for i in range(100):
@@ -91,6 +96,9 @@ def test_nodes_remove(started_cluster):
     node2.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_single_keeper1.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper2.xml")
 
+    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
+    time.sleep(3)
+
     # if node2 is leader, we should wait new leader appear.
     if node2_is_leader:
         wait_leader_switch_to_node1()
@@ -105,8 +113,8 @@ def test_nodes_remove(started_cluster):
 
     # renew connection
     close_zk_client(zk_conn)
-    zk_conn = node1.get_fake_zk()
 
+    zk_conn = node1.get_fake_zk()
     zk_conn.sync("/test_two_0")
 
     for i in range(100):
