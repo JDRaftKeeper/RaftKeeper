@@ -69,6 +69,9 @@ def test_node_replace(started_cluster):
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_node4_2.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
 
+    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
+    time.sleep(3)
+
     node4.wait_for_join_cluster()
     zk_conn4 = node4.get_fake_zk()
     zk_conn4.sync("/test_four_0")

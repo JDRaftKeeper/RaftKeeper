@@ -8,7 +8,7 @@
 
         <raft_settings>
             <operation_timeout_ms>1000</operation_timeout_ms>
-            <session_timeout_ms>100000</session_timeout_ms>
+            <session_timeout_ms>600000</session_timeout_ms>
             <snapshot_distance>3000000</snapshot_distance>
             <raft_logs_level>debug</raft_logs_level>
         </raft_settings>

@@ -7,6 +7,32 @@
 namespace RK
 {
 
+/**
+ * User requests queue who is a compound queue. It is used as cache in execution
+ * pipeline components.
+ *
+ *      1 KeeperDispatcher
+ *      2 RequestForwarder
+ *      3 RequestAccumulator
+ *      4 Raft data replication (not use)
+ *      5 RequestProcessor
+ *
+ * For high throughput, we setup n execution pipe in whole pipeline, execution
+ * pipes can execute request in parallel.
+ *
+ * The whole requests execution pipeline looks like:
+ *
+ *        1        2        3         4         5
+ *      -----    -----    -----               -----
+ *      -----    -----    -----     -----     -----
+ *      -----    -----    -----               -----
+ * 1 KeeperDispatcher: receive user requests and dispatcher to RequestForwarder(write request)
+ *   or RequestProcessor(read request).
+ * 2 RequestForwarder: redirect request to leader.
+ * 3 RequestAccumulator: accumulate request and send to Raft in batch.
+ * 4 Raft data replication
+ * 5 RequestProcessor: process user requests, for read requests
+ */
 struct RequestsQueue
 {
     using Queue = ConcurrentBoundedQueue<KeeperStore::RequestForSession>;
@@ -47,7 +73,7 @@ struct RequestsQueue
         return queues[queue_id]->tryPop(request, wait_ms);
     }
 
-    bool tryPopMicro(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_micro = 0)
+    [[maybe_unused]] bool tryPopMicro(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_micro = 0)
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->tryPopMicro(request, wait_micro);
