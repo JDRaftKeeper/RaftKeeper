@@ -10,7 +10,4 @@ assignees: ''
 ### Description
 <!-- Describe the enhancement you want, including the motivation. -->
 
-### Solution
-<!-- Add an overview of solution. And add some references if exist. -->
-
-**Are you willing to submit PR?**
+### Are you willing to submit PR?
