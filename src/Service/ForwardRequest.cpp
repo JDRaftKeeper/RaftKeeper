@@ -7,6 +7,11 @@
 namespace RK
 {
 
+namespace ErrorCodes
+{
+    extern const int UNEXPECTED_FORWARD_PACKET;
+}
+
 void ForwardRequest::write(WriteBuffer & out) const
 {
     Coordination::write(forwardType(), out);
@@ -39,7 +44,7 @@ KeeperStore::RequestForSession ForwardHandshakeRequest::requestForSession() cons
 
 void ForwardSessionRequest::readImpl(ReadBuffer &)
 {
-    /// TODO
+    /// implement in ForwardingConnectionHandler::processSessions
 }
 
 void ForwardSessionRequest::writeImpl(WriteBuffer & buf) const
@@ -190,7 +195,7 @@ ForwardRequestPtr ForwardRequestFactory::get(ForwardType type) const
 {
     auto it = op_num_to_request.find(type);
     if (it == op_num_to_request.end())
-        throw Exception("Unknown operation type " + std::to_string(type), 0); /// TODO
+        throw Exception("Unknown request type " + toString(type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);
 
     return it->second();
 }
@@ -212,11 +217,10 @@ void registerForwardRequest(ForwardRequestFactory & factory)
 }
 
 
-void ForwardRequestFactory::registerRequest(ForwardType op_num, Creator creator)
+void ForwardRequestFactory::registerRequest(ForwardType type, Creator creator)
 {
-    if (!op_num_to_request.try_emplace(op_num, creator).second)
-        ;
-//        throw Exception("Request type " + toString(op_num) + " already registered", 0); TODO
+    if (!op_num_to_request.try_emplace(type, creator).second)
+        throw Exception("Request type " + toString(type) + " already registered", ErrorCodes::UNEXPECTED_FORWARD_PACKET);
 }
 
 

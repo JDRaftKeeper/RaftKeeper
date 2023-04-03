@@ -45,7 +45,6 @@ public:
     void onSocketError(const AutoPtr<ErrorNotification> & pNf);
 
 private:
-    std::tuple<int64_t, int64_t, Coordination::OpNum> putRequest(ForwardRequestPtr request);
 
     void sendResponse(ForwardResponsePtr response);
 
@@ -83,6 +82,11 @@ private:
     int32_t server_id;
     /// client id in client endpoint
     int32_t client_id;
+
+    bool isRaftRequest(ForwardType type);
+    void processHandshake();
+    void processRaftRequest(ForwardRequestPtr request);
+    void processSessions(ForwardRequestPtr request);
 };
 
 }

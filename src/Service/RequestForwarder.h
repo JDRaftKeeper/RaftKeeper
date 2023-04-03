@@ -8,6 +8,8 @@
 #include <Service/Types.h>
 #include <Service/ForwardRequest.h>
 #include <Service/ForwardResponse.h>
+#include <Service/ForwardingConnection.h>
+
 
 namespace RK
 {
@@ -49,11 +51,11 @@ private:
 
     void processResponse(RunnerId runner_id, ForwardResponsePtr forward_response_ptr);
 
-    void pushToQueue(RunnerId runner_id, ForwardRequestPtr forward_request);
-
-    void removeFromQueue(RunnerId runner_id, ForwardResponsePtr forward_response_ptr);
+    bool removeFromQueue(RunnerId runner_id, ForwardResponsePtr forward_response_ptr);
 
     bool processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront);
+
+    void initConnections();
 
     size_t thread_count;
 
@@ -83,8 +85,12 @@ private:
 
     Poco::Timespan operation_timeout;
 
+    std::mutex connections_mutex;
     using ConnectionPool = std::vector<ptr<ForwardingConnection>>;
     std::unordered_map<UInt32, ConnectionPool> connections;
+
+    using EndPoint = String; /// host:port
+    std::unordered_map<UInt32, EndPoint> cluster_config_forward;
 };
 
 }

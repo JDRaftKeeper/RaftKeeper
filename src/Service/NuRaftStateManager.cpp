@@ -24,7 +24,7 @@ NuRaftStateManager::NuRaftStateManager(
 
     srv_state_file = fs::path(log_dir) / "srv_state";
     cluster_config_file = fs::path(log_dir) / "cluster_config";
-    cur_cluster_config = parseClusterConfig(config_, "keeper.cluster", settings->thread_count);
+    cur_cluster_config = parseClusterConfig(config_, "keeper.cluster");
 }
 
 ptr<cluster_config> NuRaftStateManager::load_config()
@@ -102,62 +102,32 @@ void NuRaftStateManager::system_exit(const int exit_code)
 }
 
 ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
-    const Poco::Util::AbstractConfiguration & config, const std::string & config_name, size_t thread_count) const
+    const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
 
     auto ret_cluster_config = cs_new<cluster_config>();
 
+    for (const auto & key : keys)
     {
-        std::lock_guard<std::mutex> lock(clients_mutex);
-        clients.clear();
-
-        for (const auto & key : keys)
+        if (startsWith(key, "server"))
         {
-            if (startsWith(key, "server"))
-            {
-                int id = config.getInt(config_name + "." + key + ".id");
-                String host = config.getString(config_name + "." + key + ".host");
-                String internal_port = config.getString(config_name + "." + key + ".internal_port", "8103");
-                String endpoint = host + ":" + internal_port;
-                bool learner = config.getBool(config_name + "." + key + ".learner", false);
-                int priority = config.getInt(config_name + "." + key + ".priority", 1);
-                ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id, 0, endpoint, "", learner, priority));
-
-                if (my_id != id)
-                {
-                    String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "8102");
-                    String forwarding_endpoint = host + ":" + forwarding_port;
-
-                    LOG_DEBUG(log, "Create ForwardingConnection for {}, {}", id, forwarding_endpoint);
-
-                    /// TODO use separate configuration
-                    for (size_t i = 0; i < thread_count; ++i)
-                    {
-                        auto & client_list = clients[id];
-                        std::shared_ptr<ForwardingConnection> client = std::make_shared<ForwardingConnection>(
-                            my_id, i, forwarding_endpoint, settings->raft_settings->operation_timeout_ms * 1000);
-                        client_list.push_back(client);
-                        LOG_INFO(
-                            log,
-                            "Create ForwardingConnection for {}, {}, thread {}, {}",
-                            id,
-                            forwarding_endpoint,
-                            i,
-                            static_cast<void *>(client.get()));
-                    }
-                }
-            }
+            int id = config.getInt(config_name + "." + key + ".id");
+            String host = config.getString(config_name + "." + key + ".host");
+            String internal_port = config.getString(config_name + "." + key + ".internal_port", "8103");
+            String endpoint = host + ":" + internal_port;
+            bool learner = config.getBool(config_name + "." + key + ".learner", false);
+            int priority = config.getInt(config_name + "." + key + ".priority", 1);
+            ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id, 0, endpoint, "", learner, priority));
         }
+    }
 
-        /// If user does not configure cluster, put myself to NuRaft.
-        if (ret_cluster_config->get_servers().empty())
-        {
-            auto my_endpoint = my_host + ":" + std::to_string(my_internal_port);
-            ret_cluster_config->get_servers().push_back(cs_new<srv_config>(my_id, 0, my_endpoint, "", false, 1));
-        }
-
+    /// If user does not configure cluster, put myself to NuRaft.
+    if (ret_cluster_config->get_servers().empty())
+    {
+        auto my_endpoint = my_host + ":" + std::to_string(my_internal_port);
+        ret_cluster_config->get_servers().push_back(cs_new<srv_config>(my_id, 0, my_endpoint, "", false, 1));
     }
 
     std::string s;
@@ -173,7 +143,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
 
 ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
 {
-    auto new_cluster_config = parseClusterConfig(config, "keeper.cluster", settings->thread_count);
+    auto new_cluster_config = parseClusterConfig(config, "keeper.cluster");
 
     std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
     for (const auto & new_server : new_cluster_config->get_servers())
@@ -219,16 +189,6 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     }
 
     return result;
-}
-
-ptr<ForwardingConnection> NuRaftStateManager::getClient(int32_t server_id, RunnerId runner_id)
-{
-    std::lock_guard<std::mutex> lock(clients_mutex);
-    if (clients.contains(server_id) && clients[server_id].size() > runner_id)
-    {
-        return clients[server_id][runner_id];
-    }
-    return nullptr;
 }
 
 }
