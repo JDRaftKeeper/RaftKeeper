@@ -83,17 +83,18 @@ public:
         }
     }
 
-    void findAndRemove(Func func)
+    bool findAndRemove(Func func)
     {
         for (auto it = queue.begin(); it != queue.end();)
         {
             if (func)
             {
                 queue.erase(it);
-                break;
+                return true;
             }
             it++;
         }
+        return false;
     }
 
     void removeFrontIf(Func func)

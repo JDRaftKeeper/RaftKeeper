@@ -11,6 +11,7 @@ namespace ErrorCodes
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
     extern const int UNEXPECTED_FORWARD_PACKET;
+    extern const int RAFT_FORWARDING_ERROR;
 }
 
 void ForwardingConnection::connect()
@@ -45,7 +46,8 @@ void ForwardingConnection::connect()
             LOG_TRACE(log, "Sent handshake to {}", endpoint);
 
             if (!receiveHandshake())
-                throw;
+                throw Exception("Receive handshake failed from " + endpoint, ErrorCodes::RAFT_FORWARDING_ERROR);
+
             LOG_TRACE(log, "Received handshake from {}", endpoint);
 
 
@@ -134,7 +136,7 @@ bool ForwardingConnection::receive(ForwardResponsePtr & response)
         response->readImpl(*in);
         return true;
     }
-    catch (...)
+    catch (Exception & e)
     {
         tryLogCurrentException(log, "Exception while receiving forward result " + endpoint);
 
@@ -142,8 +144,7 @@ bool ForwardingConnection::receive(ForwardResponsePtr & response)
         /// But here we just make it not accepted and leave client to determine how to process.
 
         disconnect();
-
-        return false;
+        throw e;
     }
 }
 
