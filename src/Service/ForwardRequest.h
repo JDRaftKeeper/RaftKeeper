@@ -31,7 +31,7 @@ struct ForwardRequest
 
     virtual KeeperStore::RequestForSession requestForSession() const = 0;
 
-    virtual ~ForwardRequest(){}
+    virtual ~ForwardRequest()= default;
 };
 
 using ForwardRequestPtr = std::shared_ptr<ForwardRequest>;
@@ -56,7 +56,7 @@ struct ForwardSessionRequest : public ForwardRequest
 {
     std::unordered_map<int64_t, int64_t> session_expiration_time;
 
-    ForwardSessionRequest() {}
+    ForwardSessionRequest() = default;
 
     ForwardSessionRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
         : session_expiration_time(std::forward<std::unordered_map<int64_t, int64_t>>(session_expiration_time_))
@@ -133,7 +133,7 @@ public:
 
     ForwardRequestPtr get(ForwardType op_num) const;
 
-    ForwardRequestPtr convertFromRequest(const KeeperStore::RequestForSession & request_for_session)
+    static ForwardRequestPtr convertFromRequest(const KeeperStore::RequestForSession & request_for_session)
     {
         auto opnum = request_for_session.request->getOpNum();
         switch (opnum)

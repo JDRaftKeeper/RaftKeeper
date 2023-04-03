@@ -1,7 +1,6 @@
 #pragma once
 
 #include <fstream>
-#include <Service/ForwardingConnection.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/Settings.h>
 #include <Service/Types.h>
@@ -50,7 +49,7 @@ public:
 
     ~NuRaftStateManager() override = default;
 
-    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const String & config_name, size_t thread_count) const;
+    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const String & config_name) const;
 
     ptr<cluster_config> load_config() override;
 
@@ -75,8 +74,6 @@ public:
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
 
-    ptr<ForwardingConnection> getClient(int32_t server_id, RunnerId runner_id);
-
 protected:
     NuRaftStateManager() = default;
 
@@ -93,10 +90,6 @@ private:
     ptr<log_store> curr_log_store;
 
     ptr<cluster_config> cur_cluster_config;
-
-    /// TODO move clients to ForwardingProcessor
-    mutable std::mutex clients_mutex;
-    mutable std::unordered_map<UInt32, std::vector<ptr<ForwardingConnection>>> clients;
 
 protected:
     Poco::Logger * log;

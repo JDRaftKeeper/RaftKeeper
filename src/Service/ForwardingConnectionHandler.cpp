@@ -1,7 +1,7 @@
 #include <Service/ForwardingConnection.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
-#include <Service/formatHex.h>
+
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 #include <Poco/Net/NetException.h>
@@ -10,12 +10,6 @@
 
 namespace RK
 {
-
-namespace ErrorCodes
-{
-    extern const int TIMEOUT_EXCEEDED;
-    extern const int SYSTEM_ERROR;
-}
 
 using Poco::NObserver;
 
@@ -122,33 +116,14 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     if (!req_body_buf->isFull())
                         continue;
 
-                    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-
-                    Coordination::read(server_id, body);
-                    Coordination::read(client_id, body);
-
-                    /// register session response callback
-                    auto response_callback = [this](ForwardResponsePtr response) { sendResponse(response); };
-
-                    keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
-
-                    LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
-
-
-                    std::shared_ptr<ForwardHandshakeResponse> response = std::make_shared<ForwardHandshakeResponse>();
-                    response->accepted = true;
-                    response->error_code = nuraft::cmd_result_code::OK;
-
-                    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
+                    processHandshake();
 
                     req_body_buf.reset();
                     current_package.is_done = true;
                 }
-                else if (
-                    current_package.protocol == ForwardType::Op || current_package.protocol == ForwardType::GetSession
-                    || current_package.protocol == ForwardType::UpdateSession)
+                else
                 {
-                    auto request = ForwardRequestFactory::instance().get(current_package.protocol);
+                    ForwardRequestPtr request;
                     try
                     {
                         if (!req_body_buf) /// new data package
@@ -160,33 +135,46 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                                     continue;
                             }
 
-                            /// request body length
+                            /// request body length, for sessions request is session count
                             int32_t body_len{};
                             ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
 
                             Coordination::read(body_len, read_buf);
                             req_body_len_buf.drain(req_body_len_buf.used());
 
-                            LOG_TRACE(log, "Read request body length done, body length : {}", body_len);
-                            req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+                            if (isRaftRequest(current_package.protocol))
+                            {
+                                LOG_TRACE(log, "Read request done, body length : {}", body_len);
+                                req_body_buf = std::make_shared<FIFOBuffer>(body_len);
+                            }
+                            else
+                            {
+                                LOG_TRACE(log, "Read request done, session count : {}", body_len);
+                                req_body_buf = std::make_shared<FIFOBuffer>(body_len * 16);
+                            }
                         }
 
                         sock.receiveBytes(*req_body_buf);
                         if (!req_body_buf->isFull())
                             continue;
 
-                        ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+                        request = ForwardRequestFactory::instance().get(current_package.protocol);
 
-                        request->readImpl(body);
-
-                        keeper_dispatcher->putForwardingRequest(server_id, client_id, request);
+                        if (isRaftRequest(current_package.protocol))
+                        {
+                            processRaftRequest(request);
+                        }
+                        else
+                        {
+                            processSessions(request);
+                        }
 
                         req_body_buf.reset();
                         current_package.is_done = true;
                     }
                     catch (Exception & e)
                     {
-                        if (e.code() == ErrorCodes::SYSTEM_ERROR || e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
+                        if (request)
                         {
                             auto response = request->makeResponse();
                             keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
@@ -204,66 +192,6 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         throw e;
                     }
                 }
-                else if (current_package.protocol == ForwardType::Sessions)
-                {
-                    auto request = ForwardRequestFactory::instance().get(current_package.protocol);
-                    try
-                    {
-                        int32_t session_count{};
-                        if (!req_body_buf) /// new data package
-                        {
-                            if (!req_body_len_buf.isFull())
-                            {
-                                sock.receiveBytes(req_body_len_buf);
-                                if (!req_body_len_buf.isFull())
-                                    continue;
-                            }
-
-                            /// request body length
-                            ReadBufferFromMemory read_buf(req_body_len_buf.begin(), req_body_len_buf.used());
-
-                            int32_t req_body_len{};
-                            Coordination::read(req_body_len, read_buf);
-                            req_body_len_buf.drain(req_body_len_buf.used());
-
-                            session_count = req_body_len / 16;
-
-                            LOG_TRACE(log, "Read request done, session count : {}", session_count);
-                            req_body_buf = std::make_shared<FIFOBuffer>(req_body_len);
-                        }
-
-                        sock.receiveBytes(*req_body_buf);
-                        if (!req_body_buf->isFull())
-                            continue;
-
-                        ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-                        for (auto i = 0; i < session_count; ++i)
-                        {
-                            int64_t session_id;
-                            Coordination::read(session_id, body);
-
-                            int64_t expiration_time;
-                            Coordination::read(expiration_time, body);
-
-                            LOG_TRACE(log, "Receive remote session {}, expiration time {}", session_id, expiration_time);
-                            keeper_dispatcher->handleRemoteSession(session_id, expiration_time);
-                        }
-
-                        req_body_buf.reset();
-                        current_package.is_done = true;
-
-                        auto response = request->makeResponse();
-
-                        keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
-                    }
-                    catch (...)
-                    {
-                        auto response = request->makeResponse();
-                        response->accepted = false;
-                        keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
-                        tryLogCurrentException(log, "Error processing ping request.");
-                    }
-                }
             }
         }
     }
@@ -277,6 +205,62 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
         tryLogCurrentException(log, "Error when handling request, will close connection.");
         destroyMe();
     }
+}
+
+bool ForwardingConnectionHandler::isRaftRequest(ForwardType type)
+{
+    return type == ForwardType::Op || type == ForwardType::GetSession || type == ForwardType::UpdateSession;
+}
+
+void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)
+{
+    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+    size_t session_size = req_body_buf->size() / 16;
+    for (size_t i = 0; i < session_size; ++i)
+    {
+        int64_t session_id;
+        read(session_id, body);
+        int64_t expiration_time;
+        read(expiration_time, body);
+
+        LOG_TRACE(log, "Receive remote session {}, expiration time {}", session_id, expiration_time);
+
+        keeper_dispatcher->handleRemoteSession(session_id, expiration_time);
+    }
+
+    auto response = request->makeResponse();
+
+    keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
+}
+
+void ForwardingConnectionHandler::processRaftRequest(ForwardRequestPtr request)
+{
+    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+
+    request->readImpl(body);
+
+    keeper_dispatcher->putForwardingRequest(server_id, client_id, request);
+}
+
+void ForwardingConnectionHandler::processHandshake()
+{
+    ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
+
+    read(server_id, body);
+    read(client_id, body);
+
+    /// register session response callback
+    auto response_callback = [this](ForwardResponsePtr response) { sendResponse(response); };
+
+    keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
+
+    LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
+
+    std::shared_ptr<ForwardHandshakeResponse> response = std::make_shared<ForwardHandshakeResponse>();
+    response->accepted = true;
+    response->error_code = nuraft::OK;
+
+    keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
 }
 
 void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)

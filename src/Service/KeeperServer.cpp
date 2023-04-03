@@ -40,6 +40,7 @@ namespace
     }
 
 }
+
 KeeperServer::KeeperServer(
     const SettingsPtr & settings_,
     const Poco::Util::AbstractConfiguration & config_,
@@ -110,12 +111,6 @@ void KeeperServer::startup()
     if (raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
         dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
-
-ptr<ForwardingConnection> KeeperServer::getLeaderClient(RunnerId runner_id)
-{
-    return state_manager->getClient(raft_instance->get_leader(), runner_id);
-}
-
 
 int32 KeeperServer::getLeader()
 {
@@ -407,6 +402,12 @@ nuraft::cb_func::ReturnCode KeeperServer::callbackFunc(nuraft::cb_func::Type typ
         initialized_flag = true;
         initialized_cv.notify_all();
     }
+    else if (type == nuraft::cb_func::NewConfig)
+    {
+        /// Update Forward connections
+        if (update_forward_listener)
+            update_forward_listener();
+    }
     return nuraft::cb_func::ReturnCode::Ok;
 }
 
@@ -619,6 +620,11 @@ KeeperLogInfo KeeperServer::getKeeperLogInfo()
 bool KeeperServer::requestLeader()
 {
     return isLeader() || raft_instance->request_leadership();
+}
+
+void KeeperServer::registerForWardListener(std::function<void()> forward_listener)
+{
+    update_forward_listener = forward_listener;
 }
 
 }

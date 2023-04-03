@@ -38,13 +38,7 @@ public:
     /// server will register me.
     void sendHandshake();
 
-    [[maybe_unused]] [[maybe_unused]] bool receiveHandshake();
-
-    void send(const KeeperStore::RequestForSession & request_for_session);
-    bool receive(ForwardResponse & response);
-
-    /// Send session to leader every session_sync_period_ms.
-    void sendSession(const std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
+    bool receiveHandshake();
 
     bool poll(UInt64 timeout_microseconds);
 
@@ -69,6 +63,7 @@ private:
     int32_t thread_id;
 
     std::atomic<bool> connected{false};
+
     String endpoint;
 
     /// socket send and receive timeout, but it not work for

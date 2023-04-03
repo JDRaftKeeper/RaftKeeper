@@ -12,17 +12,11 @@
 
 namespace RK
 {
-struct ServerInfo
-{
-    UInt32 server_id;
-    std::string endpoint;
-    bool is_leader;
-};
 
 class KeeperServer
 {
 private:
-    int server_id;
+    int32_t server_id;
 
     SettingsPtr settings;
 
@@ -49,6 +43,8 @@ private:
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
+    std::function<void()> update_forward_listener;
+
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
 
 public:
@@ -59,8 +55,6 @@ public:
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
     void startup();
-
-    ptr<ForwardingConnection> getLeaderClient(RunnerId runner_id);
 
     int32 getLeader();
 
@@ -127,6 +121,13 @@ public:
     KeeperLogInfo getKeeperLogInfo();
 
     bool requestLeader();
+
+    void registerForWardListener(std::function<void()> forward_listener);
+
+    int32_t myId() const
+    {
+        return server_id;
+    }
 };
 
 }
