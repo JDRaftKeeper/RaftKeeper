@@ -619,7 +619,7 @@ struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
     }
 };
 
-/// Fake internal coordination (keeper) response. Never received from client
+/// Fake internal raftkeeper response. Never received from client
 /// and never send to client.
 struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
 {
@@ -637,7 +637,7 @@ struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
     bool isReadRequest() const override { return false; }
 };
 
-/// Fake internal coordination (keeper) response. Never received from client
+/// Fake internal raftkeeper response. Never received from client
 /// and never send to client.
 struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
 {
@@ -654,7 +654,7 @@ struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
 };
 
 
-/// Fake internal coordination (keeper) response. Never received from client
+/// Fake internal raftkeeper response. Never received from client
 /// and never send to client.
 struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
 {
@@ -672,7 +672,7 @@ struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
     bool isReadRequest() const override { return false; }
 };
 
-/// Fake internal coordination (keeper) response. Never received from client
+/// Fake internal raftkeeper response. Never received from client
 /// and never send to client.
 struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
 {

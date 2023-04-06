@@ -74,7 +74,9 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
 
     size_t request_size = requests_queue->size(runner_id);
 
-    LOG_TRACE(log, "Move request to pending queue, runner id {} request size {}", runner_id, request_size);
+    if (request_size)
+        LOG_TRACE(log, "Move request to pending queue, runner id {} request size {}", runner_id, request_size);
+
     for (size_t i = 0; i < request_size; ++i)
     {
         RequestForSession request;
@@ -338,7 +340,7 @@ void RequestProcessor::processErrorRequest()
                     LOG_ERROR(
                         log,
                         "Make error response for session {}, xid {}, opNum {}",
-                        session_id,
+                        toHexString(session_id),
                         response->xid,
                         error_request.opnum);
 

@@ -35,14 +35,13 @@ enum class OpNum : int32_t
     Multi = 14,
     Auth = 100,
     SetWatches = 101,
-    SessionID = 997, /// Special internal request
-    UpdateSession = 996, /// Special internal request
+    SessionID = 997, /// Special raftkeeper internal request
+    UpdateSession = 996, /// Special raftkeeper internal request
 };
 
 std::string toString(OpNum op_num);
 OpNum getOpNum(int32_t raw_op_num);
 
-static constexpr int32_t NURAFTKEEPER_PROTOCOL_VERSION = 0;
 static constexpr int32_t ZOOKEEPER_PROTOCOL_VERSION = 0;
 static constexpr int32_t CLIENT_HANDSHAKE_LENGTH = 44;
 static constexpr int32_t CLIENT_HANDSHAKE_LENGTH_WITH_READONLY = 45;

@@ -622,7 +622,7 @@ bool KeeperServer::requestLeader()
     return isLeader() || raft_instance->request_leadership();
 }
 
-void KeeperServer::registerForWardListener(std::function<void()> forward_listener)
+void KeeperServer::registerForWardListener(UpdateForwardListener forward_listener)
 {
     update_forward_listener = forward_listener;
 }

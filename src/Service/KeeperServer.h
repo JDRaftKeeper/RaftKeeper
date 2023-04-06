@@ -43,7 +43,8 @@ private:
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    std::function<void()> update_forward_listener;
+    using UpdateForwardListener = std::function<void()>;
+    UpdateForwardListener update_forward_listener;
 
     nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
 
@@ -122,7 +123,7 @@ public:
 
     bool requestLeader();
 
-    void registerForWardListener(std::function<void()> forward_listener);
+    void registerForWardListener(UpdateForwardListener forward_listener);
 
     int32_t myId() const
     {

@@ -31,7 +31,7 @@ function run_tests_individually()
 {
   # shellcheck disable=SC2207
   test_cases=($(ls "$tests_root_dir" | grep test_))
-  #test_cases=(test_multinode_simple/test.py::test_follower_restart)
+#  test_cases=(test_multinode_simple)
   echo "Total ${#test_cases[*]} test cases to run."
   # shellcheck disable=SC1073
   for test_case in ${test_cases[*]}

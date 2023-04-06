@@ -10,7 +10,9 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int RAFT_FORWARDING_ERROR;
-    extern const int RAFT_ERROR;
+    extern const int RAFT_IS_LEADER;
+    extern const int RAFT_NO_LEADER;
+    extern const int RAFT_FWD_NO_CONN;
 }
 
 void RequestForwarder::push(RequestForSession request_for_session)
@@ -41,11 +43,11 @@ void RequestForwarder::runSend(RunnerId runner_id)
                 if (server->isLeader())
                 {
                     LOG_WARNING(log, "A leader switch may have occurred suddenly");
-                    throw Exception("Can't forward request", ErrorCodes::RAFT_ERROR);
+                    throw Exception("Can't forward request", ErrorCodes::RAFT_IS_LEADER);
                 }
 
                 if (!server->isLeaderAlive())
-                    throw Exception("Raft no leader", ErrorCodes::RAFT_ERROR);
+                    throw Exception("Raft no leader", ErrorCodes::RAFT_NO_LEADER);
 
                 int32_t leader = server->getLeader();
                 ptr<ForwardingConnection> connection;
@@ -55,7 +57,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                 }
 
                 if (!connection)
-                    throw Exception("Not found connection for runner " + std::to_string(runner_id), ErrorCodes::RAFT_FORWARDING_ERROR);
+                    throw Exception("Not found connection for runner " + std::to_string(runner_id), ErrorCodes::RAFT_FWD_NO_CONN);
 
                 ForwardRequestPtr forward_request = ForwardRequestFactory::instance().convertFromRequest(request_for_session);
                 forward_request->send_time = clock::now();
@@ -65,7 +67,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             }
             catch (...)
             {
-                tryLogCurrentException(log, "error forward request to leader for runner " + std::to_string(runner_id));
+                tryLogCurrentException(log, "Error forward request to leader for runner " + std::to_string(runner_id));
                 request_processor->onError(
                     false,
                     nuraft::cmd_result_code::FAILED,
@@ -98,6 +100,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                         if (!session_to_expiration_time.empty())
                         {
                             ForwardRequestPtr forward_request = std::make_shared<ForwardSessionRequest>(std::move(session_to_expiration_time));
+                            forward_request->send_time = clock::now();
                             connection->send(forward_request);
                             forwarding_queues[runner_id]->push(forward_request);
                         }
@@ -134,17 +137,25 @@ void RequestForwarder::runReceive(RunnerId runner_id)
             UInt64 max_wait = session_sync_period_ms;
             clock::time_point now = clock::now();
 
+            /// Check if the earliest request has timed out. And handle all timed out requests.
             ForwardRequestPtr earliest_request;
             if (forwarding_queues[runner_id]->peek(earliest_request))
             {
                 auto earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
                 if (now > earliest_request_deadline)
                 {
+                    LOG_DEBUG(
+                        log,
+                        "Earliest request {} deadline {}, now {}",
+                        earliest_request->toString(),
+                        std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline.time_since_epoch()).count(),
+                        std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+
                     if (processTimeoutRequest(runner_id, earliest_request))
                         earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
                 }
 
-                max_wait = std::min(max_wait, static_cast<UInt64>(std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline - now).count()));
+                max_wait = std::min(max_wait, static_cast<UInt64>(std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline - now).count()) / 1000);
             }
 
             if (!server->isLeader() && server->isLeaderAlive())
@@ -191,6 +202,8 @@ void RequestForwarder::runReceive(RunnerId runner_id)
 
 bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront)
 {
+    LOG_INFO(log, "Process timeout request for runner {} queue size {}", runner_id, forwarding_queues[runner_id]->size());
+
     clock::time_point now = clock::now();
 
     auto func = [this, now](const ForwardRequestPtr & request) -> bool
@@ -200,6 +213,7 @@ bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestP
             = clock::time_point(earliest_send_time) + std::chrono::microseconds(operation_timeout.totalMicroseconds());
         if (now > earliest_operation_deadline)
         {
+            LOG_WARNING(log, "Request forward timeout, {}", request->toString());
             ForwardResponsePtr response = request->makeResponse();
             response->onError(*this); /// timeout
             return true;
@@ -349,13 +363,16 @@ void RequestForwarder::initialize(
     size_t thread_count_,
     std::shared_ptr<KeeperServer> server_,
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
-    UInt64 session_sync_period_ms_)
+    UInt64 session_sync_period_ms_,
+    UInt64 operation_timeout_ms_)
 {
     thread_count = thread_count_;
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+
+    operation_timeout = operation_timeout_ms_ * 1000;
 
     for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
     {

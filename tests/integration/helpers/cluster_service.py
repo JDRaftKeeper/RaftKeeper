@@ -569,6 +569,31 @@ class RaftKeeperInstance:
         self.exec_in_container(["bash", "-c", "kill -9 {}".format(pid)], user='root')
         time.sleep(sleep)
 
+    def pstack(self):
+        pid = self.get_process_pid("raftkeeper")
+        if pid is not None:
+            self.exec_in_container(
+                [
+                    "bash",
+                    "-c",
+                    f"gdb -batch -ex 'thread apply all bt full' -p {pid} > {os.path.join(self.path, '/var/log/raftkeeper-server/stdout.log')}",
+                ],
+                user="root",
+            )
+            # print(f"pstack command output:{output}")
+
+    def tcp_syn_retries(self):
+        output = self.exec_in_container(
+            [
+                "bash",
+                "-c",
+                f"sysctl -a | grep tcp_syn_retries",
+            ],
+            user="root",
+        )
+        print(f"tcp_syn_retries command output:{output}")
+
+
     def stop_raftkeeper(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:
             raise Exception("raftkeeper can be stopped only with stay_alive=True instance")
@@ -766,6 +791,7 @@ class RaftKeeperInstance:
         while start_time + start_wait_sec >= time.time():
             zk = None
             try:
+                print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} try connect to node {self.name}")
                 zk = self.get_fake_zk(3)
                 zk.get("/")
                 print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} node {self.name} ready")
