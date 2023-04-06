@@ -17,10 +17,10 @@ enum ForwardType : int8_t
 {
     Unknown = -1,
     Handshake = 1,
-    Sessions = 2,
-    GetSession = 3,
-    UpdateSession = 4,
-    Op = 5,
+    Sessions = 2, /// Forward content for all my sessions and timeouts
+    GetSession = 3, /// Forward for get session id request
+    UpdateSession = 4, /// Forward for session reconnect request
+    Operation = 5, /// Forward for session all write requests after the connection is established
 };
 
 std::string toString(ForwardType type);
@@ -57,11 +57,7 @@ struct ForwardResponse
 
     virtual ~ForwardResponse(){}
 
-    String toString() const
-    {
-        String res;
-        return res;
-    }
+    virtual String toString() const = 0;
 };
 
 using ForwardResponsePtr = std::shared_ptr<ForwardResponse>;
@@ -82,6 +78,12 @@ struct ForwardHandshakeResponse : public ForwardResponse
     void onError(RequestForwarder &) const override {}
 
     bool match(const ForwardRequestPtr &) const override { return false; }
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code);
+    }
 };
 
 struct ForwardSessionResponse : public ForwardResponse
@@ -95,6 +97,12 @@ struct ForwardSessionResponse : public ForwardResponse
     void onError(RequestForwarder &) const override {}
 
     bool match(const ForwardRequestPtr & forward_request) const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code);
+    }
 };
 
 
@@ -111,6 +119,12 @@ struct ForwardGetSessionResponse : public ForwardResponse
     void onError(RequestForwarder & request_forwarder) const override;
 
     bool match(const ForwardRequestPtr & forward_request) const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code) + " internal_id " + std::to_string(internal_id);
+    }
 };
 
 struct ForwardUpdateSessionResponse : public ForwardResponse
@@ -126,6 +140,12 @@ struct ForwardUpdateSessionResponse : public ForwardResponse
     void onError(RequestForwarder & request_forwarder) const override;
 
     bool match(const ForwardRequestPtr & forward_request) const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code) + " session " + std::to_string(session_id);
+    }
 };
 
 struct ForwardOpResponse : public ForwardResponse
@@ -134,7 +154,7 @@ struct ForwardOpResponse : public ForwardResponse
     int64_t xid;
     Coordination::OpNum opnum;
 
-    ForwardType forwardType() const override { return ForwardType::Op; }
+    ForwardType forwardType() const override { return ForwardType::Operation; }
 
     void readImpl(ReadBuffer &) override;
 
@@ -143,6 +163,13 @@ struct ForwardOpResponse : public ForwardResponse
     void onError(RequestForwarder & request_forwarder) const override;
 
     bool match(const ForwardRequestPtr & forward_request) const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code) + " session " + std::to_string(session_id) + " xid " + std::to_string(xid) + " opnum "
+            + Coordination::toString(opnum);
+    }
 };
 
 }

@@ -81,7 +81,7 @@ void ForwardingConnection::send(ForwardRequestPtr request)
     if (!connected)
         throw Exception("Connect to server failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
 
-    LOG_TRACE(log, "Forwarding to endpoint {}", endpoint);
+    LOG_TRACE(log, "Forwarding request {} to endpoint {}", request->toString(), endpoint);
 
     try
     {
@@ -126,7 +126,7 @@ bool ForwardingConnection::receive(ForwardResponsePtr & response)
             case UpdateSession:
                 response = std::make_shared<ForwardUpdateSessionResponse>();
                 break;
-            case Op:
+            case Operation:
                 response = std::make_shared<ForwardOpResponse>();
                 break;
             default:

@@ -9,7 +9,7 @@
         <internal_port>8103</internal_port>
         <thread_count>16</thread_count>
         <raft_settings>
-            <raft_logs_level>trace</raft_logs_level>
+            <raft_logs_level>debug</raft_logs_level>
             <nuraft_thread_size>32</nuraft_thread_size>
             <session_timeout_ms>80000</session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
@@ -20,16 +20,21 @@
                 <id>1</id>
                 <host>node1</host>
                 <forwarding_port>8102</forwarding_port>
+                <priority>1</priority>
+                <learner>true</learner>
             </server>
             <server>
                 <id>2</id>
                 <host>node2</host>
                 <forwarding_port>8102</forwarding_port>
+                <priority>1</priority>
+                <learner>true</learner>
             </server>
             <server>
                 <id>3</id>
                 <host>node3</host>
                 <forwarding_port>8102</forwarding_port>
+                <priority>3</priority>
             </server>
 
         </cluster>

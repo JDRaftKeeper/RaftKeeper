@@ -94,7 +94,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     case ForwardType::Sessions:
                     case ForwardType::GetSession:
                     case ForwardType::UpdateSession:
-                    case ForwardType::Op:
+                    case ForwardType::Operation:
                         current_package.is_done = false;
                         break;
                     default:
@@ -209,7 +209,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
 bool ForwardingConnectionHandler::isRaftRequest(ForwardType type)
 {
-    return type == ForwardType::Op || type == ForwardType::GetSession || type == ForwardType::UpdateSession;
+    return type == ForwardType::Operation || type == ForwardType::GetSession || type == ForwardType::UpdateSession;
 }
 
 void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)

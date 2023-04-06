@@ -81,4 +81,13 @@ def test_nodes_remove(started_cluster):
         assert zk_conn.exists("test_two_" + str(i)) is not None
         assert zk_conn.exists("test_two_" + str(100 + i)) is not None
 
+    # test forward connections is fine
+    for i in range(100):
+        zk_conn.create("/test_nodes_remove1_" + str(i), b"somedata")
+        zk_conn2.create("/test_nodes_remove2_" + str(i), b"somedata")
+
+    for i in range(100):
+        assert zk_conn.exists("/test_nodes_remove1_" + str(i)) is not None
+        assert zk_conn2.exists("/test_nodes_remove2_" + str(i)) is not None
+
     close_zk_clients([zk_conn, zk_conn2, zk_conn3])

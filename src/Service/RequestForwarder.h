@@ -36,7 +36,8 @@ public:
         size_t thread_count_,
         std::shared_ptr<KeeperServer> server_,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
-        UInt64 session_sync_period_ms_);
+        UInt64 session_sync_period_ms_,
+        UInt64 operation_timeout_ms_);
 
 
 public:
