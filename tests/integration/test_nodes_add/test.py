@@ -75,4 +75,15 @@ def test_nodes_add(started_cluster):
     for i in range(100):
         assert zk_conn3.exists("/test_three_" + str(i)) is not None
 
+    # test forward connections is fine
+    for i in range(100):
+        zk_conn.create("/test_nodes_add1_" + str(i), b"somedata")
+        zk_conn2.create("/test_nodes_add2_" + str(i), b"somedata")
+        zk_conn3.create("/test_nodes_add3_" + str(i), b"somedata")
+
+    for i in range(100):
+        assert zk_conn3.exists("/test_nodes_add1_" + str(i)) is not None
+        assert zk_conn3.exists("/test_nodes_add2_" + str(i)) is not None
+        assert zk_conn3.exists("/test_nodes_add3_" + str(i)) is not None
+
     close_zk_clients([zk_conn, zk_conn2, zk_conn3])

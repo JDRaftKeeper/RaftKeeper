@@ -193,8 +193,8 @@ KeeperStore::RequestForSession ForwardOpRequest::requestForSession() const
 
 ForwardRequestPtr ForwardRequestFactory::get(ForwardType type) const
 {
-    auto it = op_num_to_request.find(type);
-    if (it == op_num_to_request.end())
+    auto it = type_to_request.find(type);
+    if (it == type_to_request.end())
         throw Exception("Unknown request type " + toString(type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);
 
     return it->second();
@@ -219,14 +219,14 @@ void registerForwardRequest(ForwardRequestFactory & factory)
 
 void ForwardRequestFactory::registerRequest(ForwardType type, Creator creator)
 {
-    if (!op_num_to_request.try_emplace(type, creator).second)
+    if (!type_to_request.try_emplace(type, creator).second)
         throw Exception("Request type " + toString(type) + " already registered", ErrorCodes::UNEXPECTED_FORWARD_PACKET);
 }
 
 
 ForwardRequestFactory::ForwardRequestFactory()
 {
-    registerForwardRequest<ForwardType::Op, ForwardOpRequest>(*this);
+    registerForwardRequest<ForwardType::Operation, ForwardOpRequest>(*this);
     registerForwardRequest<ForwardType::Sessions, ForwardSessionRequest>(*this);
     registerForwardRequest<ForwardType::GetSession, ForwardGetSessionRequest>(*this);
     registerForwardRequest<ForwardType::UpdateSession, ForwardUpdateSessionRequest>(*this);

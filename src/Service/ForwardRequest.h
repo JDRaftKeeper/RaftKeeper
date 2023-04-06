@@ -31,6 +31,8 @@ struct ForwardRequest
 
     virtual KeeperStore::RequestForSession requestForSession() const = 0;
 
+    virtual String toString() const = 0;
+
     virtual ~ForwardRequest()= default;
 };
 
@@ -38,7 +40,7 @@ using ForwardRequestPtr = std::shared_ptr<ForwardRequest>;
 
 struct ForwardHandshakeRequest : public ForwardRequest
 {
-    int32_t server_id;
+    int32_t server_id; /// server_id is my id
     int32_t client_id;
 
     ForwardType forwardType() const override { return ForwardType::Handshake; }
@@ -47,9 +49,14 @@ struct ForwardHandshakeRequest : public ForwardRequest
 
     void writeImpl(WriteBuffer &) const override;
 
-    virtual ForwardResponsePtr makeResponse() const override;
+    ForwardResponsePtr makeResponse() const override;
 
     KeeperStore::RequestForSession requestForSession() const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", server_id: " + std::to_string(server_id) + ", client_id: " + std::to_string(client_id);
+    }
 };
 
 struct ForwardSessionRequest : public ForwardRequest
@@ -58,7 +65,7 @@ struct ForwardSessionRequest : public ForwardRequest
 
     ForwardSessionRequest() = default;
 
-    ForwardSessionRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
+    explicit ForwardSessionRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
         : session_expiration_time(std::forward<std::unordered_map<int64_t, int64_t>>(session_expiration_time_))
     {
     }
@@ -69,9 +76,14 @@ struct ForwardSessionRequest : public ForwardRequest
 
     void writeImpl(WriteBuffer &) const override;
 
-    virtual ForwardResponsePtr makeResponse() const override;
+    ForwardResponsePtr makeResponse() const override;
 
     KeeperStore::RequestForSession requestForSession() const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", sessions size " + std::to_string(session_expiration_time.size());
+    }
 
 };
 
@@ -85,9 +97,15 @@ struct ForwardGetSessionRequest : public ForwardRequest
 
     void writeImpl(WriteBuffer &) const override;
 
-    virtual ForwardResponsePtr makeResponse() const override;
+    ForwardResponsePtr makeResponse() const override;
 
     KeeperStore::RequestForSession requestForSession() const override;
+
+    String toString() const override
+    {
+        auto * request_ptr = dynamic_cast<ZooKeeperSessionIDRequest *>(request.get());
+        return "ForwardType: " + RK::toString(forwardType()) + ", session " + std::to_string(request_ptr->internal_id) + " xid " + std::to_string(request_ptr->session_timeout_ms);
+    }
 };
 
 struct ForwardUpdateSessionRequest : public ForwardRequest
@@ -100,9 +118,15 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
 
     void writeImpl(WriteBuffer &) const override;
 
-    virtual ForwardResponsePtr makeResponse() const override;
+    ForwardResponsePtr makeResponse() const override;
 
     KeeperStore::RequestForSession requestForSession() const override;
+
+    String toString() const override
+    {
+        auto * request_ptr = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get());
+        return "ForwardType: " + RK::toString(forwardType()) + ", session " + toHexString(request_ptr->session_id) + " xid " + std::to_string(request_ptr->xid);
+    }
 };
 
 
@@ -110,7 +134,7 @@ struct ForwardOpRequest : public ForwardRequest
 {
     KeeperStore::RequestForSession request;
 
-    ForwardType forwardType() const override { return ForwardType::Op; }
+    ForwardType forwardType() const override { return ForwardType::Operation; }
 
     void readImpl(ReadBuffer &) override;
 
@@ -119,6 +143,11 @@ struct ForwardOpRequest : public ForwardRequest
     ForwardResponsePtr makeResponse() const override;
 
     KeeperStore::RequestForSession requestForSession() const override;
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", session " + toHexString(request.session_id) + ", xid " + std::to_string(request.request->xid);
+    }
 };
 
 
@@ -162,7 +191,7 @@ public:
     void registerRequest(ForwardType op_num, Creator creator);
 
 private:
-    TypeToRequest op_num_to_request;
+    TypeToRequest type_to_request;
 
     ForwardRequestFactory();
 };

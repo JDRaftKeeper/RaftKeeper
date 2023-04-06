@@ -74,9 +74,11 @@ public:
 
     bool findAndRemove(Func func)
     {
+        std::unique_lock lock(queue_mutex);
+
         for (auto it = queue.begin(); it != queue.end();)
         {
-            if (func)
+            if (func(*it))
             {
                 queue.erase(it);
                 return true;
@@ -92,7 +94,7 @@ public:
 
         for (auto it = queue.begin(); it != queue.end();)
         {
-            if (func)
+            if (func(*it))
                 it = queue.erase(it);
             else
                 break;

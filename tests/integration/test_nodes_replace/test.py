@@ -76,6 +76,17 @@ def test_node_replace(started_cluster):
     for i in range(100):
         assert zk_conn4.exists("/test_four_" + str(i)) is not None
 
+    # test forward connections is fine
+    for i in range(100):
+        zk_conn.create("/test_node_replace1_" + str(i), b"somedata")
+        zk_conn2.create("/test_node_replace2_" + str(i), b"somedata")
+        zk_conn4.create("/test_node_replace4_" + str(i), b"somedata")
+
+    for i in range(100):
+        assert zk_conn4.exists("/test_node_replace1_" + str(i)) is not None
+        assert zk_conn4.exists("/test_node_replace2_" + str(i)) is not None
+        assert zk_conn4.exists("/test_node_replace4_" + str(i)) is not None
+
     with pytest.raises(Exception):
         # Adding and removing nodes is async operation
         for i in range(10):
