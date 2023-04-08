@@ -43,9 +43,9 @@ def get_fake_zk(node_name, timeout=30.0):
 
 def restart_cluster(zk, first_session_id):
     print("Restarting cluster, client previous session id is ", first_session_id)
-    node1.restart_raftkeeper(kill=True)
-    node2.restart_raftkeeper(kill=True)
-    node3.restart_raftkeeper(kill=True)
+    node1.restart_raftkeeper()
+    node2.restart_raftkeeper()
+    node3.restart_raftkeeper()
 
     wait_nodes()
     print("Cluster started client session id is ", zk._session_id)

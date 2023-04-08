@@ -51,9 +51,6 @@ def test_nodes_remove(started_cluster):
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_two_nodes_3.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
 
-    # sleep at least 3s, for ConfigReloader monitor config file change every 2s
-    time.sleep(3)
-
     # if node3 is leader, we should wait new leader appear.
     if node3_is_leader:
         wait_leader_switch_to_node1_or_node2()

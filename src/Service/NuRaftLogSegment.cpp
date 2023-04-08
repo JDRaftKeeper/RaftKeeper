@@ -971,7 +971,7 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
 
     {
         std::lock_guard write_lock(seg_mutex);
-        std::vector<ptr<NuRaftLogSegment>> remove_vec;
+        std::vector<ptr<NuRaftLogSegment>> to_be_removed;
 
         {
             first_log_index.store(first_index_kept, std::memory_order_release);
@@ -980,7 +980,7 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
                 ptr<NuRaftLogSegment> & segment = *it;
                 if (segment->lastIndex() < first_index_kept)
                 {
-                    remove_vec.push_back(segment);
+                    to_be_removed.push_back(segment);
                     it = segments.erase(it);
                 }
                 else
@@ -1004,7 +1004,7 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
         {
             if (open_segment->lastIndex() < first_index_kept)
             {
-                remove_vec.push_back(open_segment);
+                to_be_removed.push_back(open_segment);
                 open_segment = nullptr;
             }
             else if (open_segment->firstIndex() < first_log_index)
@@ -1015,11 +1015,10 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
             }
         }
 
-        for (auto & i : remove_vec)
+        for (auto & seg : to_be_removed)
         {
-            i->remove();
-            LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, i->getFileName());
-            i = nullptr;
+            seg->remove();
+            LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, seg->getFileName());
         }
 
         /// reset last_log_index

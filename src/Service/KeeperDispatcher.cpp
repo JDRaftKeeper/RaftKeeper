@@ -28,7 +28,7 @@ KeeperDispatcher::KeeperDispatcher()
 
 void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 {
-    setThreadName(("ReqDispatcher-" + std::to_string(thread_index)).c_str());
+    setThreadName(("ReqDspchr-" + std::to_string(thread_index)).c_str());
 
     /// Result of requests batch from previous iteration
     nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;

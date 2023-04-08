@@ -68,10 +68,6 @@ public:
         KeeperResponsesQueue & responses_queue_,
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
-    void startup();
-
-    int32 getLeader();
-
     /// need replaced with putRequestBatch
     void putRequest(const KeeperStore::RequestForSession & request);
 
@@ -112,11 +108,8 @@ public:
     /// return keeper state machine
     nuraft::ptr<NuRaftStateMachine> getKeeperStateMachine() const { return state_machine; }
 
-    /// Get a client o leader.
-    /// TODO need moved to ForwardingConnection
-    ptr<ForwardingConnection> getLeaderClient(RunnerId runner_id);
-
-    int32 getLeader();
+    /// get current leader
+    int32_t getLeader();
 
     /// Whether is leader, just invoke API from NuRaft.
     bool isLeader() const;
@@ -125,6 +118,8 @@ public:
     bool isLeaderAlive() const;
 
     bool isFollower() const;
+
+    /// observer node who does not participate in leader selection and data replication quorum
     bool isObserver() const;
 
     /// @return follower count if node is not leader return 0

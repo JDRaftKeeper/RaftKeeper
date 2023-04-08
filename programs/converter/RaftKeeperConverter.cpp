@@ -4,10 +4,10 @@
 
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ZooKeeperDataReader.h>
-#include <Common/TerminalSize.h>
-#include <Poco/ConsoleChannel.h>
 #include <Poco/AutoPtr.h>
+#include <Poco/ConsoleChannel.h>
 #include <Poco/Logger.h>
+#include <Common/TerminalSize.h>
 
 
 int mainEntryRaftKeeperConverter(int argc, char ** argv)
@@ -16,12 +16,13 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
     namespace po = boost::program_options;
 
     po::options_description desc = createOptionsDescription("Allowed options", getTerminalWidth());
-    desc.add_options()
-        ("help,h", "produce help message")
-        ("zookeeper-logs-dir", po::value<std::string>(), "Path to directory with ZooKeeper logs")
-        ("zookeeper-snapshots-dir", po::value<std::string>(), "Path to directory with ZooKeeper snapshots")
-        ("output-dir", po::value<std::string>(), "Directory to place output raftkeeper snapshot")
-    ;
+    auto opt_list = desc.add_options();
+
+    opt_list("help,h", "produce help message");
+    opt_list("zookeeper-logs-dir", po::value<std::string>(), "Path to directory with ZooKeeper logs");
+    opt_list("zookeeper-snapshots-dir", po::value<std::string>(), "Path to directory with ZooKeeper snapshots");
+    opt_list("output-dir", po::value<std::string>(), "Directory to place output raftkeeper snapshot");
+
     po::variables_map options;
     po::store(po::command_line_parser(argc, argv).options(desc).run(), options);
     Poco::AutoPtr<Poco::ConsoleChannel> console_channel(new Poco::ConsoleChannel);
@@ -31,7 +32,10 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
 
     if (options.count("help"))
     {
-        std::cout << "Usage: " << argv[0] << " --zookeeper-logs-dir /var/lib/zookeeper/data/version-2 --zookeeper-snapshots-dir /var/lib/zookeeper/data/version-2 --output-dir /var/lib/raftkeeper/raft_snapshots" << std::endl;
+        std::cout << "Usage: " << argv[0]
+                  << " --zookeeper-logs-dir /var/lib/zookeeper/data/version-2 --zookeeper-snapshots-dir /var/lib/zookeeper/data/version-2 "
+                     "--output-dir /var/lib/raftkeeper/raft_snapshots"
+                  << std::endl;
         std::cout << desc << std::endl;
         return 0;
     }
@@ -43,9 +47,9 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
         RK::deserializeKeeperStoreFromSnapshotsDir(store, options["zookeeper-snapshots-dir"].as<std::string>(), logger);
         RK::deserializeLogsAndApplyToStore(store, options["zookeeper-logs-dir"].as<std::string>(), logger);
         std::cout << "storage.container.size():" << store.container.size() << std::endl;
-        nuraft::ptr<snapshot> new_snapshot
-            ( nuraft::cs_new<snapshot>(store.zxid, 1, std::make_shared<nuraft::cluster_config>()) ); // TODO 1 ?
-        nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
+        nuraft::ptr<snapshot> new_snapshot(nuraft::cs_new<snapshot>(store.zxid, 1, std::make_shared<nuraft::cluster_config>())); // TODO 1 ?
+        nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(
+            options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
         snap_mgr->createSnapshot(*new_snapshot, store);
         std::cout << "Snapshot serialized to path:" << options["output-dir"].as<std::string>() << std::endl;
     }

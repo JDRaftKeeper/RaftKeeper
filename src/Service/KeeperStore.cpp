@@ -236,8 +236,7 @@ processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperSt
  */
 static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_request)
 {
-    return !(
-        dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+    return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
