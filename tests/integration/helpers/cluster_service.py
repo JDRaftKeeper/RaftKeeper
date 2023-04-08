@@ -1,4 +1,5 @@
 import base64
+import csv
 import datetime
 import errno
 import logging
@@ -12,7 +13,6 @@ import socket
 import subprocess
 import time
 import traceback
-import csv
 
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
@@ -632,7 +632,6 @@ class RaftKeeperInstance:
             user="root",
         )
         print(f"tcp_syn_retries command output:{output}")
-
 
     def stop_raftkeeper(self, stop_wait_sec=30, kill=False):
         if not self.stay_alive:

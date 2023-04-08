@@ -15,7 +15,6 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int RAFT_ERROR;
-    extern const int INVALID_CONFIG_PARAMETER;
 }
 
 using Poco::NumberFormatter;
@@ -48,20 +47,20 @@ KeeperServer::KeeperServer(
 }
 namespace
 {
-void initializeRaftParams(nuraft::raft_params & params, RaftSettingsPtr & raft_settings)
-{
-    params.heart_beat_interval_ = raft_settings->heart_beat_interval_ms;
-    params.election_timeout_lower_bound_ = raft_settings->election_timeout_lower_bound_ms;
-    params.election_timeout_upper_bound_ = raft_settings->election_timeout_upper_bound_ms;
-    params.reserved_log_items_ = raft_settings->reserved_log_items;
-    params.snapshot_distance_ = raft_settings->snapshot_distance;
-    params.client_req_timeout_ = raft_settings->operation_timeout_ms;
-    params.return_method_ = nuraft::raft_params::blocking;
-    params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
-    params.auto_forwarding_ = true;
-    params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
-    // TODO set max_batch_size to NuRaft
-}
+    void initializeRaftParams(nuraft::raft_params & params, RaftSettingsPtr & raft_settings)
+    {
+        params.heart_beat_interval_ = raft_settings->heart_beat_interval_ms;
+        params.election_timeout_lower_bound_ = raft_settings->election_timeout_lower_bound_ms;
+        params.election_timeout_upper_bound_ = raft_settings->election_timeout_upper_bound_ms;
+        params.reserved_log_items_ = raft_settings->reserved_log_items;
+        params.snapshot_distance_ = raft_settings->snapshot_distance;
+        params.client_req_timeout_ = raft_settings->operation_timeout_ms;
+        params.return_method_ = nuraft::raft_params::blocking;
+        params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
+        params.auto_forwarding_ = true;
+        params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
+        // TODO set max_batch_size to NuRaft
+    }
 }
 
 void KeeperServer::startup()
@@ -373,6 +372,12 @@ nuraft::cb_func::ReturnCode KeeperServer::callbackFunc(nuraft::cb_func::Type typ
         initialized_flag = true;
         initialized_cv.notify_all();
     }
+    else if (type == nuraft::cb_func::NewConfig)
+    {
+        /// Update Forward connections
+        if (update_forward_listener)
+            update_forward_listener();
+    }
     return nuraft::cb_func::ReturnCode::Ok;
 }
 
@@ -585,6 +590,11 @@ KeeperLogInfo KeeperServer::getKeeperLogInfo()
 bool KeeperServer::requestLeader()
 {
     return isLeader() || raft_instance->request_leadership();
+}
+
+void KeeperServer::registerForWardListener(UpdateForwardListener forward_listener)
+{
+    update_forward_listener = forward_listener;
 }
 
 }

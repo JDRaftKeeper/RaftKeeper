@@ -1,11 +1,12 @@
 #pragma once
 
-#include "IServer.h"
 #include "Poco/Net/ServerSocket.h"
 #include "Poco/Net/TCPServer.h"
 #include "Poco/Timestamp.h"
 #include "Poco/Util/Application.h"
 #include "Poco/Util/ServerApplication.h"
+
+#include "IServer.h"
 #include <daemon/BaseDaemon.h>
 
 using Poco::Util::Application;
@@ -31,11 +32,11 @@ public:
 protected:
     void initialize(Application & self) override;
     void uninitialize() override;
+
     int main(const std::vector<std::string> & listen_port) override;
 
 private:
     Context * global_context_ptr = nullptr;
-
 
     using CreateServerFunc = std::function<void(UInt16)>;
     void createServer(const std::string & listen_host, int port, bool listen_try, CreateServerFunc && func) const;

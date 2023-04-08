@@ -32,7 +32,7 @@ public:
     /// Returns true if shutdown signaled.
     virtual bool isCancelled() const = 0;
 
-    virtual ~IServer() {}
+    virtual ~IServer() = default;
 };
 
 }
