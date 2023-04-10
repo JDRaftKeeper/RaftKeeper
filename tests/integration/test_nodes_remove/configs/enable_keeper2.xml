@@ -1,4 +1,14 @@
 <raftkeeper>
+    <shutdown_wait_unfinished>3</shutdown_wait_unfinished>
+    <logger>
+        <level>trace</level>
+        <log>/var/log/raftkeeper-server/log.log</log>
+        <errorlog>/var/log/raftkeeper-server/log.err.log</errorlog>
+        <size>1000M</size>
+        <count>10</count>
+        <stderr>/var/log/raftkeeper-server/stderr.log</stderr>
+        <stdout>/var/log/raftkeeper-server/stdout.log</stdout>
+    </logger>
     <keeper>
         <my_id>2</my_id>
         <host>node2</host>

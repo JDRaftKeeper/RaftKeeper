@@ -157,7 +157,7 @@ void KeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKe
         session_to_response_callback.erase(session_writer);
 }
 
-void KeeperDispatcher::sendForwardResponse(int32_t server_id, int32_t client_id, ForwardResponsePtr response)
+void KeeperDispatcher::sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
     auto forward_response_writer = forward_to_response_callback.find(client_id);
@@ -166,17 +166,18 @@ void KeeperDispatcher::sendForwardResponse(int32_t server_id, int32_t client_id,
 
     LOG_TRACE(
         log,
-        "[sendForwardResponse]server_id {}, client_id {}, response {}",
-        server_id,
-        client_id,
+        "[sendForwardResponse] server_id {}, client_id {}, response {}",
+        client_id.first,
+        client_id.second,
         response->toString());
+
     forward_response_writer->second(response);
 }
 
-void KeeperDispatcher::unRegisterForward(int32_t server_id, int32_t client_id)
+void KeeperDispatcher::unRegisterForward(ForwardingClientId client_id)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
-    auto forward_response_writer = forward_to_response_callback.find({server_id, client_id});
+    auto forward_response_writer = forward_to_response_callback.find(client_id);
     if (forward_response_writer == forward_to_response_callback.end())
         return;
 

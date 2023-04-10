@@ -619,8 +619,8 @@ struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
     }
 };
 
-/// Fake internal raftkeeper response. Never received from client
-/// and never send to client.
+/// Fake internal raftkeeper request. Never received from client
+/// and never send to client. Used to get session id.
 struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
 {
     int64_t internal_id;
@@ -654,8 +654,8 @@ struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
 };
 
 
-/// Fake internal raftkeeper response. Never received from client
-/// and never send to client.
+/// Fake internal raftkeeper request. Never received from client
+/// and never send to client. Used to session reconnect.
 struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
 {
     int64_t session_id;
