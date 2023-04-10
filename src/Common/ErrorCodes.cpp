@@ -100,7 +100,8 @@
     M(112, RAFT_IS_LEADER) \
     M(113, RAFT_NO_LEADER) \
     M(114, RAFT_FWD_NO_CONN) \
-/* See END */
+    M(115, FORWARDING_DISCONNECTED) \
+    /* See END */
 
 namespace RK
 {

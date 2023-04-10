@@ -175,8 +175,8 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                     }
 
                     ForwardResponsePtr response;
-                    if (connection->receive(response))
-                        processResponse(runner_id, response);
+                    connection->receive(response);
+                    processResponse(runner_id, response);
                 }
                 else
                 {
@@ -288,6 +288,10 @@ void RequestForwarder::shutdown()
 
 void RequestForwarder::initConnections()
 {
+    std::lock_guard<std::mutex> lock(connections_mutex);
+
+    LOG_INFO(log, "Begin init connections");
+
     const Poco::Util::AbstractConfiguration & config = Context::get().getConfigRef();
     /// diff config
     Poco::Util::AbstractConfiguration::Keys keys;
@@ -325,8 +329,6 @@ void RequestForwarder::initConnections()
             continue;
         }
 
-        std::lock_guard<std::mutex> lock(connections_mutex);
-
         cluster_config_forward[id] = endpoint;
         connections.erase(id);
 
@@ -334,7 +336,7 @@ void RequestForwarder::initConnections()
         for (size_t thread_id = 0; thread_id < thread_count; ++thread_id)
         {
             std::shared_ptr<ForwardingConnection> connection = std::make_shared<ForwardingConnection>(
-                my_id, thread_id, endpoint, keeper_dispatcher->getKeeperConfigurationAndSettings()->raft_settings->operation_timeout_ms * 1000);
+                my_id, thread_id, endpoint, operation_timeout);
             connection_pool.push_back(connection);
             LOG_INFO(log, "Create ForwardingConnection for {}, {}, thread {}", id, endpoint, thread_id);
         }
@@ -348,7 +350,6 @@ void RequestForwarder::initConnections()
         if (new_it == new_cluster_config_forward.end())
         {
             /// remove
-            std::lock_guard<std::mutex> lock(connections_mutex);
             it = cluster_config_forward.erase(it);
             connections.erase(it->first);
         }

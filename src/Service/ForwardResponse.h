@@ -17,10 +17,10 @@ enum ForwardType : int8_t
 {
     Unknown = -1,
     Handshake = 1,
-    Sessions = 2, /// Forward content for all my sessions and timeouts
-    GetSession = 3, /// Forward for get session id request
-    UpdateSession = 4, /// Forward for session reconnect request
-    Operation = 5, /// Forward for session all write requests after the connection is established
+    Sessions = 2, /// all local sessions
+    GetSession = 3, /// get session id
+    UpdateSession = 4, /// session reconnect
+    Operation = 5, /// all write requests after the connection is established
 };
 
 std::string toString(ForwardType type);
@@ -54,8 +54,7 @@ struct ForwardResponse
         error_code = code;
     }
 
-
-    virtual ~ForwardResponse(){}
+    virtual ~ForwardResponse()= default;
 
     virtual String toString() const = 0;
 };

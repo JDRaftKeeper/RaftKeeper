@@ -26,7 +26,7 @@ std::string toString(ForwardType type)
         case ForwardType::UpdateSession:
             return "UpdateSession";
         case ForwardType::Operation:
-            return "Op";
+            return "Operation";
         default:
             break;
     }
@@ -69,10 +69,10 @@ void ForwardGetSessionResponse::onError([[maybe_unused]]RequestForwarder & reque
 
 bool ForwardGetSessionResponse::match(const ForwardRequestPtr & forward_request) const
 {
-    auto session_request = dynamic_cast<ForwardGetSessionRequest *>(forward_request.get());
+    auto * session_request = dynamic_cast<ForwardGetSessionRequest *>(forward_request.get());
     if (session_request)
     {
-        auto zk_session_request = dynamic_cast<ZooKeeperSessionIDRequest *>(session_request->request.get());
+        auto * zk_session_request = dynamic_cast<ZooKeeperSessionIDRequest *>(session_request->request.get());
         if (zk_session_request)
         {
             return zk_session_request->internal_id == internal_id;
@@ -101,10 +101,10 @@ void ForwardUpdateSessionResponse::onError([[maybe_unused]] RequestForwarder & r
 
 bool ForwardUpdateSessionResponse::match(const ForwardRequestPtr & forward_request) const
 {
-    auto session_request = dynamic_cast<ForwardUpdateSessionRequest *>(forward_request.get());
+    auto * session_request = dynamic_cast<ForwardUpdateSessionRequest *>(forward_request.get());
     if (session_request)
     {
-        auto zk_session_request = dynamic_cast<ZooKeeperUpdateSessionRequest *>(session_request->request.get());
+        auto * zk_session_request = dynamic_cast<ZooKeeperUpdateSessionRequest *>(session_request->request.get());
         if (zk_session_request)
         {
             return zk_session_request->session_id == session_id;
@@ -138,10 +138,10 @@ void ForwardOpResponse::onError(RequestForwarder & request_forwarder) const
 
 bool ForwardOpResponse::match(const ForwardRequestPtr & forward_request) const
 {
-    auto forward_request_ptr =  dynamic_cast<ForwardOpRequest *>(forward_request.get());
+    auto * forward_request_ptr =  dynamic_cast<ForwardOpRequest *>(forward_request.get());
     if (forward_request_ptr)
     {
-        return forward_request_ptr->request.session_id && forward_request_ptr->request.request->xid;
+        return forward_request_ptr->request.session_id == session_id && forward_request_ptr->request.request->xid == xid;
     }
 
     return false;

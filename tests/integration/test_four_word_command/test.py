@@ -77,24 +77,6 @@ def reset_node_stats(node_name=node1.name):
             client.close()
 
 
-def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
-    client = None
-    try:
-        client = get_keeper_socket(node_name)
-        client.send(cmd.encode())
-        data = client.recv(100_000)
-        data = data.decode()
-        return data
-    finally:
-        if client is not None:
-            client.close()
-
-
-def is_leader(node):
-    data = send_4lw_cmd(node.name, 'stat')
-    return 'Mode: follower' not in data
-
-
 def reset_conn_stats(node_name=node1.name):
     client = None
     try:
@@ -110,7 +92,7 @@ def test_cmd_ruok(started_cluster):
     client = None
     try:
         wait_nodes()
-        data = send_4lw_cmd(cmd='ruok')
+        data = node1.send_4lw_cmd(cmd='ruok')
         assert data == 'imok'
     finally:
         close_keeper_socket(client)
@@ -162,7 +144,7 @@ def test_cmd_mntr(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=10, get_cnt=10, set_cnt=5, ephemeral_cnt=2, watch_cnt=2, delete_cnt=2)
 
-        data = send_4lw_cmd(cmd='mntr')
+        data = node1.send_4lw_cmd(cmd='mntr')
 
         # print(data.decode())
         reader = csv.reader(data.split('\n'), delimiter='\t')
@@ -214,10 +196,10 @@ def test_cmd_srst(started_cluster):
         wait_nodes()
         clear_znodes()
 
-        data = send_4lw_cmd(cmd='srst')
+        data = node1.send_4lw_cmd(cmd='srst')
         assert data.strip() == "Server stats reset."
 
-        data = send_4lw_cmd(cmd='mntr')
+        data = node1.send_4lw_cmd(cmd='mntr')
         assert len(data) != 0
 
         # print(data)
@@ -241,7 +223,7 @@ def test_cmd_conf(started_cluster):
         wait_nodes()
         clear_znodes()
 
-        data = send_4lw_cmd(cmd='conf')
+        data = node1.send_4lw_cmd(cmd='conf')
 
         reader = csv.reader(data.split('\n'), delimiter='=')
         result = {}
@@ -293,8 +275,8 @@ def test_cmd_conf(started_cluster):
 
 def test_cmd_isro(started_cluster):
     wait_nodes()
-    assert send_4lw_cmd(node1.name, 'isro') == 'rw'
-    assert send_4lw_cmd(node2.name, 'isro') == 'ro'
+    assert node1.send_4lw_cmd('isro') == 'rw'
+    assert node2.send_4lw_cmd('isro') == 'ro'
 
 
 def test_cmd_srvr(started_cluster):
@@ -308,7 +290,7 @@ def test_cmd_srvr(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=10)
 
-        data = send_4lw_cmd(cmd='srvr')
+        data = node1.send_4lw_cmd(cmd='srvr')
 
         print("srvr output -------------------------------------")
         print(data)
@@ -344,7 +326,7 @@ def test_cmd_stat(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=10)
 
-        data = send_4lw_cmd(cmd='stat')
+        data = node1.send_4lw_cmd(cmd='stat')
 
         print("stat output -------------------------------------")
         print(data)
@@ -398,7 +380,7 @@ def test_cmd_cons(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=10)
 
-        data = send_4lw_cmd(cmd='cons')
+        data = node1.send_4lw_cmd(cmd='cons')
 
         print("cons output -------------------------------------")
         print(data)
@@ -443,12 +425,12 @@ def test_cmd_crst(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=10)
 
-        data = send_4lw_cmd(cmd='crst')
+        data = node1.send_4lw_cmd(cmd='crst')
 
         print("crst output -------------------------------------")
         print(data)
 
-        data = send_4lw_cmd(cmd='cons')
+        data = node1.send_4lw_cmd(cmd='cons')
 
         # 2 connections, 1 for 'cons' command, 1 for zk
         cons = [n for n in data.split('\n') if len(n) > 0]
@@ -490,7 +472,7 @@ def test_cmd_dump(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, ephemeral_cnt=2)
 
-        data = send_4lw_cmd(cmd='dump')
+        data = node1.send_4lw_cmd(cmd='dump')
 
         print("dump output -------------------------------------")
         print(data)
@@ -516,7 +498,7 @@ def test_cmd_wchs(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=2, watch_cnt=2)
 
-        data = send_4lw_cmd(cmd='wchs')
+        data = node1.send_4lw_cmd(cmd='wchs')
 
         print("wchs output -------------------------------------")
         print(data)
@@ -547,7 +529,7 @@ def test_cmd_wchc(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=2, watch_cnt=2)
 
-        data = send_4lw_cmd(cmd='wchc')
+        data = node1.send_4lw_cmd(cmd='wchc')
 
         print("wchc output -------------------------------------")
         print(data)
@@ -571,7 +553,7 @@ def test_cmd_wchp(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=2, watch_cnt=2)
 
-        data = send_4lw_cmd(cmd='wchp')
+        data = node1.send_4lw_cmd(cmd='wchp')
 
         print("wchp output -------------------------------------")
         print(data)
@@ -590,7 +572,7 @@ def test_cmd_csnp(started_cluster):
     try:
         wait_nodes()
         zk = get_fake_zk(node1.name, timeout=30.0)
-        data = send_4lw_cmd(cmd="csnp")
+        data = node1.send_4lw_cmd(cmd="csnp")
 
         print("csnp output -------------------------------------")
         print(data)
@@ -613,7 +595,7 @@ def test_cmd_lgif(started_cluster):
         zk = get_fake_zk(node1.name, timeout=30.0)
         do_some_action(zk, create_cnt=100)
 
-        data = send_4lw_cmd(cmd="lgif")
+        data = node1.send_4lw_cmd(cmd="lgif")
 
         print("lgif output -------------------------------------")
         print(data)
@@ -641,17 +623,17 @@ def test_cmd_rqld(started_cluster):
     wait_nodes()
     # node2 can not be leader
     for node in [node1, node3]:
-        data = send_4lw_cmd(cmd="rqld")
+        data = node.send_4lw_cmd(cmd="rqld")
         assert data == "Sent leadership request to leader."
 
         print("rqld output -------------------------------------")
         print(data)
 
-        if not is_leader(node):
+        if not node.is_leader():
             # pull wait to become leader
             retry = 0
             # TODO not a restrict way
-            while not is_leader(node) and retry < 30:
+            while not node.is_leader() and retry < 30:
                 time.sleep(1)
                 retry += 1
             if retry == 30:
@@ -659,4 +641,4 @@ def test_cmd_rqld(started_cluster):
                     node.name
                     + " does not become leader after 30s, maybe there is something wrong."
                 )
-        assert is_leader(node)
+        assert node.is_leader()

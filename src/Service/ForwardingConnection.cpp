@@ -12,6 +12,7 @@ namespace ErrorCodes
     extern const int NETWORK_ERROR;
     extern const int UNEXPECTED_FORWARD_PACKET;
     extern const int RAFT_FORWARDING_ERROR;
+    extern const int FORWARDING_DISCONNECTED;
 }
 
 void ForwardingConnection::connect()
@@ -35,8 +36,6 @@ void ForwardingConnection::connect()
 
             socket.setReceiveTimeout(socket_timeout);
             socket.setSendTimeout(socket_timeout);
-
-            /// non blocking socket
             socket.setNoDelay(true);
 
             in.emplace(socket);
@@ -49,7 +48,6 @@ void ForwardingConnection::connect()
                 throw Exception("Receive handshake failed from " + endpoint, ErrorCodes::RAFT_FORWARDING_ERROR);
 
             LOG_TRACE(log, "Received handshake from {}", endpoint);
-
 
             connected = true;
             LOG_TRACE(log, "Connect to {} success", endpoint);
@@ -101,10 +99,10 @@ bool ForwardingConnection::poll(UInt64 timeout_microseconds)
     return in->poll(timeout_microseconds);
 }
 
-bool ForwardingConnection::receive(ForwardResponsePtr & response)
+void ForwardingConnection::receive(ForwardResponsePtr & response)
 {
     if (!connected)
-        return false;
+        throw Exception("Forwarding connection disconnected", ErrorCodes::FORWARDING_DISCONNECTED);
 
     /// There are two situations,
     ///     1. Feedback not accepted.
@@ -134,7 +132,6 @@ bool ForwardingConnection::receive(ForwardResponsePtr & response)
         }
 
         response->readImpl(*in);
-        return true;
     }
     catch (Exception & e)
     {
@@ -150,9 +147,10 @@ bool ForwardingConnection::receive(ForwardResponsePtr & response)
 
 void ForwardingConnection::sendHandshake()
 {
+    LOG_TRACE(log, "send hand shake to {}, my_server_id {}, client_id {}", endpoint, my_server_id, client_id);
     Coordination::write(ForwardType::Handshake, *out);
     Coordination::write(my_server_id, *out);
-    Coordination::write(thread_id, *out);
+    Coordination::write(client_id, *out);
     out->next();
 }
 
