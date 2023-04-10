@@ -117,7 +117,7 @@ public:
 
     void registerForward(ForwardingClientId client_id, ForwardResponseCallback callback);
 
-    void unRegisterForward(int32_t server_id, int32_t client_id);
+    void unRegisterForward(ForwardingClientId client_id);
 
     void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     /// Call if we don't need any responses for this session no more (session was expired)
@@ -142,11 +142,7 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
-<<<<<<< HEAD
-    void sendAppendEntryResponse(ForwardingClientId client_id, const ForwardResponse & response);
-=======
-    void sendForwardResponse(int32_t server_id, int32_t client_id, ForwardResponsePtr response);
->>>>>>> b96b61005f... refactor forwarder
+    void sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response);
 
     /// Are we leader
     bool isLeader() const

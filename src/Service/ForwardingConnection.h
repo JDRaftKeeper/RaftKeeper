@@ -20,7 +20,7 @@ class ForwardingConnection
 public:
     ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan socket_timeout_)
         : my_server_id(server_id_)
-        , thread_id(thread_id_)
+        , client_id(thread_id_)
         , endpoint(endpoint_)
         , socket_timeout(socket_timeout_)
         , log(&Poco::Logger::get("ForwardingConnection"))
@@ -30,7 +30,7 @@ public:
     void connect();
 
     void send(ForwardRequestPtr request);
-    bool receive(ForwardResponsePtr & response);
+    void receive(ForwardResponsePtr & response);
 
     void disconnect();
 
@@ -60,7 +60,7 @@ public:
 
 private:
     int32_t my_server_id;
-    int32_t thread_id;
+    int32_t client_id;
 
     std::atomic<bool> connected{false};
 

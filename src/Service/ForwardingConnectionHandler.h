@@ -68,6 +68,7 @@ private:
     struct CurrentPackage
     {
         ForwardType protocol;
+        /// whether a request read completes
         bool is_done;
     };
     CurrentPackage current_package{Unknown, true};

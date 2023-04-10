@@ -35,8 +35,8 @@ enum class OpNum : int32_t
     Multi = 14,
     Auth = 100,
     SetWatches = 101,
-    SessionID = 997, /// Special raftkeeper internal request
-    UpdateSession = 996, /// Special raftkeeper internal request
+    SessionID = 997, /// Special raftkeeper internal request. Used to get session id.
+    UpdateSession = 996, /// Special raftkeeper internal request. Used to session reconnect.
 };
 
 std::string toString(OpNum op_num);

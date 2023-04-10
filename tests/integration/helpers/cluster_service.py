@@ -12,6 +12,7 @@ import socket
 import subprocess
 import time
 import traceback
+import csv
 
 from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
@@ -582,6 +583,45 @@ class RaftKeeperInstance:
             )
             # print(f"pstack command output:{output}")
 
+    def get_keeper_socket(self):
+        hosts = self.ip_address
+        client = socket.socket()
+        client.settimeout(10)
+        client.connect((hosts, 8101))
+        return client
+
+    def send_4lw_cmd(self, cmd='ruok'):
+        client = None
+        try:
+            client = self.get_keeper_socket()
+            client.send(cmd.encode())
+            data = client.recv(100_000)
+            data = data.decode()
+            return data
+        finally:
+            if client is not None:
+                client.close()
+
+    def is_leader(self):
+        data = self.send_4lw_cmd('stat')
+        return 'Mode: follower' not in data
+
+    def follower_count(self):
+        if not self.is_leader():
+            return -1
+
+        data = self.send_4lw_cmd('mntr')
+
+        # print(data.decode())
+        reader = csv.reader(data.split('\n'), delimiter='\t')
+        result = {}
+
+        for row in reader:
+            if len(row) != 0:
+                result[row[0]] = row[1]
+
+        return int(result["zk_followers"])
+
     def tcp_syn_retries(self):
         output = self.exec_in_container(
             [
@@ -803,6 +843,7 @@ class RaftKeeperInstance:
                     zk.stop()
                     zk.close()
 
+        self.pstack()
         print(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} {self.name} join failed")
         raise Exception(f"Can't wait node {self.name} to become ready")
 

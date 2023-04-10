@@ -1,7 +1,6 @@
 #include <Service/ForwardingConnection.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
-
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 #include <Poco/Net/NetException.h>
@@ -177,7 +176,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         if (request)
                         {
                             auto response = request->makeResponse();
-                            keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
+                            keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
                             LOG_ERROR(log, "Error processing request {}", e.displayText());
                         }
                         else
@@ -230,7 +229,7 @@ void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)
 
     auto response = request->makeResponse();
 
-    keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
+    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
 }
 
 void ForwardingConnectionHandler::processRaftRequest(ForwardRequestPtr request)
@@ -260,7 +259,7 @@ void ForwardingConnectionHandler::processHandshake()
     response->accepted = true;
     response->error_code = nuraft::OK;
 
-    keeper_dispatcher->sendForwardResponse(server_id, client_id, response);
+    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
 }
 
 void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
@@ -344,7 +343,6 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
     destroyMe();
 }
 
-
 void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
     LOG_TRACE(log, "Send response {}", response->toString());
@@ -369,7 +367,7 @@ void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 
 void ForwardingConnectionHandler::destroyMe()
 {
-    keeper_dispatcher->unRegisterForward(server_id, client_id);
+    keeper_dispatcher->unRegisterForward({server_id, client_id});
     delete this;
 }
 
