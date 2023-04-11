@@ -31,7 +31,7 @@ simply move data into RaftKeeper.
 [raft_node1]$ scp -r /path_to_transfer_tmp_data_dir/output root@raft_node3:/path_to_transfer_tmp_data_dir
 ```
 
-6.Copy data to RaftKeeper data directory.
+6.Execute on all RaftKeeper nodes: copy the data to the RaftKeeper data directory.
 ```
 [raft_node1]$ cd /path/to/RaftKeeper && sh bin/stop.sh
 [raft_node1]$ rm -rf data/* && mv /path_to_transfer_tmp_data_dir/output data/snapshot
