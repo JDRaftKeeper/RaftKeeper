@@ -1,0 +1,65 @@
+name: build-and-test-asan
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+      - "**/benchmark/**"
+      - "version.txt"
+      - "build.sh"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+      - "**/benchmark/**"
+      - "version.txt"
+      - "build.sh"
+
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  build-and-test-asan:
+    name: "ubuntu clang"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: sudo apt install -y ninja-build ccache
+
+      - name: Generate Makefile
+        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=address
+
+      - name: Build
+        working-directory: ${{github.workspace}}/build
+        run: ninja -j 10
+
+      - name: Run unit Tests
+        working-directory: ${{github.workspace}}/build
+        run: ./src/unit_tests_dbms --gtest_color=yes
+
+      - name: Run integration Tests
+        working-directory: ${{github.workspace}}/tests/integration
+        run: bash ${{github.workspace}}/.github/workflows/run-integration-test.sh ${{github.workspace}}/tests/integration
