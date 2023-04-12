@@ -92,7 +92,7 @@ public :
 
 private:
     static ptr<log_entry> make_clone(const ptr<log_entry> & entry);
-    void fsyncThread(bool & thread_started);
+    void fsyncThread();
 
     Poco::Logger * log;
     ptr<LogSegmentStore> segment_store;

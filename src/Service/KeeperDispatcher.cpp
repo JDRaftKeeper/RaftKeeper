@@ -256,7 +256,7 @@ bool KeeperDispatcher::putForwardingRequest(
 
 void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
-    LOG_DEBUG(log, "Initializing dispatcher");
+    LOG_INFO(log, "Initializing dispatcher");
     configuration_and_settings = Settings::loadFromConfig(config, true);
 
     /// TODO remove
@@ -277,12 +277,12 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
 
     try
     {
-        LOG_DEBUG(log, "Waiting server to initialize");
+        LOG_INFO(log, "Waiting server to initialize");
         server->startup();
-        LOG_DEBUG(log, "Server initialized, waiting for quorum");
+        LOG_INFO(log, "Server initialized, waiting for quorum");
 
         server->waitInit();
-        LOG_DEBUG(log, "Quorum initialized");
+        LOG_INFO(log, "Quorum initialized");
     }
     catch (...)
     {
@@ -322,7 +322,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     update_configuration_thread = ThreadFromGlobalPool([this] { updateConfigurationThread(); });
     updateConfiguration(config);
 
-    LOG_DEBUG(log, "Dispatcher initialized");
+    LOG_INFO(log, "Dispatcher initialized");
 }
 
 void KeeperDispatcher::shutdown()
@@ -335,35 +335,42 @@ void KeeperDispatcher::shutdown()
             if (shutdown_called)
                 return;
 
-            LOG_DEBUG(log, "Shutting down dispatcher");
+            LOG_INFO(log, "Shutting down dispatcher");
             shutdown_called = true;
 
-            LOG_DEBUG(log, "Shutting down update_configuration_thread");
+            LOG_INFO(log, "Shutting down update_configuration_thread");
             if (update_configuration_thread.joinable())
                 update_configuration_thread.join();
 
-            LOG_DEBUG(log, "Shutting down session_cleaner_thread");
+            LOG_INFO(log, "Shutting down session_cleaner_thread");
             if (session_cleaner_thread.joinable())
                 session_cleaner_thread.join();
 
-            LOG_DEBUG(log, "Shutting down request_thread");
-
+            LOG_INFO(log, "Shutting down request_thread");
             if (request_thread)
                 request_thread->wait();
 
-            LOG_DEBUG(log, "Shutting down responses_thread");
+            LOG_INFO(log, "Shutting down responses_thread");
             if (responses_thread)
                 responses_thread->wait();
         }
 
+        LOG_INFO(log, "Shutting down request forwarder");
         request_forwarder.shutdown();
+
+        LOG_INFO(log, "Shutting down request accumulator");
         request_accumulator.shutdown();
+
+        LOG_INFO(log, "Shutting down request processor");
         request_processor->shutdown();
 
         if (server)
+        {
+            LOG_INFO(log, "Shutting down server");
             server->shutdown();
+        }
 
-        LOG_DEBUG(log, "for unhandled requests sending session expired error to client.");
+        LOG_INFO(log, "for unhandled requests sending session expired error to client.");
         KeeperStore::RequestForSession request_for_session;
         while (requests_queue->tryPopAny(request_for_session))
         {
@@ -378,7 +385,7 @@ void KeeperDispatcher::shutdown()
         tryLogCurrentException(__PRETTY_FUNCTION__);
     }
 
-    LOG_DEBUG(log, "Dispatcher shut down");
+    LOG_INFO(log, "Dispatcher shut down");
 }
 
 void KeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
@@ -508,7 +515,7 @@ void KeeperDispatcher::updateConfigurationThread()
 
 void KeeperDispatcher::finishSession(int64_t session_id)
 {
-    LOG_TRACE(log, "finish session {}", toHexString(session_id));
+    LOG_INFO(log, "finish session {}", toHexString(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     if (session_it != session_to_response_callback.end())
@@ -517,7 +524,6 @@ void KeeperDispatcher::finishSession(int64_t session_id)
 
 bool KeeperDispatcher::isLocalSession(int64_t session_id)
 {
-    LOG_TRACE(log, "contains session {}", toHexString(session_id));
     std::lock_guard lock(session_to_response_callback_mutex);
     auto session_it = session_to_response_callback.find(session_id);
     return session_it != session_to_response_callback.end();
@@ -550,7 +556,7 @@ void KeeperDispatcher::updateConfiguration(const Poco::Util::AbstractConfigurati
     else if (diff.size() > 1)
         LOG_WARNING(log, "Configuration changed for more than one server ({}) from cluster, it's strictly not recommended", diff.size());
     else
-        LOG_DEBUG(log, "Configuration change size ({})", diff.size());
+        LOG_INFO(log, "Configuration change size ({})", diff.size());
 
     for (auto & change : diff)
     {

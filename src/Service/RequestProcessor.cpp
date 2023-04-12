@@ -248,7 +248,7 @@ void RequestProcessor::processErrorRequest()
         LOG_WARNING(log, "Has {} error requests", errors.size());
         for (auto it = errors.begin(); it != errors.end();)
         {
-            const auto & [session_id, xid] = it->first;
+            auto [session_id, xid] = it->first;
             auto & error_request = it->second;
 
             LOG_WARNING(log, "Try find error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
@@ -349,8 +349,9 @@ void RequestProcessor::processErrorRequest()
                     else
                         LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
 
-                    it = errors.erase(it);
                     LOG_ERROR(log, "Matched error request session {}, xid {} from pending requests queue", toHexString(session_id), xid);
+
+                    it = errors.erase(it);
                 }
                 else
                 {
