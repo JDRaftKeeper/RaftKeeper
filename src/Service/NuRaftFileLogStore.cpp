@@ -82,17 +82,9 @@ NuRaftFileLogStore::NuRaftFileLogStore(
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
     {
-        std::condition_variable cv;
-        std::mutex thread_mutex;
+        parallel_fsync_event = std::make_shared<Poco::Event>();
 
-        bool thread_started = false;
-        fsync_thread = ThreadFromGlobalPool([&thread_started, this] { fsyncThread(thread_started); });
-
-        std::unique_lock lock(thread_mutex);
-        while (!cv.wait_for(lock, std::chrono::milliseconds(100), [&thread_started] { return thread_started; }))
-        {
-            /// ignore
-        }
+        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
     }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
@@ -140,15 +132,12 @@ NuRaftFileLogStore::~NuRaftFileLogStore()
     shutdown();
 }
 
-void NuRaftFileLogStore::fsyncThread(bool & thread_started)
+void NuRaftFileLogStore::fsyncThread()
 {
     setThreadName("LogFsync");
 
-    parallel_fsync_event = std::make_shared<Poco::Event>();
-
     while (!shutdown_called)
     {
-        thread_started = true;
         parallel_fsync_event->wait();
 
         UInt64 last_flush_index = segment_store->flush();
