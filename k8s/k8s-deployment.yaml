@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rk-hs
+  labels:
+    app: rk
+spec:
+  ports:
+    - port: 8102     # DO NOT MODIFY
+      name: server
+    - port: 8103     # DO NOT MODIFY
+      name: raft
+  clusterIP: None
+  selector:
+    app: rk
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rk-cs
+  labels:
+    app: rk
+spec:
+  ports:
+    - port: 8101     # DO NOT MODIFY
+      name: client
+  selector:
+    app: rk
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rk-pdb
+spec:
+  selector:
+    matchLabels:
+      app: rk
+  maxUnavailable: 1
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rk
+spec:
+  selector:
+    matchLabels:
+      app: rk
+  serviceName: rk-hs
+  replicas: 3
+  updateStrategy:
+    type: RollingUpdate
+  podManagementPolicy: Parallel # OrderedReady
+  template:
+    metadata:
+      labels:
+        app: rk
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                      - rk
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: kubernetes-rafkeeper
+          imagePullPolicy: Always
+          image: raftkeeper/raftkeeper-k8s:latest
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+          ports:
+            - containerPort: 8101   # DO NOT MODIFY
+              name: client
+            - containerPort: 8102   # DO NOT MODIFY
+              name: server
+            - containerPort: 8103   # DO NOT MODIFY
+              name: raft
+          command:
+            - sh
+            - -c
+            # see https://github.com/JDRaftKeeper/RaftKeeper/blob/master/programs/server/config.xml for more parameters
+            - "bash start-raftkeeper.sh \
+                    --server 3 \
+                    --keeper.raft_settings.nuraft_thread_size 2 \
+                    --keeper.thread_count 2"
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "bash raftkeeper-ready.sh 8101"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          volumeMounts:
+            - name: datadir
+              mountPath: /opt/raftkeeper/data
+            - name: logdir
+              mountPath: /opt/raftkeeper/log
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+    - metadata:
+        name: logdir
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
