@@ -106,7 +106,7 @@ private:
     ThreadFromGlobalPool fsync_thread;
     std::atomic<bool> shutdown_called{false};
 
-    ulong disk_last_durable_index;
+    std::atomic<ulong> disk_last_durable_index;
     std::shared_ptr<Poco::Event> parallel_fsync_event;
     nuraft::ptr<nuraft::raft_server> raft_instance;
 };
