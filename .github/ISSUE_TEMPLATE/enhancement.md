@@ -7,8 +7,6 @@ assignees: ''
 
 ---
 
-If this doesn’t look right, [choose a different type.](https://github.com/JDRaftKeeper/RaftKeeper/issues/new)
-
 ### Description
 <!-- Describe the enhancement you want, including the motivation. -->
 
