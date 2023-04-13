@@ -449,7 +449,7 @@ if (ENABLE_TESTS)
     include (cmake/find/gtest.cmake)
 endif ()
 
-#include (cmake/print_flags.cmake)
+include (cmake/print_flags.cmake)
 
 if (TARGET global-group)
     message(STATUS "Has TARGET global-group")
