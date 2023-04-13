@@ -7,7 +7,7 @@ ROOT=$(cd "$ROOT"; pwd)
 mkdir -p $ROOT/build
 
 cd $ROOT/build
-cmake ..
+cmake .. -DCMAKE_BUILD_TYPE=Release
 
 PARALLEL="$(($(nproc) / 4 + 1))"
 make -j $PARALLEL
