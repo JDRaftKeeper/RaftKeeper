@@ -55,6 +55,7 @@ private:
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     using UpdateForwardListener = std::function<void()>;
+    std::mutex forward_listener_mutex;
     UpdateForwardListener update_forward_listener;
 
     /// Will registered to NuRaft and wait BecomeFresh for follower and
