@@ -1,7 +1,9 @@
 #include <functional>
 #include <iomanip>
+#include <optional>
 #include <Service/KeeperStore.h>
 #include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 #include <boost/algorithm/string.hpp>
 #include <Poco/Base64Encoder.h>
 #include <Poco/SHA1Engine.h>
@@ -45,10 +47,32 @@ static String parentPath(const String & path)
     return "/";
 }
 
+static std::vector<String> allParentPath(const String & path)
+{
+    std::vector<String> rev;
+    rev.push_back(path);
+    String current_path = path;
+    do
+    {
+        current_path = parentPath(current_path);
+        rev.push_back(current_path);
+    } while (current_path != "/");
+    return rev;
+}
+
 static std::string getBaseName(const String & path)
 {
     size_t basename_start = path.rfind('/');
     return std::string{&path[basename_start + 1], path.length() - basename_start - 1};
+}
+
+template <typename T, typename... Args>
+static std::vector<T> concatVectors(std::vector<T> & v, Args &... args)
+{
+    std::vector<T> result = v;
+    result.reserve(v.size() + (args.size() + ...));
+    (result.insert(result.end(), args.begin(), args.end()), ...);
+    return result;
 }
 
 static String base64Encode(const String & decoded)
@@ -171,72 +195,92 @@ static bool fixupACL(
     return valid_found;
 }
 
-static KeeperStore::ResponsesForSessions
-processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperStore::Watches & list_watches, Coordination::Event event_type)
+static std::pair<KeeperStore::WatcherSet, KeeperStore::ResponsesForSessions> processWatchesImpl(
+    const String & path,
+    KeeperStore::Watches & watches,
+    KeeperStore::WatcherModeManager & watcher_mode_manager,
+    std::optional<std::reference_wrapper<KeeperStore::WatcherSet>> suppressed,
+    Coordination::Event event_type)
 {
     static auto * log = &(Poco::Logger::get("KeeperStore"));
     KeeperStore::ResponsesForSessions result;
-    auto it = watches.find(path);
-    if (it != watches.end())
+    KeeperStore::WatcherSet watchers;
+
+    for (auto & current_path : allParentPath(path))
     {
+        auto it = watches.find(current_path);
+        if (it == watches.end())
+        {
+            continue;
+        }
         std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_response = std::make_shared<Coordination::ZooKeeperWatchResponse>();
-        watch_response->path = path;
+        watch_response->path = current_path;
         watch_response->xid = Coordination::WATCH_XID;
         watch_response->zxid = -1;
         watch_response->type = event_type;
         watch_response->state = Coordination::State::CONNECTED;
-        for (auto watcher_session : it->second)
+        for (auto watcher_session_it = it->second.begin(); watcher_session_it != it->second.end();)
         {
-            result.push_back(KeeperStore::ResponseForSession{watcher_session, watch_response});
-            LOG_TRACE(log, "Watch triggered path {}, watcher session {}", path, watcher_session);
-        }
-        watches.erase(it);
-    }
-
-    auto parent_path = parentPath(path);
-
-    Strings paths_to_check_for_list_watches;
-    if (event_type == Coordination::Event::CREATED)
-    {
-        paths_to_check_for_list_watches.push_back(parent_path); /// Trigger list watches for parent
-    }
-    else if (event_type == Coordination::Event::DELETED)
-    {
-        paths_to_check_for_list_watches.push_back(path); /// Trigger both list watches for this path
-        paths_to_check_for_list_watches.push_back(parent_path); /// And for parent path
-    }
-    /// CHANGED event never trigger list wathes
-
-    for (const auto & path_to_check : paths_to_check_for_list_watches)
-    {
-        it = list_watches.find(path_to_check);
-        if (it != list_watches.end())
-        {
-            std::shared_ptr<Coordination::ZooKeeperWatchResponse> watch_list_response
-                = std::make_shared<Coordination::ZooKeeperWatchResponse>();
-            watch_list_response->path = path_to_check;
-            watch_list_response->xid = Coordination::WATCH_XID;
-            watch_list_response->zxid = -1;
-            if (path_to_check == parent_path)
-                watch_list_response->type = Coordination::Event::CHILD;
+            bool triggered = false;
+            auto watcher_session = *watcher_session_it;
+            Coordination::WatcherMode mode = watcher_mode_manager.getWatcherMode(watcher_session, current_path);
+            if (current_path == path)
+            {
+                switch (mode)
+                {
+                    case Coordination::WatcherMode::STANDARD:
+                        triggered = true;
+                        watcher_session_it = it->second.erase(watcher_session_it);
+                        break;
+                    case Coordination::WatcherMode::PERSISTENT:
+                        triggered = true;
+                        watcher_session_it++;
+                        break;
+                    case Coordination::WatcherMode::PERSISTENT_RECURSIVE:
+                        if (event_type != Coordination::Event::CHILD)
+                        {
+                            triggered = true;
+                        }
+                        watcher_session_it++;
+                        break;
+                }
+            }
             else
-                watch_list_response->type = Coordination::Event::DELETED;
+            {
+                if (mode == Coordination::WatcherMode::PERSISTENT_RECURSIVE && event_type != Coordination::Event::CHILD)
+                {
+                    triggered = true;
+                }
+                watcher_session_it++;
+            }
 
-            watch_list_response->state = Coordination::State::CONNECTED;
-            for (auto watcher_session : it->second)
-                result.push_back(KeeperStore::ResponseForSession{watcher_session, watch_list_response});
-
-            list_watches.erase(it);
+            if (!triggered)
+            {
+                continue;
+            }
+            if (suppressed && suppressed->get().count(watcher_session))
+            {
+                continue;
+            }
+            watchers.insert(watcher_session);
+            result.push_back(KeeperStore::ResponseForSession{watcher_session, watch_response});
+            LOG_TRACE(log, "Watch triggered path {}, watcher session {}", current_path, watcher_session);
         }
+        if (it->second.empty())
+            watches.erase(it);
     }
-    return result;
+
+    return {watchers, result};
 }
 
 /** only write request should increase zxid
  */
 static bool shouldIncreaseZxid(const Coordination::ZooKeeperRequestPtr & zk_request)
 {
-    return !(dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+    return !(
+        dynamic_cast<Coordination::ZooKeeperGetRequest *>(zk_request.get())
+        || dynamic_cast<Coordination::ZooKeeperAddWatchRequest *>(zk_request.get())
+        || dynamic_cast<Coordination::ZooKeeperRemoveWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperSetWatchesRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperExistsRequest *>(zk_request.get())
         || dynamic_cast<Coordination::ZooKeeperAuthRequest *>(zk_request.get())
@@ -263,8 +307,10 @@ struct StoreRequest
     process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const = 0;
     virtual bool checkAuth(KeeperStore & /*storage*/, int64_t /*session_id*/) const { return true; }
 
-    virtual KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & /*watches*/, KeeperStore::Watches & /*list_watches*/) const
+    virtual KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & /*watches*/,
+        KeeperStore::Watches & /*list_watches*/,
+        KeeperStore::WatcherModeManager & /*watcher_mode_manager*/) const
     {
         return {};
     }
@@ -291,8 +337,10 @@ struct SvsKeeperStorageSetWatchesRequest final : public StoreRequest
         return {zk_request->makeResponse(), {}};
     }
 
-    KeeperStore::ResponsesForSessions
-    processWatches(KeeperStore::Watches & /*watches*/, KeeperStore::Watches & /*list_watches*/) const override
+    KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & /*watches*/,
+        KeeperStore::Watches & /*list_watches*/,
+        KeeperStore::WatcherModeManager & /*watcher_mode_manager*/) const override
     {
         return {};
     }
@@ -315,9 +363,16 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
 
-    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & watches,
+        KeeperStore::Watches & list_watches,
+        KeeperStore::WatcherModeManager & watcher_mode_manager) const override
     {
-        return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::CREATED);
+        auto [ignoredA, data_responses]
+            = processWatchesImpl(zk_request->getPath(), watches, watcher_mode_manager, std::nullopt, Coordination::Event::CREATED);
+        auto [ignoredB, list_responses] = processWatchesImpl(
+            parentPath(zk_request->getPath()), list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHILD);
+        return concatVectors(data_responses, list_responses);
     }
 
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
@@ -645,9 +700,18 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
         return {response_ptr, undo};
     }
 
-    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & watches,
+        KeeperStore::Watches & list_watches,
+        KeeperStore::WatcherModeManager & watcher_mode_manager) const override
     {
-        return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::DELETED);
+        auto [processed, data_responses]
+            = processWatchesImpl(zk_request->getPath(), watches, watcher_mode_manager, std::nullopt, Coordination::Event::DELETED);
+        auto [ignoredA, list_responses]
+            = processWatchesImpl(zk_request->getPath(), list_watches, watcher_mode_manager, processed, Coordination::Event::DELETED);
+        auto [ignoredB, parent_list_responses] = processWatchesImpl(
+            parentPath(zk_request->getPath()), list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHILD);
+        return concatVectors(data_responses, list_responses, parent_list_responses);
     }
 };
 
@@ -747,9 +811,14 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
         return {response_ptr, undo};
     }
 
-    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & watches,
+        [[maybe_unused]] KeeperStore::Watches & list_watches,
+        KeeperStore::WatcherModeManager & watcher_mode_manager) const override
     {
-        return processWatchesImpl(zk_request->getPath(), watches, list_watches, Coordination::Event::CHANGED);
+        auto [_, responses]
+            = processWatchesImpl(zk_request->getPath(), watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHANGED);
+        return responses;
     }
 };
 
@@ -1128,12 +1197,15 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
         }
     }
 
-    KeeperStore::ResponsesForSessions processWatches(KeeperStore::Watches & watches, KeeperStore::Watches & list_watches) const override
+    KeeperStore::ResponsesForSessions processWatches(
+        KeeperStore::Watches & watches,
+        KeeperStore::Watches & list_watches,
+        KeeperStore::WatcherModeManager & watcher_mode_manager) const override
     {
         KeeperStore::ResponsesForSessions result;
         for (const auto & generic_request : concrete_requests)
         {
-            auto responses = generic_request->processWatches(watches, list_watches);
+            auto responses = generic_request->processWatches(watches, list_watches, watcher_mode_manager);
             result.insert(result.end(), responses.begin(), responses.end());
         }
         return result;
@@ -1303,8 +1375,13 @@ void KeeperStore::processRequest(
                     container.erase(ephemeral_path);
 
                     std::lock_guard watch_lock(watch_mutex);
-                    auto responses = processWatchesImpl(ephemeral_path, watches, list_watches, Coordination::Event::DELETED);
-                    set_response(responses_queue, responses, ignore_response);
+                    auto [processed, data_responses]
+                        = processWatchesImpl(ephemeral_path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::DELETED);
+                    auto [ignoredA, list_responses]
+                        = processWatchesImpl(ephemeral_path, watches, watcher_mode_manager, processed, Coordination::Event::DELETED);
+                    auto [ignoredB, parent_list_responses] = processWatchesImpl(
+                        parentPath(ephemeral_path), list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHILD);
+                    set_response(responses_queue, concatVectors(data_responses, list_responses, parent_list_responses), ignore_response);
                 }
                 ephemerals.erase(it);
             }
@@ -1384,14 +1461,16 @@ void KeeperStore::processRequest(
             {
                 LOG_TRACE(
                     log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
-                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
-                set_response(responses_queue, watch_responses, ignore_response);
+                auto [ignored, data_responses]
+                    = processWatchesImpl(path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::DELETED);
+                set_response(responses_queue, data_responses, ignore_response);
             }
             else if (node->stat.mzxid > request->relative_zxid)
             {
                 LOG_TRACE(
                     log, "Trigger data_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
-                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHANGED);
+                auto [ignored, watch_responses]
+                    = processWatchesImpl(path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHANGED);
                 set_response(responses_queue, watch_responses, ignore_response);
             }
         }
@@ -1409,8 +1488,12 @@ void KeeperStore::processRequest(
             {
                 LOG_TRACE(
                     log, "Trigger exist_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
-                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CREATED);
-                set_response(responses_queue, watch_responses, ignore_response);
+                // TODO
+                auto [ignoredA, watch_responses]
+                    = processWatchesImpl(path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::CREATED);
+                auto [ignoredB, list_responses]
+                    = processWatchesImpl(path, list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::CREATED);
+                set_response(responses_queue, concatVectors(watch_responses, list_responses), ignore_response);
             }
         }
 
@@ -1427,15 +1510,25 @@ void KeeperStore::processRequest(
             {
                 LOG_TRACE(
                     log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
-                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::DELETED);
-                set_response(responses_queue, watch_responses, ignore_response);
+                // TODO
+                auto [processed, watch_responses]
+                    = processWatchesImpl(path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::DELETED);
+                auto [ignoredA, list_responses]
+                    = processWatchesImpl(path, list_watches, watcher_mode_manager, processed, Coordination::Event::DELETED);
+                auto [ignoredB, parent_list_responses]
+                    = processWatchesImpl(parentPath(path), list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::DELETED);
+                set_response(responses_queue, concatVectors(watch_responses, list_responses, parent_list_responses), ignore_response);
             }
             else if (node->stat.pzxid > request->relative_zxid)
             {
                 LOG_TRACE(
                     log, "Trigger list_watches when processing SetWatch operation for session {}, path {}", toHexString(session_id), path);
-                auto watch_responses = processWatchesImpl(path, watches, list_watches, Coordination::Event::CHILD);
-                set_response(responses_queue, watch_responses, ignore_response);
+                // TODO
+                auto [ignoredA, watch_responses]
+                    = processWatchesImpl(path, watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHILD);
+                auto [ignoredB, list_responses]
+                    = processWatchesImpl(path, list_watches, watcher_mode_manager, std::nullopt, Coordination::Event::CHILD);
+                set_response(responses_queue, concatVectors(watch_responses, list_responses), ignore_response);
             }
         }
 
@@ -1534,7 +1627,7 @@ void KeeperStore::processRequest(
                     if (response->error == Coordination::Error::ZOK)
                     {
                         /// 1. trigger watch
-                        auto watch_responses = store_request->processWatches(watches, list_watches);
+                        auto watch_responses = store_request->processWatches(watches, list_watches, watcher_mode_manager);
 
                         /// 2. push watch response to queue
                         set_response(responses_queue, watch_responses, ignore_response);
@@ -1660,8 +1753,7 @@ void KeeperStore::dumpWatches(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 {
-    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids)
-    {
+    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids) {
         for (int64_t session_id : session_ids)
         {
             buf << "\t" << toHexString(session_id) << "\n";
@@ -1684,8 +1776,7 @@ void KeeperStore::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 
 void KeeperStore::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const
 {
-    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths)
-    {
+    auto write_str_set = [&buf](const std::unordered_set<String> & ephemeral_paths) {
         for (const String & path : ephemeral_paths)
         {
             buf << "\t" << path << "\n";

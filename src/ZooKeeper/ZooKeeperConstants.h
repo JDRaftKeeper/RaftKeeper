@@ -33,8 +33,10 @@ enum class OpNum : int32_t
     List = 12,
     Check = 13,
     Multi = 14,
+    RemoveWatches = 18,
     Auth = 100,
     SetWatches = 101,
+    AddWatch = 106,
     SessionID = 997, /// Special raftkeeper internal request. Used to get session id.
     UpdateSession = 996, /// Special raftkeeper internal request. Used to session reconnect.
 };

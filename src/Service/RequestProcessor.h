@@ -61,7 +61,7 @@ private:
     size_t getRunnerId(int64_t session_id) const { return session_id % runner_count; }
 
 
-    using RequestForSessions = std::vector<KeeperStore::RequestForSession>;
+    using RequestForSessions = std::deque<KeeperStore::RequestForSession>;
 
     ThreadFromGlobalPool main_thread;
 

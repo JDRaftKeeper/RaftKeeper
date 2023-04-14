@@ -139,6 +139,54 @@ struct ZooKeeperSetWatchesResponse final : ZooKeeperResponse
     OpNum getOpNum() const override { return OpNum::SetWatches; }
 };
 
+struct ZooKeeperAddWatchRequest final : ZooKeeperRequest
+{
+    String path;
+    int32_t mode;
+
+    String getPath() const override { return {}; }
+    OpNum getOpNum() const override { return OpNum::AddWatch; }
+    void writeImpl(WriteBuffer &) const override;
+    void readImpl(ReadBuffer &) override;
+    ZooKeeperResponsePtr makeResponse() const override;
+    bool isReadRequest() const override { return true; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid);
+    }
+};
+
+struct ZooKeeperAddWatchResponse final : ZooKeeperResponse
+{
+    void readImpl(ReadBuffer &) override {}
+    void writeImpl(WriteBuffer &) const override {}
+    OpNum getOpNum() const override { return OpNum::AddWatch; }
+};
+
+struct ZooKeeperRemoveWatchesRequest final : ZooKeeperRequest
+{
+    String path;
+    int32_t type;
+
+    String getPath() const override { return {}; }
+    OpNum getOpNum() const override { return OpNum::RemoveWatches; }
+    void writeImpl(WriteBuffer &) const override;
+    void readImpl(ReadBuffer &) override;
+    ZooKeeperResponsePtr makeResponse() const override;
+    bool isReadRequest() const override { return true; }
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid);
+    }
+};
+
+struct ZooKeeperRemoveWatchesResponse final : ZooKeeperResponse
+{
+    void readImpl(ReadBuffer &) override {}
+    void writeImpl(WriteBuffer &) const override {}
+    OpNum getOpNum() const override { return OpNum::RemoveWatches; }
+};
+
 struct ZooKeeperSyncRequest final : ZooKeeperRequest
 {
     String path;

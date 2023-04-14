@@ -371,6 +371,20 @@ enum Event
     NOTWATCHING = -2
 };
 
+enum WatcherType
+{
+  CHILDRREN = 1,
+  DATA = 2,
+  ANY = 3
+};
+
+enum WatcherMode
+{
+  STANDARD = 1,
+  PERSISTENT = 2,
+  PERSISTENT_RECURSIVE = 3
+};
+
 
 class Exception : public RK::Exception
 {

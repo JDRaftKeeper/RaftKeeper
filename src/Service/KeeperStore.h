@@ -198,6 +198,90 @@ public:
         bool isForwardRequest() const { return server_id > -1 && client_id > -1; }
     };
 
+
+    using Watcher = int64_t;
+
+    class WatcherModeManager
+    {
+        struct WatcherModeKey
+        {
+            Watcher watcher;
+            std::string path;
+
+            WatcherModeKey(Watcher watcher_, String path_) : watcher(watcher_), path(path_) { }
+
+            bool operator==(const WatcherModeKey & other) const { return watcher == other.watcher && path == other.path; }
+        };
+
+        struct WatcherModeKeyHash
+        {
+            std::size_t operator()(const WatcherModeKey & k) const
+            {
+                auto h1 = std::hash<Watcher>{}(k.watcher);
+                auto h2 = std::hash<std::string>{}(k.path);
+                // Mainly for demonstration purposes, i.e. works but is overly simple
+                // In the real world, use sth. like boost.hash_combine
+                return h1 ^ h2;
+            }
+        };
+
+    public:
+        // VisibleForTesting
+        std::unordered_map<WatcherModeKey, Coordination::WatcherMode, WatcherModeKeyHash> & getWatcherModes() { return watcher_modes; }
+
+        void setWatcherMode(Watcher & watcher, std::string & path, Coordination::WatcherMode mode)
+        {
+            if (mode == Coordination::WatcherMode::STANDARD)
+            {
+                removeWatcher(watcher, path);
+            }
+            else
+            {
+                adjustRecursiveQty(watcher_modes[{watcher, path}], watcher_modes[{watcher, path}] = mode);
+            }
+        }
+
+        Coordination::WatcherMode getWatcherMode(const Watcher & watcher, const std::string & path)
+        {
+            return watcher_modes[{watcher, path}];
+        }
+
+        void removeWatcher(Watcher & watcher, std::string & path)
+        {
+            auto it = watcher_modes.find({watcher, path});
+            if (it == watcher_modes.end())
+                return;
+            adjustRecursiveQty(it->second, Coordination::WatcherMode::STANDARD);
+            watcher_modes.erase(it);
+        }
+
+        int getRecursiveQty() { return recursive_qty.load(); }
+
+    private:
+        // recursiveQty is an optimization to avoid having to walk the map every time this value is needed
+        void adjustRecursiveQty(Coordination::WatcherMode old_mode, Coordination::WatcherMode new_mode)
+        {
+            if (isRecursive(old_mode) != isRecursive(new_mode))
+            {
+                if (isRecursive(new_mode))
+                {
+                    recursive_qty++;
+                }
+                else
+                {
+                    recursive_qty--;
+                }
+            }
+        }
+
+        static bool inline isRecursive(Coordination::WatcherMode mode) { return mode == Coordination::WatcherMode::PERSISTENT_RECURSIVE; }
+        static bool inline isStandard(Coordination::WatcherMode mode) { return mode == Coordination::WatcherMode::STANDARD; }
+        static bool inline isPersistent(Coordination::WatcherMode mode) { return mode != Coordination::WatcherMode::STANDARD; }
+        //TODO: make it concurrent
+        std::unordered_map<WatcherModeKey, Coordination::WatcherMode, WatcherModeKeyHash> watcher_modes;
+        std::atomic<int64_t> recursive_qty{0};
+    };
+
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
     using RequestsForSessions = std::vector<RequestForSession>;
     using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
@@ -208,7 +292,7 @@ public:
     using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
     using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
     using SessionIDs = std::vector<int64_t>;
-
+    using WatcherSet = std::unordered_set<int64_t>;
     using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
 
     /// global session id counter, used to allocate new session id.
@@ -234,7 +318,9 @@ public:
 
     /// watches information
 
-    /// Session id -> node patch
+    /// WatcherModeManager: {session_id, path} -> watchmode
+    WatcherModeManager watcher_mode_manager;
+    /// Session id -> node watch
     SessionAndWatcher sessions_and_watchers;
     /// Node path -> session id. Watches for 'get' and 'exist' requests
     Watches watches;
