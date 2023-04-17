@@ -65,7 +65,7 @@ private:
 
     ThreadFromGlobalPool main_thread;
 
-    bool shutdown_called{false};
+    std::atomic<bool> shutdown_called{false};
 
     std::shared_ptr<KeeperServer> server;
 
