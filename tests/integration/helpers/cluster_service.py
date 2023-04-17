@@ -159,6 +159,11 @@ class RaftKeeperCluster:
         # Code coverage files will be placed in database directory
         # (affect only WITH_COVERAGE=1 build)
         env_variables['LLVM_PROFILE_FILE'] = '/var/lib/raftkeeper/server_%h_%p_%m.profraw'
+        # sanitizer options
+        env_variables['TSAN_OPTIONS'] = os.getenv('TSAN_OPTIONS')
+        env_variables['MSAN_OPTIONS'] = os.getenv('MSAN_OPTIONS')
+        env_variables['ASAN_OPTIONS'] = os.getenv('ASAN_OPTIONS')
+        env_variables['UBSAN_OPTIONS'] = os.getenv('UBSAN_OPTIONS')
 
         instance = RaftKeeperInstance(
             cluster=self,
