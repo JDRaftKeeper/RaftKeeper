@@ -85,8 +85,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "Load snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
 
     /// [ batch_start_index, batch_end_index )
-    ulong batch_start_index = 0;
-    ulong batch_end_index = 0;
+    std::atomic<ulong> batch_start_index = 0;
+    std::atomic<ulong> batch_end_index = 0;
 
     if (log_store_ != nullptr)
     {
