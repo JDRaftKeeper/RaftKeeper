@@ -162,6 +162,26 @@ if __name__ == "__main__":
         action="store_true",
         help="Whether use host net in runner, if false, will use bridge host.")
 
+    parser.add_argument(
+        "--tsan-options",
+        default="detect_deadlocks=0 halt_on_error=1 history_size=7",
+        help="TSAN_OPTIONS which will be transferred to raftkeeper instance.")
+
+    parser.add_argument(
+        "--msan-options",
+        default="abort_on_error=1",
+        help="MSAN_OPTIONS which will be transferred to raftkeeper instance.")
+
+    parser.add_argument(
+        "--asan-options",
+        default="",
+        help="ASAN_OPTIONS which will be transferred to raftkeeper instance.")
+
+    parser.add_argument(
+        "--ubsan-options",
+        default="print_stacktrace=1",
+        help="UBSAN_OPTIONS which will be transferred to raftkeeper instance.")
+
     parser.add_argument('pytest_args', nargs='*', help="args for pytest command")
 
     args = parser.parse_args()
@@ -193,10 +213,15 @@ if __name__ == "__main__":
     if sys.stdout.isatty() and sys.stdin.isatty():
         tty = "-it"
 
-    cmd = "docker run {net} {tty} --rm --name {name} --privileged --volume={bin}:/raftkeeper \
+    cmd = 'docker run {net} {tty} --rm --name {name} --privileged --volume={bin}:/raftkeeper \
         --volume={base_cfg}:/raftkeeper-config --volume={cases_dir}:/RaftKeeper/tests/integration \
         --volume={old_bin}:/raftkeeper_old \
-        --volume={name}_volume:/var/lib/docker {env_tags} -e PYTEST_OPTS='{opts}' {img} {command}".format(
+        --volume={name}_volume:/var/lib/docker {env_tags} \
+        -e TSAN_OPTIONS=\'{tsan_options}\' \
+        -e MSAN_OPTIONS=\'{msan_options}\' \
+        -e ASAN_OPTIONS=\'{asan_options}\' \
+        -e UBSAN_OPTIONS=\'{ubsan_options}\' \
+        -e PYTEST_OPTS=\'{opts}\' {img} {command}'.format(
         net=net,
         tty=tty,
         bin=args.binary,
@@ -209,7 +234,11 @@ if __name__ == "__main__":
         opts=' '.join(args.pytest_args),
         img=DIND_INTEGRATION_TESTS_IMAGE_NAME + ":" + args.docker_image_version,
         name=CONTAINER_NAME,
-        command=args.command
+        command=args.command,
+        tsan_options=args.tsan_options,
+        msan_options=args.msan_options,
+        asan_options=args.asan_options,
+        ubsan_options=args.ubsan_options
     )
 
     print(("Running pytest container as: '" + cmd + "'."))
