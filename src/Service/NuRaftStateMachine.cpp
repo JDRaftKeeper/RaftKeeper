@@ -176,7 +176,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             thread_idx,
                             batch_start_index,
                             batch_end_index);
-                        batch_start_index = batch_end_index;
+                        batch_start_index.store(batch_end_index);
                     }
                 });
         }
