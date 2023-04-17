@@ -45,7 +45,7 @@ private:
     ptr<RequestsQueue> requests_queue;
     ThreadPoolPtr request_thread;
 
-    bool shutdown_called{false};
+    std::atomic<bool> shutdown_called{false};
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     std::shared_ptr<KeeperServer> server;
