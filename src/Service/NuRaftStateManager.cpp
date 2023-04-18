@@ -99,7 +99,7 @@ void NuRaftStateManager::system_exit(const int exit_code)
 }
 
 ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
-    const Poco::Util::AbstractConfiguration & config, const std::string & config_name) const
+    const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
@@ -117,6 +117,9 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
             bool learner = config.getBool(config_name + "." + key + ".learner", false);
             int priority = config.getInt(config_name + "." + key + ".priority", 1);
             ret_cluster_config->get_servers().push_back(cs_new<srv_config>(id, 0, endpoint, "", learner, priority));
+            bool start_as_follower = config.getBool(config_name + "." + key + ".start_as_follower", false);
+            if (start_as_follower)
+                start_as_follower_servers.emplace(id);
         }
     }
 
@@ -138,7 +141,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
     return ret_cluster_config;
 }
 
-ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const
+ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config)
 {
     auto new_cluster_config = parseClusterConfig(config, "keeper.cluster");
 

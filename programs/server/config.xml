@@ -134,6 +134,7 @@
                 <!-- <learner>false</learner> -->
                 <!-- Priority of this server, default is 1 and if is 0 the server will never be leader. -->
                 <!-- <priority>1</priority> -->
+                <!-- <start_as_follower>false</start_as_follower> -->
             </server>
             <server>
                 <id>2</id>
