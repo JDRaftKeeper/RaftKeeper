@@ -24,7 +24,7 @@ public:
     {
     }
 
-    void push(RequestForSession request_for_session);
+    void push(const RequestForSession & request_for_session);
 
     bool waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch);
 

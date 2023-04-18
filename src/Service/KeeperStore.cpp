@@ -22,8 +22,8 @@ static inline void set_response(
 {
     if (!ignore_response)
     {
-        for (const auto & response : responses)
-            responses_queue.push(response);
+        for (auto && response : responses)
+            responses_queue.push(std::move(response));
     }
 }
 

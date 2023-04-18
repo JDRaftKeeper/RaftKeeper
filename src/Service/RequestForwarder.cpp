@@ -15,7 +15,7 @@ namespace ErrorCodes
     extern const int RAFT_FWD_NO_CONN;
 }
 
-void RequestForwarder::push(RequestForSession request_for_session)
+void RequestForwarder::push(const RequestForSession & request_for_session)
 {
     requests_queue->push(request_for_session);
 }
@@ -63,7 +63,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                 forward_request->send_time = clock::now();
                 connection->send(forward_request);
 
-                forwarding_queues[runner_id]->push(forward_request);
+                forwarding_queues[runner_id]->push(std::move(forward_request));
             }
             catch (...)
             {
@@ -102,7 +102,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                             ForwardRequestPtr forward_request = std::make_shared<ForwardSessionRequest>(std::move(session_to_expiration_time));
                             forward_request->send_time = clock::now();
                             connection->send(forward_request);
-                            forwarding_queues[runner_id]->push(forward_request);
+                            forwarding_queues[runner_id]->push(std::move(forward_request));
                         }
                     }
                     else
