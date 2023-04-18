@@ -80,9 +80,9 @@ private:
     ThreadSafeResponseQueuePtr responses;
 
     /// server id in client endpoint which actually is Raft ID
-    int32_t server_id;
+    int32_t server_id{-1};
     /// client id in client endpoint
-    int32_t client_id;
+    int32_t client_id{-1};
 
     bool isRaftRequest(ForwardType type);
     void processHandshake();
