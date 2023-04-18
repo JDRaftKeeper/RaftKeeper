@@ -76,7 +76,7 @@ private:
 
     UInt64 session_sync_period_ms = 500;
 
-    std::atomic<UInt8> session_sync_idx{0};
+    std::atomic<UInt64> session_sync_idx{0};
 
     Stopwatch session_sync_time_watch;
 
