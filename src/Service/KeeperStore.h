@@ -95,7 +95,7 @@ public:
         bool emplace(std::string const & key, SharedElement && value)
         {
             std::unique_lock lock(mut_);
-            auto [_, created] = map_.insert_or_assign(key, std::forward<SharedElement>(value));
+            auto [_, created] = map_.insert_or_assign(key, std::move(value));
             return created;
         }
         bool emplace(std::string const & key, const SharedElement & value)
@@ -142,7 +142,7 @@ public:
     SharedElement get(const std::string & key) { return mapFor(key).get(key); }
     SharedElement at(const std::string & key) { return mapFor(key).get(key); }
 
-    bool emplace(const std::string & key, SharedElement && value) { return mapFor(key).emplace(key, std::forward<SharedElement>(value)); }
+    bool emplace(const std::string & key, SharedElement && value) { return mapFor(key).emplace(key, std::move(value)); }
     bool emplace(const std::string & key, const SharedElement & value) { return mapFor(key).emplace(key, value); }
     size_t count(const std::string & key) { return get(key) != nullptr ? 1 : 0; }
     bool erase(std::string const & key) { return mapFor(key).erase(key); }

@@ -66,7 +66,7 @@ struct ForwardSessionRequest : public ForwardRequest
     ForwardSessionRequest() = default;
 
     explicit ForwardSessionRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
-        : session_expiration_time(std::forward<std::unordered_map<int64_t, int64_t>>(session_expiration_time_))
+        : session_expiration_time(std::move(session_expiration_time_))
     {
     }
 

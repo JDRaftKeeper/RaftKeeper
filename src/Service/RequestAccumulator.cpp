@@ -5,7 +5,7 @@
 namespace RK
 {
 
-void RequestAccumulator::push(RequestForSession request_for_session)
+void RequestAccumulator::push(const RequestForSession & request_for_session)
 {
     requests_queue->push(request_for_session);
 }
