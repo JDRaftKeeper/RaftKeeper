@@ -21,7 +21,7 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
     , keeper_dispatcher(global_context.getDispatcher())
     , responses(std::make_unique<ThreadSafeResponseQueue>())
 {
-    LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
+    LOG_INFO(log, "New connection from {}", sock.peerAddress().toString());
 
     reactor.addEventHandler(
         sock, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
@@ -104,7 +104,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (unlikely (current_package.protocol == ForwardType::Handshake))
+                if (unlikely(current_package.protocol == ForwardType::Handshake))
                 {
                     if (!req_body_buf)
                     {
@@ -143,12 +143,12 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                             if (isRaftRequest(current_package.protocol))
                             {
-                                LOG_TRACE(log, "Read request done, body length : {}", body_len);
+                                LOG_TRACE(log, "Read request done, body length {}", body_len);
                                 req_body_buf = std::make_shared<FIFOBuffer>(body_len);
                             }
                             else
                             {
-                                LOG_TRACE(log, "Read request done, session count : {}", body_len);
+                                LOG_TRACE(log, "Read request done, session count {}", body_len);
                                 req_body_buf = std::make_shared<FIFOBuffer>(body_len * 16);
                             }
                         }
