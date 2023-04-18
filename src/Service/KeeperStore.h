@@ -110,7 +110,11 @@ public:
             return map_.erase(key);
         }
 
-        size_t size() const { return map_.size(); }
+        size_t size() const
+        {
+            std::shared_lock lock(mut_);
+            return map_.size();
+        }
 
         void forEach(const Action & fn)
         {
@@ -126,7 +130,7 @@ public:
         ElementMap & getMap() { return map_; }
 
     private:
-        std::shared_mutex mut_;
+        mutable std::shared_mutex mut_;
         ElementMap map_;
     };
 
