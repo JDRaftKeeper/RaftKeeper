@@ -62,6 +62,8 @@ def test_nodes_add(started_cluster):
         zk_conn.create("/test_three_" + str(i), b"somedata")
 
     node3.stop_raftkeeper()
+    node3.exec_in_container(
+        ['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
 
     node3.copy_file_to_container(os.path.join(CONFIG_DIR, "enable_keeper_three_nodes_3.xml"),
                                  "/etc/raftkeeper-server/config.d/enable_keeper3.xml")
