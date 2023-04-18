@@ -6,7 +6,7 @@
 namespace RK
 {
 
-void RequestProcessor::push(RequestForSession request_for_session)
+void RequestProcessor::push(const RequestForSession & request_for_session)
 {
     if (!shutdown_called)
     {

@@ -24,7 +24,7 @@ public:
     {
     }
 
-    void push(RequestForSession request_for_session);
+    void push(const RequestForSession & request_for_session);
 
     void runSend(RunnerId runner_id);
 
