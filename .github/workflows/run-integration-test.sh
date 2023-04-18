@@ -22,6 +22,8 @@ function run_tests()
       do
         echo -e "\n----------------- Captured $failed_test_case $raftkeeper_instance raftkeeper-server.log -----------------"
         sudo cat "$failed_test_case"/_instances/"$raftkeeper_instance"/logs/raftkeeper-server.log
+        echo -e "\n----------------- Captured $failed_test_case $raftkeeper_instance stderr.log -----------------"
+        sudo cat "$failed_test_case"/_instances/"$raftkeeper_instance"/logs/stderr.log
       done
     done
   fi
