@@ -135,7 +135,7 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
     }
     catch (Exception & e)
     {
-        tryLogCurrentException(log, "Exception while receiving forward result " + endpoint);
+        tryLogCurrentException(log, "Exception while receiving forward result from " + endpoint);
 
         /// If it is a network exception occur, we does not know whether server process the request.
         /// But here we just make it not accepted and leave client to determine how to process.
