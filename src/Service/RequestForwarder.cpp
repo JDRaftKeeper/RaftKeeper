@@ -77,7 +77,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             }
         }
 
-        if (session_sync_idx == runner_id && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
+        if (session_sync_idx % thread_count == runner_id && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
         {
             if (!server->isLeader() && server->isLeaderAlive())
             {
@@ -120,7 +120,6 @@ void RequestForwarder::runSend(RunnerId runner_id)
 
             session_sync_time_watch.restart();
             session_sync_idx++;
-            session_sync_idx = session_sync_idx % thread_count;
         }
     }
 }
