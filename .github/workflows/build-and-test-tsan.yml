@@ -49,6 +49,10 @@ jobs:
       - name: Install tools
         run: sudo apt install -y ninja-build ccache
 
+      - name: Prepare
+        # add llvm-symbolizer to PATH
+        run: export PATH=$PATH:/usr/lib/llvm-14/bin
+
       - name: Generate Makefile
         run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=thread
 
