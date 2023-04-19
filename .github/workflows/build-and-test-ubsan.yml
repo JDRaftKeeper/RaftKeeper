@@ -1,4 +1,4 @@
-name: build-and-test-asan
+name: build-and-test-ubsan
 
 on: # yamllint disable-line rule:truthy
   push:
@@ -37,7 +37,7 @@ env:
   BUILD_TYPE: RelWithDebInfo
 
 jobs:
-  build-and-test-asan:
+  build-and-test-ubsan:
     name: "ubuntu clang"
     runs-on: ubuntu-22.04
 
@@ -47,10 +47,10 @@ jobs:
           submodules: recursive
 
       - name: Install tools
-        run: sudo apt install -y ninja-build ccache
+        run: sudo apt install -y ninja-build ccache && sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-14 300
 
       - name: Generate Makefile
-        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=address
+        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=undefined
 
       - name: Build
         working-directory: ${{github.workspace}}/build

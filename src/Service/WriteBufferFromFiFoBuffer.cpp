@@ -47,11 +47,10 @@ void WriteBufferFromFiFoBuffer::finalize()
     {
         auto new_buffer = std::make_shared<FIFOBuffer>(real_size);
         memcpy(new_buffer->begin(), buffer->begin(), real_size);
-        if (real_size > 0)
-            new_buffer->advance(real_size);
+        new_buffer->advance(real_size);
         buffer = new_buffer;
-        set(nullptr, 0);
     }
+    set(nullptr, 0);
 }
 
 std::shared_ptr<FIFOBuffer> WriteBufferFromFiFoBuffer::getBuffer()
