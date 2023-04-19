@@ -65,7 +65,7 @@ ptr<buffer> LogEntry::serializePB(LogEntryPB & msg_pb)
     std::string msg_str;
     msg_pb.SerializeToString(&msg_str);
 
-    ptr<buffer> msg_buf = buffer::alloc(sizeof(uint32_t) + msg_str.size());
+    ptr<buffer> msg_buf = buffer::alloc(sizeof(byte) + msg_str.size());
     msg_buf->put(msg_str);
 
     msg_buf->pos(0);
