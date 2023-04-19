@@ -172,7 +172,7 @@ public:
             }
             else if (_events[i].data.ptr)
             {
-                std::map<void *, Socket>::iterator it = _socketMap.find(_events[i].data.ptr);
+                std::map<SocketImpl*, Socket>::iterator it = _socketMap.find(static_cast<SocketImpl*>(_events[i].data.ptr));
                 if (it != _socketMap.end())
                 {
                     if (_events[i].events & EPOLLIN)
@@ -223,7 +223,7 @@ private:
 
     mutable Poco::FastMutex         _mutex;
     int                             _epollfd;
-    std::map<void*, Socket>         _socketMap;
+    std::map<SocketImpl*, Socket>         _socketMap;
     std::vector<struct epoll_event> _events;
     int                             _eventfd;
 };
