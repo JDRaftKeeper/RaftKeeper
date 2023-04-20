@@ -229,7 +229,7 @@ public:
         // VisibleForTesting
         std::unordered_map<WatcherModeKey, Coordination::WatcherMode, WatcherModeKeyHash> & getWatcherModes() { return watcher_modes; }
 
-        void setWatcherMode(Watcher & watcher, std::string & path, Coordination::WatcherMode mode)
+        void setWatcherMode(const Watcher & watcher, const std::string & path, const Coordination::WatcherMode mode)
         {
             if (mode == Coordination::WatcherMode::STANDARD)
             {
@@ -246,7 +246,7 @@ public:
             return watcher_modes[{watcher, path}];
         }
 
-        void removeWatcher(Watcher & watcher, std::string & path)
+        void removeWatcher(const Watcher & watcher, const std::string & path)
         {
             auto it = watcher_modes.find({watcher, path});
             if (it == watcher_modes.end())
@@ -254,6 +254,7 @@ public:
             adjustRecursiveQty(it->second, Coordination::WatcherMode::STANDARD);
             watcher_modes.erase(it);
         }
+        void clear() { watcher_modes.clear(); }
 
         int getRecursiveQty() { return recursive_qty.load(); }
 
@@ -318,8 +319,10 @@ public:
 
     /// watches information
 
-    /// WatcherModeManager: {session_id, path} -> watchmode
-    WatcherModeManager watcher_mode_manager;
+    /// WatcherModeManager: {session_id, path} -> watchmode, for data
+    WatcherModeManager data_watcher_mode_manager;
+    /// WatcherModeManager: {session_id, path} -> watchmode, for list
+    WatcherModeManager list_watcher_mode_manager;
     /// Session id -> node watch
     SessionAndWatcher sessions_and_watchers;
     /// Node path -> session id. Watches for 'get' and 'exist' requests
