@@ -1447,6 +1447,38 @@ void KeeperStore::processRequest(
         response->zxid = zxid;
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
+    else if (zk_request->getOpNum() == Coordination::OpNum::AddWatch)
+    {
+        StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
+        response->xid = zk_request->xid;
+        /// SetWatches not increase zxid
+        response->zxid = zxid;
+
+        auto * request = dynamic_cast<Coordination::ZooKeeperAddWatchRequest *>(zk_request.get());
+
+        Coordination::WatcherMode mode = Coordination::WatcherMode::STANDARD;
+        switch (request->mode)
+        {
+            case Coordination::WatcherMode::STANDARD:
+                break;
+            case Coordination::WatcherMode::PERSISTENT:
+                mode = Coordination::WatcherMode::PERSISTENT;
+                break;
+            case Coordination::WatcherMode::PERSISTENT_RECURSIVE:
+                mode = Coordination::WatcherMode::PERSISTENT_RECURSIVE;
+                break;
+            default:
+                response->error = Coordination::Error::ZBADARGUMENTS;
+        }
+        if (response->error == Coordination::Error::ZOK)
+        {
+            std::lock_guard lock(watch_mutex);
+            data_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
+            list_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
+        }
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+    }
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
