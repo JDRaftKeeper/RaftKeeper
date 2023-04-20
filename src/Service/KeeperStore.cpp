@@ -1479,6 +1479,20 @@ void KeeperStore::processRequest(
         }
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
+    else if (zk_request->getOpNum() == Coordination::OpNum::RemoveWatches)
+    {
+        StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
+        response->xid = zk_request->xid;
+        /// SetWatches not increase zxid
+        response->zxid = zxid;
+
+        auto * request = dynamic_cast<Coordination::ZooKeeperRemoveWatchesRequest *>(zk_request.get());
+
+        Coordination::WatcherType type = Coordination::WatcherType::DATA;
+
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+    }
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
