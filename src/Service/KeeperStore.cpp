@@ -224,6 +224,8 @@ static std::pair<KeeperStore::WatcherSet, KeeperStore::ResponsesForSessions> pro
             bool triggered = false;
             auto watcher_session = *watcher_session_it;
             Coordination::WatcherMode mode = watcher_mode_manager.getWatcherMode(watcher_session, current_path);
+
+            LOG_TRACE(log, "Processing Watch path {}, watcher session {}, mode {}", current_path, watcher_session, mode);
             if (current_path == path)
             {
                 switch (mode)
@@ -1610,6 +1612,7 @@ void KeeperStore::processRequest(
                         = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
                         ? data_watcher_mode_manager
                         : list_watcher_mode_manager;
+
                     watches_type[zk_request->getPath()].emplace_back(session_id);
                     sessions_and_watchers[session_id].emplace(zk_request->getPath());
                     watch_mode_manager_type.setWatcherMode(session_id, zk_request->getPath(), Coordination::WatcherMode::STANDARD);

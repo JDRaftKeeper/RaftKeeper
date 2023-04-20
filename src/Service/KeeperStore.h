@@ -243,7 +243,10 @@ public:
 
         Coordination::WatcherMode getWatcherMode(const Watcher & watcher, const std::string & path)
         {
-            return watcher_modes[{watcher, path}];
+            auto it = watcher_modes.find({watcher, path});
+            if (it == watcher_modes.end())
+                return Coordination::STANDARD;
+            return it->second;
         }
 
         void removeWatcher(const Watcher & watcher, const std::string & path)
@@ -254,6 +257,7 @@ public:
             adjustRecursiveQty(it->second, Coordination::WatcherMode::STANDARD);
             watcher_modes.erase(it);
         }
+
         void clear() { watcher_modes.clear(); }
 
         int getRecursiveQty() { return recursive_qty.load(); }
