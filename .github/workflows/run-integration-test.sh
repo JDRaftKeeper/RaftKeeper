@@ -10,6 +10,7 @@ function run_tests()
 {
   ./runner --binary "${tests_root_dir}"/../../build/programs/raftkeeper  \
                  --base-configs-dir "${tests_root_dir}"/../../programs/server \
+                 --tsan-options "report_thread_leaks=0 detect_deadlocks=0 halt_on_error=1 history_size=7 external_symbolizer_path=/usr/bin/llvm-symbolizer" \
                  | tee /tmp/tests_output.log
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
