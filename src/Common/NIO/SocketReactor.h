@@ -222,7 +222,7 @@ private:
     NotificationPtr   _pIdleNotification;
     NotificationPtr   _pShutdownNotification;
     MutexType         _mutex;
-    Poco::Thread*     _pThread;
+    std::atomic<Poco::Thread*> _pThread;
 
     friend class SocketNotifier;
 };

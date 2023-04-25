@@ -131,9 +131,10 @@ void SocketReactor::stop()
 /// Wake up reactor, if invoker running in event loop thread there is no need to wake up.
 void SocketReactor::wakeUp()
 {
-    if (_pThread && _pThread != Thread::current())
+    auto * copy = _pThread.load(); /// to avoid data race
+    if (copy && copy != Thread::current())
     {
-        _pThread->wakeUp();
+        copy->wakeUp();
         _pollSet.wakeUp();
     }
 }
