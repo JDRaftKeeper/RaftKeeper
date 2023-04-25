@@ -23,12 +23,15 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
 {
     LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
 
-    reactor.addEventHandler(
-        sock, NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable));
-    reactor.addEventHandler(
-        sock, NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError));
-    reactor.addEventHandler(
-        sock, NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown));
+    auto read_handler = NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable);
+    auto error_handler = NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError);
+    auto shutdown_handler = NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown);
+
+    std::vector<Poco::AbstractObserver *> handlers;
+    handlers.push_back(&read_handler);
+    handlers.push_back(&error_handler);
+    handlers.push_back(&shutdown_handler);
+    reactor.addEventHandlers(sock, handlers);
 }
 
 ForwardingConnectionHandler::~ForwardingConnectionHandler()
