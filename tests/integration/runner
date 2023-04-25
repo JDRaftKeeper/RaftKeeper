@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--tsan-options",
-        default="report_thread_leaks=0 detect_deadlocks=0 halt_on_error=1 history_size=7",
+        default="halt_on_error=1 history_size=7",
         help="TSAN_OPTIONS which will be transferred to raftkeeper instance.")
 
     parser.add_argument(
