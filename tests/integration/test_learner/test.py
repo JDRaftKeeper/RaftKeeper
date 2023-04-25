@@ -211,8 +211,8 @@ def test_stop_learner(started_cluster):
         node3_zk.create("/test_stop_learner_ephemeral", b"", ephemeral=True)
 
         # make sure node1_zk and node2_zk has /test_stop_learner_ephemeral
-        node1_zk.sync()
-        node2_zk.sync()
+        node1_zk.sync("/test_stop_learner_ephemeral")
+        node2_zk.sync("/test_stop_learner_ephemeral")
 
         assert node1_zk.exists("/test_stop_learner_ephemeral") is not None
         assert node2_zk.exists("/test_stop_learner_ephemeral") is not None

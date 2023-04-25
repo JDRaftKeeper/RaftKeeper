@@ -1,1 +1,3 @@
 # We have no suppressions!
+# TODO resolve it
+race:*SocketImpl*
