@@ -133,6 +133,13 @@ public:
     /// Returns the timeout.
 
     void addEventHandler(const Socket& socket, const Poco::AbstractObserver& observer);
+    /// Deprecated for it has TSAN heap-use-after-free risk.
+    /// Acceptor thread wants to add 3 events(read, error, shutdown),
+    /// when the first event `read` added, the handler thread can trigger
+    /// read event if the socket is not available, handler thread may destroy
+    /// itself and the socket, so heap-use-after-free happens.
+
+    void addEventHandlers(const Socket& socket, const std::vector<Poco::AbstractObserver *>& observers);
     /// Registers an event handler with the SocketReactor.
     ///
     /// Usage:
