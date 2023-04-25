@@ -10,8 +10,8 @@ sudo apt install -y ninja-build ccache
 #chmod 755 llvm.sh && sudo ./llvm.sh ${llvm_version} all
 
 # make clang as default compiler
-#sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-${llvm_version} ${llvm_priority}
-#sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-${llvm_version} ${llvm_priority}
+sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-${llvm_version} ${llvm_priority}
+sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-${llvm_version} ${llvm_priority}
 sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${llvm_version} ${llvm_priority}
 sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-${llvm_version} ${llvm_priority}
 
@@ -24,5 +24,5 @@ if [ -f $complier_rt ]; then
   echo "exist complier_rt: ${complier_rt}"
 fi
 
-#echo "llvm-symbolizer version:"
-#llvm-symbolizer --version
+echo "llvm-symbolizer version:"
+llvm-symbolizer --version

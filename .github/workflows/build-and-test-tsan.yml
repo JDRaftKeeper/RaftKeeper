@@ -62,4 +62,4 @@ jobs:
 
       - name: Run integration Tests
         working-directory: ${{github.workspace}}/tests/integration
-        run: bash ${{github.workspace}}/.github/workflows/run-integration-test.sh ${{github.workspace}}/tests/integration --tsan-options "external_symbolizer_path=/usr/bin/llvm-symbolizer;report_thread_leaks=0;detect_deadlocks=0;halt_on_error=1;history_size=7"
+        run: bash ${{github.workspace}}/.github/workflows/run-integration-test.sh ${{github.workspace}}/tests/integration --tsan-options "report_thread_leaks=0:detect_deadlocks=0:halt_on_error=1:history_size=7:external_symbolizer_path=/usr/bin/llvm-symbolizer"
