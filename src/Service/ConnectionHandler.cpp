@@ -72,9 +72,15 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
     registerConnection(this);
 
-    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
-    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
-    reactor.addEventHandler(sock, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
+    auto read_handler = NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
+    auto error_handler = NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError);
+    auto shutdown_handler = NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown);
+
+    std::vector<Poco::AbstractObserver *> handlers;
+    handlers.push_back(&read_handler);
+    handlers.push_back(&error_handler);
+    handlers.push_back(&shutdown_handler);
+    reactor.addEventHandlers(sock, handlers);
 }
 
 ConnectionHandler::~ConnectionHandler()

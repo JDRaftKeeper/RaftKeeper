@@ -164,6 +164,22 @@ void SocketReactor::addEventHandler(const Socket& socket, const Poco::AbstractOb
     if (mode) _pollSet.add(socket, mode);
 }
 
+void SocketReactor::addEventHandlers(const Socket& socket, const std::vector<Poco::AbstractObserver *>& observers)
+{
+    NotifierPtr pNotifier = getNotifier(socket, true);
+
+    for (auto * observer : observers)
+    {
+        if (!pNotifier->hasObserver(*observer)) pNotifier->addObserver(this, *observer);
+
+        int mode = 0;
+        if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
+        if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
+        if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
+        if (mode) _pollSet.add(socket, mode);
+    }
+}
+
 
 bool SocketReactor::hasEventHandler(const Socket& socket, const Poco::AbstractObserver& observer)
 {
