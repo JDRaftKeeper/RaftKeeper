@@ -245,7 +245,7 @@ public:
         {
             auto it = watcher_modes.find({watcher, path});
             if (it == watcher_modes.end())
-                return Coordination::STANDARD;
+                return Coordination::WatcherMode::STANDARD;
             return it->second;
         }
 

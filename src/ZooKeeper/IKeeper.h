@@ -3,10 +3,10 @@
 #include "Common/Exception.h"
 #include <common/types.h>
 
-#include <vector>
-#include <memory>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <vector>
 
 /** Generic interface for ZooKeeper-like services.
   * Possible examples are:
@@ -35,11 +35,7 @@ struct ACL
     String scheme;
     String id;
 
-    bool operator== (const ACL & other) const
-    {
-        return permissions == other.permissions && scheme == other.scheme && id == other.id;
-    }
-
+    bool operator==(const ACL & other) const { return permissions == other.permissions && scheme == other.scheme && id == other.id; }
 };
 
 using ACLs = std::vector<ACL>;
@@ -69,10 +65,7 @@ struct Stat
     int32_t numChildren;
     int64_t pzxid;
 
-    bool operator== (const Stat & other) const
-    {
-        return dataLength == other.dataLength && numChildren == other.numChildren;
-    }
+    bool operator==(const Stat & other) const { return dataLength == other.dataLength && numChildren == other.numChildren; }
 
     String toString() const
     {
@@ -84,10 +77,9 @@ struct Stat
 
     String toStringWithOutTime() const
     {
-        return std::to_string(czxid) + ", " + std::to_string(mzxid) + ", "
-               + std::to_string(version) + ", " + std::to_string(cversion) + ", " + std::to_string(aversion) + ", "
-               + std::to_string(ephemeralOwner) + ", " + std::to_string(dataLength) + ", " + std::to_string(numChildren) + ", "
-               + std::to_string(pzxid);
+        return std::to_string(czxid) + ", " + std::to_string(mzxid) + ", " + std::to_string(version) + ", " + std::to_string(cversion)
+            + ", " + std::to_string(aversion) + ", " + std::to_string(ephemeralOwner) + ", " + std::to_string(dataLength) + ", "
+            + std::to_string(numChildren) + ", " + std::to_string(pzxid);
     }
 };
 
@@ -103,13 +95,13 @@ enum class Error : int32_t
     ZSYSTEMERROR = -1,
 
     ZRUNTIMEINCONSISTENCY = -2, /// A runtime inconsistency was found
-    ZDATAINCONSISTENCY = -3,    /// A data inconsistency was found
-    ZCONNECTIONLOSS = -4,       /// Connection to the server has been lost
-    ZMARSHALLINGERROR = -5,     /// Error while marshalling or unmarshalling data
-    ZUNIMPLEMENTED = -6,        /// Operation is unimplemented
-    ZOPERATIONTIMEOUT = -7,     /// Operation timeout
-    ZBADARGUMENTS = -8,         /// Invalid arguments
-    ZINVALIDSTATE = -9,         /// Invliad zhandle state
+    ZDATAINCONSISTENCY = -3, /// A data inconsistency was found
+    ZCONNECTIONLOSS = -4, /// Connection to the server has been lost
+    ZMARSHALLINGERROR = -5, /// Error while marshalling or unmarshalling data
+    ZUNIMPLEMENTED = -6, /// Operation is unimplemented
+    ZOPERATIONTIMEOUT = -7, /// Operation timeout
+    ZBADARGUMENTS = -8, /// Invalid arguments
+    ZINVALIDSTATE = -9, /// Invliad zhandle state
 
     /** API errors.
         * This is never thrown by the server, it shouldn't be used other than
@@ -118,19 +110,19 @@ enum class Error : int32_t
         */
     ZAPIERROR = -100,
 
-    ZNONODE = -101,                     /// Node does not exist
-    ZNOAUTH = -102,                     /// Not authenticated
-    ZBADVERSION = -103,                 /// Version conflict
-    ZNOCHILDRENFOREPHEMERALS = -108,    /// Ephemeral nodes may not have children
-    ZNODEEXISTS = -110,                 /// The node already exists
-    ZNOTEMPTY = -111,                   /// The node has children
-    ZSESSIONEXPIRED = -112,             /// The session has been expired by the server
-    ZINVALIDCALLBACK = -113,            /// Invalid callback specified
-    ZINVALIDACL = -114,                 /// Invalid ACL specified
-    ZAUTHFAILED = -115,                 /// Client authentication failed
-    ZCLOSING = -116,                    /// ZooKeeper is closing
-    ZNOTHING = -117,                    /// (not error) no server responses to process
-    ZSESSIONMOVED = -118                /// Session moved to another server, so operation is ignored
+    ZNONODE = -101, /// Node does not exist
+    ZNOAUTH = -102, /// Not authenticated
+    ZBADVERSION = -103, /// Version conflict
+    ZNOCHILDRENFOREPHEMERALS = -108, /// Ephemeral nodes may not have children
+    ZNODEEXISTS = -110, /// The node already exists
+    ZNOTEMPTY = -111, /// The node has children
+    ZSESSIONEXPIRED = -112, /// The session has been expired by the server
+    ZINVALIDCALLBACK = -113, /// Invalid callback specified
+    ZINVALIDACL = -114, /// Invalid ACL specified
+    ZAUTHFAILED = -115, /// Client authentication failed
+    ZCLOSING = -116, /// ZooKeeper is closing
+    ZNOTHING = -117, /// (not error) no server responses to process
+    ZSESSIONMOVED = -118 /// Session moved to another server, so operation is ignored
 };
 
 /// Network errors and similar. You should reinitialize ZooKeeper session in case of these errors
@@ -153,7 +145,7 @@ struct Request
     Request & operator=(const Request &) = default;
     virtual ~Request() = default;
     virtual String getPath() const = 0;
-    virtual void addRootPath(const String & /* root_path */) {}
+    virtual void addRootPath(const String & /* root_path */) { }
     virtual String toString() const { return {}; }
 };
 
@@ -169,12 +161,9 @@ struct Response
     Response(const Response &) = default;
     Response & operator=(const Response &) = default;
     virtual ~Response() = default;
-    virtual void removeRootPath(const String & /* root_path */) {}
+    virtual void removeRootPath(const String & /* root_path */) { }
 
-    virtual String toString() const
-    {
-        return "error " + String(errorMessage(error));
-    }
+    virtual String toString() const { return "error " + String(errorMessage(error)); }
 };
 
 struct WatchResponse : virtual Response
@@ -371,18 +360,18 @@ enum Event
     NOTWATCHING = -2
 };
 
-enum WatcherType
+enum class WatcherType : int32_t
 {
-  CHILDRREN = 1,
-  DATA = 2,
-  ANY = 3
+    CHILDRREN = 1,
+    DATA = 2,
+    ANY = 3
 };
 
-enum WatcherMode
+enum class WatcherMode : int32_t
 {
-  STANDARD = 1,
-  PERSISTENT = 2,
-  PERSISTENT_RECURSIVE = 3
+    STANDARD = 1,
+    PERSISTENT = 2,
+    PERSISTENT_RECURSIVE = 3
 };
 
 
@@ -437,56 +426,28 @@ public:
     /// If an exception is thrown inside the callback, the session will expire,
     ///  and all other callbacks will be called with "Session expired" error.
 
-    virtual void create(
-        const String & path,
-        const String & data,
-        bool is_ephemeral,
-        bool is_sequential,
-        const ACLs & acls,
-        CreateCallback callback) = 0;
+    virtual void
+    create(const String & path, const String & data, bool is_ephemeral, bool is_sequential, const ACLs & acls, CreateCallback callback)
+        = 0;
 
-    virtual void remove(
-        const String & path,
-        int32_t version,
-        RemoveCallback callback) = 0;
+    virtual void remove(const String & path, int32_t version, RemoveCallback callback) = 0;
 
-    virtual void exists(
-        const String & path,
-        ExistsCallback callback,
-        WatchCallback watch) = 0;
+    virtual void exists(const String & path, ExistsCallback callback, WatchCallback watch) = 0;
 
-    virtual void get(
-        const String & path,
-        GetCallback callback,
-        WatchCallback watch) = 0;
+    virtual void get(const String & path, GetCallback callback, WatchCallback watch) = 0;
 
-    virtual void set(
-        const String & path,
-        const String & data,
-        int32_t version,
-        SetCallback callback) = 0;
+    virtual void set(const String & path, const String & data, int32_t version, SetCallback callback) = 0;
 
-    virtual void list(
-        const String & path,
-        ListCallback callback,
-        WatchCallback watch) = 0;
+    virtual void list(const String & path, ListCallback callback, WatchCallback watch) = 0;
 
-    virtual void check(
-        const String & path,
-        int32_t version,
-        CheckCallback callback) = 0;
+    virtual void check(const String & path, int32_t version, CheckCallback callback) = 0;
 
-    virtual void multi(
-        const Requests & requests,
-        MultiCallback callback) = 0;
+    virtual void multi(const Requests & requests, MultiCallback callback) = 0;
 
     /// Expire session and finish all pending requests
     virtual void finalize() = 0;
 
-    virtual void watchCallBack(const WatchResponse &)
-    {
-        throw Exception("Unspport watchCallBack methed.", Error::ZSYSTEMERROR);
-    }
+    virtual void watchCallBack(const WatchResponse &) { throw Exception("Unspport watchCallBack methed.", Error::ZSYSTEMERROR); }
 };
 
 }

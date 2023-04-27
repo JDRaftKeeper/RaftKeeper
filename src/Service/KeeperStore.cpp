@@ -7,6 +7,7 @@
 #include <boost/algorithm/string.hpp>
 #include <Poco/Base64Encoder.h>
 #include <Poco/SHA1Engine.h>
+#include "common/logger_useful.h"
 #include <Common/StringUtils.h>
 
 namespace RK
@@ -206,7 +207,10 @@ static std::pair<KeeperStore::WatcherSet, KeeperStore::ResponsesForSessions> pro
     KeeperStore::ResponsesForSessions result;
     KeeperStore::WatcherSet watchers;
 
-    for (auto & current_path : allParentPath(path))
+    // if there's no PERSISTENT_RECURSIVE wather, there's no need to check parent path
+    auto parent_paths = watcher_mode_manager.getRecursiveQty() == 0 ? std::vector<String>{path} : allParentPath(path);
+
+    for (auto & current_path : parent_paths)
     {
         auto it = watches.find(current_path);
         if (it == watches.end())
@@ -240,9 +244,7 @@ static std::pair<KeeperStore::WatcherSet, KeeperStore::ResponsesForSessions> pro
                         break;
                     case Coordination::WatcherMode::PERSISTENT_RECURSIVE:
                         if (event_type != Coordination::Event::CHILD)
-                        {
                             triggered = true;
-                        }
                         watcher_session_it++;
                         break;
                 }
@@ -1457,26 +1459,21 @@ void KeeperStore::processRequest(
 
         auto * request = dynamic_cast<Coordination::ZooKeeperAddWatchRequest *>(zk_request.get());
 
-        Coordination::WatcherMode mode = Coordination::WatcherMode::STANDARD;
-        switch (request->mode)
+        if (request->mode >= 1 && request->mode <= 3)
         {
-            case Coordination::WatcherMode::STANDARD:
-                break;
-            case Coordination::WatcherMode::PERSISTENT:
-                mode = Coordination::WatcherMode::PERSISTENT;
-                break;
-            case Coordination::WatcherMode::PERSISTENT_RECURSIVE:
-                mode = Coordination::WatcherMode::PERSISTENT_RECURSIVE;
-                break;
-            default:
-                response->error = Coordination::Error::ZBADARGUMENTS;
+            Coordination::WatcherMode mode = static_cast<Coordination::WatcherMode>(request->mode);
+            if (mode != Coordination::WatcherMode::STANDARD)
+            {
+                std::lock_guard lock(watch_mutex);
+                data_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
+                list_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
+            }
         }
-        if (response->error == Coordination::Error::ZOK)
+        else
         {
-            std::lock_guard lock(watch_mutex);
-            data_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
-            list_watcher_mode_manager.setWatcherMode(session_id, request->path, mode);
+            response->error = Coordination::Error::ZBADARGUMENTS;
         }
+
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::RemoveWatches)
@@ -1489,7 +1486,75 @@ void KeeperStore::processRequest(
 
         auto * request = dynamic_cast<Coordination::ZooKeeperRemoveWatchesRequest *>(zk_request.get());
 
-        Coordination::WatcherType type = Coordination::WatcherType::DATA;
+        auto func_remove_watch = [&request, &session_id, this](Watches & w) {
+            bool removed = false;
+            {
+                auto it = sessions_and_watchers.find(session_id);
+                if (it != sessions_and_watchers.end())
+                {
+                    if (it->second.count(request->path))
+                    {
+                        removed = true;
+                        it->second.erase(request->path);
+                        if (it->second.empty())
+                            sessions_and_watchers.erase(it);
+                    }
+                }
+            }
+
+            if (removed)
+            {
+                auto it = w.find(request->path);
+                if (it != w.end())
+                {
+                    for (auto watcher_it = it->second.begin(); watcher_it != it->second.end(); watcher_it++)
+                    {
+                        if (*watcher_it == session_id)
+                        {
+                            it->second.erase(watcher_it);
+                            break;
+                        }
+                    }
+                    if (it->second.empty())
+                    {
+                        w.erase(it);
+                    }
+                }
+            }
+            return removed;
+        };
+        if (request->type >= 1 && request->type <= 3)
+        {
+            bool removed = false;
+            Coordination::WatcherType type = static_cast<Coordination::WatcherType>(request->type);
+            std::lock_guard lock(watch_mutex);
+            switch (type)
+            {
+                case Coordination::WatcherType::CHILDRREN:
+                    removed |= func_remove_watch(list_watches);
+                    data_watcher_mode_manager.removeWatcher(session_id, request->path);
+                    break;
+                case Coordination::WatcherType::DATA:
+                    list_watcher_mode_manager.removeWatcher(session_id, request->path);
+                    removed |= func_remove_watch(watches);
+                    break;
+                case Coordination::WatcherType::ANY:
+                    removed |= func_remove_watch(watches);
+                    list_watcher_mode_manager.removeWatcher(session_id, request->path);
+                    removed |= func_remove_watch(list_watches);
+                    data_watcher_mode_manager.removeWatcher(session_id, request->path);
+                    break;
+            }
+            if (!removed)
+            {
+                LOG_WARNING(
+                    log, "Remove Watches but no watch is removed, session_id: {}, path: {}, type: {}", session_id, request->path, type);
+            }
+        }
+        else
+        {
+            response->error = Coordination::Error::ZBADARGUMENTS;
+        }
 
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
@@ -1510,7 +1575,7 @@ void KeeperStore::processRequest(
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
-            data_watcher_mode_manager.setWatcherMode(session_id, path, Coordination::STANDARD);
+            data_watcher_mode_manager.setWatcherMode(session_id, path, Coordination::WatcherMode::STANDARD);
 
             /// trigger watches
             auto node = container.get(path);
@@ -1538,7 +1603,9 @@ void KeeperStore::processRequest(
             /// register watches
             watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
-            data_watcher_mode_manager.setWatcherMode(session_id, path, Coordination::STANDARD);
+
+            // NOTE: Since watches set in this way are STANDARD watch,
+            // we don't have to add it to WatcherModeManager cause the default return value of getWatcherMode() is STANDARD.
 
             /// trigger watches
             auto node = container.get(path);
@@ -1561,7 +1628,9 @@ void KeeperStore::processRequest(
             /// register watches
             list_watches[path].emplace_back(session_id);
             sessions_and_watchers[session_id].emplace(path);
-            list_watcher_mode_manager.setWatcherMode(session_id, path, Coordination::STANDARD);
+
+            // NOTE: Since watches set in this way are STANDARD watch,
+            // we don't have to add it to WatcherModeManager cause the default return value of getWatcherMode() is STANDARD.
 
             /// trigger watches
             auto node = container.get(path);
@@ -1654,14 +1723,10 @@ void KeeperStore::processRequest(
                         ? list_watches
                         : watches;
 
-                    auto & watch_mode_manager_type
-                        = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
-                        ? data_watcher_mode_manager
-                        : list_watcher_mode_manager;
-
+                    // NOTE: Since watches set in this way are STANDARD watch,
+                    // we don't have to add it to WatcherModeManager cause the default return value of getWatcherMode() is STANDARD.
                     watches_type[zk_request->getPath()].emplace_back(session_id);
                     sessions_and_watchers[session_id].emplace(zk_request->getPath());
-                    watch_mode_manager_type.setWatcherMode(session_id, zk_request->getPath(), Coordination::WatcherMode::STANDARD);
                     LOG_TRACE(
                         log,
                         "Register watch, session {}, path {}, opnum {}, xid {}, error no {}, msg {}",
@@ -1914,5 +1979,4 @@ bool KeeperStore::containsSession(int64_t session_id) const
     std::lock_guard lock(session_mutex);
     return session_and_timeout.contains(session_id);
 }
-
 }
