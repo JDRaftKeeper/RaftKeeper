@@ -64,8 +64,15 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     , operation_timeout(
           0,
           Context::getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS) * 1000)
-    , session_timeout(
-          0, Context::getConfigRef().getUInt("keeper.raft_settings.session_timeout_ms", Coordination::DEFAULT_SESSION_TIMEOUT_MS) * 1000)
+    , session_timeout(0, Coordination::DEFAULT_SESSION_TIMEOUT_MS * 1000)
+    , min_session_timeout(
+          0,
+          Context::getConfigRef().getUInt("keeper.raft_settings.min_session_timeout_ms", Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS)
+              * 1000)
+    , max_session_timeout(
+          0,
+          Context::getConfigRef().getUInt("keeper.raft_settings.max_session_timeout_ms", Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS)
+              * 1000)
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
@@ -279,31 +286,29 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach(
-            [&size_to_sent, this](const auto & resp) -> bool
-            {
-                if (resp == is_close)
-                    return false;
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+            if (resp == is_close)
+                return false;
 
-                if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else
-                {
-                    /// add part of resp to send_buf
-                    send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
-                }
-                return size_to_sent < SENT_BUFFER_SIZE;
-            });
+            if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
+            {
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
+                size_to_sent += resp->used();
+            }
+            else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
+            {
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
+                size_to_sent += resp->used();
+            }
+            else
+            {
+                /// add part of resp to send_buf
+                send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
+            }
+            return size_to_sent < SENT_BUFFER_SIZE;
+        });
 
         /// 2. send data
         size_t sent = sock.sendBytes(send_buf);
@@ -469,7 +474,10 @@ ConnectRequest ConnectionHandler::receiveHandshake(int32_t handshake_req_len)
 ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectRequest & connect_req)
 {
     if (connect_req.session_timeout_ms != 0)
-        session_timeout = std::min(Poco::Timespan(connect_req.session_timeout_ms * 1000), session_timeout);
+    {
+        session_timeout
+            = std::max(min_session_timeout, std::min(Poco::Timespan(0, connect_req.session_timeout_ms * 1000), max_session_timeout));
+    }
 
     LOG_INFO(log, "Negotiated session_timeout : {}", session_timeout.totalMilliseconds());
 

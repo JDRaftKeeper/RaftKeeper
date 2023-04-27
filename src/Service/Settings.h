@@ -59,7 +59,8 @@ struct Settings
     RaftSettingsPtr raft_settings;
 
     void dump(WriteBufferFromOwnString & buf) const;
-    static std::shared_ptr<Settings> loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
+    static std::shared_ptr<Settings>
+    loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_, Poco::Logger * log);
 
 private:
     static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
@@ -70,8 +71,10 @@ using SettingsPtr = std::shared_ptr<Settings>;
 
 struct RaftSettings
 {
-    /// Default client session timeout
-    UInt64 session_timeout_ms;
+    /// Default client max session timeout
+    UInt64 max_session_timeout_ms;
+    /// Default client min session timeout
+    UInt64 min_session_timeout_ms;
     /// Default client operation timeout
     UInt64 operation_timeout_ms;
     /// How often leader will check sessions to consider them dead and remove
@@ -113,7 +116,7 @@ struct RaftSettings
     /// Whether async snapshot
     bool async_snapshot;
 
-    void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
+    void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config, Poco::Logger * log);
 
     static RaftSettingsPtr getDefault();
 };

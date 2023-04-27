@@ -163,11 +163,7 @@ void KeeperDispatcher::sendForwardResponse(ForwardingClientId client_id, Forward
         return;
 
     LOG_TRACE(
-        log,
-        "[sendForwardResponse] server_id {}, client_id {}, response {}",
-        client_id.first,
-        client_id.second,
-        response->toString());
+        log, "[sendForwardResponse] server_id {}, client_id {}, response {}", client_id.first, client_id.second, response->toString());
 
     forward_response_writer->second(response);
 }
@@ -219,8 +215,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 }
 
 
-bool KeeperDispatcher::putForwardingRequest(
-    size_t server_id, size_t client_id, ForwardRequestPtr request)
+bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
     KeeperStore::RequestForSession && request_info = request->requestForSession();
 
@@ -254,8 +249,8 @@ bool KeeperDispatcher::putForwardingRequest(
 
 void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
-    LOG_INFO(log, "Initializing dispatcher");
-    configuration_and_settings = Settings::loadFromConfig(config, true);
+    LOG_DEBUG(log, "Initializing dispatcher");
+    configuration_and_settings = Settings::loadFromConfig(config, true, log);
 
     /// TODO remove
     bool session_consistent = configuration_and_settings->raft_settings->session_consistent;

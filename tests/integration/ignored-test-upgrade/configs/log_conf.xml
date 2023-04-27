@@ -10,3 +10,4 @@
         <stdout>/var/log/raftkeeper-server/stdout.log</stdout>
     </logger>
 </raftkeeper>
+

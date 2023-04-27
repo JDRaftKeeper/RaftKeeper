@@ -1,6 +1,7 @@
 import socket
 import struct
 import time
+import csv
 from multiprocessing.dummy import Pool
 
 import pytest
@@ -129,6 +130,7 @@ def handshake(node_name=node1.name, session_timeout=11000, session_id=0):
         read_only = False
 
     print("negotiated_timeout - session_id", negotiated_timeout, session_id)
+    # assert(negotiated_timeout >= 1000 and negotiated_timeout <= 40000)
     return client
 
 
@@ -170,3 +172,69 @@ def test_session_timeout(started_cluster):
     assert len(heartbeat(client1)) == 0
     assert len(heartbeat(client2)) > 0
     assert len(heartbeat(client3)) > 0
+
+def test_session_max_min_session_timeout(started_cluster):
+    wait_nodes()
+    client1 = handshake(node1.name, session_timeout=100)    # under min session timeout, session timeout 4s
+    client2 = handshake(node2.name, session_timeout=20000)   # normal, session timeout 20s
+    client3 = handshake(node3.name, session_timeout=110000)   # exceeding max session timeout, session timeout 40s
+
+    # all the clients should be alive
+    assert len(heartbeat(client1)) > 0
+    assert len(heartbeat(client2)) > 0
+    assert len(heartbeat(client3)) > 0
+
+    time.sleep(12)
+    # 12s after the first heartbeat, client1 session should expire
+    assert len(heartbeat(client1)) == 0
+    assert len(heartbeat(client2)) > 0
+    assert len(heartbeat(client3)) > 0
+
+    time.sleep(22) 
+    # 22s after the second heartbeat, client2 session should expire
+    assert len(heartbeat(client2)) == 0
+    assert len(heartbeat(client3)) > 0
+
+    time.sleep(52)
+    # 50s after the third heartbeat, client3 session should expire
+    assert len(heartbeat(client3)) == 0
+
+
+def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
+    client = None
+    try:
+        client = get_keeper_socket(node_name)
+        client.send(cmd.encode())
+        data = client.recv(100_000)
+        data = data.decode()
+        return data
+    finally:
+        if client is not None:
+            client.close()
+
+def test_invalid_timeout_setting(started_cluster):
+    wait_nodes()
+
+    node1.stop_raftkeeper()
+    time.sleep(3)
+    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '40000', '200')
+    node1.start_raftkeeper()
+
+    data = send_4lw_cmd(node1.name, cmd='conf')
+    reader = csv.reader(data.split('\n'), delimiter='=')
+    result = {}
+
+    for row in reader:
+        if len(row) != 0:
+            print(row)
+            result[row[0]] = row[1]
+
+    assert result['operation_timeout_ms'] == '1000'
+    assert result['min_session_timeout_ms'] == '10000'
+    assert result['max_session_timeout_ms'] == '100000'
+
+    node1.stop_raftkeeper()
+    time.sleep(3)
+    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '200', '40000')
+    node1.start_raftkeeper()
+
