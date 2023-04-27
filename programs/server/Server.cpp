@@ -155,46 +155,36 @@ int Server::main(const std::vector<std::string> & /*args*/)
     std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> conn_acceptor;
     int32_t port = config().getInt("keeper.port", 8101);
 
-    createServer(
-        listen_host,
-        port,
-        listen_try,
-        [&](UInt16 listen_port)
-        {
-            Poco::Net::ServerSocket socket(listen_port);
-            socket.setBlocking(false);
+    createServer(listen_host, port, listen_try, [&](UInt16 listen_port) {
+        Poco::Net::ServerSocket socket(listen_port);
+        socket.setBlocking(false);
 
-            Poco::Timespan timeout(operation_timeout_ms * 1000);
-            server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-SrvAcceptor");
+        Poco::Timespan timeout(operation_timeout_ms * 1000);
+        server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-SrvAcceptor");
 
-            /// TODO add io thread count to config
-            conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
-                "IO-SrvHandler", global_context, socket, *server, timeout);
-            LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
-        });
+        /// TODO add io thread count to config
+        conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
+            "IO-SrvHandler", global_context, socket, *server, timeout);
+        LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
+    });
 
     /// start forwarding server
     std::shared_ptr<SvsSocketReactor<SocketReactor>> forwarding_server;
     std::shared_ptr<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>> forwarding_conn_acceptor;
     int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
 
-    createServer(
-        listen_host,
-        forwarding_port,
-        listen_try,
-        [&](UInt16 listen_port)
-        {
-            Poco::Net::ServerSocket socket(listen_port);
-            socket.setBlocking(false);
+    createServer(listen_host, forwarding_port, listen_try, [&](UInt16 listen_port) {
+        Poco::Net::ServerSocket socket(listen_port);
+        socket.setBlocking(false);
 
-            Poco::Timespan timeout(operation_timeout_ms * 1000);
-            forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-FwdAcceptor");
+        Poco::Timespan timeout(operation_timeout_ms * 1000);
+        forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-FwdAcceptor");
 
-            /// TODO add io thread count to config
-            forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-                "IO-FwdHandler", global_context, socket, *forwarding_server, timeout);
-            LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
-        });
+        /// TODO add io thread count to config
+        forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
+            "IO-FwdHandler", global_context, socket, *forwarding_server, timeout);
+        LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
+    });
 
     zkutil::EventPtr unused_event = std::make_shared<Poco::Event>();
     zkutil::ZooKeeperNodeCache unused_cache([] { return nullptr; });
@@ -205,8 +195,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         config().getString("path", ""),
         std::move(unused_cache),
         unused_event,
-        [&](ConfigurationPtr config, bool /* initial_loading */)
-        {
+        [&](ConfigurationPtr config, bool /* initial_loading */) {
             if (config->has("keeper"))
                 global_context.updateClusterConfiguration(*config);
         },

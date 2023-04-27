@@ -6,8 +6,8 @@
 #include "Poco/Util/Application.h"
 #include "Poco/Util/ServerApplication.h"
 
-#include "IServer.h"
 #include <daemon/BaseDaemon.h>
+#include "IServer.h"
 
 using Poco::Util::Application;
 using Poco::Util::ServerApplication;

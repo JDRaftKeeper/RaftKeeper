@@ -28,7 +28,7 @@ public:
     ~Context() = default;
 
     /// Global application configuration settings.
-    static const Poco::Util::AbstractConfiguration & getConfigRef() ;
+    static const Poco::Util::AbstractConfiguration & getConfigRef();
     std::shared_ptr<KeeperDispatcher> getDispatcher() const;
 
     void initializeDispatcher();
