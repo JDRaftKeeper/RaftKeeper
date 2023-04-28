@@ -1,4 +1,2 @@
-# We have no suppressions!
-# TODO resolve it
+# Ignore Poco socket data race
 race:SocketImpl
-race:ArchiveStrategy::moveFile
