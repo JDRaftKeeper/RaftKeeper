@@ -40,7 +40,7 @@ namespace FsyncModeNS
 
 }
 
-void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config, Poco::Logger * log)
+void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config)
 {
     if (!config.has(config_elem))
         return;
@@ -224,7 +224,7 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     write_int(raft_settings->fresh_log_gap);
 }
 
-SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_, Poco::Logger * log)
+SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_)
 {
     std::shared_ptr<Settings> ret = std::make_shared<Settings>();
 
@@ -248,7 +248,7 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     ret->log_dir = getLogsPathFromConfig(config, standalone_keeper_);
     ret->snapshot_dir = getSnapshotsPathFromConfig(config, standalone_keeper_);
 
-    ret->raft_settings->loadFromConfig("keeper.raft_settings", config, log);
+    ret->raft_settings->loadFromConfig("keeper.raft_settings", config);
 
     return ret;
 }

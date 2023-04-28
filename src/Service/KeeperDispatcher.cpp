@@ -250,7 +250,7 @@ bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, 
 void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
     LOG_DEBUG(log, "Initializing dispatcher");
-    configuration_and_settings = Settings::loadFromConfig(config, true, log);
+    configuration_and_settings = Settings::loadFromConfig(config, true);
 
     /// TODO remove
     bool session_consistent = configuration_and_settings->raft_settings->session_consistent;

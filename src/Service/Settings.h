@@ -59,8 +59,7 @@ struct Settings
     RaftSettingsPtr raft_settings;
 
     void dump(WriteBufferFromOwnString & buf) const;
-    static std::shared_ptr<Settings>
-    loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_, Poco::Logger * log);
+    static std::shared_ptr<Settings> loadFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
 
 private:
     static String getLogsPathFromConfig(const Poco::Util::AbstractConfiguration & config, bool standalone_keeper_);
@@ -116,7 +115,9 @@ struct RaftSettings
     /// Whether async snapshot
     bool async_snapshot;
 
-    void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config, Poco::Logger * log);
+    Poco::Logger * log = &Poco::Logger::get("RaftSettings");
+
+    void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
 
     static RaftSettingsPtr getDefault();
 };
