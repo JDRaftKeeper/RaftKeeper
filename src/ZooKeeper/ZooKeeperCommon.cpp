@@ -1,7 +1,6 @@
 #include "ZooKeeperCommon.h"
 #include <array>
 #include "common/logger_useful.h"
-#include <Common/IO//Operators.h>
 #include "ZooKeeperIO.h"
 
 
@@ -73,6 +72,16 @@ void ZooKeeperWatchResponse::write(WriteBuffer & out) const
     if (error == Error::ZOK)
         ZooKeeperResponse::write(out);
     /// skip bad responses for watches
+}
+
+void ZooKeeperAddWatchResponse::readImpl(ReadBuffer & in)
+{
+    Coordination::read(err, in);
+}
+
+void ZooKeeperAddWatchResponse::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(err, out);
 }
 
 void ZooKeeperAuthRequest::writeImpl(WriteBuffer & out) const
@@ -300,7 +309,8 @@ void ZooKeeperErrorResponse::readImpl(ReadBuffer & in)
     Coordination::read(read_error, in);
 
     if (read_error != error)
-        throw Exception(fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", read_error, error),
+        throw Exception(
+            fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", read_error, error),
             Error::ZMARSHALLINGERROR);
 }
 
@@ -368,7 +378,6 @@ void ZooKeeperMultiRequest::writeImpl(WriteBuffer & out) const
 
 void ZooKeeperMultiRequest::readImpl(ReadBuffer & in)
 {
-
     while (true)
     {
         OpNum op_num;
@@ -477,7 +486,7 @@ void ZooKeeperMultiResponse::writeImpl(WriteBuffer & out) const
     {
         OpNum op_num = OpNum::Error;
         bool done = true;
-        int32_t error_read = - 1;
+        int32_t error_read = -1;
 
         Coordination::write(op_num, out);
         Coordination::write(done, out);
@@ -526,25 +535,74 @@ void ZooKeeperRemoveWatchesRequest::writeImpl(WriteBuffer & out) const
 }
 
 
-
-
-ZooKeeperResponsePtr ZooKeeperHeartbeatRequest::makeResponse() const { return std::make_shared<ZooKeeperHeartbeatResponse>(); }
-ZooKeeperResponsePtr ZooKeeperSetWatchesRequest::makeResponse() const { return std::make_shared<ZooKeeperSetWatchesResponse>(); }
-ZooKeeperResponsePtr ZooKeeperAddWatchRequest::makeResponse() const { return std::make_shared<ZooKeeperAddWatchResponse>(); }
-ZooKeeperResponsePtr ZooKeeperRemoveWatchesRequest::makeResponse() const { return std::make_shared<ZooKeeperRemoveWatchesResponse>(); }
-ZooKeeperResponsePtr ZooKeeperSyncRequest::makeResponse() const { return std::make_shared<ZooKeeperSyncResponse>(); }
-ZooKeeperResponsePtr ZooKeeperAuthRequest::makeResponse() const { return std::make_shared<ZooKeeperAuthResponse>(); }
-ZooKeeperResponsePtr ZooKeeperCreateRequest::makeResponse() const { return std::make_shared<ZooKeeperCreateResponse>(); }
-ZooKeeperResponsePtr ZooKeeperRemoveRequest::makeResponse() const { return std::make_shared<ZooKeeperRemoveResponse>(); }
-ZooKeeperResponsePtr ZooKeeperExistsRequest::makeResponse() const { return std::make_shared<ZooKeeperExistsResponse>(); }
-ZooKeeperResponsePtr ZooKeeperGetRequest::makeResponse() const { return std::make_shared<ZooKeeperGetResponse>(); }
-ZooKeeperResponsePtr ZooKeeperSetRequest::makeResponse() const { return std::make_shared<ZooKeeperSetResponse>(); }
-ZooKeeperResponsePtr ZooKeeperListRequest::makeResponse() const { return std::make_shared<ZooKeeperListResponse>(); }
-ZooKeeperResponsePtr ZooKeeperCheckRequest::makeResponse() const { return std::make_shared<ZooKeeperCheckResponse>(); }
-ZooKeeperResponsePtr ZooKeeperMultiRequest::makeResponse() const { return std::make_shared<ZooKeeperMultiResponse>(requests); }
-ZooKeeperResponsePtr ZooKeeperCloseRequest::makeResponse() const { return std::make_shared<ZooKeeperCloseResponse>(); }
-ZooKeeperResponsePtr ZooKeeperSetACLRequest::makeResponse() const { return std::make_shared<ZooKeeperSetACLResponse>(); }
-ZooKeeperResponsePtr ZooKeeperGetACLRequest::makeResponse() const { return std::make_shared<ZooKeeperGetACLResponse>(); }
+ZooKeeperResponsePtr ZooKeeperHeartbeatRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperHeartbeatResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperSetWatchesRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperSetWatchesResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperAddWatchRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperAddWatchResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperRemoveWatchesRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperRemoveWatchesResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperSyncRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperSyncResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperAuthRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperAuthResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperCreateRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperCreateResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperRemoveRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperRemoveResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperExistsRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperExistsResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperGetRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperGetResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperSetRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperSetResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperListRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperListResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperCheckRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperCheckResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperMultiRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperMultiResponse>(requests);
+}
+ZooKeeperResponsePtr ZooKeeperCloseRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperCloseResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperSetACLRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperSetACLResponse>();
+}
+ZooKeeperResponsePtr ZooKeeperGetACLRequest::makeResponse() const
+{
+    return std::make_shared<ZooKeeperGetACLResponse>();
+}
 
 void ZooKeeperSessionIDRequest::writeImpl(WriteBuffer & out) const
 {
@@ -615,7 +673,8 @@ void ZooKeeperUpdateSessionResponse::writeImpl(WriteBuffer & out) const
 void ZooKeeperRequestFactory::registerRequest(OpNum op_num, Creator creator)
 {
     if (!op_num_to_request.try_emplace(op_num, creator).second)
-        throw Coordination::Exception("Request type " + toString(op_num) + " already registered", Coordination::Error::ZRUNTIMEINCONSISTENCY);
+        throw Coordination::Exception(
+            "Request type " + toString(op_num) + " already registered", Coordination::Error::ZRUNTIMEINCONSISTENCY);
 }
 
 std::shared_ptr<ZooKeeperRequest> ZooKeeperRequest::read(ReadBuffer & in)
@@ -647,7 +706,7 @@ ZooKeeperRequestFactory & ZooKeeperRequestFactory::instance()
     return factory;
 }
 
-template<OpNum num, typename RequestT>
+template <OpNum num, typename RequestT>
 void registerZooKeeperRequest(ZooKeeperRequestFactory & factory)
 {
     factory.registerRequest(num, [] { return std::make_shared<RequestT>(); });

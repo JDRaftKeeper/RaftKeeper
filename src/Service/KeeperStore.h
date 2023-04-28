@@ -328,7 +328,9 @@ public:
     /// WatcherModeManager: {session_id, path} -> watchmode, for list
     WatcherModeManager list_watcher_mode_manager;
     /// Session id -> node watch
-    SessionAndWatcher sessions_and_watchers;
+    SessionAndWatcher sessions_and_data_watchers;
+    /// Session id -> node watch
+    SessionAndWatcher sessions_and_list_watchers;
     /// Node path -> session id. Watches for 'get' and 'exist' requests
     Watches watches;
     /// Node path -> session id. Watches for 'list' request (watches on children).

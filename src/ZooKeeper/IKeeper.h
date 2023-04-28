@@ -369,9 +369,9 @@ enum class WatcherType : int32_t
 
 enum class WatcherMode : int32_t
 {
-    STANDARD = 1,
-    PERSISTENT = 2,
-    PERSISTENT_RECURSIVE = 3
+    STANDARD = -1,
+    PERSISTENT = 0,
+    PERSISTENT_RECURSIVE = 1
 };
 
 

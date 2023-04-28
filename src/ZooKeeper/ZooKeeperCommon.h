@@ -143,8 +143,9 @@ struct ZooKeeperAddWatchRequest final : ZooKeeperRequest
 
 struct ZooKeeperAddWatchResponse final : ZooKeeperResponse
 {
-    void readImpl(ReadBuffer &) override { }
-    void writeImpl(WriteBuffer &) const override { }
+    int32_t err;
+    void readImpl(ReadBuffer &) override;
+    void writeImpl(WriteBuffer &) const override;
     OpNum getOpNum() const override { return OpNum::AddWatch; }
 };
 

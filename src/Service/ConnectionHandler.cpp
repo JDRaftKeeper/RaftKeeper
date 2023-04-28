@@ -273,31 +273,29 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach(
-            [&size_to_sent, this](const auto & resp) -> bool
-            {
-                if (resp == is_close)
-                    return false;
+        responses->forEach([&size_to_sent, this](const auto & resp) -> bool {
+            if (resp == is_close)
+                return false;
 
-                if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else
-                {
-                    /// add part of resp to send_buf
-                    send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
-                }
-                return size_to_sent < SENT_BUFFER_SIZE;
-            });
+            if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
+            {
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
+                size_to_sent += resp->used();
+            }
+            else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
+            {
+                /// add whole resp to send_buf
+                send_buf.write(resp->begin(), resp->used());
+                size_to_sent += resp->used();
+            }
+            else
+            {
+                /// add part of resp to send_buf
+                send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
+            }
+            return size_to_sent < SENT_BUFFER_SIZE;
+        });
 
         /// 2. send data
         size_t sent = sock.sendBytes(send_buf);
@@ -673,7 +671,8 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
 {
     /// update statistics ignoring watch, close and heartbeat response.
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
-        && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::Close)
+        && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::AddWatch
+        && response->getOpNum() != Coordination::OpNum::RemoveWatches && response->getOpNum() != Coordination::OpNum::Close)
     {
         Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - response->request_created_time_ms;
         {
