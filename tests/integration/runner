@@ -215,12 +215,13 @@ if __name__ == "__main__":
 
     cmd = 'docker run {net} {tty} --rm --name {name} --privileged --volume={bin}:/raftkeeper \
         --volume={base_cfg}:/raftkeeper-config --volume={cases_dir}:/RaftKeeper/tests/integration \
-        --volume={old_bin}:/raftkeeper_old \
+        --volume={old_bin}:/raftkeeper_old --volume={cases_dir}../sanitizers:/RaftKeeper/tests/sanitizers \
         --volume={name}_volume:/var/lib/docker {env_tags} \
         -e TSAN_OPTIONS=\'{tsan_options}\' \
         -e MSAN_OPTIONS=\'{msan_options}\' \
         -e ASAN_OPTIONS=\'{asan_options}\' \
         -e UBSAN_OPTIONS=\'{ubsan_options}\' \
+        -e SANITIZERS_DIR=\'/RaftKeeper/tests/sanitizers\' \
         -e PYTEST_OPTS=\'{opts}\' {img} {command}'.format(
         net=net,
         tty=tty,
