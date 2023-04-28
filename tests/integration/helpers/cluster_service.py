@@ -160,10 +160,17 @@ class RaftKeeperCluster:
         # (affect only WITH_COVERAGE=1 build)
         env_variables['LLVM_PROFILE_FILE'] = '/var/lib/raftkeeper/server_%h_%p_%m.profraw'
         # sanitizer options
-        env_variables['TSAN_OPTIONS'] = os.getenv('TSAN_OPTIONS')
-        env_variables['MSAN_OPTIONS'] = os.getenv('MSAN_OPTIONS')
-        env_variables['ASAN_OPTIONS'] = os.getenv('ASAN_OPTIONS')
-        env_variables['UBSAN_OPTIONS'] = os.getenv('UBSAN_OPTIONS')
+
+        def append_sanitizer_suppression(option, suppression_file):
+            env_variables[option] = os.getenv(option) + f":suppressions=/etc/sanitizers/{suppression_file}"
+            if env_variables[option].startswith(":"):
+                env_variables[option] = env_variables[option][1:]
+            print(f"{option}={env_variables[option]}")
+
+        append_sanitizer_suppression('TSAN_OPTIONS', 'tsan_suppressions.txt')
+        append_sanitizer_suppression('ASAN_OPTIONS', 'asan_suppressions.txt')
+        append_sanitizer_suppression('MSAN_OPTIONS', 'msan_suppressions.txt')
+        append_sanitizer_suppression('UBSAN_OPTIONS', 'ubsan_suppressions.txt')
 
         instance = RaftKeeperInstance(
             cluster=self,
