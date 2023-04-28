@@ -494,6 +494,7 @@ services:
         volumes:
             - {instance_config_dir}:/etc/raftkeeper-server/
             - {logs_dir}:/var/log/raftkeeper-server/
+            - {sanitizers_dir}:/etc/sanitizers/
             - /etc/passwd:/etc/passwd:ro
             {binary_volume}
             {old_binary_volume}
@@ -957,6 +958,7 @@ class RaftKeeperInstance:
                 ipv6_address=ipv6_address,
                 net_aliases=net_aliases,
                 net_alias1=net_alias1,
+                sanitizers_dir=os.getenv('SANITIZERS_DIR')
             ))
 
     def destroy_dir(self):
