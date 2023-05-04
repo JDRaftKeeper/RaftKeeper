@@ -5,6 +5,15 @@
 #endif
 
 #include <functional>
+
+#include <Poco/FIFOBuffer.h>
+#include <Poco/Util/AbstractConfiguration.h>
+
+#include <Common/ConcurrentBoundedQueue.h>
+#include <Common/Exception.h>
+#include <Common/ThreadPool.h>
+#include <common/logger_useful.h>
+
 #include <Service/ConnectionStats.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperServer.h>
@@ -14,12 +23,6 @@
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
 #include <Service/Settings.h>
-#include <Poco/FIFOBuffer.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Common/ConcurrentBoundedQueue.h>
-#include <Common/Exception.h>
-#include <Common/ThreadPool.h>
-#include <common/logger_useful.h>
 
 namespace RK
 {

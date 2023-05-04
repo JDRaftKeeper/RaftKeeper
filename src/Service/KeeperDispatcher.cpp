@@ -1,9 +1,11 @@
+#include <Poco/NumberFormatter.h>
+
+#include <Common/checkStackSize.h>
+#include <Common/setThreadName.h>
+
 #include <Service/KeeperDispatcher.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/formatHex.h>
-#include <Poco/NumberFormatter.h>
-#include <Common/checkStackSize.h>
-#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -249,7 +251,7 @@ bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, 
 
 void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & config)
 {
-    LOG_DEBUG(log, "Initializing dispatcher");
+    LOG_INFO(log, "Initializing dispatcher");
     configuration_and_settings = Settings::loadFromConfig(config, true);
 
     /// TODO remove

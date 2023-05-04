@@ -175,29 +175,44 @@ def test_session_timeout(started_cluster):
 
 def test_session_max_min_session_timeout(started_cluster):
     wait_nodes()
-    client1 = handshake(node1.name, session_timeout=100)    # under min session timeout, session timeout 4s
-    client2 = handshake(node2.name, session_timeout=20000)   # normal, session timeout 20s
-    client3 = handshake(node3.name, session_timeout=110000)   # exceeding max session timeout, session timeout 40s
+
+    # modify max_session_timeout_ms to make test time shorter
+    node3.stop_raftkeeper()
+    node3.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper3.xml', '40000', '8000')
+    node3.start_raftkeeper()
+    # wait for node3 to join cluster
+    time.sleep(5)
+
+    client1 = handshake(node1.name, session_timeout=100)    # under min session timeout, session timeout 1s
+    client2 = handshake(node2.name, session_timeout=4000)   # normal, session timeout 4s
+    client3 = handshake(node3.name, session_timeout=100000)   # exceeding max session timeout, session timeout 8s
 
     # all the clients should be alive
     assert len(heartbeat(client1)) > 0
     assert len(heartbeat(client2)) > 0
     assert len(heartbeat(client3)) > 0
 
-    time.sleep(12)
-    # 12s after the first heartbeat, client1 session should expire
+    time.sleep(2)
+    # 2s after the first heartbeat, client1 session should expire
     assert len(heartbeat(client1)) == 0
     assert len(heartbeat(client2)) > 0
     assert len(heartbeat(client3)) > 0
 
-    time.sleep(22) 
-    # 22s after the second heartbeat, client2 session should expire
+    time.sleep(5)
+    # 5s after the second heartbeat, client2 session should expire
     assert len(heartbeat(client2)) == 0
     assert len(heartbeat(client3)) > 0
 
-    time.sleep(52)
-    # 50s after the third heartbeat, client3 session should expire
+    time.sleep(10)
+    # 10s after the third heartbeat, client3 session should expire
     assert len(heartbeat(client3)) == 0
+
+    # modify max_session_timeout_ms back to its original value
+    node3.stop_raftkeeper()
+    node3.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper3.xml', '8000', '40000')
+    node3.start_raftkeeper()
+    # wait for node3 to join cluster
+    time.sleep(5)
 
 
 def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
