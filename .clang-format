@@ -13,6 +13,7 @@ BraceWrapping:
     BeforeCatch: true
     BeforeElse: true
     IndentBraces: false
+    BeforeLambdaBody: true
 BreakConstructorInitializersBeforeComma: false
 Cpp11BracedListStyle: true
 ColumnLimit: 140
