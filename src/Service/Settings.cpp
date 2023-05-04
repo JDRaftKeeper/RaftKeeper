@@ -137,7 +137,8 @@ Settings::Settings() : my_id(NOT_EXIST), port(NOT_EXIST), standalone_keeper(fals
 
 void Settings::dump(WriteBufferFromOwnString & buf) const
 {
-    auto write_int = [&buf](int64_t value) {
+    auto write_int = [&buf](int64_t value)
+    {
         writeIntText(value, buf);
         buf.write('\n');
     };
