@@ -46,8 +46,8 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install tools
-        run: sudo apt install -y ninja-build ccache && sudo update-alternatives --install /usr/bin/llvm-symbolizer llvm-symbolizer /usr/bin/llvm-symbolizer-14 300
+      - name: Prepare
+        run: bash ${{github.workspace}}/.github/workflows/prepare-env.sh 14
 
       - name: Generate Makefile
         run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=undefined
