@@ -68,7 +68,7 @@ TEST(RaftPerformance, appendLogPerformance)
 }
 
 #if defined(__has_feature)
-#  if not __has_feature(thread_sanitizer)
+#   if not __has_feature(thread_sanitizer) && not __has_feature(undefined_behavior_sanitizer)
 /// Append log performance test will invoke `append` method in a parallel fashion
 /// which will lead to data race.
 /// In real case we invoke append log just in one thread.
@@ -145,7 +145,7 @@ TEST(RaftPerformance, appendLogThread)
     }
     cleanDirectory(log_dir);
 }
-#  endif
+#   endif
 #endif
 
 TEST(RaftPerformance, machineCreateThread)
