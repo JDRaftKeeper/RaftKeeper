@@ -50,7 +50,7 @@ jobs:
         run: bash ${{github.workspace}}/.github/workflows/prepare-env.sh 14
 
       - name: Generate Makefile
-        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=address
+        run: clang -v && export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=address
 
       - name: Build
         working-directory: ${{github.workspace}}/build
