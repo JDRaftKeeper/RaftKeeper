@@ -25,6 +25,13 @@ public:
         cv.notify_one();
     }
 
+    void push(T && response)
+    {
+        std::lock_guard lock(queue_mutex);
+        queue.emplace_back(std::move(response));
+        cv.notify_one();
+    }
+
     void pop()
     {
         std::unique_lock lock(queue_mutex);

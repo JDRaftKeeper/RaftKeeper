@@ -31,7 +31,7 @@ public:
     {
     }
 
-    void push(RequestForSession request_for_session);
+    void push(const RequestForSession & request_for_session);
     void run();
 
     void moveRequestToPendingQueue(RunnerId runner_id);
@@ -65,7 +65,7 @@ private:
 
     ThreadFromGlobalPool main_thread;
 
-    bool shutdown_called{false};
+    std::atomic<bool> shutdown_called{false};
 
     std::shared_ptr<KeeperServer> server;
 

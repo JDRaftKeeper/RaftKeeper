@@ -4,7 +4,7 @@ AlignAfterOpenBracket: AlwaysBreak
 BreakBeforeBraces: Custom
 BraceWrapping:
     AfterClass: true
-    AfterControlStatement: true
+    AfterControlStatement: Always
     AfterEnum: true
     AfterFunction: true
     AfterNamespace: true
@@ -13,6 +13,8 @@ BraceWrapping:
     BeforeCatch: true
     BeforeElse: true
     IndentBraces: false
+    BeforeLambdaBody: true
+IncludeBlocks: Regroup
 BreakConstructorInitializersBeforeComma: false
 Cpp11BracedListStyle: true
 ColumnLimit: 140
@@ -21,45 +23,38 @@ ExperimentalAutoDetectBinPacking: true
 UseTab: Never
 TabWidth: 4
 IndentWidth: 4
-Standard: Cpp11
+Standard: c++20
 PointerAlignment: Middle
 MaxEmptyLinesToKeep: 2
 KeepEmptyLinesAtTheStartOfBlocks: false
 AllowShortFunctionsOnASingleLine: InlineOnly
-AlwaysBreakTemplateDeclarations: true
+AlwaysBreakTemplateDeclarations: Yes
 IndentCaseLabels: true
 SpaceAfterTemplateKeyword: true
 SpaceBeforeCpp11BracedList: false
-SortIncludes: true
+SortIncludes: CaseSensitive
 IndentPPDirectives: AfterHash
 IncludeCategories:
-  - Regex: '^<[a-z_]+>'
+  - Regex: '^"[a-zA-Z_]+.h>'
     Priority: 1
-  - Regex: '^<[a-z_]+.h>'
+  - Regex: '(^<[a-z_]+>|^<[a-z_]+.h>|^<sys/)'
     Priority: 2
-  - Regex: '^["<](common|ext|mysqlxx|daemon|zkutil)/'
-    Priority: 90
-  - Regex: '^["<](DB)/'
-    Priority: 100
   - Regex: '^["<](Poco)/'
-    Priority: 50
-  - Regex: '^"'
-    Priority: 110
-  - Regex: '/'
-    Priority: 30
+    Priority: 3
+  - Regex: '^["<](Service|Zookeeper|Coordination)/'
+    Priority: 5
   - Regex: '.*'
-    Priority: 40
+    Priority: 4
 ReflowComments: false
-AlignEscapedNewlinesLeft: false
 AlignEscapedNewlines: DontAlign
 AlignTrailingComments: false
 
 # Not changed:
 AccessModifierOffset: -4
-AlignConsecutiveAssignments: false
+AlignConsecutiveAssignments: None
 AlignOperands: false
 AllowAllParametersOfDeclarationOnNextLine: true
-AllowShortBlocksOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false

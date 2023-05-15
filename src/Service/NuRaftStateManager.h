@@ -46,7 +46,7 @@ public:
 
     ~NuRaftStateManager() override = default;
 
-    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const String & config_name) const;
+    ptr<cluster_config> parseClusterConfig(const Poco::Util::AbstractConfiguration & config, const String & config_name);
 
     ptr<cluster_config> load_config() override;
 
@@ -69,7 +69,7 @@ public:
     ptr<cluster_config> get_cluster_config() const { return cur_cluster_config; }
 
     /// Get configuration diff between proposed XML and current state in RAFT
-    ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config) const;
+    ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config);
 
 protected:
     NuRaftStateManager() = default;

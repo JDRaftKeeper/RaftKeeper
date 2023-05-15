@@ -28,6 +28,7 @@
             <server>
                 <id>3</id>
                 <host>node3</host>
+                <start_as_follower>true</start_as_follower>
             </server>
 
         </cluster>

@@ -24,7 +24,7 @@ public:
     {
     }
 
-    void push(RequestForSession request_for_session);
+    void push(const RequestForSession & request_for_session);
 
     bool waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch);
 
@@ -45,7 +45,7 @@ private:
     ptr<RequestsQueue> requests_queue;
     ThreadPoolPtr request_thread;
 
-    bool shutdown_called{false};
+    std::atomic<bool> shutdown_called{false};
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     std::shared_ptr<KeeperServer> server;

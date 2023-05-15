@@ -51,14 +51,16 @@ struct RequestsQueue
         }
     }
 
-    bool push(const KeeperStore::RequestForSession & request)
+    template <typename Request>
+    bool push(Request && request)
     {
-        return queues[request.session_id % queues.size()]->push(std::forward<const KeeperStore::RequestForSession>(request));
+        return queues[request.session_id % queues.size()]->push(std::forward<Request>(request));
     }
 
-    bool tryPush(const KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
+    template <typename Request>
+    bool tryPush(Request && request, UInt64 wait_ms = 0)
     {
-        return queues[request.session_id % queues.size()]->tryPush(std::forward<const KeeperStore::RequestForSession>(request), wait_ms);
+        return queues[request.session_id % queues.size()]->tryPush(std::forward<Request>(request), wait_ms);
     }
 
     bool pop(size_t queue_id, KeeperStore::RequestForSession & request)

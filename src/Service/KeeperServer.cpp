@@ -375,6 +375,7 @@ nuraft::cb_func::ReturnCode KeeperServer::callbackFunc(nuraft::cb_func::Type typ
     else if (type == nuraft::cb_func::NewConfig)
     {
         /// Update Forward connections
+        std::unique_lock lock(forward_listener_mutex);
         if (update_forward_listener)
             update_forward_listener();
     }
@@ -594,6 +595,7 @@ bool KeeperServer::requestLeader()
 
 void KeeperServer::registerForWardListener(UpdateForwardListener forward_listener)
 {
+    std::unique_lock lock(forward_listener_mutex);
     update_forward_listener = forward_listener;
 }
 

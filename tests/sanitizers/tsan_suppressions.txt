@@ -1,0 +1,2 @@
+# Ignore Poco socket data race
+race:SocketImpl

@@ -42,11 +42,14 @@ void WriteBufferFromFiFoBuffer::finalize()
 
     is_finished = true;
     size_t real_size = pos - reinterpret_cast<Position>(buffer->begin());
-    auto new_buffer = std::make_shared<FIFOBuffer>(real_size);
-    memcpy(new_buffer->begin(), buffer->begin(), real_size);
-    if (real_size > 0)
+
+    if (real_size)
+    {
+        auto new_buffer = std::make_shared<FIFOBuffer>(real_size);
+        memcpy(new_buffer->begin(), buffer->begin(), real_size);
         new_buffer->advance(real_size);
-    buffer = new_buffer;
+        buffer = new_buffer;
+    }
     set(nullptr, 0);
 }
 

@@ -1,4 +1,4 @@
-name: build-and-test-asan
+name: build-and-test-ubsan
 
 on: # yamllint disable-line rule:truthy
   push:
@@ -37,7 +37,7 @@ env:
   BUILD_TYPE: RelWithDebInfo
 
 jobs:
-  build-and-test-asan:
+  build-and-test-ubsan:
     name: "ubuntu clang"
     runs-on: ubuntu-22.04
 
@@ -50,7 +50,7 @@ jobs:
         run: bash ${{github.workspace}}/.github/workflows/prepare-env.sh 14
 
       - name: Generate Makefile
-        run: clang -v && export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=address
+        run: clang -v && export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DSANITIZE=undefined
 
       - name: Build
         working-directory: ${{github.workspace}}/build

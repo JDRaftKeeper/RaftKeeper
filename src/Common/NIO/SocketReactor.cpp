@@ -131,9 +131,10 @@ void SocketReactor::stop()
 /// Wake up reactor, if invoker running in event loop thread there is no need to wake up.
 void SocketReactor::wakeUp()
 {
-    if (_pThread && _pThread != Thread::current())
+    auto * copy = _pThread.load(); /// to avoid data race
+    if (copy && copy != Thread::current())
     {
-        _pThread->wakeUp();
+        copy->wakeUp();
         _pollSet.wakeUp();
     }
 }
@@ -162,6 +163,22 @@ void SocketReactor::addEventHandler(const Socket& socket, const Poco::AbstractOb
     if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
     if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
     if (mode) _pollSet.add(socket, mode);
+}
+
+void SocketReactor::addEventHandlers(const Socket& socket, const std::vector<Poco::AbstractObserver *>& observers)
+{
+    NotifierPtr pNotifier = getNotifier(socket, true);
+
+    for (auto * observer : observers)
+    {
+        if (!pNotifier->hasObserver(*observer)) pNotifier->addObserver(this, *observer);
+
+        int mode = 0;
+        if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
+        if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
+        if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
+        if (mode) _pollSet.add(socket, mode);
+    }
 }
 
 

@@ -24,7 +24,7 @@ public:
     {
     }
 
-    void push(RequestForSession request_for_session);
+    void push(const RequestForSession & request_for_session);
 
     void runSend(RunnerId runner_id);
 
@@ -70,13 +70,13 @@ private:
 
     ThreadFromGlobalPool session_sync_thread;
 
-    bool shutdown_called{false};
+    std::atomic<bool> shutdown_called{false};
 
     std::shared_ptr<KeeperServer> server;
 
     UInt64 session_sync_period_ms = 500;
 
-    std::atomic<UInt8> session_sync_idx{0};
+    std::atomic<UInt64> session_sync_idx{0};
 
     Stopwatch session_sync_time_watch;
 

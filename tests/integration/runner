@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--tsan-options",
-        default="detect_deadlocks=0 halt_on_error=1 history_size=7",
+        default="halt_on_error=1 history_size=7",
         help="TSAN_OPTIONS which will be transferred to raftkeeper instance.")
 
     parser.add_argument(
@@ -215,12 +215,13 @@ if __name__ == "__main__":
 
     cmd = 'docker run {net} {tty} --rm --name {name} --privileged --volume={bin}:/raftkeeper \
         --volume={base_cfg}:/raftkeeper-config --volume={cases_dir}:/RaftKeeper/tests/integration \
-        --volume={old_bin}:/raftkeeper_old \
+        --volume={old_bin}:/raftkeeper_old --volume={cases_dir}/../sanitizers:/RaftKeeper/tests/sanitizers \
         --volume={name}_volume:/var/lib/docker {env_tags} \
         -e TSAN_OPTIONS=\'{tsan_options}\' \
         -e MSAN_OPTIONS=\'{msan_options}\' \
         -e ASAN_OPTIONS=\'{asan_options}\' \
         -e UBSAN_OPTIONS=\'{ubsan_options}\' \
+        -e SANITIZERS_DIR=\'/RaftKeeper/tests/sanitizers\' \
         -e PYTEST_OPTS=\'{opts}\' {img} {command}'.format(
         net=net,
         tty=tty,

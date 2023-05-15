@@ -11,6 +11,7 @@
 #include <ZooKeeper/ZooKeeperIO.h>
 #include <Poco/File.h>
 #include <Common/Stopwatch.h>
+#include <Service/ThreadSafeQueue.h>
 
 
 #ifdef __clang__
@@ -84,20 +85,17 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "Load snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
 
     /// [ batch_start_index, batch_end_index )
-    ulong batch_start_index = 0;
-    ulong batch_end_index = 0;
+    std::atomic<ulong> batch_start_index = 0;
+    std::atomic<ulong> batch_end_index = 0;
 
     if (log_store_ != nullptr)
     {
-        std::mutex load_mutex;
-        std::condition_variable load_cond;
-
         ulong last_log_index = log_store_->next_slot() - 1;
         if (prev_last_committed_idx != 0 && prev_last_committed_idx < last_log_index)
             last_log_index = prev_last_committed_idx;
 
         batch_start_index = last_committed_idx + 1;
-        std::queue<ReplayLogBatch> log_queue;
+        ThreadSafeQueue<ReplayLogBatch> log_queue;
 
         LOG_INFO(
             log,
@@ -113,7 +111,7 @@ NuRaftStateMachine::NuRaftStateMachine(
         for (UInt32 thread_idx = 0; thread_idx < replay_thread_num; thread_idx++)
         {
             object_thread_pool.trySchedule(
-                [this, thread_idx, last_log_index, &load_mutex, &log_queue, &batch_start_index, &batch_end_index, &log_store_] {
+                [this, thread_idx, last_log_index, &log_queue, &batch_start_index, &batch_end_index, &log_store_] {
                     Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
                     while (batch_start_index < last_log_index)
                     {
@@ -170,17 +168,15 @@ NuRaftStateMachine::NuRaftStateMachine(
                             }
                         }
 
-                        {
-                            std::lock_guard queue_lock(load_mutex);
-                            log_queue.push(batch);
-                        }
+                        log_queue.push(batch);
+
                         LOG_INFO(
                             thread_log,
                             "Finish load batch log to state machine, thread {}, batch [ {} , {} )",
                             thread_idx,
                             batch_start_index,
                             batch_end_index);
-                        batch_start_index = batch_end_index;
+                        batch_start_index.store(batch_end_index);
                     }
                 });
         }
@@ -188,23 +184,20 @@ NuRaftStateMachine::NuRaftStateMachine(
         while (!log_queue.empty() || batch_start_index < last_log_index)
         {
             ReplayLogBatch batch;
+
+            while (log_queue.empty() && batch_start_index != last_log_index)
             {
-                while (log_queue.empty() && batch_start_index != last_log_index)
-                {
-                    LOG_DEBUG(
-                        log,
-                        "Sleep 100ms, log queue size {}, start index {}, last index {}",
-                        log_queue.size(),
-                        batch_start_index,
-                        last_log_index);
-                    usleep(100000);
-                }
-                if (!log_queue.empty())
-                {
-                    std::lock_guard queue_lock(load_mutex);
-                    batch = log_queue.front();
-                }
+                LOG_DEBUG(
+                    log,
+                    "Sleep 100ms, log queue size {}, start index {}, last index {}",
+                    log_queue.size(),
+                    batch_start_index,
+                    last_log_index);
+                usleep(100000);
             }
+
+            log_queue.peek(batch);
+
             if (batch.log_vec == nullptr)
             {
                 LOG_DEBUG(log, "log vector is null");
