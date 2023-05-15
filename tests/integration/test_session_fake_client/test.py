@@ -176,16 +176,9 @@ def test_session_timeout(started_cluster):
 def test_session_max_min_session_timeout(started_cluster):
     wait_nodes()
 
-    # modify max_session_timeout_ms to make test time shorter
-    node3.stop_raftkeeper()
-    node3.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper3.xml', '40000', '8000')
-    node3.start_raftkeeper()
-    # wait for node3 to join cluster
-    time.sleep(5)
-
     client1 = handshake(node1.name, session_timeout=100)    # under min session timeout, session timeout 1s
     client2 = handshake(node2.name, session_timeout=4000)   # normal, session timeout 4s
-    client3 = handshake(node3.name, session_timeout=100000)   # exceeding max session timeout, session timeout 8s
+    client3 = handshake(node3.name, session_timeout=100000)   # exceeding max session timeout, session timeout 12s
 
     # all the clients should be alive
     assert len(heartbeat(client1)) > 0
@@ -203,17 +196,9 @@ def test_session_max_min_session_timeout(started_cluster):
     assert len(heartbeat(client2)) == 0
     assert len(heartbeat(client3)) > 0
 
-    time.sleep(10)
+    time.sleep(14)
     # 10s after the third heartbeat, client3 session should expire
     assert len(heartbeat(client3)) == 0
-
-    # modify max_session_timeout_ms back to its original value
-    node3.stop_raftkeeper()
-    node3.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper3.xml', '8000', '40000')
-    node3.start_raftkeeper()
-    # wait for node3 to join cluster
-    time.sleep(5)
-
 
 def send_4lw_cmd(node_name=node1.name, cmd='ruok'):
     client = None
@@ -232,7 +217,7 @@ def test_invalid_timeout_setting(started_cluster):
 
     node1.stop_raftkeeper()
     time.sleep(3)
-    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '40000', '200')
+    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '12000', '200')
     node1.start_raftkeeper()
 
     data = send_4lw_cmd(node1.name, cmd='conf')
@@ -250,6 +235,6 @@ def test_invalid_timeout_setting(started_cluster):
 
     node1.stop_raftkeeper()
     time.sleep(3)
-    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '200', '40000')
+    node1.replace_in_config('/etc/raftkeeper-server/config.d/enable_keeper1.xml', '200', '12000')
     node1.start_raftkeeper()
 

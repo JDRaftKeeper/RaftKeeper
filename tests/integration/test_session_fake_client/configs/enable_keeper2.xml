@@ -8,7 +8,7 @@
         <raft_settings>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
-            <max_session_timeout_ms>40000</max_session_timeout_ms>
+            <max_session_timeout_ms>12000</max_session_timeout_ms>
             <raft_logs_level>debug</raft_logs_level>
         </raft_settings>
 
