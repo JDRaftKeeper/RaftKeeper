@@ -129,7 +129,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     return settings;
 }
 
-const String Settings::DEFAULT_FOUR_LETTER_WORD_CMD = "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld";
+const String Settings::DEFAULT_FOUR_LETTER_WORD_CMD = "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm";
 
 Settings::Settings() : my_id(NOT_EXIST), port(NOT_EXIST), standalone_keeper(false), raft_settings(RaftSettings::getDefault())
 {

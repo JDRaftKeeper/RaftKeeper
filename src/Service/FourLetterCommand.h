@@ -352,4 +352,17 @@ struct RequestLeaderCommand : public IFourLetterCommand
     ~RequestLeaderCommand() override = default;
 };
 
+/// process startup time in second
+struct UpTimeCommand : public IFourLetterCommand
+{
+    explicit UpTimeCommand(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "uptm"; }
+    String run() override;
+    ~UpTimeCommand() override = default;
+};
+
 }

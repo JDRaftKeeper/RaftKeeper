@@ -90,6 +90,7 @@ private:
     RequestAccumulator request_accumulator;
     RequestForwarder request_forwarder;
 
+    Poco::Timestamp uptime;
 
     void requestThread();
     void requestThreadFakeZk(size_t thread_index);
@@ -192,6 +193,9 @@ public:
     KeeperLogInfo getKeeperLogInfo() { return server->getKeeperLogInfo(); }
 
     bool requestLeader() { return server->requestLeader(); }
+
+    /// return process start time in us.
+    int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }
 };
 
 }

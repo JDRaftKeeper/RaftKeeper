@@ -25,6 +25,7 @@ KeeperDispatcher::KeeperDispatcher()
     , request_processor(std::make_shared<RequestProcessor>(responses_queue))
     , request_accumulator(request_processor)
     , request_forwarder(request_processor)
+    , uptime()
 {
 }
 
