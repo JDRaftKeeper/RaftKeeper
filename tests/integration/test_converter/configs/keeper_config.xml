@@ -12,11 +12,12 @@
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>
             <nuraft_thread_size>32</nuraft_thread_size>
-            <session_timeout_ms>8000</session_timeout_ms>
+            <max_session_timeout_ms>8000</max_session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <election_timeout_lower_bound_ms>500</election_timeout_lower_bound_ms>
             <election_timeout_upper_bound_ms>1000</election_timeout_upper_bound_ms>
             <snapshot_distance>75</snapshot_distance>
+            <min_session_timeout_ms>1000</min_session_timeout_ms>
         </raft_settings>
 
         <cluster>

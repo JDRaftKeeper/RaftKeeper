@@ -70,8 +70,10 @@ using SettingsPtr = std::shared_ptr<Settings>;
 
 struct RaftSettings
 {
-    /// Default client session timeout
-    UInt64 session_timeout_ms;
+    /// Default client max session timeout
+    UInt64 max_session_timeout_ms;
+    /// Default client min session timeout
+    UInt64 min_session_timeout_ms;
     /// Default client operation timeout
     UInt64 operation_timeout_ms;
     /// How often leader will check sessions to consider them dead and remove
@@ -112,6 +114,8 @@ struct RaftSettings
     bool session_consistent;
     /// Whether async snapshot
     bool async_snapshot;
+
+    Poco::Logger * log = &Poco::Logger::get("RaftSettings");
 
     void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
 

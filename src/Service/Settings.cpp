@@ -1,6 +1,8 @@
 #include <filesystem>
 #include <Service/Settings.h>
 #include <Common/IO/WriteHelpers.h>
+#include <common/logger_useful.h>
+#include "ZooKeeper/ZooKeeperConstants.h"
 
 
 namespace RK
@@ -50,8 +52,22 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
     {
         auto get_key = [&config_elem](String key) -> String { return config_elem + "." + key; };
 
-        session_timeout_ms = config.getUInt(get_key("session_timeout_ms"), Coordination::DEFAULT_SESSION_TIMEOUT_MS);
+        max_session_timeout_ms = config.getUInt(get_key("max_session_timeout_ms"), Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS);
+        min_session_timeout_ms = config.getUInt(get_key("min_session_timeout_ms"), Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS);
         operation_timeout_ms = config.getUInt(get_key("operation_timeout_ms"), Coordination::DEFAULT_OPERATION_TIMEOUT_MS);
+        if (min_session_timeout_ms > max_session_timeout_ms)
+        {
+            LOG_WARNING(
+                log,
+                "Invalid sesison timeout setting, need min_session_timeout_ms <= max_session_timeout_ms, got {}, {}. "
+                "Reset session timeout to default values: {}, {}",
+                min_session_timeout_ms,
+                max_session_timeout_ms,
+                Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS,
+                Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS);
+            max_session_timeout_ms = Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS;
+            min_session_timeout_ms = Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS;
+        }
         dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 100);
         heart_beat_interval_ms = config.getUInt(get_key("heart_beat_interval_ms"), 500);
         election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), 10000);
@@ -86,7 +102,8 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
 RaftSettingsPtr RaftSettings::getDefault()
 {
     RaftSettingsPtr settings = std::make_shared<RaftSettings>();
-    settings->session_timeout_ms = Coordination::DEFAULT_SESSION_TIMEOUT_MS;
+    settings->max_session_timeout_ms = Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS;
+    settings->min_session_timeout_ms = Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS;
     settings->operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
     settings->dead_session_check_period_ms = 100;
     settings->heart_beat_interval_ms = 500;
@@ -162,8 +179,10 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
 
     /// raft_settings
 
-    writeText("session_timeout_ms=", buf);
-    write_int(raft_settings->session_timeout_ms);
+    writeText("max_session_timeout_ms=", buf);
+    write_int(raft_settings->max_session_timeout_ms);
+    writeText("min_session_timeout_ms=", buf);
+    write_int(raft_settings->min_session_timeout_ms);
     writeText("operation_timeout_ms=", buf);
     write_int(raft_settings->operation_timeout_ms);
     writeText("dead_session_check_period_ms=", buf);
@@ -244,5 +263,4 @@ String Settings::getSnapshotsPathFromConfig(const Poco::Util::AbstractConfigurat
 {
     return config.getString("keeper.snapshot_dir", "./data/snapshot");
 }
-
 }

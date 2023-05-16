@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <cstdint>
+#include <string>
 
 
 namespace Coordination
@@ -10,8 +10,8 @@ namespace Coordination
 using XID = int32_t;
 
 static constexpr XID WATCH_XID = -1;
-static constexpr XID PING_XID  = -2;
-static constexpr XID AUTH_XID  = -4;
+static constexpr XID PING_XID = -2;
+static constexpr XID AUTH_XID = -4;
 /// Used when RaftKeeper server close a session.
 /// But when client send a close request xid can be any digit.
 static constexpr XID CLOSE_XID = 0x7FFFFFFF;
@@ -50,8 +50,10 @@ static constexpr int32_t PASSWORD_LENGTH = 16;
 
 /// ZooKeeper has 1 MB node size and serialization limit by default,
 /// but it can be raised up, so we have a slightly larger limit on our side.
-static constexpr int32_t MAX_STRING_OR_ARRAY_SIZE = 1 << 28;  /// 256 MiB
+static constexpr int32_t MAX_STRING_OR_ARRAY_SIZE = 1 << 28; /// 256 MiB
 static constexpr int32_t DEFAULT_SESSION_TIMEOUT_MS = 30000;
-static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 20000;
+static constexpr int32_t DEFAULT_MIN_SESSION_TIMEOUT_MS = 10000;
+static constexpr int32_t DEFAULT_MAX_SESSION_TIMEOUT_MS = 100000;
+static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 2000;
 
 }

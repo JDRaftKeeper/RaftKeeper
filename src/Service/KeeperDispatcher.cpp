@@ -1,9 +1,11 @@
+#include <Poco/NumberFormatter.h>
+
+#include <Common/checkStackSize.h>
+#include <Common/setThreadName.h>
+
 #include <Service/KeeperDispatcher.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/formatHex.h>
-#include <Poco/NumberFormatter.h>
-#include <Common/checkStackSize.h>
-#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -163,11 +165,7 @@ void KeeperDispatcher::sendForwardResponse(ForwardingClientId client_id, Forward
         return;
 
     LOG_TRACE(
-        log,
-        "[sendForwardResponse] server_id {}, client_id {}, response {}",
-        client_id.first,
-        client_id.second,
-        response->toString());
+        log, "[sendForwardResponse] server_id {}, client_id {}, response {}", client_id.first, client_id.second, response->toString());
 
     forward_response_writer->second(response);
 }
@@ -219,8 +217,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 }
 
 
-bool KeeperDispatcher::putForwardingRequest(
-    size_t server_id, size_t client_id, ForwardRequestPtr request)
+bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
     KeeperStore::RequestForSession && request_info = request->requestForSession();
 

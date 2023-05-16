@@ -5,6 +5,15 @@
 #endif
 
 #include <functional>
+
+#include <Poco/FIFOBuffer.h>
+#include <Poco/Util/AbstractConfiguration.h>
+
+#include <Common/ConcurrentBoundedQueue.h>
+#include <Common/Exception.h>
+#include <Common/ThreadPool.h>
+#include <common/logger_useful.h>
+
 #include <Service/ConnectionStats.h>
 #include <Service/Keeper4LWInfo.h>
 #include <Service/KeeperServer.h>
@@ -14,12 +23,6 @@
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
 #include <Service/Settings.h>
-#include <Poco/FIFOBuffer.h>
-#include <Poco/Util/AbstractConfiguration.h>
-#include <Common/ConcurrentBoundedQueue.h>
-#include <Common/Exception.h>
-#include <Common/ThreadPool.h>
-#include <common/logger_useful.h>
 
 namespace RK
 {
@@ -28,9 +31,7 @@ using ForwardResponseCallback = std::function<void(ForwardResponsePtr response)>
 
 class KeeperDispatcher : public std::enable_shared_from_this<KeeperDispatcher>
 {
-
 private:
-
     std::mutex push_request_mutex;
     ptr<RequestsQueue> requests_queue;
     ThreadSafeQueue<KeeperStore::ResponseForSession> responses_queue;
@@ -44,8 +45,8 @@ private:
 
     struct PairHash
     {
-        template<class T1, class T2>
-        std::size_t operator() (const std::pair<T1, T2>& p) const
+        template <class T1, class T2>
+        std::size_t operator()(const std::pair<T1, T2> & p) const
         {
             auto h1 = std::hash<T1>{}(p.first);
             auto h2 = std::hash<T2>{}(p.second);
@@ -128,10 +129,7 @@ public:
     void filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time);
 
     /// from follower
-    void handleRemoteSession(int64_t session_id, int64_t expiration_time)
-    {
-        server->handleRemoteSession(session_id, expiration_time);
-    }
+    void handleRemoteSession(int64_t session_id, int64_t expiration_time) { server->handleRemoteSession(session_id, expiration_time); }
 
     /// Thread apply or wait configuration changes from leader
     void updateConfigurationThread();
@@ -146,20 +144,11 @@ public:
     void sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response);
 
     /// Are we leader
-    bool isLeader() const
-    {
-        return server->isLeader();
-    }
+    bool isLeader() const { return server->isLeader(); }
 
-    bool hasLeader() const
-    {
-        return server->isLeaderAlive();
-    }
+    bool hasLeader() const { return server->isLeaderAlive(); }
 
-    bool isObserver() const
-    {
-        return server->isObserver();
-    }
+    bool isObserver() const { return server->isObserver(); }
 
     /// get log size in bytes
     uint64_t getLogDirSize() const;
@@ -176,15 +165,9 @@ public:
 
     Keeper4LWInfo getKeeper4LWInfo();
 
-    const NuRaftStateMachine & getStateMachine() const
-    {
-        return *server->getKeeperStateMachine();
-    }
+    const NuRaftStateMachine & getStateMachine() const { return *server->getKeeperStateMachine(); }
 
-    const SettingsPtr & getKeeperConfigurationAndSettings() const
-    {
-        return configuration_and_settings;
-    }
+    const SettingsPtr & getKeeperConfigurationAndSettings() const { return configuration_and_settings; }
 
     void incrementPacketsSent()
     {
@@ -204,20 +187,11 @@ public:
         keeper_stats.reset();
     }
 
-    uint64_t createSnapshot()
-    {
-        return server->createSnapshot();
-    }
+    uint64_t createSnapshot() { return server->createSnapshot(); }
 
-    KeeperLogInfo getKeeperLogInfo()
-    {
-        return server->getKeeperLogInfo();
-    }
+    KeeperLogInfo getKeeperLogInfo() { return server->getKeeperLogInfo(); }
 
-    bool requestLeader()
-    {
-        return server->requestLeader();
-    }
+    bool requestLeader() { return server->requestLeader(); }
 };
 
 }

@@ -21,7 +21,8 @@
         </cluster>
         <raft_settings>
             <operation_timeout_ms>1000</operation_timeout_ms>
-            <session_timeout_ms>3000</session_timeout_ms>
+            <max_session_timeout_ms>3000</max_session_timeout_ms>
+            <min_session_timeout_ms>1000</min_session_timeout_ms>
         </raft_settings>
     </keeper>
 </raftkeeper>
