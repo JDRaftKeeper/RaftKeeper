@@ -1,3 +1,4 @@
+---
 name: build-and-test-msan
 
 on: # yamllint disable-line rule:truthy

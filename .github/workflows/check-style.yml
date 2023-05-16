@@ -1,3 +1,4 @@
+---
 name: check-style
 
 on:  # yamllint disable-line rule:truthy

@@ -1,3 +1,4 @@
+---
 name: build-and-test-asan
 
 on: # yamllint disable-line rule:truthy
