@@ -132,6 +132,8 @@ private:
 
     Poco::Timespan operation_timeout;
     Poco::Timespan session_timeout;
+    Poco::Timespan min_session_timeout;
+    Poco::Timespan max_session_timeout;
 
     int64_t session_id{-1};
 

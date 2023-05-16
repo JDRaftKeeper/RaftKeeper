@@ -9,9 +9,10 @@
         <thread_count>16</thread_count>
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>
-            <session_timeout_ms>10000</session_timeout_ms>
+            <max_session_timeout_ms>10000</max_session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>10000000</snapshot_distance>
+            <min_session_timeout_ms>1000</min_session_timeout_ms>
         </raft_settings>
 
         <cluster>
