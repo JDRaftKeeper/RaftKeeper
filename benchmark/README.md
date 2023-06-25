@@ -1,5 +1,11 @@
 # RaftKeeper Benchmark
 
+Before the Benchmark test, how to build the benchmark tool.
+
+```
+cd RaftKeeper/benchmark && sh build.sh
+```
+
 Zookeeper or RaftKeeper benchmark tool.
 
 ```
