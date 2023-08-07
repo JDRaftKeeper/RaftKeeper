@@ -1,7 +1,13 @@
 <?xml version="1.0"?>
 <raftkeeper>
     <!-- System timezone, default is empty, will use OS default timezone. -->
-    <!-- <timezone></timezone>-->
+    <!-- <timezone></timezone> -->
+
+    <core_dump>
+        <!-- Core dump size limit, default is 1G. -->
+        <!-- <size_limit>1073741824</size_limit> -->
+    </core_dump>
+
     <logger>
         <!-- Valid values are: fatal, error, warning, information, debug, trace -->
         <!-- <level>information</level> -->
@@ -52,7 +58,7 @@
         <!-- Processor thread count, default is 16. -->
         <!-- <thread_count>16</thread_count> -->
 
-        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld" -->
+        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm" -->
         <!-- <four_letter_word_white_list></four_letter_word_white_list> -->
 
         <!-- Super digest for root user, default is empty string.
