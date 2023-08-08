@@ -1,25 +1,24 @@
-#include <daemon/BaseDaemon.h>
-
-#include <thread>
 #include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <thread>
+
 #include <Common/setThreadName.h>
+#include <daemon/BaseDaemon.h>
 #if defined(__linux__)
 #    include <sys/prctl.h>
 #endif
 #include <errno.h>
 #include <fcntl.h>
-#include <signal.h>
-#include <string.h>
-#include <unistd.h>
-
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <signal.h>
+#include <string.h>
 #include <typeinfo>
+#include <unistd.h>
 
 #include <Poco/Condition.h>
 #include <Poco/ErrorHandler.h>
@@ -29,19 +28,18 @@
 #include <Poco/Path.h>
 #include <Poco/Util/Application.h>
 
-#include <common/ErrorHandlers.h>
-#include <common/argsToConfig.h>
-#include <common/coverage.h>
-#include <common/sleep.h>
-
+#include <Common/Config/ConfigProcessor.h>
+#include <Common/Exception.h>
 #include <Common/IO/ReadBufferFromFileDescriptor.h>
 #include <Common/IO/ReadHelpers.h>
 #include <Common/IO/WriteBufferFromFileDescriptorDiscardOnFailure.h>
 #include <Common/IO/WriteHelpers.h>
-#include <Common/Config/ConfigProcessor.h>
-#include <Common/Exception.h>
 #include <Common/PipeFDs.h>
 #include <Common/StackTrace.h>
+#include <common/ErrorHandlers.h>
+#include <common/argsToConfig.h>
+#include <common/coverage.h>
+#include <common/sleep.h>
 
 #if !defined(ARCADIA_BUILD)
 #    include <Common/config_version.h>
@@ -52,10 +50,11 @@
 #    define _XOPEN_SOURCE 700 // ucontext is not available without _XOPEN_SOURCE
 #endif
 #include <ucontext.h>
+
+#include <Common/IO/WriteBufferFromFile.h>
 #include <Common/SymbolIndex.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getHashOfLoadedBinary.h>
-#include <Common/IO/WriteBufferFromFile.h>
 
 
 RK::PipeFDs signal_pipe;
@@ -70,10 +69,7 @@ static void call_default_signal_handler(int sig)
     raise(sig);
 }
 
-static constexpr size_t max_query_id_size = 127;
-
 static const size_t signal_pipe_buf_size = sizeof(int) + sizeof(siginfo_t) + sizeof(ucontext_t) + sizeof(StackTrace) + sizeof(UInt32)
-    + max_query_id_size + 1 /// query_id + varint encoded length
     + sizeof(void *);
 
 
@@ -118,16 +114,11 @@ static void signalHandler(int sig, siginfo_t * info, void * context)
     const ucontext_t signal_context = *reinterpret_cast<ucontext_t *>(context);
     const StackTrace stack_trace(signal_context);
 
-    StringRef query_id = RK::CurrentThread::getQueryId(); /// This is signal safe.
-    query_id.size = std::min(query_id.size, max_query_id_size);
-
     RK::writeBinary(sig, out);
     RK::writePODBinary(*info, out);
     RK::writePODBinary(signal_context, out);
     RK::writePODBinary(stack_trace, out);
     RK::writeBinary(UInt32(getThreadId()), out);
-    RK::writeStringBinary(query_id, out);
-    RK::writePODBinary(RK::current_thread, out);
 
     out.next();
 
@@ -205,8 +196,6 @@ public:
                 ucontext_t context{};
                 StackTrace stack_trace(NoCapture{});
                 UInt32 thread_num{};
-                std::string query_id;
-                RK::ThreadStatus * thread_ptr{};
 
                 if (sig != SanitizerTrap)
                 {
@@ -216,12 +205,10 @@ public:
 
                 RK::readPODBinary(stack_trace, in);
                 RK::readBinary(thread_num, in);
-                RK::readBinary(query_id, in);
-                RK::readPODBinary(thread_ptr, in);
 
                 /// This allows to receive more signals if failure happens inside onFault function.
                 /// Example: segfault while symbolizing stack trace.
-                std::thread([=, this] { onFault(sig, info, context, stack_trace, thread_num, query_id, thread_ptr); }).detach();
+                std::thread([=, this] { onFault(sig, info, context, stack_trace, thread_num); }).detach();
             }
         }
     }
@@ -232,54 +219,21 @@ private:
 
     void onTerminate(const std::string & message, UInt32 thread_num) const
     {
-        LOG_FATAL(
-            log, "(version {}, {}) (from thread {}) {}", VERSION_STRING, daemon.build_id_info, thread_num, message);
+        LOG_FATAL(log, "(version {}, {}) (from thread {}) {}", VERSION_STRING, daemon.build_id_info, thread_num, message);
     }
 
-    void onFault(
-        int sig,
-        const siginfo_t & info,
-        const ucontext_t & context,
-        const StackTrace & stack_trace,
-        UInt32 thread_num,
-        const std::string & query_id,
-        RK::ThreadStatus * thread_ptr) const
+    void onFault(int sig, const siginfo_t & info, const ucontext_t & context, const StackTrace & stack_trace, UInt32 thread_num) const
     {
-        RK::ThreadStatus thread_status;
-
-        /// Send logs from this thread to client if possible.
-        /// It will allow client to see failure messages directly.
-        if (thread_ptr)
-        {
-            if (auto logs_queue = thread_ptr->getInternalTextLogsQueue())
-                RK::CurrentThread::attachInternalTextLogsQueue(logs_queue);
-        }
-
         LOG_FATAL(log, "########################################");
 
-        if (query_id.empty())
-        {
-            LOG_FATAL(
-                log,
-                "(version {}, {}) (from thread {}) Received signal {} ({})",
-                VERSION_STRING,
-                daemon.build_id_info,
-                thread_num,
-                strsignal(sig),
-                sig);
-        }
-        else
-        {
-            LOG_FATAL(
-                log,
-                "(version {}, {}) (from thread {}) (query_id: {}) Received signal {} ({})",
-                VERSION_STRING,
-                daemon.build_id_info,
-                thread_num,
-                query_id,
-                strsignal(sig),
-                sig);
-        }
+        LOG_FATAL(
+            log,
+            "(version {}, {}) (from thread {}) Received signal {} ({})",
+            VERSION_STRING,
+            daemon.build_id_info,
+            thread_num,
+            strsignal(sig),
+            sig);
 
         String error_message;
 
@@ -338,10 +292,6 @@ private:
                 daemon.stored_binary_hash);
         }
 #endif
-
-        /// When everything is done, we will try to send these error messages to client.
-        if (thread_ptr)
-            thread_ptr->onFatalError();
     }
 };
 
@@ -358,15 +308,10 @@ static void sanitizerDeathCallback()
 
     const StackTrace stack_trace;
 
-    StringRef query_id = RK::CurrentThread::getQueryId();
-    query_id.size = std::min(query_id.size, max_query_id_size);
-
     int sig = SignalListener::SanitizerTrap;
     RK::writeBinary(sig, out);
     RK::writePODBinary(stack_trace, out);
     RK::writeBinary(UInt32(getThreadId()), out);
-    RK::writeStringBinary(query_id, out);
-    RK::writePODBinary(RK::current_thread, out);
 
     out.next();
 
