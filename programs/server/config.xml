@@ -55,8 +55,8 @@
         <!-- Max snapshot interval in second. -->
         <!-- <snapshot_create_interval>3600</snapshot_create_interval> -->
 
-        <!-- Processor thread count, default is 16. -->
-        <!-- <thread_count>16</thread_count> -->
+        <!-- Processor thread count, default is CPU core size. For container is cgroup limit size. -->
+        <!-- <thread_count></thread_count> -->
 
         <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm" -->
         <!-- <four_letter_word_white_list></four_letter_word_white_list> -->
@@ -106,8 +106,8 @@
             <!-- NuRaft log level, default is information. -->
             <!-- <raft_logs_level>information</raft_logs_level> -->
 
-            <!-- NuRaft thread pool size, default is 32. -->
-            <!-- <nuraft_thread_size>32</nuraft_thread_size> -->
+            <!-- NuRaft thread pool size, default is CPU core size. For container is cgroup limit size. -->
+            <!-- <nuraft_thread_size></nuraft_thread_size> -->
 
             <!-- Log gap (compared to the leader's latest log) for treating this node as fresh, default is 200. -->
             <!-- <fresh_log_gap>200</fresh_log_gap> -->
