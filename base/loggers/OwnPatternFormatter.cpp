@@ -2,7 +2,6 @@
 
 #include <functional>
 
-#include <Common/CurrentThread.h>
 #include <Common/IO/WriteBufferFromString.h>
 #include <Common/IO/WriteHelpers.h>
 #include <common/terminalColors.h>
@@ -51,16 +50,6 @@ void OwnPatternFormatter::formatExtended(const RK::ExtendedLogMessage & msg_ext,
     if (color)
         writeCString(resetColor(), wb);
     writeCString(" ] ", wb);
-
-    /// We write query_id even in case when it is empty (no query context)
-    /// just to be convenient for various log parsers.
-    writeCString("{", wb);
-    if (color)
-        writeString(setColor(std::hash<std::string>()(msg_ext.query_id)), wb);
-    RK::writeString(msg_ext.query_id, wb);
-    if (color)
-        writeCString(resetColor(), wb);
-    writeCString("} ", wb);
 
     writeCString("<", wb);
     int priority = static_cast<int>(msg.getPriority());

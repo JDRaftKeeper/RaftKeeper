@@ -5,7 +5,6 @@
 #include <fmt/format.h>
 #include <Poco/Logger.h>
 #include <Poco/Message.h>
-#include <Common/CurrentThread.h>
 
 
 namespace
@@ -52,5 +51,4 @@ namespace
 #if defined(ARCADIA_BUILD)
     using Poco::Logger;
     using Poco::Message;
-    using RK::CurrentThread;
 #endif
