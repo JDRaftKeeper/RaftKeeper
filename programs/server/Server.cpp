@@ -14,6 +14,7 @@
 #include <Common/NIO/SvsSocketReactor.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
 #include <common/ErrorHandlers.h>
 
 #include <Service/ConnectionHandler.h>
@@ -155,6 +156,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
     std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> conn_acceptor;
     int32_t port = config().getInt("keeper.port", 8101);
 
+    auto cpu_core_size = getNumberOfPhysicalCPUCores();
+
     createServer(
         listen_host,
         port,
@@ -169,7 +172,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
             /// TODO add io thread count to config
             conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
-                "IO-SrvHandler", global_context, socket, *server, timeout);
+                "IO-SrvHandler", global_context, socket, *server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
         });
 
@@ -192,7 +195,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
             /// TODO add io thread count to config
             forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-                "IO-FwdHandler", global_context, socket, *forwarding_server, timeout);
+                "IO-FwdHandler", global_context, socket, *forwarding_server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
         });
 
