@@ -1,8 +1,9 @@
 #include <filesystem>
 #include <Service/Settings.h>
 #include <Common/IO/WriteHelpers.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
 #include <common/logger_useful.h>
-#include "ZooKeeper/ZooKeeperConstants.h"
+#include <ZooKeeper/ZooKeeperConstants.h>
 
 
 namespace RK
@@ -82,7 +83,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         raft_logs_level = parseNuRaftLogLevel(log_level);
         rotate_log_storage_interval = config.getUInt(get_key("rotate_log_storage_interval"), 100000);
         /// TODO set a value according to CPU size
-        nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), 32);
+        nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), getNumberOfPhysicalCPUCores());
         fresh_log_gap = config.getUInt(get_key("fresh_log_gap"), 200);
         configuration_change_tries_count = config.getUInt(get_key("configuration_change_tries_count"), 30);
         max_batch_size = config.getUInt(get_key("max_batch_size"), 1000);
@@ -117,7 +118,7 @@ RaftSettingsPtr RaftSettings::getDefault()
 
     settings->raft_logs_level = NuRaftLogLevel::RAFT_LOG_INFORMATION;
     settings->rotate_log_storage_interval = 100000;
-    settings->nuraft_thread_size = 32;
+    settings->nuraft_thread_size = getNumberOfPhysicalCPUCores();
     settings->fresh_log_gap = 200;
     settings->configuration_change_tries_count = 30;
     settings->max_batch_size = 1000;
@@ -237,7 +238,7 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     ret->host = config.getString("keeper.host", "0.0.0.0");
 
     ret->internal_port = config.getInt("keeper.internal_port", 8103);
-    ret->thread_count = config.getInt("keeper.thread_count", 16);
+    ret->thread_count = config.getInt("keeper.thread_count", getNumberOfPhysicalCPUCores());
 
     ret->snapshot_create_interval = config.getInt("keeper.snapshot_create_interval", 3600);
     ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1);
