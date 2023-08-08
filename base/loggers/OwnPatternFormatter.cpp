@@ -1,11 +1,12 @@
 #include "OwnPatternFormatter.h"
 
 #include <functional>
+
+#include <Common/CurrentThread.h>
 #include <Common/IO/WriteBufferFromString.h>
 #include <Common/IO/WriteHelpers.h>
-#include <Common/CurrentThread.h>
 #include <common/terminalColors.h>
-#include "Loggers.h"
+#include <loggers/Loggers.h>
 
 
 OwnPatternFormatter::OwnPatternFormatter(const Loggers * loggers_, OwnPatternFormatter::Options options_, bool color_)

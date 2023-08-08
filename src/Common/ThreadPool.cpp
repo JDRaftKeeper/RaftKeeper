@@ -1,12 +1,13 @@
-#include <Common/ThreadPool.h>
-#include <Common/Exception.h>
-#include <Common/getNumberOfPhysicalCPUCores.h>
-
-#include <cassert>
 #include <type_traits>
 
 #include <Poco/Util/Application.h>
 #include <Poco/Util/LayeredConfiguration.h>
+
+#include <Common/CurrentMetrics.h>
+#include <Common/Exception.h>
+#include <Common/ThreadPool.h>
+#include <Common/MemoryTracker.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
 
 namespace RK
 {

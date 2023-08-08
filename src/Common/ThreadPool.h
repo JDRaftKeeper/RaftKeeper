@@ -1,17 +1,18 @@
 #pragma once
 
-#include <cstdint>
-#include <thread>
-#include <mutex>
 #include <condition_variable>
+#include <cstdint>
 #include <functional>
-#include <queue>
 #include <list>
+#include <mutex>
 #include <optional>
+#include <queue>
+#include <thread>
 
 #include <Poco/Event.h>
+
 #include "common/scope_guard.h"
-#include <Common/ThreadStatus.h>
+#include <boost/core/noncopyable.hpp>
 
 /** Very simple thread pool similar to boost::threadpool.
   * Advantages:
@@ -151,7 +152,6 @@ public:
 
 
 /** Looks like std::thread but allocates threads in GlobalThreadPool.
-  * Also holds ThreadStatus for ClickHouse.
   */
 class ThreadFromGlobalPool
 {
@@ -164,21 +164,17 @@ public:
     {
         /// NOTE: If this will throw an exception, the destructor won't be called.
         GlobalThreadPool::instance().scheduleOrThrow([
-            state = state,
-            func = std::forward<Function>(func),
-            args = std::make_tuple(std::forward<Args>(args)...)]() mutable /// mutable is needed to destroy capture
+            state_ = state,
+            func_ = std::forward<Function>(func),
+            args_ = std::make_tuple(std::forward<Args>(args)...)]() mutable /// mutable is needed to destroy capture
         {
-            auto event = std::move(state);
+            auto event = std::move(state_);
             SCOPE_EXIT(event->set());
 
             /// This moves are needed to destroy function and arguments before exit.
             /// It will guarantee that after ThreadFromGlobalPool::join all captured params are destroyed.
-            auto function = std::move(func);
-            auto arguments = std::move(args);
-
-            /// Thread status holds raw pointer on query context, thus it always must be destroyed
-            /// before sending signal that permits to join this thread.
-            RK::ThreadStatus thread_status;
+            auto function = std::move(func_);
+            auto arguments = std::move(args_);
             std::apply(function, arguments);
         });
     }
