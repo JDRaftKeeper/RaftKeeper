@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install tools
-        run: sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
+        run: sudo apt-get update && apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
 
       - name: Check style
         working-directory: ${{github.workspace}}/tests/ci
