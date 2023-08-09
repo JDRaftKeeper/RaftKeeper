@@ -6,6 +6,7 @@
 #include <sys/resource.h>
 #include <pthread.h>
 #include <common/logger_useful.h>
+#include <boost/noncopyable.hpp>
 
 
 #if defined(__linux__)
