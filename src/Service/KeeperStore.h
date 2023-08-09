@@ -16,6 +16,7 @@
 #include <Common/IO/WriteBufferFromString.h>
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
+#include <shared_mutex>
 
 namespace RK
 {

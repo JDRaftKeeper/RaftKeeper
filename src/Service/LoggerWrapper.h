@@ -2,6 +2,7 @@
 
 #include <libnuraft/nuraft.hxx> // Y_IGNORE
 #include <common/logger_useful.h>
+#include <common/types.h>
 
 namespace RK
 {
