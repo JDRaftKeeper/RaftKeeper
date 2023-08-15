@@ -23,7 +23,10 @@ public:
     {
         _thread.start(*this);
         if (!name.empty())
+        {
             _thread.setName(name);
+            setThreadName(name.c_str());
+        }
     }
 
     SvsSocketReactor(const Poco::Timespan& timeout, const std::string& name = ""):
@@ -31,7 +34,10 @@ public:
     {
         _thread.start(*this);
         if (!name.empty())
+        {
             _thread.setName(name);
+            setThreadName(name.c_str());
+        }
     }
 
     ~SvsSocketReactor() override
