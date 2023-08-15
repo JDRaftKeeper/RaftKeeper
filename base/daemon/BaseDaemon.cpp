@@ -742,10 +742,10 @@ void BaseDaemon::logRevision() const
 {
     Poco::Logger::root().information(
         "Starting " + std::string{VERSION_FULL}
-        + ", git commit hash:" + std::string{GIT_COMMIT_HASH}
-        + ", binary built on:" + std::string{BUILD_TIME}
+        + ", git commit hash: " + std::string{GIT_COMMIT_HASH}
+        + ", binary built on: " + std::string{BUILD_TIME}
         + ", binary built id: " + build_id_info
-        + ", PID " + std::to_string(getpid()));
+        + ", PID: " + std::to_string(getpid()));
 }
 
 void BaseDaemon::defineOptions(Poco::Util::OptionSet & new_options)
