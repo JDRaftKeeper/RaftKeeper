@@ -14,6 +14,7 @@
 #include <Common/NIO/SvsSocketReactor.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
 #include <common/ErrorHandlers.h>
 
 #include <Service/ConnectionHandler.h>
@@ -154,6 +155,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
     std::shared_ptr<SvsSocketReactor<SocketReactor>> server;
     std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> conn_acceptor;
     int32_t port = config().getInt("keeper.port", 8101);
+
+    auto cpu_core_size = getNumberOfPhysicalCPUCores();
 
     createServer(
         listen_host,
