@@ -359,7 +359,7 @@ void RequestProcessor::processErrorRequest()
                         log,
                         "Not found error request session {}, xid {} from pending queue. Maybe it is still in the request queue "
                         "and will be processed next time",
-                        session_id,
+                        toHexString(session_id),
                         xid);
                     break;
                 }
