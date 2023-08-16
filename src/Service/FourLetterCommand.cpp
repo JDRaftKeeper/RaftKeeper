@@ -228,7 +228,15 @@ ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     const auto & state_machine = keeper_dispatcher.getStateMachine();
 
     StringBuffer ret;
-    print(ret, "version", VERSION_FULL);
+
+    WriteBufferFromOwnString version;
+    writeText(VERSION_FULL, version);
+    writeText("-", version);
+    writeText(GIT_COMMIT_HASH, version);
+    writeText(", built on ", version);
+    writeText(BUILD_TIME, version);
+
+    print(ret, "version", version.str());
 
     print(ret, "avg_latency", stats.getAvgLatency());
     print(ret, "max_latency", stats.getMaxLatency());
