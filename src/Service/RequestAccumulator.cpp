@@ -13,7 +13,7 @@ void RequestAccumulator::push(const RequestForSession & request_for_session)
 
 void RequestAccumulator::run(RunnerId runner_id)
 {
-    setThreadName(("ReqAccumu-" + toString(runner_id)).c_str());
+    setThreadName(("ReqAccumu#" + toString(runner_id)).c_str());
 
     NuRaftResult result;
 
