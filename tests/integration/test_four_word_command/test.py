@@ -454,7 +454,7 @@ def test_cmd_crst(started_cluster):
         assert result['lzxid'] == '0xffffffffffffffff'
         assert result['lresp'] == '0'
         assert int(result['llat']) == 0
-        assert int(result['minlat']) == 18446744073709551615
+        assert int(result['minlat']) == 0
         assert int(result['avglat']) == 0
         assert int(result['maxlat']) == 0
 
