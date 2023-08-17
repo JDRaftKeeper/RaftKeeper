@@ -171,9 +171,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
             server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-Acptr");
 
             /// TODO add io thread count to config
-            static UInt64 handler_thread_id = 0;
             conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
-                "IO-Hdlr-" + std::to_string(handler_thread_id++), global_context, socket, *server, timeout, cpu_core_size);
+                "IO-Hdlr", global_context, socket, *server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
         });
 
@@ -195,9 +194,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
             forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-FwdAcptr");
 
             /// TODO add io thread count to config
-            static UInt64 handler_thread_id = 0;
             forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardingConnectionHandler, SocketReactor>>(
-                "IO-FwdHdlr-" + std::to_string(handler_thread_id++), global_context, socket, *forwarding_server, timeout, cpu_core_size);
+                "IO-FwdHdlr", global_context, socket, *forwarding_server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
         });
 

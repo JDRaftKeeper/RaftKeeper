@@ -152,6 +152,8 @@ public:
 
     void run() override
     {
+        setThreadName("SignalListener");
+
         char buf[signal_pipe_buf_size];
         RK::ReadBufferFromFileDescriptor in(signal_pipe.fds_rw[0], signal_pipe_buf_size, buf);
 
