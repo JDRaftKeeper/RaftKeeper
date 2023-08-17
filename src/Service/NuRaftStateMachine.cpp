@@ -8,10 +8,11 @@
 #include <Service/ReadBufferFromNuraftBuffer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
+#include <Service/ThreadSafeQueue.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 #include <Poco/File.h>
 #include <Common/Stopwatch.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Common/setThreadName.h>
 
 
 #ifdef __clang__
@@ -320,6 +321,7 @@ ptr<KeeperStore::RequestForSession> NuRaftStateMachine::createRequestSession(ptr
 
 void NuRaftStateMachine::snapThread()
 {
+    setThreadName("snapThread");
     while (!shutdown_called)
     {
         if (snap_task)
