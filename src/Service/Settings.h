@@ -110,8 +110,6 @@ struct RaftSettings
     FsyncMode log_fsync_mode;
     /// How many logs do once fsync when async_fsync is false
     UInt64 log_fsync_interval;
-    /// Request-response will follow the session xid order
-    bool session_consistent;
     /// Whether async snapshot
     bool async_snapshot;
 

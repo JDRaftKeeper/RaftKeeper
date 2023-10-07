@@ -92,8 +92,7 @@ private:
 
     Poco::Timestamp uptime;
 
-    void requestThread();
-    void requestThreadFakeZk(size_t thread_index);
+    void requestThread(RunnerId runner_id);
     void responseThread();
     void sessionCleanerTask();
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
