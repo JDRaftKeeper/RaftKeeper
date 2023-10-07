@@ -146,7 +146,9 @@ def test_cmd_mntr(started_cluster):
 
         data = node1.send_4lw_cmd(cmd='mntr')
 
-        # print(data.decode())
+        print("mntr output -------------------------------------")
+        print(data)
+
         reader = csv.reader(data.split('\n'), delimiter='\t')
         result = {}
 
