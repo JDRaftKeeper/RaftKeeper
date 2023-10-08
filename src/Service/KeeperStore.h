@@ -7,6 +7,7 @@
 #include <Service/ACLMap.h>
 #include <Service/SessionExpiryQueue.h>
 #include <Service/ThreadSafeQueue.h>
+#include <Service/KeeperCommon.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -163,45 +164,15 @@ public:
     }
 };
 
-/// KeeperStore hold data tree and sessions. It is under statemachine.
+/// KeeperStore hold data tree and sessions. It is under state machine.
 class KeeperStore
 {
 public:
     /// block num for ConcurrentMap
     static constexpr int MAP_BLOCK_NUM = 16;
 
-    /// Attached session id to response
-    struct ResponseForSession
-    {
-        int64_t session_id;
-        Coordination::ZooKeeperResponsePtr response;
-    };
-
     using ResponsesForSessions = std::vector<ResponseForSession>;
-    using KeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
-
-    /// Attached session id to request
-    struct RequestForSession
-    {
-        int64_t session_id;
-        Coordination::ZooKeeperRequestPtr request;
-
-        /// measured in millisecond
-        int64_t create_time{};
-
-        /// for forward request
-        int32_t server_id{-1};
-        int32_t client_id{-1};
-
-        explicit RequestForSession() = default;
-
-        RequestForSession(Coordination::ZooKeeperRequestPtr request_, int64_t session_id_, int64_t create_time_)
-            : session_id(session_id_), request(request_), create_time(create_time_)
-        {
-        }
-
-        bool isForwardRequest() const { return server_id > -1 && client_id > -1; }
-    };
+    using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
     using RequestsForSessions = std::vector<RequestForSession>;
@@ -226,14 +197,16 @@ public:
     /// data tree
     Container container;
 
-    /// all ephemerals nodes goes here
+    /// all ephemeral nodes goes here
     Ephemerals ephemerals;
     mutable std::mutex ephemerals_mutex;
 
     /// Hold session and expiry time
+    /// For leader, holds all sessions in cluster.
+    /// For follower/leaner, holds only local sessions
     SessionExpiryQueue session_expiry_queue;
 
-    /// Hold session and initialized expiry timeout
+    /// Hold session and initialized expiry timeout, only local sessions.
     SessionAndTimeout session_and_timeout;
     mutable std::mutex session_mutex;
 
@@ -259,11 +232,6 @@ public:
     bool finalized{false};
 
     const String super_digest;
-
-    void clearDeadWatches(int64_t session_id);
-
-    /// increase zxid
-    int64_t getZXID() { return zxid++; }
 
     explicit KeeperStore(int64_t tick_time_ms, const String & super_digest_ = "");
 
@@ -371,6 +339,12 @@ public:
     void dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const;
 
 private:
+    /// increase zxid
+    int64_t getZXID() { return zxid++; }
+
+    void cleanDeadWatches(int64_t session_id);
+    void cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response);
+
     Poco::Logger * log;
 };
 

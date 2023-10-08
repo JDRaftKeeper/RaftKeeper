@@ -2,22 +2,25 @@
 #include <memory>
 #include <string>
 #include <time.h>
-#include <Service/KeeperCommon.h>
+
+#include <Poco/File.h>
+#include <Poco/Util/Application.h>
+
+#include <Common/Stopwatch.h>
+#include <Common/ThreadPool.h>
+#include <Common/randomSeed.h>
+#include <boost/program_options.hpp>
+#include <common/argsToConfig.h>
+#include <libnuraft/nuraft.hxx>
+#include <loggers/Loggers.h>
+
+#include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/Settings.h>
 #include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperImpl.h>
-#include <boost/program_options.hpp>
-#include <libnuraft/nuraft.hxx>
-#include <loggers/Loggers.h>
-#include <Poco/File.h>
-#include <Poco/Util/Application.h>
-#include <Common/Stopwatch.h>
-#include <Common/ThreadPool.h>
-#include <Common/randomSeed.h>
-#include <common/argsToConfig.h>
 
 using namespace Coordination;
 using namespace RK;

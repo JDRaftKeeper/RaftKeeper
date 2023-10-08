@@ -21,7 +21,7 @@ using nuraft::async_result;
 using nuraft::buffer;
 using nuraft::cs_new;
 
-using KeeperResponsesQueue = ThreadSafeQueue<KeeperStore::ResponseForSession>;
+using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
 
 class RequestProcessor;
 
@@ -225,7 +225,7 @@ public:
     KeeperStore & getStore() { return store; }
 
     /// process read request
-    void processReadRequest(const KeeperStore::RequestForSession & request_for_session);
+    void processReadRequest(const RequestForSession & request_for_session);
 
     /// get expired session
     std::vector<int64_t> getDeadSessions();
@@ -282,12 +282,12 @@ public:
     void shutdown();
 
     /// deserialize a RequestForSession
-    static KeeperStore::RequestForSession parseRequest(nuraft::buffer & data);
+    static RequestForSession parseRequest(nuraft::buffer & data);
     /// serialize a RequestForSession
-    static ptr<buffer> serializeRequest(KeeperStore::RequestForSession & request);
+    static ptr<buffer> serializeRequest(RequestForSession & request);
 
 private:
-    ptr<KeeperStore::RequestForSession> createRequestSession(ptr<log_entry> & entry);
+    ptr<RequestForSession> createRequestSession(ptr<log_entry> & entry);
 
     /// Asynchronously snapshot creating thread.
     /// Now it is not used.

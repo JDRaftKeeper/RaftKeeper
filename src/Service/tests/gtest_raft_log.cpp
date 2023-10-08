@@ -1,13 +1,15 @@
-#include <Service/KeeperCommon.h>
+#include <Poco/File.h>
+
+#include <boost/program_options.hpp>
+#include <common/argsToConfig.h>
+#include <gtest/gtest.h>
+#include <libnuraft/nuraft.hxx>
+
+#include <Service/KeeperUtils.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/proto/Log.pb.h>
 #include <Service/tests/raft_test_common.h>
-#include <boost/program_options.hpp>
-#include <gtest/gtest.h>
-#include <libnuraft/nuraft.hxx>
-#include <Poco/File.h>
-#include <common/argsToConfig.h>
 
 
 using namespace nuraft;

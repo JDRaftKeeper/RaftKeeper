@@ -70,10 +70,10 @@ public:
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
     /// need replaced with putRequestBatch
-    void putRequest(const KeeperStore::RequestForSession & request);
+    void putRequest(const RequestForSession & request);
 
     /// Put write request into queue and keeper server will append it to NuRaft asynchronously.
-    ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<KeeperStore::RequestForSession> & request_batch);
+    ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<RequestForSession> & request_batch);
 
     /// Allocate a new session id.
     int64_t getSessionID(int64_t session_timeout_ms);

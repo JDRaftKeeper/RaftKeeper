@@ -35,7 +35,7 @@ namespace RK
  */
 struct RequestsQueue
 {
-    using Queue = ConcurrentBoundedQueue<KeeperStore::RequestForSession>;
+    using Queue = ConcurrentBoundedQueue<RequestForSession>;
 
     std::vector<ptr<Queue>> queues;
 
@@ -63,26 +63,26 @@ struct RequestsQueue
         return queues[request.session_id % queues.size()]->tryPush(std::forward<Request>(request), wait_ms);
     }
 
-    bool pop(size_t queue_id, KeeperStore::RequestForSession & request)
+    bool pop(size_t queue_id, RequestForSession & request)
     {
         assert(queue_id != 0 && queue_id <= queues.size());
         return queues[queue_id]->pop(request);
     }
 
-    bool tryPop(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
+    bool tryPop(size_t queue_id, RequestForSession & request, UInt64 wait_ms = 0)
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->tryPop(request, wait_ms);
     }
 
-    [[maybe_unused]] bool tryPopMicro(size_t queue_id, KeeperStore::RequestForSession & request, UInt64 wait_micro = 0)
+    [[maybe_unused]] bool tryPopMicro(size_t queue_id, RequestForSession & request, UInt64 wait_micro = 0)
     {
         assert(queue_id < queues.size());
         return queues[queue_id]->tryPopMicro(request, wait_micro);
     }
 
 
-    bool tryPopAny(KeeperStore::RequestForSession & request, UInt64 wait_ms = 0)
+    bool tryPopAny(RequestForSession & request, UInt64 wait_ms = 0)
     {
         for (const auto & queue : queues)
         {

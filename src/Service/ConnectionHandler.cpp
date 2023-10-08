@@ -641,6 +641,7 @@ void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & 
     /// TODO should invoked after response sent to client.
     updateStats(response);
 
+    /// We do not need send anything for close request to client.
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
     {
         responses->push(ptr<FIFOBuffer>());
