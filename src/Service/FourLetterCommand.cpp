@@ -219,7 +219,7 @@ void print(IFourLetterCommand::StringBuffer & buf, const String & key, uint64_t 
 
 String MonitorCommand::run()
 {
-ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     if (!keeper_info.has_leader)

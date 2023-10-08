@@ -29,9 +29,9 @@ KeeperDispatcher::KeeperDispatcher()
 {
 }
 
-void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
+void KeeperDispatcher::requestThread(RunnerId runner_id)
 {
-    setThreadName(("ReqDspchr#" + std::to_string(thread_index)).c_str());
+    setThreadName(("ReqDspchr#" + std::to_string(runner_id)).c_str());
 
     /// Result of requests batch from previous iteration
     nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
@@ -45,7 +45,7 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
 
         UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
 
-        if (requests_queue->tryPop(thread_index, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait)))
+        if (requests_queue->tryPop(runner_id, request_for_session, std::min(static_cast<uint64_t>(1000), max_wait)))
         {
             if (shutdown_called)
                 break;
@@ -81,35 +81,6 @@ void KeeperDispatcher::requestThreadFakeZk(size_t thread_index)
                 {
                     request_accumulator.push(request_for_session);
                 }
-            }
-            catch (...)
-            {
-                tryLogCurrentException(__PRETTY_FUNCTION__);
-            }
-        }
-    }
-}
-
-void KeeperDispatcher::requestThread()
-{
-    setThreadName("KeeperReqT");
-
-    while (!shutdown_called)
-    {
-        KeeperStore::RequestForSession request;
-
-        UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
-        /// TO prevent long time stopping
-        max_wait = std::max(max_wait, static_cast<UInt64>(1000));
-
-        if (requests_queue->tryPopAny(request, max_wait))
-        {
-            if (shutdown_called)
-                break;
-
-            try
-            {
-                server->putRequest(request);
             }
             catch (...)
             {
@@ -255,21 +226,12 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     LOG_INFO(log, "Initializing dispatcher");
     configuration_and_settings = Settings::loadFromConfig(config, true);
 
-    /// TODO remove
-    bool session_consistent = configuration_and_settings->raft_settings->session_consistent;
-
     size_t thread_count = configuration_and_settings->thread_count;
     UInt64 operation_timeout_ms = configuration_and_settings->raft_settings->operation_timeout_ms;
 
-    if (session_consistent)
-    {
-        server = std::make_shared<KeeperServer>(configuration_and_settings, config, responses_queue, request_processor);
-
-        /// Raft server needs to be able to handle commit when startup.
-        request_processor->initialize(thread_count, server, shared_from_this(), operation_timeout_ms);
-    }
-    else
-        server = std::make_shared<KeeperServer>(configuration_and_settings, config, responses_queue);
+    server = std::make_shared<KeeperServer>(configuration_and_settings, config, responses_queue, request_processor);
+    /// Raft server needs to be able to handle commit when startup.
+    request_processor->initialize(thread_count, server, shared_from_this(), operation_timeout_ms);
 
     try
     {
@@ -286,38 +248,25 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
         throw;
     }
 
-    if (session_consistent)
-    {
-        UInt64 session_sync_period_ms = configuration_and_settings->raft_settings->dead_session_check_period_ms / 2;
-        request_forwarder.initialize(thread_count, server, shared_from_this(), session_sync_period_ms, operation_timeout_ms);
-        request_accumulator.initialize(
-            1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
-        requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
-    }
-    else
-    {
-        requests_queue = std::make_shared<RequestsQueue>(1, 20000);
-    }
+    UInt64 session_sync_period_ms = configuration_and_settings->raft_settings->dead_session_check_period_ms / 2;
+    request_forwarder.initialize(thread_count, server, shared_from_this(), session_sync_period_ms, operation_timeout_ms);
+    request_accumulator.initialize(
+        1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
+    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
     request_thread = std::make_shared<ThreadPool>(thread_count);
     responses_thread = std::make_shared<ThreadPool>(1);
+
     for (size_t i = 0; i < thread_count; i++)
     {
-        if (session_consistent)
-        {
-            request_thread->trySchedule([this, i] { requestThreadFakeZk(i); });
-        }
-        else
-        {
-            request_thread->trySchedule([this] { requestThread(); });
-        }
+        request_thread->trySchedule([this, i] { requestThread(i); });
     }
     responses_thread->trySchedule([this] { responseThread(); });
 
     session_cleaner_thread = ThreadFromGlobalPool([this] { sessionCleanerTask(); });
     update_configuration_thread = ThreadFromGlobalPool([this] { updateConfigurationThread(); });
-    updateConfiguration(config);
 
+    updateConfiguration(config);
     LOG_INFO(log, "Dispatcher initialized");
 }
 
