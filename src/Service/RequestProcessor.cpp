@@ -239,7 +239,7 @@ void RequestProcessor::processErrorRequest()
 
     LOG_WARNING(log, "Has {} error requests", errors.size());
 
-    ///TODO error requests are not processed in sequence.
+    ///TODO error requests are not processed in order.
     for (auto it = errors.begin(); it != errors.end();)
     {
         auto [session_id, xid] = it->first;

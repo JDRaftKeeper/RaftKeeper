@@ -33,8 +33,6 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
 {
     setThreadName(("ReqDspchr#" + std::to_string(runner_id)).c_str());
 
-    /// Result of requests batch from previous iteration
-    nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
     /// Requests from previous iteration. We store them to be able
     /// to send errors to the client.
     KeeperStore::RequestsForSessions prev_batch;
