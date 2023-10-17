@@ -15,9 +15,9 @@ String ErrorRequest::toString() const
         error_code);
 }
 
-String ErrorRequest::getRequestId() const
+RequestId ErrorRequest::getRequestId() const
 {
-    return RequestId{session_id, xid}.toString();
+    return {session_id, xid};
 }
 
 String RequestId::toString() const

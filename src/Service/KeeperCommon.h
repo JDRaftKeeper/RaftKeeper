@@ -47,19 +47,6 @@ struct ResponseForSession
     Coordination::ZooKeeperResponsePtr response;
 };
 
-/// Simple error request info.
-struct ErrorRequest
-{
-    bool accepted;
-    nuraft::cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
-    int64_t session_id;
-    Coordination::XID xid;
-    Coordination::OpNum opnum;
-
-    String toString() const;
-    String getRequestId() const;
-};
-
 /// Global client request id.
 struct RequestId
 {
@@ -74,5 +61,20 @@ struct RequestId
         std::size_t operator()(const RequestId & request_id) const;
     };
 };
+
+/// Simple error request info.
+struct ErrorRequest
+{
+    bool accepted;
+    nuraft::cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
+    int64_t session_id;
+    Coordination::XID xid;
+    Coordination::OpNum opnum;
+
+    String toString() const;
+    RequestId getRequestId() const;
+};
+
+using ErrorRequests = std::list<ErrorRequest>;
 
 }

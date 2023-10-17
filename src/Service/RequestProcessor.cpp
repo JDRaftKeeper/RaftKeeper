@@ -32,7 +32,7 @@ void RequestProcessor::run()
     {
         try
         {
-            auto need_wait = [&]() -> bool { return errors.empty() && requests_queue->empty() && committed_queue.empty(); };
+            auto need_wait = [&]() -> bool { return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty(); };
 
             {
                 using namespace std::chrono_literals;
@@ -41,7 +41,7 @@ void RequestProcessor::run()
                     LOG_DEBUG(
                         log,
                         "wait time out errors size {}, requests_queue size {}, committed_queue size {}",
-                        errors.size(),
+                        error_request_ids.size(),
                         requests_queue->size(),
                         committed_queue.size());
             }
@@ -50,6 +50,7 @@ void RequestProcessor::run()
                 return;
 
             size_t committed_request_size = committed_queue.size();
+            size_t error_request_size = error_request_ids.size();
 
             /// 1. process read request, multi thread
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
@@ -65,7 +66,7 @@ void RequestProcessor::run()
             processCommittedRequest(committed_request_size);
 
             /// 3. process error requests
-            processErrorRequest();
+            processErrorRequest(error_request_size);
         }
         catch (...)
         {
@@ -131,7 +132,7 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
     {
         found_in_pending_queue = true;
         std::unique_lock lk(mutex);
-        if (errors.contains(first_pending_request.getRequestId()))
+        if (error_request_ids.contains(first_pending_request.getRequestId()))
         {
             LOG_WARNING(log, "Request {} is in errors, but is successfully committed", committed_request.toSimpleString());
         }
@@ -151,7 +152,7 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
         {
             {
                 std::unique_lock lk(mutex);
-                found_error = errors.contains(first_pending_request.getRequestId());
+                found_error = error_request_ids.contains(first_pending_request.getRequestId());
             }
 
             if (found_error)
@@ -230,20 +231,20 @@ void RequestProcessor::processCommittedRequest(size_t count)
     }
 }
 
-void RequestProcessor::processErrorRequest()
+void RequestProcessor::processErrorRequest(size_t count)
 {
     std::lock_guard lock(mutex);
 
-    if (errors.empty())
+    if (error_request_ids.empty())
         return;
 
-    LOG_WARNING(log, "Has {} error requests", errors.size());
+    LOG_WARNING(log, "Has {} error requests", count);
 
-    ///TODO error requests are not processed in order.
-    for (auto it = errors.begin(); it != errors.end();)
+    ///Note that error requests may be not processed in order.
+    for (size_t i = 0; i < count; i++)
     {
-        auto [session_id, xid] = it->first;
-        auto & error_request = it->second;
+        auto & error_request = error_requests.front();
+        auto [session_id, xid] = error_request.getRequestId();
 
         auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
 
@@ -261,7 +262,8 @@ void RequestProcessor::processErrorRequest()
             }
 
             LOG_WARNING(log, "Not my error request {}", error_request.toString());
-            it = errors.erase(it);
+            error_request_ids.erase(error_request.getRequestId());
+            error_requests.erase(error_requests.begin());
         }
         else
         {
@@ -282,7 +284,9 @@ void RequestProcessor::processErrorRequest()
                                                                                                : Coordination::Error::ZCONNECTIONLOSS;
 
                 responses_queue.push(ResponseForSession{static_cast<int64_t>(session_id), response});
-                it = errors.erase(it);
+
+                error_request_ids.erase(error_request.getRequestId());
+                error_requests.erase(error_requests.begin());
             }
             else
             {
@@ -293,7 +297,9 @@ void RequestProcessor::processErrorRequest()
                     "'processCommittedRequest' may delete request from pending request first, so here we can not find it. We also delete "
                     "it from errors.",
                     error_request.toString());
-                it = errors.erase(it);
+
+                error_request_ids.erase(error_request.getRequestId());
+                error_requests.erase(error_requests.begin());
             }
         }
     }
@@ -467,10 +473,11 @@ void RequestProcessor::onError(
         RequestId id{session_id, xid};
         ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
 
-        LOG_WARNING(log, "On error request ", error_request.toString());
+        LOG_WARNING(log, "Found error request {}", error_request.toString());
         {
             std::unique_lock lock(mutex);
-            errors.emplace(id, error_request);
+            error_requests.push_back(error_request);
+            error_request_ids.emplace(id);
         }
         cv.notify_all();
     }

@@ -46,7 +46,7 @@ private:
     void moveRequestToPendingQueue(RunnerId runner_id);
 
     void processReadRequests(RunnerId runner_id);
-    void processErrorRequest();
+    void processErrorRequest(size_t count);
     void processCommittedRequest(size_t count);
 
     /// Apply request to state machine
@@ -90,9 +90,10 @@ private:
     mutable std::mutex mutex;
     std::condition_variable cv;
 
-    /// key : session_id xid
-    /// Error requests when append entry or forward to leader
-    std::unordered_map<RequestId, ErrorRequest, RequestId::RequestIdHash> errors;
+    /// Error requests when append entry or forward to leader.
+    ErrorRequests error_requests;
+    /// Used as index for error_requests
+    std::unordered_set<RequestId, RequestId::RequestIdHash> error_request_ids;
 
     Poco::Logger * log;
 
