@@ -1087,11 +1087,13 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
                 check_operation_type(OperationType::Read);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageGetRequest>(sub_zk_request));
             }
-            else if (sub_zk_request->getOpNum() == Coordination::OpNum::Exists){
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::Exists)
+            {
                 check_operation_type(OperationType::Read);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageExistsRequest>(sub_zk_request));
             }
-            else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList){
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList)
+            {
                 check_operation_type(OperationType::Read);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageListRequest>(sub_zk_request));
             }
