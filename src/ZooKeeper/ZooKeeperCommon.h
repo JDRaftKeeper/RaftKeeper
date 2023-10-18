@@ -307,6 +307,8 @@ struct ZooKeeperRemoveResponse final : RemoveResponse, ZooKeeperResponse
 
 struct ZooKeeperExistsRequest final : ExistsRequest, ZooKeeperRequest
 {
+    ZooKeeperExistsRequest() = default;
+    explicit ZooKeeperExistsRequest(const ExistsRequest & base) : ExistsRequest(base) {}
     OpNum getOpNum() const override { return OpNum::Exists; }
     void writeImpl(WriteBuffer & out) const override;
     void readImpl(ReadBuffer & in) override;
@@ -344,6 +346,8 @@ struct ZooKeeperExistsResponse final : ExistsResponse, ZooKeeperResponse
 
 struct ZooKeeperGetRequest final : GetRequest, ZooKeeperRequest
 {
+    ZooKeeperGetRequest() = default;
+    explicit ZooKeeperGetRequest(const GetRequest & base) : GetRequest(base) {}
     OpNum getOpNum() const override { return OpNum::Get; }
     void writeImpl(WriteBuffer & out) const override;
     void readImpl(ReadBuffer & in) override;
@@ -437,6 +441,7 @@ struct ZooKeeperListRequest : ListRequest, ZooKeeperRequest
 struct ZooKeeperSimpleListRequest final : ZooKeeperListRequest
 {
     OpNum getOpNum() const override { return OpNum::SimpleList; }
+    ZooKeeperResponsePtr makeResponse() const override;
     bool isReadRequest() const override { return true; }
     String toString() const override
     {
@@ -474,6 +479,8 @@ struct ZooKeeperListResponse : ListResponse, ZooKeeperResponse
 
 struct ZooKeeperSimpleListResponse final : ZooKeeperListResponse
 {
+    void readImpl(ReadBuffer & in) override;
+    void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::SimpleList; }
 };
 
@@ -548,7 +555,7 @@ struct ZooKeeperGetACLResponse final : GetACLResponse, ZooKeeperResponse
 
 struct ZooKeeperMultiRequest final : MultiRequest, ZooKeeperRequest
 {
-    OpNum getOpNum() const override { return OpNum::Multi; }
+    OpNum getOpNum() const override;
     ZooKeeperMultiRequest() = default;
 
     ZooKeeperMultiRequest(const Requests & generic_requests, const ACLs & default_acls);
@@ -565,9 +572,19 @@ struct ZooKeeperMultiRequest final : MultiRequest, ZooKeeperRequest
         std::for_each(requests.begin(), requests.end(), func);
         return base;
     }
+
+    enum class OperationType : UInt8
+    {
+        Read,
+        Write
+    };
+
+    std::optional<OperationType> operation_type;
+
+    void checkOperationType(OperationType type);
 };
 
-struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
+struct ZooKeeperMultiResponse : MultiResponse, ZooKeeperResponse
 {
     OpNum getOpNum() const override { return OpNum::Multi; }
 
@@ -617,6 +634,18 @@ struct ZooKeeperMultiResponse final : MultiResponse, ZooKeeperResponse
         std::for_each(responses.begin(), responses.end(), func);
         return base;
     }
+};
+
+struct ZooKeeperMultiWriteResponse final : public ZooKeeperMultiResponse
+{
+    OpNum getOpNum() const override { return OpNum::Multi; }
+    using ZooKeeperMultiResponse::ZooKeeperMultiResponse;
+};
+
+struct ZooKeeperMultiReadResponse final : public ZooKeeperMultiResponse
+{
+    OpNum getOpNum() const override { return OpNum::MultiRead; }
+    using ZooKeeperMultiResponse::ZooKeeperMultiResponse;
 };
 
 /// Fake internal raftkeeper request. Never received from client
