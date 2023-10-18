@@ -1035,6 +1035,9 @@ struct SvsKeeperStorageAuthRequest final : public StoreRequest
 
 struct SvsKeeperStorageMultiRequest final : public StoreRequest
 {
+    using OperationType = Coordination::ZooKeeperMultiRequest::OperationType;
+    std::optional<OperationType> operation_type;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         for (const auto & concrete_request : concrete_requests)
@@ -1049,24 +1052,48 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
         Coordination::ZooKeeperMultiRequest & request = dynamic_cast<Coordination::ZooKeeperMultiRequest &>(*zk_request);
         concrete_requests.reserve(request.requests.size());
 
+        const auto check_operation_type = [&](OperationType type)
+        {
+            if (operation_type.has_value() && *operation_type != type)
+                throw RK::Exception(ErrorCodes::BAD_ARGUMENTS, "Illegal mixing of read and write operations in multi request");
+            operation_type = type;
+        };
+
         for (const auto & sub_request : request.requests)
         {
             auto sub_zk_request = std::dynamic_pointer_cast<Coordination::ZooKeeperRequest>(sub_request);
             if (sub_zk_request->getOpNum() == Coordination::OpNum::Create)
             {
+                check_operation_type(OperationType::Write);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageCreateRequest>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Remove)
             {
+                check_operation_type(OperationType::Write);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageRemoveRequest>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Set)
             {
+                check_operation_type(OperationType::Write);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageSetRequest>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Check)
             {
+                check_operation_type(OperationType::Write);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageCheckRequest>(sub_zk_request));
+            }
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::Get)
+            {
+                check_operation_type(OperationType::Read);
+                concrete_requests.push_back(std::make_shared<SvsKeeperStorageGetRequest>(sub_zk_request));
+            }
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::Exists){
+                check_operation_type(OperationType::Read);
+                concrete_requests.push_back(std::make_shared<SvsKeeperStorageExistsRequest>(sub_zk_request));
+            }
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList){
+                check_operation_type(OperationType::Read);
+                concrete_requests.push_back(std::make_shared<SvsKeeperStorageListRequest>(sub_zk_request));
             }
             else
                 throw RK::Exception(
@@ -1089,7 +1116,7 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
                 auto [cur_response, undo_action] = concrete_request->process(store, zxid, session_id, time);
 
                 response.responses[i] = cur_response;
-                if (cur_response->error != Coordination::Error::ZOK)
+                if (cur_response->error != Coordination::Error::ZOK && *operation_type == OperationType::Write)
                 {
                     for (size_t j = 0; j <= i; ++j)
                     {
@@ -1111,8 +1138,15 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
                     return {response_ptr, {}};
                 }
                 else
+                {
+                    if (cur_response->error != Coordination::Error::ZOK)
+                    {
+                        auto response_error = cur_response->error;
+                        response.responses[i] = std::make_shared<Coordination::ZooKeeperErrorResponse>();
+                        response.responses[i]->error = response_error;
+                    }
                     undo_actions.emplace_back(std::move(undo_action));
-
+                }
                 ++i;
             }
 
@@ -1245,6 +1279,7 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::SimpleList, SvsKeeperStorageListRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Check, SvsKeeperStorageCheckRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, SvsKeeperStorageMultiRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::MultiRead, SvsKeeperStorageMultiRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::SetACL, SvsKeeperStorageSetACLRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::GetACL, SvsKeeperStorageGetACLRequest>(*this);
 }

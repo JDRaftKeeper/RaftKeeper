@@ -8,18 +8,26 @@ from kazoo.client import KazooClient, KazooState
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients, close_zk_client
 
+from helpers.utils import MultiReadClient
+
 cluster = RaftKeeperCluster(__file__)
 node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True)
 
 
-def get_genuine_zk():
+def get_genuine_zk(multi=False):
     print("Zoo1", cluster.get_instance_ip("zoo1"))
-    return cluster.get_kazoo_client('zoo1')
+    if multi:
+        return cluster.get_multi_read_client('zoo1')
+    else:
+        return cluster.get_kazoo_client('zoo1')
 
 
-def get_fake_zk():
+def get_fake_zk(multi=False):
     print("node", cluster.get_instance_ip("node"))
-    _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
+    if multi:
+        _fake_zk_instance = MultiReadClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
+    else:
+        _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
 
     def reset_last_zxid_listener(state):
         print("Fake zk callback called for state", state)
@@ -278,6 +286,41 @@ def test_multi_transactions(started_cluster):
             assert zk.exists('/test_multitransactions/q') is None
             assert zk.exists('/test_multitransactions/a') is None
             assert zk.exists('/test_multitransactions/x') is None
+    finally:
+        close_zk_clients([genuine_zk, fake_zk])
+
+
+def test_multi_read():
+    genuine_zk = fake_zk = None
+    try:
+        genuine_zk = get_genuine_zk(True)
+        fake_zk = get_fake_zk(True)
+        for multi_zk in [genuine_zk, fake_zk]:
+            multi_zk.create('/test_multi_read')
+            t = multi_zk.transaction()
+            t.create('/test_multi_read/freddy', b"rico")
+            t.create('/test_multi_read/fred', ephemeral=True)
+            t.create('/test_multi_read/smith')
+            results = t.commit()
+            print("结果:", results)
+            assert len(results) == 3
+            assert results[0] == '/test_multi_read/freddy'
+            assert results[2] == '/test_multi_read/smith'
+
+            t = multi_zk.multi_read()
+            t.get_children('/test_multi_read', None)
+            t.get_children('/test_multi_read/fre', None)
+            t.get('/test_multi_read/smit', None)
+            t.get('/test_multi_read/freddy', None)
+            results = t.commit()
+            assert len(results) == 4
+            print(results)
+            assert 'smith' in results[0]
+            assert 'freddy' in results[0]
+            from kazoo.exceptions import NoNodeError
+            assert results[1].__class__ == NoNodeError
+            assert results[2].__class__ == NoNodeError
+            assert results[3][0] == b"rico"
     finally:
         close_zk_clients([genuine_zk, fake_zk])
 

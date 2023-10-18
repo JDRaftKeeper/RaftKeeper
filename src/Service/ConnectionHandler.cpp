@@ -636,7 +636,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequ
 
 void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_TRACE(log, "Dispatch response to conn handler session {}", toHexString(session_id));
+    LOG_TRACE(log, "Dispatch response {} to conn handler session {}", response->toString(), toHexString(session_id));
 
     /// TODO should invoked after response sent to client.
     updateStats(response);
