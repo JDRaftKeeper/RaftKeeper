@@ -33,15 +33,13 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
 {
     setThreadName(("ReqDspchr#" + std::to_string(runner_id)).c_str());
 
-    /// Result of requests batch from previous iteration
-    nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>> prev_result = nullptr;
     /// Requests from previous iteration. We store them to be able
     /// to send errors to the client.
     KeeperStore::RequestsForSessions prev_batch;
 
     while (!shutdown_called)
     {
-        KeeperStore::RequestForSession request_for_session;
+        RequestForSession request_for_session;
 
         UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
 
@@ -54,12 +52,7 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
             {
                 if (isLocalSession(request_for_session.session_id))
                 {
-                    LOG_TRACE(
-                        log,
-                        "Put request session {}, xid {}, opnum {} to commit processor",
-                        toHexString(request_for_session.session_id),
-                        request_for_session.request->xid,
-                        request_for_session.request->getOpNum());
+                    LOG_TRACE(log, "Put to request processor: {}", request_for_session.toSimpleString());
                     request_processor->push(request_for_session);
                 }
                 /// we should skip close requests from clear session task
@@ -94,7 +87,7 @@ void KeeperDispatcher::responseThread()
 {
     setThreadName("RspDispatcher");
 
-    KeeperStore::ResponseForSession response_for_session;
+    ResponseForSession response_for_session;
     UInt64 max_wait = configuration_and_settings->raft_settings->operation_timeout_ms;
 
     while (!shutdown_called)
@@ -161,7 +154,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
             return false;
     }
 
-    KeeperStore::RequestForSession request_info;
+    RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
     using namespace std::chrono;
@@ -191,7 +184,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 
 bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
-    KeeperStore::RequestForSession && request_info = request->requestForSession();
+    RequestForSession && request_info = request->requestForSession();
 
     using namespace std::chrono;
     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
@@ -316,7 +309,7 @@ void KeeperDispatcher::shutdown()
         }
 
         LOG_INFO(log, "for unhandled requests sending session expired error to client.");
-        KeeperStore::RequestForSession request_for_session;
+        RequestForSession request_for_session;
         while (requests_queue->tryPopAny(request_for_session))
         {
             auto response = request_for_session.request->makeResponse();
@@ -375,9 +368,10 @@ void KeeperDispatcher::sessionCleanerTask()
                     Coordination::ZooKeeperRequestPtr request
                         = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
                     request->xid = Coordination::CLOSE_XID;
-                    KeeperStore::RequestForSession request_info;
+                    RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;
+//                    request_info.is_internal = true;
                     using namespace std::chrono;
                     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
@@ -385,7 +379,7 @@ void KeeperDispatcher::sessionCleanerTask()
                         if (!requests_queue->push(std::move(request_info)))
                             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
-                    finishSession(dead_session);
+//                    finishSession(dead_session);
                     LOG_INFO(log, "Dead session close request pushed");
                 }
             }

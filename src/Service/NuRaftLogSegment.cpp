@@ -1,15 +1,18 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <Service/Crc32.h>
-#include <Service/KeeperCommon.h>
-#include <Service/LogEntry.h>
-#include <Service/NuRaftLogSegment.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
+#include <unistd.h>
+
 #include <Poco/File.h>
+
 #include <Common/ThreadPool.h>
+
+#include <Service/Crc32.h>
+#include <Service/KeeperUtils.h>
+#include <Service/LogEntry.h>
+#include <Service/NuRaftLogSegment.h>
 
 #ifdef __clang__
 #    pragma clang diagnostic push

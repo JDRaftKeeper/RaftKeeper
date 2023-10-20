@@ -16,7 +16,7 @@ namespace ErrorCodes
 }
 
 static inline void set_response(
-    ThreadSafeQueue<KeeperStore::ResponseForSession> & responses_queue,
+    ThreadSafeQueue<ResponseForSession> & responses_queue,
     const KeeperStore::ResponsesForSessions & responses,
     bool ignore_response)
 {
@@ -28,8 +28,8 @@ static inline void set_response(
 }
 
 static inline void set_response(
-    ThreadSafeQueue<KeeperStore::ResponseForSession> & responses_queue,
-    const KeeperStore::ResponseForSession & response,
+    ThreadSafeQueue<ResponseForSession> & responses_queue,
+    const ResponseForSession & response,
     bool ignore_response)
 {
     KeeperStore::ResponsesForSessions responses;
@@ -187,7 +187,7 @@ processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperSt
         watch_response->state = Coordination::State::CONNECTED;
         for (auto watcher_session : it->second)
         {
-            result.push_back(KeeperStore::ResponseForSession{watcher_session, watch_response});
+            result.push_back(ResponseForSession{watcher_session, watch_response});
             LOG_TRACE(log, "Watch triggered path {}, watcher session {}", path, watcher_session);
         }
         watches.erase(it);
@@ -224,7 +224,7 @@ processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperSt
 
             watch_list_response->state = Coordination::State::CONNECTED;
             for (auto watcher_session : it->second)
-                result.push_back(KeeperStore::ResponseForSession{watcher_session, watch_list_response});
+                result.push_back(ResponseForSession{watcher_session, watch_list_response});
 
             list_watches.erase(it);
         }
@@ -1277,43 +1277,9 @@ void KeeperStore::processRequest(
 
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
-        {
-            std::lock_guard lock(ephemerals_mutex);
-            auto it = ephemerals.find(session_id);
-            if (it != ephemerals.end())
-            {
-                for (const auto & ephemeral_path : it->second)
-                {
-                    LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", toHexString(session_id), ephemeral_path);
-                    auto parent = container.at(parentPath(ephemeral_path));
-                    if (!parent)
-                    {
-                        LOG_ERROR(
-                            log,
-                            "Logical error, disconnect session {}, ephemeral znode parent not exist {}",
-                            toHexString(session_id),
-                            ephemeral_path);
-                    }
-                    else
-                    {
-                        std::lock_guard parent_lock(parent->mutex);
-                        --parent->stat.numChildren;
-                        parent->children.erase(getBaseName(ephemeral_path));
-                    }
-                    container.erase(ephemeral_path);
-
-                    std::lock_guard watch_lock(watch_mutex);
-                    auto responses = processWatchesImpl(ephemeral_path, watches, list_watches, Coordination::Event::DELETED);
-                    set_response(responses_queue, responses, ignore_response);
-                }
-                ephemerals.erase(it);
-            }
-            else
-            {
-                LOG_DEBUG(log, "Session {} already closed, must applying a fuzzy log.", toHexString(session_id));
-            }
-            clearDeadWatches(session_id);
-        }
+        /// Clean ephemeral nodes and watches
+        cleanEphemeralNodes(session_id, responses_queue, ignore_response);
+        cleanDeadWatches(session_id);
 
         /// Finish connection
         auto response = std::make_shared<Coordination::ZooKeeperCloseResponse>();
@@ -1603,12 +1569,54 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
     }
 }
 
-void KeeperStore::clearDeadWatches(int64_t session_id)
+void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response)
 {
-    LOG_DEBUG(log, "Clear dead watches, session {}", toHexString(session_id));
-    //    std::lock_guard session_lock(session_mutex);
+    LOG_DEBUG(log, "Clean ephemeral nodes for session {}", toHexString(session_id));
+
+    std::lock_guard lock(ephemerals_mutex);
+    auto it = ephemerals.find(session_id);
+
+    if (it != ephemerals.end())
+    {
+        for (const auto & ephemeral_path : it->second)
+        {
+            LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", toHexString(session_id), ephemeral_path);
+            auto parent = container.at(parentPath(ephemeral_path));
+            if (!parent)
+            {
+                LOG_ERROR(
+                    log,
+                    "Logical error, disconnect session {}, ephemeral znode parent not exist {}",
+                    toHexString(session_id),
+                    ephemeral_path);
+            }
+            else
+            {
+                std::lock_guard parent_lock(parent->mutex);
+                --parent->stat.numChildren;
+                parent->children.erase(getBaseName(ephemeral_path));
+            }
+            container.erase(ephemeral_path);
+
+            std::lock_guard watch_lock(watch_mutex);
+            auto responses = processWatchesImpl(ephemeral_path, watches, list_watches, Coordination::Event::DELETED);
+            set_response(responses_queue, responses, ignore_response);
+        }
+        ephemerals.erase(it);
+    }
+    else
+    {
+        LOG_DEBUG(log, "Session {} has no ephemeral nodes", toHexString(session_id));
+    }
+}
+
+void KeeperStore::cleanDeadWatches(int64_t session_id)
+{
+    LOG_DEBUG(log, "Clean watches for session {}", toHexString(session_id));
+
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
+
     if (watches_it != sessions_and_watchers.end())
     {
         for (const auto & watch_path : watches_it->second)

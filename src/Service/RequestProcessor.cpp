@@ -1,4 +1,5 @@
 
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperDispatcher.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <Common/setThreadName.h>
@@ -18,6 +19,11 @@ void RequestProcessor::push(const RequestForSession & request_for_session)
     }
 }
 
+void RequestProcessor::systemExist() const
+{
+    ::abort();
+}
+
 void RequestProcessor::run()
 {
     setThreadName("ReqProcessor");
@@ -26,7 +32,7 @@ void RequestProcessor::run()
     {
         try
         {
-            auto need_wait = [&]() -> bool { return errors.empty() && requests_queue->empty() && committed_queue.empty(); };
+            auto need_wait = [&]() -> bool { return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty(); };
 
             {
                 using namespace std::chrono_literals;
@@ -35,7 +41,7 @@ void RequestProcessor::run()
                     LOG_DEBUG(
                         log,
                         "wait time out errors size {}, requests_queue size {}, committed_queue size {}",
-                        errors.size(),
+                        error_request_ids.size(),
                         requests_queue->size(),
                         committed_queue.size());
             }
@@ -43,12 +49,10 @@ void RequestProcessor::run()
             if (shutdown_called)
                 return;
 
-            /// 1. process error requests
-            processErrorRequest();
-
             size_t committed_request_size = committed_queue.size();
+            size_t error_request_size = error_request_ids.size();
 
-            /// 2. process read request, multi thread
+            /// 1. process read request, multi thread
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
             {
                 request_thread->trySchedule([this, runner_id] {
@@ -58,8 +62,11 @@ void RequestProcessor::run()
             }
             request_thread->wait();
 
-            /// 3. process committed request, single thread
+            /// 2. process committed request, single thread
             processCommittedRequest(committed_request_size);
+
+            /// 3. process error requests
+            processErrorRequest(error_request_size);
         }
         catch (...)
         {
@@ -71,7 +78,6 @@ void RequestProcessor::run()
 void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
 {
     auto & thread_requests = pending_requests.find(runner_id)->second;
-
     size_t request_size = requests_queue->size(runner_id);
 
     if (request_size)
@@ -92,280 +98,259 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
     }
 }
 
+bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue)
+{
+    bool has_read_request = false;
+    bool found_error = false;
+
+    auto runner_id = getRunnerId(committed_request.session_id);
+    auto & my_pending_requests = pending_requests.find(runner_id)->second;
+
+    auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
+
+    auto process_not_in_pending_queue = [this, &found_in_pending_queue, &committed_request]()
+    {
+        found_in_pending_queue = false;
+        LOG_WARNING(
+            this->log,
+            "Not found committed(write) request {} in pending queue. Possible reason: 1.close requests from sessionCleanerTask are not put "
+            "into pending queue; 2.error occurs(because of forward or append entries) but request is still committed, "
+            "'processErrorRequest' may delete request from pending request first, so here we can not find it.",
+            committed_request.toSimpleString());
+    };
+
+    if (pending_requests_for_session.empty())
+    {
+        process_not_in_pending_queue();
+        return true;
+    }
+
+    auto & first_pending_request = pending_requests_for_session.front();
+    LOG_DEBUG(log, "First session pending request {}", first_pending_request.toSimpleString());
+
+    if (first_pending_request.request->xid == committed_request.request->xid)
+    {
+        found_in_pending_queue = true;
+        std::unique_lock lk(mutex);
+        if (error_request_ids.contains(first_pending_request.getRequestId()))
+        {
+            LOG_WARNING(log, "Request {} is in errors, but is successfully committed", committed_request.toSimpleString());
+        }
+        return true;
+    }
+    else
+    {
+        found_in_pending_queue = false;
+        /// Session of the previous committed(write) request is not same with the current,
+        /// which means a write_request(session_1) -> request(session_2) sequence.
+        if (first_pending_request.request->isReadRequest())
+        {
+            LOG_DEBUG(log, "Found read request, We should terminate the processing of committed(write) requests.");
+            has_read_request = true;
+        }
+        else
+        {
+            {
+                std::unique_lock lk(mutex);
+                found_error = error_request_ids.contains(first_pending_request.getRequestId());
+            }
+
+            if (found_error)
+                LOG_WARNING(log, "Found error request, We should terminate the processing of committed(write) requests.");
+            else
+                process_not_in_pending_queue();
+        }
+    }
+
+    return !has_read_request && !found_error;
+}
 
 void RequestProcessor::processCommittedRequest(size_t count)
 {
-    LOG_DEBUG(log, "Process committed request size {}", count);
     RequestForSession committed_request;
     for (size_t i = 0; i < count; ++i)
     {
-        if (committed_queue.peek(committed_request))
+        if (!committed_queue.peek(committed_request))
+            continue;
+
+        LOG_DEBUG(log, "Process committed(write) request {}", committed_request.toString());
+
+        auto runner_id = getRunnerId(committed_request.session_id);
+        auto & my_pending_requests = pending_requests.find(runner_id)->second;
+
+        /// Remote requests
+        if (!keeper_dispatcher->isLocalSession(committed_request.session_id))
         {
-            auto & pending_requests_for_thread = pending_requests.find(getRunnerId(committed_request.session_id))->second;
-
-            LOG_DEBUG(
-                log,
-                "Committed request session {} xid {} request {}, session {} pending requests size {},",
-                toHexString(committed_request.session_id),
-                committed_request.request->xid,
-                committed_request.request->toString(),
-                toHexString(committed_request.session_id),
-                pending_requests_for_thread.contains(committed_request.session_id)
-                    ? pending_requests_for_thread[committed_request.session_id].size()
-                    : 0
-                );
-
-            auto op_num = committed_request.request->getOpNum();
-
-            /// Remote requests
-            if (!keeper_dispatcher->isLocalSession(committed_request.session_id)
-                || op_num == Coordination::OpNum::Auth)
+            if (my_pending_requests.contains(committed_request.session_id))
             {
-                LOG_DEBUG(log, "Not contains session {}", committed_request.session_id);
-                if (pending_requests_for_thread.contains(committed_request.session_id))
-                {
-                    LOG_WARNING(
-                        log,
-                        "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
-                        "Just delete from pending queue",
-                        toHexString(committed_request.session_id));
-                    pending_requests_for_thread.erase(committed_request.session_id);
-                }
+                LOG_WARNING(
+                    log,
+                    "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
+                    "Just delete from pending queue",
+                    toHexString(committed_request.session_id));
+                my_pending_requests.erase(committed_request.session_id);
+            }
+
+            LOG_WARNING(
+                log,
+                "Session {} is not local, maybe it is because of disconnecting. We still should apply the committed(write) "
+                "request",
+                committed_request.session_id);
+
+            applyRequest(committed_request);
+            committed_queue.pop();
+        }
+        /// Local requests
+        else
+        {
+            if (committed_request.request->getOpNum() == Coordination::OpNum::Auth)
+            {
+                LOG_DEBUG(log, "Apply auth request", committed_request.session_id);
                 applyRequest(committed_request);
                 committed_queue.pop();
             }
-            /// Local requests
             else
             {
-                bool has_read_request = false;
-                bool found_error = false;
-                auto & pending_requests_for_session = pending_requests_for_thread[committed_request.session_id];
-                if (!pending_requests_for_session.empty())
-                {
-                    LOG_DEBUG(
-                        log,
-                        "Current session pending request opNum {}, session {}, xid {}",
-                        Coordination::toString(pending_requests_for_session.begin()->request->getOpNum()),
-                        toHexString(pending_requests_for_session.begin()->session_id),
-                        pending_requests_for_session.begin()->request->xid);
-
-                    while (pending_requests_for_session.begin()->request->xid != committed_request.request->xid)
-                    {
-                        auto current_begin_request_session = pending_requests_for_session.begin();
-                        if (current_begin_request_session->request->isReadRequest())
-                        {
-                            LOG_DEBUG(
-                                log,
-                                "Current session {} pending head request xid {} {} is read request",
-                                toHexString(committed_request.session_id),
-                                current_begin_request_session->session_id,
-                                current_begin_request_session->request->xid);
-
-                            has_read_request = true;
-                            break;
-                        }
-                        /// Because close's xid is not necessarily CLOSE_XID.
-                        else if (
-                            current_begin_request_session->request->getOpNum() == Coordination::OpNum::Close
-                            && committed_request.request->getOpNum() == Coordination::OpNum::Close)
-                        {
-                            break;
-                        }
-                        else
-                        {
-                            std::unique_lock lk(mutex);
-                            if (errors.contains(UInt128(
-                                    current_begin_request_session->session_id, current_begin_request_session->request->xid)))
-                            {
-                                LOG_WARNING(
-                                    log,
-                                    "Current session {} pending head request xid {} not same committed request xid {} opnum "
-                                    "{}, "
-                                    "because it is in errors",
-                                    toHexString(committed_request.session_id),
-                                    current_begin_request_session->request->xid,
-                                    committed_request.request->xid,
-                                    Coordination::toString(committed_request.request->getOpNum()));
-
-                                found_error = true;
-                                break;
-                            }
-                            else
-                            {
-                                /// TODO should exit？
-                                LOG_WARNING(
-                                    log,
-                                    "Logic Error, maybe reconnected current session {} pending head request xid {} {} not same "
-                                    "committed request xid {} {}, pending request size {}",
-                                    toHexString(committed_request.session_id),
-                                    current_begin_request_session->request->xid,
-                                    current_begin_request_session->request->toString(),
-                                    committed_request.request->xid,
-                                    committed_request.request->toString(),
-                                    pending_requests_for_session.size());
-                                break;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    LOG_WARNING(log, "Logic error, pending request is empty for session {}", toHexString(committed_request.session_id));
-                }
-
-                if (has_read_request || found_error)
+                bool found_in_pending_queue;
+                if (!shouldProcessCommittedRequest(committed_request, found_in_pending_queue))
                     break;
 
+                /// apply request
                 applyRequest(committed_request);
                 committed_queue.pop();
 
-                for (auto it = pending_requests_for_session.begin(); it != pending_requests_for_session.end();)
-                {
-                    auto xid = it->request->xid;
-                    auto opnum = it->request->getOpNum();
-                    it = pending_requests_for_session.erase(it);
-                    if (xid == committed_request.request->xid
-                        || (opnum == Coordination::OpNum::Close
-                            && committed_request.request->getOpNum() == Coordination::OpNum::Close))
-                    {
-                        break;
-                    }
-                }
+                /// remove request from pending queue
+                auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
+                if (found_in_pending_queue)
+                    pending_requests_for_session.erase(pending_requests_for_session.begin());
 
                 if (pending_requests_for_session.empty())
-                    pending_requests_for_thread.erase(committed_request.session_id);
+                    my_pending_requests.erase(committed_request.session_id);
             }
         }
     }
 }
 
-void RequestProcessor::processErrorRequest()
+void RequestProcessor::processErrorRequest(size_t count)
 {
-    /// 1. handle error requests
     std::lock_guard lock(mutex);
-    if (!errors.empty())
+
+    if (error_request_ids.empty())
+        return;
+
+    LOG_WARNING(log, "Has {} error requests", count);
+
+    ///Note that error requests may be not processed in order.
+    for (size_t i = 0; i < count; i++)
     {
-        LOG_WARNING(log, "Has {} error requests", errors.size());
-        for (auto it = errors.begin(); it != errors.end();)
+        auto & error_request = error_requests.front();
+        auto [session_id, xid] = error_request.getRequestId();
+
+        auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
+
+        /// request is not local
+        if (!keeper_dispatcher->isLocalSession(session_id))
         {
-            auto [session_id, xid] = it->first;
-            auto & error_request = it->second;
-
-            LOG_WARNING(log, "Try find error request session {}, xid {}, error code {}", toHexString(session_id), xid, error_request.error_code);
-
-            auto & pending_requests_for_thread = pending_requests.find(getRunnerId(session_id))->second;
-
-            if (!keeper_dispatcher->isLocalSession(session_id))
+            if (my_pending_requests.contains(session_id))
             {
-                if (pending_requests_for_thread.contains(session_id))
-                {
-                    LOG_WARNING(
-                        log,
-                        "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
-                        "Just delete from pending queue",
-                        toHexString(session_id));
-                    pending_requests_for_thread.erase(session_id);
-                }
+                LOG_WARNING(
+                    log,
+                    "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
+                    "Just delete from pending queue",
+                    toHexString(session_id));
+                my_pending_requests.erase(session_id);
+            }
 
-                LOG_WARNING(log, "Not my session error, session {}, xid {}", toHexString(session_id), xid);
-                it = errors.erase(it);
+            LOG_WARNING(log, "Not my error request {}", error_request.toString());
+            error_request_ids.erase(error_request.getRequestId());
+            error_requests.erase(error_requests.begin());
+        }
+        else
+        {
+            /// find error request in pending queue
+            std::optional<RequestForSession> request = findErrorRequest(error_request);
+
+            /// process error request
+            if (request)
+            {
+                LOG_ERROR(log, "Make error response for  {}", error_request.toString());
+
+                ZooKeeperResponsePtr response = request->request->makeResponse();
+                response->xid = request->request->xid;
+                response->zxid = 0;
+                response->request_created_time_ms = request->create_time;
+
+                response->error = error_request.error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                               : Coordination::Error::ZCONNECTIONLOSS;
+
+                responses_queue.push(ResponseForSession{static_cast<int64_t>(session_id), response});
+
+                error_request_ids.erase(error_request.getRequestId());
+                error_requests.erase(error_requests.begin());
             }
             else
             {
-                using namespace Coordination;
-                std::optional<RequestForSession> request;
-                if (static_cast<int32_t>(xid) == Coordination::AUTH_XID)
-                {
-                    ZooKeeperRequestPtr auth_request = std::make_shared<ZooKeeperAuthRequest>();
-                    using namespace std::chrono;
-                    int64_t now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                    RequestForSession request1{auth_request, static_cast<int64_t>(session_id), now};
-                    request.emplace(request1);
-                }
-                else
-                {
-                    auto session_requests = pending_requests_for_thread.find(session_id);
+                LOG_WARNING(
+                    this->log,
+                    "Not found error request {} in pending queue. Possible reason: 1.close requests from sessionCleanerTask are not put "
+                    "into pending queue; 2.error occurs(forward or append entries) but request is still committed, "
+                    "'processCommittedRequest' may delete request from pending request first, so here we can not find it. We also delete "
+                    "it from errors.",
+                    error_request.toString());
 
-                    if (session_requests != pending_requests_for_thread.end())
-                    {
-                        auto & requests = session_requests->second;
-                        for (auto request_it = requests.begin(); request_it != requests.end();)
-                        {
-                            LOG_TRACE(
-                                log,
-                                "Try match session {} pending request xid {}, target error xid {}",
-                                toHexString(session_id),
-                                request_it->request->xid,
-                                xid);
-                            if (static_cast<uint64_t>(request_it->request->xid) < xid)
-                            {
-                                break;
-                            }
-                            else if (
-                                static_cast<uint64_t>(request_it->request->xid) == xid
-                                || (request_it->request->getOpNum() == Coordination::OpNum::Close
-                                    && error_request.opnum == Coordination::OpNum::Close))
-                            {
-                                request = *request_it;
-                                request_it = requests.erase(request_it);
-                                break;
-                            }
-                            else
-                            {
-                                ++request_it;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        LOG_WARNING(log, "Session {}, no pending requests", toHexString(session_id));
-                    }
-                }
-
-                if (request)
-                {
-                    ZooKeeperResponsePtr response = request->request->makeResponse();
-                    response->xid = request->request->xid;
-                    response->zxid = 0;
-                    response->request_created_time_ms = request->create_time;
-
-                    auto accepted = error_request.accepted;
-                    auto error_code = error_request.error_code;
-
-                    response->error = error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                     : Coordination::Error::ZCONNECTIONLOSS;
-
-                    responses_queue.push(RK::KeeperStore::ResponseForSession{static_cast<int64_t>(session_id), response});
-
-                    LOG_ERROR(
-                        log,
-                        "Make error response for session {}, xid {}, opNum {}",
-                        toHexString(session_id),
-                        response->xid,
-                        error_request.opnum);
-
-                    if (!accepted)
-                        LOG_ERROR(log, "Request batch is not accepted");
-                    else
-                        LOG_ERROR(log, "Request batch error, nuraft code {}", error_code);
-
-                    LOG_ERROR(log, "Matched error request session {}, xid {} from pending requests queue", toHexString(session_id), xid);
-
-                    it = errors.erase(it);
-                }
-                else
-                {
-                    LOG_WARNING(
-                        log,
-                        "Not found error request session {}, xid {} from pending queue. Maybe it is still in the request queue "
-                        "and will be processed next time",
-                        toHexString(session_id),
-                        xid);
-                    break;
-                }
+                error_request_ids.erase(error_request.getRequestId());
+                error_requests.erase(error_requests.begin());
             }
         }
     }
+}
+
+std::optional<RequestForSession> RequestProcessor::findErrorRequest(const ErrorRequest & error_request)
+{
+    auto session_id = error_request.session_id;
+    auto xid = error_request.xid;
+
+    /// Auth request is not put in pending queue, so no need to remove it.
+    if (xid == Coordination::AUTH_XID)
+    {
+        std::optional<RequestForSession> request;
+        ZooKeeperRequestPtr auth_request = std::make_shared<ZooKeeperAuthRequest>();
+
+        Poco::Timestamp timestamp;
+        auto now = timestamp.epochMicroseconds();
+
+        RequestForSession request_for_session{auth_request, session_id, now / 1000};
+        request.emplace(request_for_session);
+        return request;
+    }
+
+    std::optional<RequestForSession> request;
+
+    auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
+    auto session_requests = my_pending_requests.find(session_id);
+
+    if (session_requests != my_pending_requests.end())
+    {
+        auto & requests = session_requests->second;
+        for (auto request_it = requests.begin(); request_it != requests.end();)
+        {
+            LOG_TRACE(log, "Try match {}", toHexString(session_id), request_it->request->xid);
+
+            if (request_it->request->xid == xid
+                || (request_it->request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
+            {
+                request = *request_it;
+                request_it = requests.erase(request_it);
+                break;
+            }
+            else
+            {
+                ++request_it;
+            }
+        }
+    }
+
+    return request;
 }
 
 void RequestProcessor::processReadRequests(RunnerId runner_id)
@@ -399,42 +384,44 @@ void RequestProcessor::processReadRequests(RunnerId runner_id)
 
 void RequestProcessor::applyRequest(const RequestForSession & request) const
 {
+    LOG_TRACE(log, "Apply request {}", request.toSimpleString());
     try
     {
-        LOG_TRACE(
-            log,
-            "Apply request session {} xid {} request {}",
-            toHexString(request.session_id),
-            request.request->xid,
-            request.request->toString());
-
-        if (!server->isLeaderAlive() && request.request->isReadRequest())
+        if (request.request->isReadRequest())
         {
-            auto response = request.request->makeResponse();
+            if (server->isLeaderAlive())
+            {
+                server->getKeeperStateMachine()->getStore().processRequest(responses_queue, request);
+            }
+            else
+            {
+                auto response = request.request->makeResponse();
 
-            response->request_created_time_ms = request.create_time;
-            response->xid = request.request->xid;
-            response->zxid = 0;
-            response->error = Coordination::Error::ZCONNECTIONLOSS;
+                response->request_created_time_ms = request.create_time;
+                response->xid = request.request->xid;
+                response->zxid = 0;
+                response->error = Coordination::Error::ZCONNECTIONLOSS;
 
-            responses_queue.push(RK::KeeperStore::ResponseForSession{request.session_id, response});
+                responses_queue.push(ResponseForSession{request.session_id, response});
+            }
         }
-        /// Raft already committed the request, we must apply it/
         else
         {
             if (!server->isLeaderAlive())
-                LOG_WARNING(log, "Apply write request but leader not alive.");
-            server->getKeeperStateMachine()->getStore().processRequest(
-                responses_queue, request, {}, true, false);
+                LOG_WARNING(log, "Write request is committed, when try to apply it to store the leader is not alive.");
+            server->getKeeperStateMachine()->getStore().processRequest(responses_queue, request);
         }
     }
     catch (...)
     {
-        tryLogCurrentException(
-            log,
-            fmt::format(
-                "Got exception while process session {} read request {}.", toHexString(request.session_id), request.request->toString()));
+        tryLogCurrentException(log, fmt::format("Fail to apply request {}.", request.request->toString()));
+        if (!request.request->isReadRequest())
+        {
+            LOG_FATAL(log, "Fail to apply committed(write) request which will lead state machine inconsistency, system will exist.");
+            systemExist();
+        }
     }
+
 }
 
 void RequestProcessor::shutdown()
@@ -453,7 +440,7 @@ void RequestProcessor::shutdown()
     if (main_thread.joinable())
         main_thread.join();
 
-    KeeperStore::RequestForSession request_for_session;
+    RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         auto response = request_for_session.request->makeResponse();
@@ -461,7 +448,7 @@ void RequestProcessor::shutdown()
         response->zxid = 0;
         response->request_created_time_ms = request_for_session.create_time;
         response->error = Coordination::Error::ZSESSIONEXPIRED;
-        responses_queue.push(RK::KeeperStore::ResponseForSession{request_for_session.session_id, response});
+        responses_queue.push(ResponseForSession{request_for_session.session_id, response});
     }
 }
 
@@ -483,11 +470,14 @@ void RequestProcessor::onError(
 {
     if (!shutdown_called)
     {
-        LOG_WARNING(log, "On error session {}, xid {}", toHexString(session_id), xid);
+        RequestId id{session_id, xid};
+        ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
+
+        LOG_WARNING(log, "Found error request {}", error_request.toString());
         {
-            std::unique_lock lk(mutex);
-            ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
-            errors.emplace(UInt128(session_id, xid), error_request);
+            std::unique_lock lock(mutex);
+            error_requests.push_back(error_request);
+            error_request_ids.emplace(id);
         }
         cv.notify_all();
     }

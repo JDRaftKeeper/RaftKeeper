@@ -34,7 +34,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             max_wait = elapsed_milliseconds >= session_sync_period_ms ? 0 : session_sync_period_ms - elapsed_milliseconds;
         }
 
-        KeeperStore::RequestForSession request_for_session;
+        RequestForSession request_for_session;
 
         if (requests_queue->tryPop(runner_id, request_for_session, max_wait))
         {
@@ -96,7 +96,10 @@ void RequestForwarder::runSend(RunnerId runner_id)
                         /// TODO if keeper nodes time has large gap something will be wrong.
                         auto session_to_expiration_time = server->getKeeperStateMachine()->getStore().sessionToExpirationTime();
                         keeper_dispatcher->filterLocalSessions(session_to_expiration_time);
-                        LOG_DEBUG(log, "Has {} local sessions to send", session_to_expiration_time.size());
+
+                        if (!session_to_expiration_time.empty())
+                            LOG_DEBUG(log, "Has {} local sessions to send", session_to_expiration_time.size());
+
                         if (!session_to_expiration_time.empty())
                         {
                             ForwardRequestPtr forward_request = std::make_shared<ForwardSessionRequest>(std::move(session_to_expiration_time));
@@ -273,7 +276,7 @@ void RequestForwarder::shutdown()
         });
     }
 
-    KeeperStore::RequestForSession request_for_session;
+    RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         request_processor->onError(

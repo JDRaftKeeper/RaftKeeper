@@ -36,7 +36,7 @@ ForwardResponsePtr ForwardHandshakeRequest::makeResponse() const
     return std::make_shared<ForwardHandshakeResponse>();
 }
 
-KeeperStore::RequestForSession ForwardHandshakeRequest::requestForSession() const
+RequestForSession ForwardHandshakeRequest::requestForSession() const
 {
     RequestForSession reuqest_info;
     return reuqest_info;
@@ -62,10 +62,10 @@ ForwardResponsePtr ForwardSessionRequest::makeResponse() const
     return std::make_shared<ForwardSessionResponse>();
 }
 
-KeeperStore::RequestForSession ForwardSessionRequest::requestForSession() const
+RequestForSession ForwardSessionRequest::requestForSession() const
 {
-    RequestForSession reuqest_info;
-    return reuqest_info;
+    RequestForSession request_info;
+    return request_info;
 }
 
 void ForwardGetSessionRequest::readImpl(ReadBuffer & buf)
@@ -100,7 +100,7 @@ ForwardResponsePtr ForwardGetSessionRequest::makeResponse() const
     return res;
 }
 
-KeeperStore::RequestForSession ForwardGetSessionRequest::requestForSession() const
+RequestForSession ForwardGetSessionRequest::requestForSession() const
 {
     RequestForSession reuqest_info;
     reuqest_info.request = request;
@@ -141,7 +141,7 @@ ForwardResponsePtr ForwardUpdateSessionRequest::makeResponse() const
     return res;
 }
 
-KeeperStore::RequestForSession ForwardUpdateSessionRequest::requestForSession() const
+RequestForSession ForwardUpdateSessionRequest::requestForSession() const
 {
     RequestForSession reuqest_info;
     reuqest_info.request = request;
@@ -162,6 +162,10 @@ void ForwardOpRequest::readImpl(ReadBuffer & buf)
     request.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request.request->xid = xid;
     request.request->readImpl(buf);
+
+//    bool is_internal;
+//    Coordination::read(is_internal, buf);
+//    request.is_internal = is_internal;
 }
 
 void ForwardOpRequest::writeImpl(WriteBuffer & buf) const
@@ -172,6 +176,7 @@ void ForwardOpRequest::writeImpl(WriteBuffer & buf) const
     Coordination::write(request.request->getOpNum(), out_buf);
     request.request->writeImpl(out_buf);
     Coordination::write(out_buf.str(), buf);
+//    Coordination::write(request.is_internal, buf);
 }
 
 
@@ -186,7 +191,7 @@ ForwardResponsePtr ForwardOpRequest::makeResponse() const
     return res;
 }
 
-KeeperStore::RequestForSession ForwardOpRequest::requestForSession() const
+RequestForSession ForwardOpRequest::requestForSession() const
 {
     return request;
 }

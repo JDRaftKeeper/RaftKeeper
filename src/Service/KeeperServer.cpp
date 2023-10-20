@@ -115,7 +115,7 @@ void KeeperServer::shutdown()
     LOG_INFO(log, "Shut down keeper server done!");
 }
 
-void KeeperServer::putRequest(const KeeperStore::RequestForSession & request_for_session)
+void KeeperServer::putRequest(const RequestForSession & request_for_session)
 {
     auto [session_id, request, time, server, client] = request_for_session;
     if (isLeaderAlive() && request->isReadRequest())
@@ -159,7 +159,7 @@ void KeeperServer::putRequest(const KeeperStore::RequestForSession & request_for
         response->error = result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                         : Coordination::Error::ZCONNECTIONLOSS;
 
-        responses_queue.push(RK::KeeperStore::ResponseForSession{session_id, response});
+        responses_queue.push(RK::ResponseForSession{session_id, response});
         if (!result->get_accepted())
             throw Exception(ErrorCodes::RAFT_ERROR, "Request session {} xid {} error, result is not accepted.", session_id, request->xid);
         else
@@ -173,7 +173,7 @@ void KeeperServer::putRequest(const KeeperStore::RequestForSession & request_for
     }
 }
 
-ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::vector<KeeperStore::RequestForSession> & request_batch)
+ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::vector<RequestForSession> & request_batch)
 {
     LOG_DEBUG(log, "process the batch requests {}", request_batch.size());
     std::vector<ptr<buffer>> entries;

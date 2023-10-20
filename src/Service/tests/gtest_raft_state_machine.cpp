@@ -2,6 +2,7 @@
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
+#include <Service/KeeperCommon.h>
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
@@ -39,7 +40,7 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    KeeperStore::RequestForSession session_request;
+    RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperCreateRequest>();
     session_request.request = request;
@@ -81,7 +82,7 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    KeeperStore::RequestForSession session_request;
+    RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperSetRequest>();
     session_request.request = request;
@@ -108,7 +109,7 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
     default_acls.emplace_back(std::move(acl));
 
     UInt64 index = machine.last_commit_index() + 1;
-    KeeperStore::RequestForSession session_request;
+    RequestForSession session_request;
     session_request.session_id = createSession(machine);
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request.request = request;
@@ -139,7 +140,7 @@ TEST(RaftStateMachine, serializeAndParse)
     default_acls.emplace_back(std::move(acl));
 
     //UInt64 index = machine.last_commit_index() + 1;
-    KeeperStore::RequestForSession session_request;
+    RequestForSession session_request;
     session_request.session_id = 1;
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "1";
@@ -153,7 +154,7 @@ TEST(RaftStateMachine, serializeAndParse)
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
-    KeeperStore::RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
+    RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
     if (session_request_2.request->getOpNum() == OpNum::Create)
     {
         ZooKeeperCreateRequest * request_2 = static_cast<ZooKeeperCreateRequest *>(session_request_2.request.get());

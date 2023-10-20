@@ -31,7 +31,7 @@ struct ReplayLogBatch
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
     ptr<std::vector<VersionLogEntry>> log_vec;
-    ptr<std::vector<ptr<KeeperStore::RequestForSession>>> request_vec;
+    ptr<std::vector<ptr<RequestForSession>>> request_vec;
 };
 
 NuRaftStateMachine::NuRaftStateMachine(
@@ -140,7 +140,7 @@ NuRaftStateMachine::NuRaftStateMachine(
 
                         batch.batch_start_index = batch_start_index;
                         batch.batch_end_index = batch_end_index;
-                        batch.request_vec = cs_new<std::vector<ptr<KeeperStore::RequestForSession>>>();
+                        batch.request_vec = cs_new<std::vector<ptr<RequestForSession>>>();
 
                         for (auto entry : *(batch.log_vec))
                         {
@@ -162,7 +162,7 @@ NuRaftStateMachine::NuRaftStateMachine(
                             else
                             {
                                 /// replay nodes
-                                ptr<KeeperStore::RequestForSession> ptr_request = this->createRequestSession(entry.entry);
+                                ptr<RequestForSession> ptr_request = this->createRequestSession(entry.entry);
                                 LOG_TRACE(log, "Replay log request, session {}", toHexString(ptr_request->session_id));
 
                                 batch.request_vec->push_back(ptr_request);
@@ -279,13 +279,13 @@ NuRaftStateMachine::NuRaftStateMachine(
     snap_thread = ThreadFromGlobalPool([this] { snapThread(); });
 }
 
-ptr<KeeperStore::RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
+ptr<RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> & entry)
 {
     if (entry->get_val_type() != nuraft::log_val_type::app_log)
         return nullptr;
 
     ReadBufferFromNuraftBuffer buffer(entry->get_buf());
-    ptr<KeeperStore::RequestForSession> request_for_session = cs_new<KeeperStore::RequestForSession>();
+    ptr<RequestForSession> request_for_session = cs_new<RequestForSession>();
 
     readIntBinary(request_for_session->session_id, buffer);
     if (buffer.eof())
@@ -354,10 +354,10 @@ void NuRaftStateMachine::snapThread()
     }
 }
 
-KeeperStore::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
+RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
 {
     ReadBufferFromNuraftBuffer buffer(data);
-    KeeperStore::RequestForSession request_for_session;
+    RequestForSession request_for_session;
     /// TODO unify digital encoding mode
     readIntBinary(request_for_session.session_id, buffer);
 
@@ -369,6 +369,9 @@ KeeperStore::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer &
 
     Coordination::OpNum opnum;
     Coordination::read(opnum, buffer);
+
+//    bool is_internal;
+//    Coordination::read(is_internal, buffer);
 
     request_for_session.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request_for_session.request->xid = xid;
@@ -392,7 +395,7 @@ KeeperStore::RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer &
     return request_for_session;
 }
 
-ptr<buffer> NuRaftStateMachine::serializeRequest(KeeperStore::RequestForSession & session_request)
+ptr<buffer> NuRaftStateMachine::serializeRequest(RequestForSession & session_request)
 {
     WriteBufferFromNuraftBuffer out;
     /// TODO unify digital encoding mode, see parseRequest
@@ -521,7 +524,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
     return commit(log_idx, data, false);
 }
 
-void NuRaftStateMachine::processReadRequest(const KeeperStore::RequestForSession & request_for_session)
+void NuRaftStateMachine::processReadRequest(const RequestForSession & request_for_session)
 {
     store.processRequest(responses_queue, request_for_session);
 }

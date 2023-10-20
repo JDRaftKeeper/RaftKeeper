@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <Service/ACLMap.h>
 #include <Service/KeeperStore.h>
+#include <Service/KeeperCommon.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
@@ -62,7 +63,7 @@ ptr<buffer> closeSessionLog(int64_t session_id)
 {
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
     request->xid = Coordination::CLOSE_XID;
-    KeeperStore::RequestForSession request_info;
+    RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
@@ -80,7 +81,7 @@ ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::st
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<KeeperStore::RequestForSession>();
+    auto session_request = cs_new<RequestForSession>();
     auto request = cs_new<ZooKeeperCreateRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -107,7 +108,7 @@ ptr<buffer> setLog(int64_t session_id, const std::string & key, const std::strin
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<KeeperStore::RequestForSession>();
+    auto session_request = cs_new<RequestForSession>();
     auto request = cs_new<ZooKeeperSetRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -132,7 +133,7 @@ ptr<buffer> removeLog(int64_t session_id, const std::string & key)
     acl.id = "anyone";
     default_acls.emplace_back(std::move(acl));
 
-    auto session_request = cs_new<KeeperStore::RequestForSession>();
+    auto session_request = cs_new<RequestForSession>();
     auto request = cs_new<ZooKeeperRemoveRequest>();
     session_request->request = request;
     session_request->session_id = session_id;
@@ -227,7 +228,7 @@ ACLs getACL(KeeperStore & storage, const std::string key)
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ false);
 
-    KeeperStore::ResponseForSession responses;
+    ResponseForSession responses;
     responses_queue.tryPop(responses);
     return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses.response).acl;
 }

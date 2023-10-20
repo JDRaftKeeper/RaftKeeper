@@ -34,14 +34,14 @@ class KeeperDispatcher : public std::enable_shared_from_this<KeeperDispatcher>
 private:
     std::mutex push_request_mutex;
     ptr<RequestsQueue> requests_queue;
-    ThreadSafeQueue<KeeperStore::ResponseForSession> responses_queue;
+    ThreadSafeQueue<ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
     using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
 
-    std::mutex session_to_response_callback_mutex;
+    /// Session response callback which will send response to IO handler.
+    /// Sessions here is local session which are directly connected to the node.
     SessionToResponseCallback session_to_response_callback;
-
-    std::mutex forward_to_response_callback_mutex;
+    std::mutex session_to_response_callback_mutex;
 
     struct PairHash
     {
@@ -59,6 +59,7 @@ private:
     using ForwardToResponseCallback = std::unordered_map<ForwardingClientId, ForwardResponseCallback, PairHash>;
 
     ForwardToResponseCallback forward_to_response_callback;
+    std::mutex forward_to_response_callback_mutex;
 
     using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
     /// More than 1k updates is definitely misconfiguration.
@@ -85,7 +86,6 @@ private:
     ///     1. request_accumulator for accumulating request into batch
     ///     2. request_forwarder for forwarding requests to leader
     ///     3. request_processor for processing requests
-
     std::shared_ptr<RequestProcessor> request_processor;
     RequestAccumulator request_accumulator;
     RequestForwarder request_forwarder;
@@ -94,6 +94,8 @@ private:
 
     void requestThread(RunnerId runner_id);
     void responseThread();
+
+    /// Clean dead sessions
     void sessionCleanerTask();
     void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
 

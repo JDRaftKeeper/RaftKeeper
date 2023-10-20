@@ -29,7 +29,7 @@ struct ForwardRequest
 
     virtual ForwardResponsePtr makeResponse() const = 0;
 
-    virtual KeeperStore::RequestForSession requestForSession() const = 0;
+    virtual RequestForSession requestForSession() const = 0;
 
     virtual String toString() const = 0;
 
@@ -51,7 +51,7 @@ struct ForwardHandshakeRequest : public ForwardRequest
 
     ForwardResponsePtr makeResponse() const override;
 
-    KeeperStore::RequestForSession requestForSession() const override;
+    RequestForSession requestForSession() const override;
 
     String toString() const override
     {
@@ -78,7 +78,7 @@ struct ForwardSessionRequest : public ForwardRequest
 
     ForwardResponsePtr makeResponse() const override;
 
-    KeeperStore::RequestForSession requestForSession() const override;
+    RequestForSession requestForSession() const override;
 
     String toString() const override
     {
@@ -99,7 +99,7 @@ struct ForwardGetSessionRequest : public ForwardRequest
 
     ForwardResponsePtr makeResponse() const override;
 
-    KeeperStore::RequestForSession requestForSession() const override;
+    RequestForSession requestForSession() const override;
 
     String toString() const override
     {
@@ -120,7 +120,7 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
 
     ForwardResponsePtr makeResponse() const override;
 
-    KeeperStore::RequestForSession requestForSession() const override;
+    RequestForSession requestForSession() const override;
 
     String toString() const override
     {
@@ -132,7 +132,7 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
 
 struct ForwardOpRequest : public ForwardRequest
 {
-    KeeperStore::RequestForSession request;
+    RequestForSession request;
 
     ForwardType forwardType() const override { return ForwardType::Operation; }
 
@@ -142,7 +142,7 @@ struct ForwardOpRequest : public ForwardRequest
 
     ForwardResponsePtr makeResponse() const override;
 
-    KeeperStore::RequestForSession requestForSession() const override;
+    RequestForSession requestForSession() const override;
 
     String toString() const override
     {
@@ -162,7 +162,7 @@ public:
 
     ForwardRequestPtr get(ForwardType op_num) const;
 
-    static ForwardRequestPtr convertFromRequest(const KeeperStore::RequestForSession & request_for_session)
+    static ForwardRequestPtr convertFromRequest(const RequestForSession & request_for_session)
     {
         auto opnum = request_for_session.request->getOpNum();
         switch (opnum)
