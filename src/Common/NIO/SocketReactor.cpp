@@ -169,16 +169,16 @@ void SocketReactor::addEventHandlers(const Socket& socket, const std::vector<Poc
 {
     NotifierPtr pNotifier = getNotifier(socket, true);
 
+    int mode = 0;
     for (auto * observer : observers)
     {
         if (!pNotifier->hasObserver(*observer)) pNotifier->addObserver(this, *observer);
 
-        int mode = 0;
         if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
         if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
         if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
-        if (mode) _pollSet.add(socket, mode);
     }
+    if (mode) _pollSet.add(socket, mode);
 }
 
 

@@ -211,12 +211,12 @@ private:
     {
         struct epoll_event ev;
         ev.events = 0;
-        if (mode & PollSet::POLL_READ)
-            ev.events |= EPOLLIN;
         if (mode & PollSet::POLL_WRITE)
             ev.events |= EPOLLOUT;
         if (mode & PollSet::POLL_ERROR)
             ev.events |= EPOLLERR;
+        if (mode & PollSet::POLL_READ)
+            ev.events |= EPOLLIN;
         ev.data.ptr = ptr;
         return epoll_ctl(_epollfd, EPOLL_CTL_ADD, fd, &ev);
     }
