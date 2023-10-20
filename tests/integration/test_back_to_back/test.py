@@ -11,7 +11,13 @@ from helpers.utils import close_zk_clients, close_zk_client
 from helpers.utils import MultiReadClient
 
 cluster = RaftKeeperCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True)
+
+node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper_three_nodes_1.xml'],
+                             with_zookeeper=True, stay_alive=True)
+node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper_three_nodes_2.xml'],
+                             with_zookeeper=True, stay_alive=True)
+node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper_three_nodes_3.xml'],
+                             with_zookeeper=True, stay_alive=True)
 
 
 def get_genuine_zk(multi=False):
@@ -23,11 +29,11 @@ def get_genuine_zk(multi=False):
 
 
 def get_fake_zk(multi=False):
-    print("node", cluster.get_instance_ip("node"))
+    print("node1", cluster.get_instance_ip("node1"))
     if multi:
-        _fake_zk_instance = MultiReadClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
+        _fake_zk_instance = MultiReadClient(hosts=cluster.get_instance_ip("node1") + ":8101", timeout=60.0)
     else:
-        _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101", timeout=60.0)
+        _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101", timeout=60.0)
 
     def reset_last_zxid_listener(state):
         print("Fake zk callback called for state", state)
@@ -302,7 +308,6 @@ def test_multi_read():
             t.create('/test_multi_read/fred', ephemeral=True)
             t.create('/test_multi_read/smith')
             results = t.commit()
-            print("结果:", results)
             assert len(results) == 3
             assert results[0] == '/test_multi_read/freddy'
             assert results[2] == '/test_multi_read/smith'
@@ -477,9 +482,9 @@ def test_end_of_session(started_cluster):
     genuine_zk2 = None
 
     try:
-        fake_zk1 = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101")
+        fake_zk1 = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101")
         fake_zk1.start()
-        fake_zk2 = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101")
+        fake_zk2 = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101")
         fake_zk2.start()
         genuine_zk1 = cluster.get_kazoo_client('zoo1')
         genuine_zk1.start()
@@ -530,10 +535,10 @@ def test_end_of_watches_session(started_cluster):
     fake_zk1 = None
     fake_zk2 = None
     try:
-        fake_zk1 = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101")
+        fake_zk1 = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101")
         fake_zk1.start()
 
-        fake_zk2 = KazooClient(hosts=cluster.get_instance_ip("node") + ":8101")
+        fake_zk2 = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101")
         fake_zk2.start()
 
         fake_zk1.create("/test_end_of_watches_session")

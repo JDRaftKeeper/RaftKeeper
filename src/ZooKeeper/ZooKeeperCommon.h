@@ -482,6 +482,27 @@ struct ZooKeeperSimpleListResponse final : ZooKeeperListResponse
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
     OpNum getOpNum() const override { return OpNum::SimpleList; }
+
+    bool operator== (const ZooKeeperResponse & response) const override
+    {
+        if (const ZooKeeperSimpleListResponse * list_response = dynamic_cast<const ZooKeeperSimpleListResponse *>(&response))
+        {
+            std::vector<String> copy_other_nodes(list_response->names);
+            std::vector<String> copy_nodes(names);
+            std::sort(copy_other_nodes.begin(), copy_other_nodes.end());
+            std::sort(copy_nodes.begin(), copy_nodes.end());
+            return ZooKeeperResponse::operator==(response)  && copy_other_nodes == copy_nodes;
+        }
+        return false;
+    }
+
+    String toString() const override
+    {
+        String base = "ListResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString() + ", names ";
+        auto func = [&](const String & value){ base += ", " + value; };
+        std::for_each(names.begin(), names.end(), func);
+        return base;
+    }
 };
 
 struct ZooKeeperCheckRequest final : CheckRequest, ZooKeeperRequest
@@ -575,11 +596,12 @@ struct ZooKeeperMultiRequest final : MultiRequest, ZooKeeperRequest
 
     enum class OperationType : UInt8
     {
+        Unspecified,
         Read,
         Write
     };
 
-    std::optional<OperationType> operation_type;
+    OperationType operation_type = OperationType::Unspecified;
 
     void checkOperationType(OperationType type);
 };
@@ -638,14 +660,14 @@ struct ZooKeeperMultiResponse : MultiResponse, ZooKeeperResponse
 
 struct ZooKeeperMultiWriteResponse final : public ZooKeeperMultiResponse
 {
-    OpNum getOpNum() const override { return OpNum::Multi; }
     using ZooKeeperMultiResponse::ZooKeeperMultiResponse;
+    OpNum getOpNum() const override { return OpNum::Multi; }
 };
 
 struct ZooKeeperMultiReadResponse final : public ZooKeeperMultiResponse
 {
-    OpNum getOpNum() const override { return OpNum::MultiRead; }
     using ZooKeeperMultiResponse::ZooKeeperMultiResponse;
+    OpNum getOpNum() const override { return OpNum::MultiRead; }
 };
 
 /// Fake internal raftkeeper request. Never received from client

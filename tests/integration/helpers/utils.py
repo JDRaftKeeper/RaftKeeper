@@ -35,6 +35,12 @@ def clear_zk_children(zk_client, path):
 
 
 class MultiReadRequest(object):
+    """A Zookeeper MultiReadRequest
+
+    A MultiReadRequest provides a builder object that can be used to
+    construct and commit a set of operations.
+
+    """
     def __init__(self, client):
         self.client = client
         self.operations = []
@@ -42,6 +48,17 @@ class MultiReadRequest(object):
 
     def create(self, path, value=b"", acl=None, ephemeral=False,
                sequence=False):
+        """Add a create ZNode ops to the operations.
+
+        .. note::
+
+            Create ops is illegal for mulitRead,
+            Will get `kazoo.exceptions.MarshallingError` after commit
+            It's only used for test.
+
+        :returns: None
+
+        """
         if acl is None and self.client.default_acl:
             acl = self.client.default_acl
 
@@ -69,13 +86,19 @@ class MultiReadRequest(object):
                          flags), None)
 
     def get(self, path, watcher):
+        """Add a get ZNode ops to the operations.
+        :returns: None
+        """
         self._add(GetData(path, watcher), None)
 
     def get_children(self, path, watcher):
+        """Add a simpleList ops to the operations.
+        :returns: None
+        """
         self._add(GetChildren(path, watcher), None)
 
     def commit_async(self):
-        """Commit the transaction asynchronously.
+        """Commit the operations asynchronously.
 
         :rtype: :class:`~kazoo.interfaces.IAsyncResult`
 
@@ -86,7 +109,7 @@ class MultiReadRequest(object):
         return async_object
 
     def commit(self):
-        """Commit the transaction.
+        """Commit the operations.
 
         :returns: A list of the results for each operation in the
                   transaction.
@@ -102,12 +125,44 @@ class MultiReadRequest(object):
 
 
 class MultiReadClient(KazooClient):
+    """A Zookeeper Python client extends from Kazoo.KazooClient,
+    Kazoo is a Python library working with Zookeeper.
+
+    supports multi_read ops
+    """
     def __init__(self, hosts, timeout):
+        """Create a :class:`MultiReadClient` instance (extends from KazooClient).
+
+        :param hosts: Comma-separated list of hosts to connect to
+                      (e.g. 127.0.0.1:2181,127.0.0.1:2182,[::1]:2183).
+        :param timeout: The longest to wait for a Zookeeper connection.
+
+        Basic Example:
+
+        For example::
+
+            zk = MultiReadClient()
+            t = zk.start()
+            children = zk.get_children('/')
+            zk.stop()
+
+        """
         super(MultiReadClient, self).__init__(
             hosts=hosts
             , timeout=timeout)
 
     def multi_read(self):
+        """Create and return a :class:`TransactionRequest` object
+
+        Creates a :class:`MultiReadRequest` object. An ops can
+        consist of multiple operations which can be committed as a
+        single atomic unit.
+        one of operations failure does not affect other operations
+
+        :returns: A MultiReadRequest.
+        :rtype: :class:`MultiReadRequest`
+
+        """
         return MultiReadRequest(self)
 
 

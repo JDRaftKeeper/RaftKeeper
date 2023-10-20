@@ -321,13 +321,13 @@ void ZooKeeperErrorResponse::writeImpl(WriteBuffer & out) const
 
 void ZooKeeperMultiRequest::checkOperationType(OperationType type)
 {
-    assert(!operation_type.has_value() || *operation_type == type);
+    assert(operation_type == OperationType::Unspecified || operation_type == type);
     operation_type = type;
 }
 
 OpNum ZooKeeperMultiRequest::getOpNum() const
 {
-    return !operation_type.has_value() || *operation_type == OperationType::Write ? OpNum::Multi : OpNum::MultiRead;
+    return operation_type == OperationType::Unspecified || operation_type == OperationType::Write ? OpNum::Multi : OpNum::MultiRead;
 }
 
 ZooKeeperMultiRequest::ZooKeeperMultiRequest(const Requests & generic_requests, const ACLs & default_acls)
