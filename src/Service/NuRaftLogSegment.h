@@ -3,14 +3,16 @@
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <vector>
 #include <shared_mutex>
-#include <Service/KeeperCommon.h>
-#include <Service/LogEntry.h>
-#include <Service/proto/Log.pb.h>
+#include <vector>
+
+#include <common/logger_useful.h>
 #include <libnuraft/basic_types.hxx>
 #include <libnuraft/nuraft.hxx>
-#include <common/logger_useful.h>
+
+#include <Service/KeeperUtils.h>
+#include <Service/LogEntry.h>
+#include <Service/proto/Log.pb.h>
 
 
 namespace RK

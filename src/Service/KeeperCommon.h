@@ -1,91 +1,80 @@
 #pragma once
 
-#include <fstream>
-#include <time.h>
-#include <Service/Crc32.h>
-#include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
-#include <libnuraft/log_entry.hxx>
 #include <libnuraft/nuraft.hxx>
-#include <common/logger_useful.h>
 
 
 namespace RK
 {
 
-std::string checkAndGetSuperdigest(const String & user_and_digest);
-nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
-nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
+struct RequestId;
 
-struct BackendTimer
+/// Attached session id to request
+struct RequestForSession
 {
-    static constexpr char TIME_FMT[] = "%Y%m%d%H%M%S";
+    int64_t session_id;
+    Coordination::ZooKeeperRequestPtr request;
 
-    /// default min interval is 1 hour
-    UInt32 interval = 1 * 3600;
-    UInt32 random_window = 1200; //20 minutes
+    /// measured in millisecond
+    int64_t create_time{};
 
-    static void getCurrentTime(std::string & date_str)
+    /// for forward request
+    int32_t server_id{-1};
+    int32_t client_id{-1};
+
+//    /// RaftKeeper can generate request, for example: sessionCleanerTask
+//    bool is_internal{false};
+
+    explicit RequestForSession() = default;
+
+    RequestForSession(Coordination::ZooKeeperRequestPtr request_, int64_t session_id_, int64_t create_time_)
+        : session_id(session_id_), request(request_), create_time(create_time_)
     {
-        time_t curr_time;
-        time(&curr_time);
-        char tmp_buf[24];
-        std::strftime(tmp_buf, sizeof(tmp_buf), TIME_FMT, localtime(&curr_time));
-        date_str = tmp_buf;
     }
 
-    static time_t parseTime(const std::string & date_str)
-    {
-        struct tm prev_tm;
-        memset(&prev_tm, 0, sizeof(tm));
-        strptime(date_str.data(), TIME_FMT, &prev_tm);
-        time_t prev_time = mktime(&prev_tm);
-        return prev_time;
-    }
+    bool isForwardRequest() const { return server_id > -1 && client_id > -1; }
+    RequestId getRequestId() const;
 
-    bool isActionTime(const time_t & prev_time, time_t curr_time) const
-    {
-        if (curr_time == 0L)
-            time(&curr_time);
-        return difftime(curr_time, prev_time) >= (interval + rand() % random_window);
-    }
+    String toString() const;
+    String toSimpleString() const;
+
 };
 
-
-class Directory
+/// Attached session id to response
+struct ResponseForSession
 {
-public:
-    static int createDir(const std::string & path);
+    int64_t session_id;
+    Coordination::ZooKeeperResponsePtr response;
 };
 
-inline int readUInt32(nuraft::ptr<std::fstream> & fs, UInt32 & x)
+/// Global client request id.
+struct RequestId
 {
-    errno = 0;
-    char * buf = reinterpret_cast<char *>(&x);
-    fs->read(buf, sizeof(UInt32));
-    return fs->good() ? 0 : -1;
-}
+    int64_t session_id;
+    Coordination::XID xid;
 
-inline int writeUInt32(nuraft::ptr<std::fstream> & fs, const UInt32 & x)
-{
-    errno = 0;
-    fs->write(reinterpret_cast<const char *>(&x), sizeof(UInt32));
-    return fs->good() ? 0 : -1;
-}
+    String toString() const;
+    bool operator==(const RequestId & other) const;
 
-inline int readUInt64(nuraft::ptr<std::fstream> & fs, UInt64 & x)
-{
-    errno = 0;
-    char * buf = reinterpret_cast<char *>(&x);
-    fs->read(buf, sizeof(UInt64));
-    return fs->good() ? 0 : -1;
-}
+    struct RequestIdHash
+    {
+        std::size_t operator()(const RequestId & request_id) const;
+    };
+};
 
-inline int writeUInt64(nuraft::ptr<std::fstream> & fs, const UInt64 & x)
+/// Simple error request info.
+struct ErrorRequest
 {
-    errno = 0;
-    fs->write(reinterpret_cast<const char *>(&x), sizeof(UInt64));
-    return fs->good() ? 0 : -1;
-}
+    bool accepted;
+    nuraft::cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
+    int64_t session_id;
+    Coordination::XID xid;
+    Coordination::OpNum opnum;
+
+    String toString() const;
+    RequestId getRequestId() const;
+};
+
+using ErrorRequests = std::list<ErrorRequest>;
 
 }

@@ -22,7 +22,7 @@ void RequestAccumulator::run(RunnerId runner_id)
 
     while (!shutdown_called)
     {
-        KeeperStore::RequestForSession request_for_session;
+        RequestForSession request_for_session;
 
         bool pop_success;
         if (to_append_batch.empty())
@@ -99,7 +99,7 @@ void RequestAccumulator::shutdown()
 
     shutdown_called = true;
 
-    KeeperStore::RequestForSession request_for_session;
+    RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
         request_processor->onError(

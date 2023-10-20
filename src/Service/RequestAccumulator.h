@@ -15,7 +15,7 @@ namespace RK
  */
 class RequestAccumulator
 {
-    using RequestForSession = KeeperStore::RequestForSession;
+    using RequestForSession = RequestForSession;
     using NuRaftResult = nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>>;
 
 public:

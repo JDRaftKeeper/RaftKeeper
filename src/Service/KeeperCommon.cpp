@@ -1,55 +1,69 @@
 #include <Service/KeeperCommon.h>
-#include <Service/WriteBufferFromNuraftBuffer.h>
-#include <ZooKeeper/ZooKeeperCommon.h>
-#include <ZooKeeper/ZooKeeperIO.h>
-#include <boost/algorithm/string/split.hpp>
-#include <Poco/File.h>
-#include <Common/IO/WriteHelpers.h>
-
-using namespace nuraft;
+#include <Service/formatHex.h>
 
 namespace RK
 {
 
-namespace ErrorCodes
+String ErrorRequest::toString() const
 {
-    extern const int INVALID_CONFIG_PARAMETER;
+    return fmt::format(
+        "[session_id:{}, xid:{}, opnum:{}, accepted:{}, error_code:{}]",
+        toHexString(session_id),
+        xid,
+        Coordination::toString(opnum),
+        accepted,
+        error_code);
 }
 
-int Directory::createDir(const std::string & dir)
+RequestId ErrorRequest::getRequestId() const
 {
-    Poco::File(dir).createDirectories();
-    return 0;
+    return {session_id, xid};
 }
 
-std::string checkAndGetSuperdigest(const String & user_and_digest)
+String RequestId::toString() const
 {
-    if (user_and_digest.empty())
-        return "";
-
-    std::vector<std::string> scheme_and_id;
-    boost::split(scheme_and_id, user_and_digest, [](char c) { return c == ':'; });
-    if (scheme_and_id.size() != 2 || scheme_and_id[0] != "super")
-        throw Exception(
-            ErrorCodes::INVALID_CONFIG_PARAMETER, "Incorrect superdigest in keeper_server config. Must be 'super:base64string'");
-
-    return user_and_digest;
+    return fmt::format("[session_id:{}, xid:{}]", toHexString(session_id), xid);
 }
 
-nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request)
+bool RequestId::operator==(const RequestId & other) const
 {
-    RK::WriteBufferFromNuraftBuffer buf;
-    RK::writeIntBinary(session_id, buf);
-    request->write(buf);
-    Coordination::write(time, buf);
-    return buf.getBuffer();
+    return session_id == other.session_id && xid == other.xid;
 }
 
-
-ptr<log_entry> makeClone(const ptr<log_entry> & entry)
+std::size_t RequestId::RequestIdHash::operator()(const RequestId & request_id) const
 {
-    ptr<log_entry> clone = cs_new<log_entry>(entry->get_term(), buffer::clone(entry->get_buf()), entry->get_val_type());
-    return clone;
+    std::size_t seed = 0;
+    std::hash<int64_t> hash64;
+    std::hash<int32_t> hash32;
+
+    seed ^= hash64(request_id.session_id);
+    seed ^= hash32(request_id.xid);
+
+    return seed;
+}
+
+String RequestForSession::toString() const
+{
+    return fmt::format(
+        "[session_id: {}, xid:{}, opnum:{}, create_time:{}, server_id:{}, client_id:{}, request:{}]",
+        toHexString(session_id),
+        request->xid,
+        Coordination::toString(request->getOpNum()),
+        create_time,
+        server_id,
+        client_id,
+        request->toString());
+}
+
+String RequestForSession::toSimpleString() const
+{
+    return fmt::format(
+        "[session_id:{}, xid:{}, opnum:{}]", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
+}
+
+RequestId RequestForSession::getRequestId() const
+{
+    return {session_id, request->xid};
 }
 
 }
