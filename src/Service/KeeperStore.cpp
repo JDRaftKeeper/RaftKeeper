@@ -793,21 +793,23 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
         if (node == nullptr)
         {
             response.error = Coordination::Error::ZNONODE;
+            return {response_ptr, {}};
         }
-        else
-        {
-            auto path_prefix = request.path;
-            if (path_prefix.empty())
-                throw RK::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
 
-            {
-                std::shared_lock r_lock(node->mutex);
-                response.names.insert(response.names.end(), node->children.begin(), node->children.end());
+        auto path_prefix = request.path;
+        if (path_prefix.empty())
+            throw RK::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
+
+        {
+            std::shared_lock r_lock(node->mutex);
+            response.names.insert(response.names.end(), node->children.begin(), node->children.end());
+            if (response.getOpNum() == Coordination::OpNum::List)
                 response.stat = node->statForResponse();
-            }
-            std::sort(response.names.begin(), response.names.end());
-            response.error = Coordination::Error::ZOK;
         }
+
+        std::sort(response.names.begin(), response.names.end());
+        response.error = Coordination::Error::ZOK;
+
         return {response_ptr, {}};
     }
 };
@@ -1036,7 +1038,7 @@ struct SvsKeeperStorageAuthRequest final : public StoreRequest
 struct SvsKeeperStorageMultiRequest final : public StoreRequest
 {
     using OperationType = Coordination::ZooKeeperMultiRequest::OperationType;
-    std::optional<OperationType> operation_type;
+    OperationType operation_type = OperationType::Unspecified;
 
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
@@ -1054,7 +1056,7 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
 
         const auto check_operation_type = [&](OperationType type)
         {
-            if (operation_type.has_value() && *operation_type != type)
+            if (operation_type != OperationType::Unspecified && operation_type != type)
                 throw RK::Exception(ErrorCodes::BAD_ARGUMENTS, "Illegal mixing of read and write operations in multi request");
             operation_type = type;
         };
@@ -1118,7 +1120,7 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
                 auto [cur_response, undo_action] = concrete_request->process(store, zxid, session_id, time);
 
                 response.responses[i] = cur_response;
-                if (cur_response->error != Coordination::Error::ZOK && *operation_type == OperationType::Write)
+                if (cur_response->error != Coordination::Error::ZOK && operation_type == OperationType::Write)
                 {
                     for (size_t j = 0; j <= i; ++j)
                     {
