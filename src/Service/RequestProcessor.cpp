@@ -50,7 +50,11 @@ void RequestProcessor::run()
                 return;
 
             size_t committed_request_size = committed_queue.size();
-            size_t error_request_size = error_request_ids.size();
+            size_t error_request_size;
+            {
+                std::unique_lock lk(mutex);
+                error_request_size = error_request_ids.size();
+            }
 
             /// 1. process read request, multi thread
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
