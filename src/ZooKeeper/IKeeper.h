@@ -306,6 +306,11 @@ struct ListResponse : virtual Response
     Stat stat;
 };
 
+struct SimpleListResponse : virtual Response
+{
+    std::vector<String> names;
+};
+
 struct CheckRequest : virtual Request
 {
     String path;
