@@ -449,7 +449,7 @@ struct ZooKeeperSimpleListRequest final : ZooKeeperListRequest
     }
 };
 
-struct ZooKeeperListResponse : ListResponse, ZooKeeperResponse
+struct ZooKeeperListResponse final : ListResponse, ZooKeeperResponse
 {
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
@@ -477,7 +477,7 @@ struct ZooKeeperListResponse : ListResponse, ZooKeeperResponse
     }
 };
 
-struct ZooKeeperSimpleListResponse final : ZooKeeperListResponse
+struct ZooKeeperSimpleListResponse final : SimpleListResponse, ZooKeeperResponse
 {
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
@@ -491,14 +491,14 @@ struct ZooKeeperSimpleListResponse final : ZooKeeperListResponse
             std::vector<String> copy_nodes(names);
             std::sort(copy_other_nodes.begin(), copy_other_nodes.end());
             std::sort(copy_nodes.begin(), copy_nodes.end());
-            return ZooKeeperResponse::operator==(response)  && copy_other_nodes == copy_nodes;
+            return ZooKeeperResponse::operator==(response) && copy_other_nodes == copy_nodes;
         }
         return false;
     }
 
     String toString() const override
     {
-        String base = "ListResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString() + ", names ";
+        String base = "SimpleListResponse " + ZooKeeperResponse::toString()  + ", names ";
         auto func = [&](const String & value){ base += ", " + value; };
         std::for_each(names.begin(), names.end(), func);
         return base;

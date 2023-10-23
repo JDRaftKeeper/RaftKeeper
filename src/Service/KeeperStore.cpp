@@ -786,13 +786,12 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
     process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
-        Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
         Coordination::ZooKeeperListRequest & request = dynamic_cast<Coordination::ZooKeeperListRequest &>(*zk_request);
 
         auto node = store.container.get(request.path);
         if (node == nullptr)
         {
-            response.error = Coordination::Error::ZNONODE;
+            response_ptr->error = Coordination::Error::ZNONODE;
             return {response_ptr, {}};
         }
 
@@ -800,15 +799,21 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
         if (path_prefix.empty())
             throw RK::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
 
+        if (response_ptr->getOpNum() == Coordination::OpNum::List)
         {
+            Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
             std::shared_lock r_lock(node->mutex);
             response.names.insert(response.names.end(), node->children.begin(), node->children.end());
-            if (response.getOpNum() == Coordination::OpNum::List)
-                response.stat = node->statForResponse();
+            response.stat = node->statForResponse();
+        }
+        else
+        {
+            Coordination::ZooKeeperSimpleListResponse & response = dynamic_cast<Coordination::ZooKeeperSimpleListResponse &>(*response_ptr);
+            std::shared_lock r_lock(node->mutex);
+            response.names.insert(response.names.end(), node->children.begin(), node->children.end());
         }
 
-        std::sort(response.names.begin(), response.names.end());
-        response.error = Coordination::Error::ZOK;
+        response_ptr->error = Coordination::Error::ZOK;
 
         return {response_ptr, {}};
     }
