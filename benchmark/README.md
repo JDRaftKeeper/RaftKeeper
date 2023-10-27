@@ -1,12 +1,17 @@
 # RaftKeeper Benchmark
 
-Before the Benchmark test, how to build the benchmark tool.
+1. Install requirements (the following shows how to install in Ubuntu)
+```
+sudo apt-get update && sudo apt-get install openjdk-8-jdk maven
+```
+
+2. Build the benchmark tool
 
 ```
 cd RaftKeeper/benchmark && sh build.sh
 ```
 
-Zookeeper or RaftKeeper benchmark tool.
+3. Run benchmark test
 
 ```
 bin/benchmark.sh nodes thread_size payload_size run_duration(second) only_create
