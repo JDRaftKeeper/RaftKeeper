@@ -753,9 +753,13 @@ bool NuRaftStateMachine::existSnapshotObject(snapshot & s, ulong obj_id)
 
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
-    /// TODO: double buffer load or multi thread load
+    /// If the invoker is from NuRaft, we should reset the state machine
+    LOG_INFO(log, "reset state machine.");
+    reset();
+
     LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
     std::lock_guard<std::mutex> lock(snapshot_mutex);
+
     return snap_mgr->parseSnapshot(s, store);
 }
 
@@ -801,6 +805,19 @@ bool NuRaftStateMachine::isNewSessionRequest(nuraft::buffer & data)
 bool NuRaftStateMachine::isUpdateSessionRequest(nuraft::buffer & data)
 {
     return data.size() == sizeof(int64) + sizeof(int64);
+}
+
+void NuRaftStateMachine::reset()
+{
+    store.reset();
+
+    last_committed_idx = 0;
+    in_snapshot = false;
+
+    {
+        std::lock_guard lock(new_session_id_callback_mutex);
+        new_session_id_callback.clear();
+    }
 }
 
 }

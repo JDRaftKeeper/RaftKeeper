@@ -64,6 +64,8 @@ public:
 
     bool operator==(const ACLMap & rhs) const;
     bool operator!=(const ACLMap & rhs) const;
+
+    void reset();
 };
 
 }

@@ -1804,4 +1804,34 @@ bool KeeperStore::containsSession(int64_t session_id) const
     return session_and_timeout.contains(session_id);
 }
 
+void KeeperStore::reset()
+{
+    container.clear();
+    zxid = 0;
+
+    acl_map.reset();
+
+    /// clear session
+    {
+        std::lock_guard lock(session_mutex);
+        session_id_counter = 1;
+        session_and_auth.clear();
+        session_and_timeout.clear();
+        session_expiry_queue.clear();
+        sessions_and_watchers.clear();
+    }
+
+    {
+        std::lock_guard lock(ephemerals_mutex);
+        ephemerals.clear();
+    }
+
+    {
+        std::lock_guard lock(watch_mutex);
+        watches.clear();
+        list_watches.clear();
+    }
+
+}
+
 }

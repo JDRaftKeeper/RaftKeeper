@@ -118,10 +118,16 @@ public:
             return map_.size();
         }
 
+        void clear()
+        {
+            std::unique_lock lock(mut_);
+            map_.clear();
+        }
+
         void forEach(const Action & fn)
         {
             std::shared_lock read_lock(mut_);
-            for (auto [key, value] : map_)
+            for (const auto & [key, value] : map_)
                 fn(key, value);
         }
 
@@ -153,13 +159,17 @@ public:
     UInt32 getBlockNum() const { return NumBlocks; }
     InnerMap & getMap(const UInt32 & index) { return maps_[index]; }
 
+    void clear()
+    {
+        for (auto & map : maps_)
+            map.clear();
+    }
+
     size_t size() const
     {
         size_t s(0);
-        for (auto it = maps_.begin(); it != maps_.end(); it++)
-        {
-            s += it->size();
-        }
+        for (const auto & map : maps_)
+            s += map.size();
         return s;
     }
 };
@@ -337,6 +347,9 @@ public:
     void dumpWatches(WriteBufferFromOwnString & buf) const;
     void dumpWatchesByPath(WriteBufferFromOwnString & buf) const;
     void dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) const;
+
+    /// clear whole store and set to initial state.
+    void reset();
 
 private:
     /// increase zxid
