@@ -143,4 +143,13 @@ bool ACLMap::operator!=(const ACLMap & rhs) const
     return !(rhs == *this);
 }
 
+void ACLMap::reset()
+{
+    std::lock_guard lock(acl_mutex);
+    acl_to_num.clear();
+    num_to_acl.clear();
+    usage_counter.clear();
+    max_acl_id = 1;
+}
+
 }

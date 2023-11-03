@@ -287,6 +287,10 @@ public:
     static ptr<buffer> serializeRequest(RequestForSession & request);
 
 private:
+    /// Clear the whole state machine.
+    /// Used when apply_snapshot.
+    void reset();
+
     ptr<RequestForSession> createRequestSession(ptr<log_entry> & entry);
 
     /// Asynchronously snapshot creating thread.
