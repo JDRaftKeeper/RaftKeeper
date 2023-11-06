@@ -179,12 +179,14 @@ public:
     bool existSnapshotObject(snapshot & s, ulong obj_id);
 
     /**
-     * Apply received snapshot to state machine.
+     * Apply received snapshot to state machine. Note that you should reset the state machine first.
      *
      * @param s Snapshot instance to apply.
      * @return `true` on success.
      */
     bool apply_snapshot(snapshot & s) override;
+
+    bool applySnapshotImpl(snapshot & s);
 
     /**
      * Free user-defined instance that is allocated by
