@@ -811,11 +811,12 @@ bool NuRaftStateMachine::isUpdateSessionRequest(nuraft::buffer & data)
 
 void NuRaftStateMachine::reset()
 {
+    {
+        std::lock_guard lock(snapshot_mutex);
+        in_snapshot = false;
+    }
     store.reset();
-
     last_committed_idx = 0;
-    in_snapshot = false;
-
     {
         std::lock_guard lock(new_session_id_callback_mutex);
         new_session_id_callback.clear();
