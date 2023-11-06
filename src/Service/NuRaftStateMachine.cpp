@@ -50,6 +50,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     , store(raft_settings->dead_session_check_period_ms, super_digest)
     , responses_queue(responses_queue_)
     , request_processor(request_processor_)
+    , last_committed_idx(0)
     , new_session_id_callback_mutex(new_session_id_callback_mutex_)
     , new_session_id_callback(new_session_id_callback_)
 {
@@ -70,15 +71,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     auto last_snapshot = snap_mgr->lastSnapshot();
 
     if (last_snapshot != nullptr)
-    {
-        apply_snapshot(*last_snapshot);
-        last_committed_idx = last_snapshot->get_last_log_idx();
-        LOG_INFO(log, "Loaded snapshot, now the last log index is {}", meta_size, last_committed_idx);
-    }
-    else
-    {
-        last_committed_idx = 0;
-    }
+        applySnapshotImpl(*last_snapshot);
 
     LOG_INFO(log, "Loading logs");
 
@@ -755,14 +748,24 @@ bool NuRaftStateMachine::existSnapshotObject(snapshot & s, ulong obj_id)
 
 bool NuRaftStateMachine::apply_snapshot(snapshot & s)
 {
-    /// If the invoker is from NuRaft, we should reset the state machine
-    LOG_INFO(log, "reset state machine.");
+    /// The invoker is from NuRaft, we should reset the state machine
+    LOG_INFO(log, "Reset state machine.");
     reset();
 
-    LOG_INFO(log, "apply snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
-    std::lock_guard<std::mutex> lock(snapshot_mutex);
+    return applySnapshotImpl(s);
+}
 
-    return snap_mgr->parseSnapshot(s, store);
+bool NuRaftStateMachine::applySnapshotImpl(snapshot & s)
+{
+    LOG_INFO(log, "Applying snapshot term {}, last log index {}, size {}", s.get_last_log_term(), s.get_last_log_idx(), s.size());
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
+    bool succeed = snap_mgr->parseSnapshot(s, store);
+    if (succeed)
+    {
+        last_committed_idx = s.get_last_log_idx();
+        LOG_INFO(log, "Applied snapshot, now the last log index is {}", last_committed_idx);
+    }
+    return succeed;
 }
 
 void NuRaftStateMachine::free_user_snp_ctx(void *& user_snp_ctx)
