@@ -55,39 +55,41 @@ NuRaftStateMachine::NuRaftStateMachine(
 {
     log = &(Poco::Logger::get("KeeperStateMachine"));
 
-    LOG_INFO(log, "begin init state machine, snapshot directory {}", snap_dir);
+    LOG_INFO(log, "Begin init state machine, snapshot directory {}", snap_dir);
 
     snapshot_dir = snap_dir;
     timer.interval = internal;
 
-    task_manager = cs_new<RaftTaskManager>(snapshot_dir);
-    /// last committed idx of prev term from disk
-    ulong prev_last_committed_idx = 0;
-    task_manager->getLastCommitted(prev_last_committed_idx);
-
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
 
-    /// load snapshot meta from disk
+    /// Load snapshot meta from disk
     size_t meta_size = snap_mgr->loadSnapshotMetas();
+    LOG_INFO(log, "Loading snapshot, found {} snapshots from disk", meta_size);
 
-    /// get last snapshot
+    /// Try to load the latest one
     auto last_snapshot = snap_mgr->lastSnapshot();
 
     if (last_snapshot != nullptr)
     {
-        last_committed_idx = last_snapshot->get_last_log_idx();
         apply_snapshot(*last_snapshot);
+        last_committed_idx = last_snapshot->get_last_log_idx();
+        LOG_INFO(log, "Loaded snapshot, now the last log index is {}", meta_size, last_committed_idx);
     }
     else
     {
         last_committed_idx = 0;
     }
 
-    LOG_INFO(log, "Load snapshot meta size {}, last log index {} in snapshot", meta_size, last_committed_idx);
+    LOG_INFO(log, "Loading logs");
 
     /// [ batch_start_index, batch_end_index )
     std::atomic<ulong> batch_start_index = 0;
     std::atomic<ulong> batch_end_index = 0;
+
+    task_manager = cs_new<RaftTaskManager>(snapshot_dir);
+    /// last committed idx of prev term from disk
+    ulong prev_last_committed_idx = 0;
+    task_manager->getLastCommitted(prev_last_committed_idx);
 
     if (log_store_ != nullptr)
     {
