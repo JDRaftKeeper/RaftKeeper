@@ -134,7 +134,7 @@ void RaftTaskManager::afterCommitted(nuraft::ulong last_committed_index)
 
 void RaftTaskManager::getLastCommitted(nuraft::ulong & last_committed_index)
 {
-    if (task_files.size() == 0)
+    if (task_files.empty())
     {
         LOG_WARNING(log, "Task files is empty");
         return;
