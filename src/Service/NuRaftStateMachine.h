@@ -185,8 +185,12 @@ public:
      * @return `true` on success.
      */
     bool apply_snapshot(snapshot & s) override;
-
     bool applySnapshotImpl(snapshot & s);
+
+    /**
+     * Replay logs to state machine. Invoked when startup.
+     */
+    void replayLogs(ptr<nuraft::log_store> log_store_, uint64_t from, uint64_t to);
 
     /**
      * Free user-defined instance that is allocated by
@@ -320,7 +324,7 @@ private:
     /// Last committed Raft log number.
     std::atomic<uint64_t> last_committed_idx;
 
-    /// Backend async task manager
+    /// Keep the last committed index
     ptr<RaftTaskManager> task_manager;
 
     std::mutex snapshot_mutex;

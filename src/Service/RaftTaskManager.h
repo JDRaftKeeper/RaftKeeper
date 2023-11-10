@@ -40,6 +40,7 @@ private:
 
 /**
  * Asynchronously persist committed log index into disk.
+ * When startup state machine apply log to this log index.
  */
 class RaftTaskManager
 {
