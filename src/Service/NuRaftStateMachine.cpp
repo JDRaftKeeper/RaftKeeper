@@ -81,9 +81,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
     replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
 
-    /// In order to meet the initial application of snapshot in the cluster.
-    /// At this time, the log index is less than the last index of the snapshot, and compact is required.
-    if (log_store_->next_slot() <= last_committed_idx)
+    /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
+    if (log_store_ && log_store_->next_slot() <= last_committed_idx)
         log_store_->compact(last_committed_idx);
 
     LOG_INFO(log, "Starting background creating snapshot thread.");
