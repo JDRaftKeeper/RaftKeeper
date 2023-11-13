@@ -1,10 +1,12 @@
-from kazoo.client import KazooClient, Create, GetData, GetChildren, OPEN_ACL_UNSAFE, string_types, bytes_types
+from kazoo.client import KazooClient, Create, GetData, GetChildren, OPEN_ACL_UNSAFE, string_types, bytes_types, \
+    GetChildren2, Exists
 from kazoo.protocol.paths import _prefix_root
 from kazoo.protocol.serialization import MultiHeader, Transaction, multiheader_struct, int_struct, read_string, \
-    read_buffer, stat_struct, ZnodeStat
+    read_buffer, stat_struct, ZnodeStat, write_string
 from kazoo.protocol.connection import ReplyHeader
 from kazoo.exceptions import EXCEPTIONS, MarshallingError
 from collections import namedtuple
+import struct
 
 
 def close_zk_clients(zk_clients):
@@ -97,6 +99,12 @@ class MultiReadRequest(object):
         """
         self._add(GetChildren(path, watcher), None)
 
+    def get_children3(self, path, list_type, watcher):
+        """Add a filteredList ops to the operations.
+        :returns: List of childern
+        """
+        self._add(GetChildren3(path, watcher, list_type), None)
+
     def commit_async(self):
         """Commit the operations asynchronously.
 
@@ -124,14 +132,39 @@ class MultiReadRequest(object):
         self.operations.append(request)
 
 
-class MultiReadClient(KazooClient):
+class GetChildren3(namedtuple('GetChildren3', 'path watcher list_type')):
+    type = 500
+
+    def serialize(self):
+        b = bytearray()
+        b.extend(write_string(self.path))
+        b.extend([1 if self.watcher else 0])
+        b.extend(struct.pack('B', self.list_type))
+        return b
+
+    @classmethod
+    def deserialize(cls, bytes, offset):
+        count = int_struct.unpack_from(bytes, offset)[0]
+        offset += int_struct.size
+        if count == -1:  # pragma: nocover
+            return []
+
+        children = []
+        for c in range(count):
+            child, offset = read_string(bytes, offset)
+            children.append(child)
+        stat = ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
+        return children, stat
+
+
+class KeeperFeatureClient(KazooClient):
     """A Zookeeper Python client extends from Kazoo.KazooClient,
     Kazoo is a Python library working with Zookeeper.
 
     supports multi_read ops
     """
     def __init__(self, hosts, timeout):
-        """Create a :class:`MultiReadClient` instance (extends from KazooClient).
+        """Create a :class:`KeeperFeatureClient` instance (extends from KazooClient).
 
         :param hosts: Comma-separated list of hosts to connect to
                       (e.g. 127.0.0.1:2181,127.0.0.1:2182,[::1]:2183).
@@ -141,13 +174,13 @@ class MultiReadClient(KazooClient):
 
         For example::
 
-            zk = MultiReadClient()
+            zk = KeeperFeatureClient()
             t = zk.start()
             children = zk.get_children('/')
             zk.stop()
 
         """
-        super(MultiReadClient, self).__init__(
+        super(KeeperFeatureClient, self).__init__(
             hosts=hosts
             , timeout=timeout)
 
@@ -164,6 +197,75 @@ class MultiReadClient(KazooClient):
 
         """
         return MultiReadRequest(self)
+
+    def get_filtered_children(self, path, watch=None, list_type=None, include_data=False):
+        """Get a list of child nodes of a path.
+
+        If a watch is provided it will be left on the node with the
+        given path. The watch will be triggered by a successful
+        operation that deletes the node of the given path or
+        creates/deletes a child under the node.
+
+        The list of children returned is not sorted and no guarantee is
+        provided as to its natural or lexical order.
+
+        :param path: Path of node to list.
+        :param watch: Optional watch callback to set for future changes
+                      to this path.
+        :param include_data:
+            Include the :class:`~kazoo.protocol.states.ZnodeStat` of
+            the node in addition to the children. This option changes
+            the return value to be a tuple of (children, stat).
+
+        :param list_type: type of List,
+            Options:{0: ALL, 1: PERSISTENT_ONLY, 2:EPHEMERAL_ONLY}.
+
+        :returns: List of child node names, or tuple if `include_data`
+                  is `True`.
+        :rtype: list
+
+        :raises:
+            :exc:`~kazoo.exceptions.NoNodeError` if the node doesn't
+            exist.
+
+            :exc:`~kazoo.exceptions.ZookeeperError` if the server
+            returns a non-zero error code.
+
+        .. versionadded:: 0.5
+            The `include_data` option.
+
+        """
+        return self.get_filtered_children_async(path, watch=watch, list_type=list_type,
+                                       include_data=include_data).get()
+
+    def get_filtered_children_async(self, path, watch=None, list_type=None, include_data=False):
+        """Asynchronously get a list of child nodes of a path. Takes
+        the same arguments as :meth:`get_children`.
+
+        :rtype: :class:`~kazoo.interfaces.IAsyncResult`
+
+        """
+        if not isinstance(path, string_types):
+            raise TypeError("Invalid type for 'path' (string expected)")
+        if watch and not callable(watch):
+            raise TypeError("Invalid type for 'watch' (must be a callable)")
+        if not isinstance(include_data, bool):
+            raise TypeError("Invalid type for 'include_data' (bool expected)")
+
+
+        async_result = self.handler.async_result()
+
+        if type:
+            req = GetChildren3(_prefix_root(self.chroot, path), watch, list_type)
+        else:
+            if include_data:
+                req = GetChildren2(_prefix_root(self.chroot, path), watch)
+            else:
+                req = GetChildren(_prefix_root(self.chroot, path), watch)
+        self._call(req, async_result)
+        return async_result
+
+
 
 
 class MultiRead(namedtuple('MultiRead', 'operations')):
@@ -182,29 +284,49 @@ class MultiRead(namedtuple('MultiRead', 'operations')):
         results = []
         response = None
         while not header.done:
-            if header.type == Create.type:
+            if header.type == -1:
+                err = int_struct.unpack_from(bytes, offset)[0]
+                offset += int_struct.size
+                response = EXCEPTIONS[err]()
+            elif header.err is not None and header.err != 0:
+                response = EXCEPTIONS[header.err]()
+            elif header.type == Create.type:
                 response, offset = read_string(bytes, offset)
-            if header.type == GetData.type:
+            elif header.type == GetData.type:
                 data, offset = read_buffer(bytes, offset)
                 stat = ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
                 offset += stat_struct.size
                 response = (data, stat)
-            if header.type == GetChildren.type:
+            elif header.type == GetChildren2.type:
                 count = int_struct.unpack_from(bytes, offset)[0]
                 offset += int_struct.size
                 children = []
 
                 if count == -1:  # pragma: nocover
-                    raise MarshallingError()
+                    print("-------11-------")
+                for c in range(count):
+                    child, offset = read_string(bytes, offset)
+                    children.append(child)
+                stat = ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
+                offset += stat_struct.size
+                response = (children, stat)
 
+            elif header.type == Exists.type:
+                stat = ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
+                offset += stat_struct.size
+                response = (stat)
+
+            elif header.type == GetChildren.type:
+                count = int_struct.unpack_from(bytes, offset)[0]
+                offset += int_struct.size
+                children = []
+
+                if count == -1:  # pragma: nocover
+                    print("-------11-------")
                 for c in range(count):
                     child, offset = read_string(bytes, offset)
                     children.append(child)
                 response = children
-            elif header.type == -1:
-                err = int_struct.unpack_from(bytes, offset)[0]
-                offset += int_struct.size
-                response = EXCEPTIONS[err]()
             if response is not None:
                 results.append(response)
             header, offset = MultiHeader.deserialize(bytes, offset)

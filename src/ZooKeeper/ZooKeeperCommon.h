@@ -449,6 +449,43 @@ struct ZooKeeperSimpleListRequest final : ZooKeeperListRequest
     }
 };
 
+struct ZooKeeperFilteredListRequest final : ZooKeeperListRequest
+{
+    enum class ListRequestType : UInt8
+    {
+        ALL,
+        PERSISTENT_ONLY,
+        EPHEMERAL_ONLY
+    };
+
+    String listRequestTypeToString(ListRequestType value) const
+    {
+        static std::map<ListRequestType, String> listRequestTypeStrings =
+        {
+            {ListRequestType::ALL, "ALL"},
+            {ListRequestType::EPHEMERAL_ONLY, "PERSISTENT_ONLY"},
+            {ListRequestType::PERSISTENT_ONLY, "EPHEMERAL_ONLY"}
+        };
+
+        if (auto it = listRequestTypeStrings.find(value); it != listRequestTypeStrings.end())
+        {
+            return it->second;
+        }
+
+        return "Unknown";
+    }
+
+    ListRequestType list_request_type{ListRequestType::ALL};
+
+    OpNum getOpNum() const override { return OpNum::FilteredList; }
+    void writeImpl(WriteBuffer & out) const override;
+    void readImpl(ReadBuffer & in) override;
+    String toString() const override
+    {
+        return Coordination::toString(getOpNum()) + ", xid " + std::to_string(xid) + ", path " + path + listRequestTypeToString(list_request_type) ;
+    }
+};
+
 struct ZooKeeperListResponse final : ListResponse, ZooKeeperResponse
 {
     void readImpl(ReadBuffer & in) override;

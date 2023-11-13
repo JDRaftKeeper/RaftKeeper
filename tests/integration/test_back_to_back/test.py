@@ -8,7 +8,7 @@ from kazoo.client import KazooClient, KazooState
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients, close_zk_client
 
-from helpers.utils import MultiReadClient
+from helpers.utils import KeeperFeatureClient
 
 cluster = RaftKeeperCluster(__file__)
 
@@ -20,18 +20,18 @@ node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper_three
                              with_zookeeper=True, stay_alive=True)
 
 
-def get_genuine_zk(multi=False):
+def get_genuine_zk(use_keeper_feature_client=False):
     print("Zoo1", cluster.get_instance_ip("zoo1"))
-    if multi:
-        return cluster.get_multi_read_client('zoo1')
+    if use_keeper_feature_client:
+        return cluster.get_keeper_feature_client('zoo1')
     else:
         return cluster.get_kazoo_client('zoo1')
 
 
-def get_fake_zk(multi=False):
+def get_fake_zk(use_keeper_feature_client=False):
     print("node1", cluster.get_instance_ip("node1"))
-    if multi:
-        _fake_zk_instance = MultiReadClient(hosts=cluster.get_instance_ip("node1") + ":8101", timeout=60.0)
+    if use_keeper_feature_client:
+        _fake_zk_instance = KeeperFeatureClient(hosts=cluster.get_instance_ip("node1") + ":8101", timeout=60.0)
     else:
         _fake_zk_instance = KazooClient(hosts=cluster.get_instance_ip("node1") + ":8101", timeout=60.0)
 
@@ -311,6 +311,26 @@ def test_multi_transactions(started_cluster):
         close_zk_clients([genuine_zk, fake_zk])
 
 
+def test_filtered_list():
+
+    fake_zk = None
+    try:
+        fake_zk = get_fake_zk(True)
+        fake_zk.create('/test_filteredList')
+        ephemerals = [f'ephemeral{i}' for i in range(3)]
+        persistents = [f'persistent{i}' for i in range(3)]
+        for node in ephemerals:
+            fake_zk.create("/test_filteredList/" + node, ephemeral=True)
+        for node in persistents:
+            fake_zk.create("/test_filteredList/" + node, ephemeral=False)
+
+        assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=0)[0]) == sorted(ephemerals + persistents))
+        assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=1)[0]) == sorted(persistents))
+        assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=2)[0]) == sorted(ephemerals))
+    finally:
+        close_zk_clients([fake_zk])
+
+
 def test_multi_read():
     genuine_zk = fake_zk = None
     try:
@@ -341,6 +361,21 @@ def test_multi_read():
             assert results[1].__class__ == NoNodeError
             assert results[2].__class__ == NoNodeError
             assert results[3][0] == b"rico"
+
+        # test filtered_list in multi
+        t = fake_zk.multi_read()
+        t.get_children3('/test_multi_read', 0, None)
+        t.get_children3('/test_multi_read', 1, None)
+        t.get_children3('/test_multi_read', 2, None)
+        t.get_children3('/test_multi_read/fre', 1,None)
+
+        results = t.commit()
+        assert len(results) == 4
+        assert sorted(results[0][0]) == ['fred', 'freddy', 'smith']
+        assert sorted(results[1][0]) == ['freddy', 'smith']
+        assert results[2][0] == ['fred']
+        from kazoo.exceptions import NoNodeError
+        assert results[3].__class__ == NoNodeError
     finally:
         close_zk_clients([genuine_zk, fake_zk])
 

@@ -119,6 +119,11 @@ void read(uint32_t & x, ReadBuffer & in)
     x = __builtin_bswap32(x);
 }
 
+void read(uint8_t & x, ReadBuffer & in)
+{
+    readBinary(x, in);
+}
+
 void read(OpNum & x, ReadBuffer & in)
 {
     int32_t raw_op_num;

@@ -230,6 +230,23 @@ void ZooKeeperListResponse::readImpl(ReadBuffer & in)
     Coordination::read(stat, in);
 }
 
+void ZooKeeperFilteredListRequest::writeImpl(WriteBuffer & out) const
+{
+    Coordination::write(path, out);
+    Coordination::write(has_watch, out);
+    Coordination::write(static_cast<uint8_t>(list_request_type), out);
+}
+
+void ZooKeeperFilteredListRequest::readImpl(ReadBuffer & in)
+{
+    Coordination::read(path, in);
+    Coordination::read(has_watch, in);
+
+    uint8_t read_request_type{0};
+    Coordination::read(read_request_type, in);
+    list_request_type = static_cast<ListRequestType>(read_request_type);
+}
+
 void ZooKeeperListResponse::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(names, out);
@@ -696,6 +713,7 @@ ZooKeeperRequestFactory::ZooKeeperRequestFactory()
     registerZooKeeperRequest<OpNum::Get, ZooKeeperGetRequest>(*this);
     registerZooKeeperRequest<OpNum::Set, ZooKeeperSetRequest>(*this);
     registerZooKeeperRequest<OpNum::SimpleList, ZooKeeperSimpleListRequest>(*this);
+    registerZooKeeperRequest<OpNum::FilteredList, ZooKeeperFilteredListRequest>(*this);
     registerZooKeeperRequest<OpNum::List, ZooKeeperListRequest>(*this);
     registerZooKeeperRequest<OpNum::Check, ZooKeeperCheckRequest>(*this);
     registerZooKeeperRequest<OpNum::Multi, ZooKeeperMultiRequest>(*this);
