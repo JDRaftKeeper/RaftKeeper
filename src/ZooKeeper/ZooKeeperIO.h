@@ -55,6 +55,7 @@ void read(int32_t & x, ReadBuffer & in);
 void read(OpNum & x, ReadBuffer & in);
 void read(bool & x, ReadBuffer & in);
 void read(int8_t & x, ReadBuffer & in);
+void read(uint8_t & x, ReadBuffer & in);
 void read(std::string & s, ReadBuffer & in);
 void read(ACL & acl, ReadBuffer & in);
 void read(AuthID & auth_id, ReadBuffer & in);
