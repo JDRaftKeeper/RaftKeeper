@@ -18,7 +18,7 @@ from kazoo.client import KazooClient, KazooState
 from kazoo.exceptions import KazooException
 
 import docker
-from .utils import MultiReadClient
+from .utils import KeeperFeatureClient
 
 HELPERS_DIR = p.dirname(__file__)
 RAFTKEEPER_ROOT_DIR = p.join(p.dirname(__file__), "../../..")
@@ -454,8 +454,8 @@ class RaftKeeperCluster:
         zk.start()
         return zk
 
-    def get_multi_read_client(self, zoo_instance_name):
-        zk = MultiReadClient(hosts=self.get_instance_ip(zoo_instance_name), timeout=60.0)
+    def get_keeper_feature_client(self, zoo_instance_name):
+        zk = KeeperFeatureClient(hosts=self.get_instance_ip(zoo_instance_name), timeout=60.0)
         zk.start()
         return zk
 

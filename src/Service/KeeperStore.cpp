@@ -799,12 +799,48 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
         if (path_prefix.empty())
             throw RK::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
 
-        if (response_ptr->getOpNum() == Coordination::OpNum::List)
+        if (response_ptr->getOpNum() == Coordination::OpNum::List || response_ptr->getOpNum() == Coordination::OpNum::FilteredList)
         {
+            using enum Coordination::ZooKeeperFilteredListRequest::ListRequestType;
+            auto list_request_type = ALL;
+            if (auto * filtered_list_request = dynamic_cast<Coordination::ZooKeeperFilteredListRequest *>(&request))
+            {
+                list_request_type = filtered_list_request->list_request_type;
+            }
+
             Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
             std::shared_lock r_lock(node->mutex);
-            response.names.insert(response.names.end(), node->children.begin(), node->children.end());
+
             response.stat = node->statForResponse();
+
+            if (list_request_type == ALL)
+            {
+                response.names.reserve(node->children.size());
+                response.names.insert(response.names.end(), node->children.begin(), node->children.end());
+                return {response_ptr, {}};
+            }
+
+            auto add_child = [&](const auto & child)
+            {
+                auto child_node = store.container.get(request.path + "/" + child);
+                if (node == nullptr)
+                {
+                    LOG_ERROR(
+                        &Poco::Logger::get("SvsKeeperStorageListRequest"),
+                        "Inconsistency found between uncommitted and committed data, can't get child {} for {} ."
+                        "Keeper will terminate to avoid undefined behaviour.", child, request.path);
+                    std::terminate();
+                }
+
+                const auto is_ephemeral = child_node->stat.ephemeralOwner != 0;
+                return (is_ephemeral && list_request_type == EPHEMERAL_ONLY) || (!is_ephemeral && list_request_type == PERSISTENT_ONLY);
+            };
+
+            for (const auto & child: node->children)
+            {
+                if (add_child(child))
+                    response.names.push_back(child);
+            }
         }
         else
         {
@@ -1099,7 +1135,8 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
                 check_operation_type(OperationType::Read);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageExistsRequest>(sub_zk_request));
             }
-            else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList)
+            else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList
+                     || sub_zk_request->getOpNum() == Coordination::OpNum::FilteredList)
             {
                 check_operation_type(OperationType::Read);
                 concrete_requests.push_back(std::make_shared<SvsKeeperStorageListRequest>(sub_zk_request));
@@ -1286,6 +1323,7 @@ NuKeeperWrapperFactory::NuKeeperWrapperFactory()
     registerNuKeeperRequestWrapper<Coordination::OpNum::Set, SvsKeeperStorageSetRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::List, SvsKeeperStorageListRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::SimpleList, SvsKeeperStorageListRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::FilteredList, SvsKeeperStorageListRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Check, SvsKeeperStorageCheckRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, SvsKeeperStorageMultiRequest>(*this);
     registerNuKeeperRequestWrapper<Coordination::OpNum::MultiRead, SvsKeeperStorageMultiRequest>(*this);

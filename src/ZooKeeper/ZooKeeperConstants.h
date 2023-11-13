@@ -36,6 +36,9 @@ enum class OpNum : int32_t
     MultiRead = 22,
     Auth = 100,
     SetWatches = 101,
+
+    FilteredList = 500, /// Special operation for ClickHouse
+
     SessionID = 997, /// Special internal request. Used to get session id.
     UpdateSession = 996, /// Special internal request. Used to session reconnect.
 };
