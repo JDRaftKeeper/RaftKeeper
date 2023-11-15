@@ -131,6 +131,9 @@ def do_some_action(zk, create_cnt=0, get_cnt=0, set_cnt=0, ephemeral_cnt=0, watc
     for i in range(create_cnt - delete_cnt, create_cnt):
         zk.delete("/test_4lw_normal_node_" + str(i))
 
+    # wait action result to avoid stale statistics.
+    time.sleep(1)
+
 
 def test_cmd_mntr(started_cluster):
     zk = None
