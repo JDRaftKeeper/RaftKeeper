@@ -66,7 +66,9 @@ public:
 
     //ptr<srv_config> get_srv_config() const { return curr_srv_config; }
 
-    ptr<cluster_config> get_cluster_config() const { return cur_cluster_config; }
+    ptr<cluster_config> get_cluster_config() const;
+
+    void set_cluster_config(const ptr<cluster_config>& new_config);
 
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config);
@@ -87,6 +89,12 @@ private:
     ptr<log_store> curr_log_store;
 
     ptr<cluster_config> cur_cluster_config;
+
+    /**
+     * Lock for cluster config.
+     */
+    mutable std::mutex cluster_config_lock_;
+
 
 protected:
     Poco::Logger * log;
