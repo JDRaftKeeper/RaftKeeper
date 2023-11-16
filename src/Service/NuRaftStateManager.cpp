@@ -24,12 +24,26 @@ NuRaftStateManager::NuRaftStateManager(int id_, const Poco::Util::AbstractConfig
     cur_cluster_config = parseClusterConfig(config_, "keeper.cluster");
 }
 
+ptr<cluster_config> NuRaftStateManager::get_cluster_config() const
+{
+    std::lock_guard<std::mutex> l(cluster_config_lock_);
+    ptr<cluster_config> ret = cur_cluster_config;
+    return ret;
+}
+
+void NuRaftStateManager::set_cluster_config(const ptr<cluster_config>& new_config)
+{
+    std::lock_guard<std::mutex> l(cluster_config_lock_);
+    cur_cluster_config = new_config;
+    LOG_INFO(log, "set config with log index {}", cur_cluster_config->get_log_idx());
+}
+
 ptr<cluster_config> NuRaftStateManager::load_config()
 {
     if (!Poco::File(cluster_config_file).exists())
     {
         LOG_INFO(log, "load config with initial cluster config.");
-        return cur_cluster_config;
+        return get_cluster_config();
     }
 
     std::unique_ptr<ReadBufferFromFile> read_file_buf = std::make_unique<ReadBufferFromFile>(cluster_config_file, 4096);
@@ -37,9 +51,9 @@ ptr<cluster_config> NuRaftStateManager::load_config()
     readVarUInt(size, *read_file_buf);
     ptr<nuraft::buffer> buf = nuraft::buffer::alloc(size);
     read_file_buf->readStrict(reinterpret_cast<char *>(buf->data()), size);
-    cur_cluster_config = nuraft::cluster_config::deserialize(*buf);
-    LOG_INFO(log, "load config with log index {}", cur_cluster_config->get_log_idx());
-    return cur_cluster_config;
+    auto new_cluster_config = nuraft::cluster_config::deserialize(*buf);
+    set_cluster_config(new_cluster_config);
+    return new_cluster_config;
 }
 
 void NuRaftStateManager::save_config(const cluster_config & config)
@@ -51,8 +65,7 @@ void NuRaftStateManager::save_config(const cluster_config & config)
     out_file_buf->write(reinterpret_cast<char *>(data->data()), data->size());
     out_file_buf->finalize();
     out_file_buf->sync();
-    LOG_INFO(log, "save config with log index {}", config.get_log_idx());
-    cur_cluster_config = cluster_config::deserialize(*data);
+    set_cluster_config(cluster_config::deserialize(*data));
 }
 
 void NuRaftStateManager::save_state(const srv_state & state)
@@ -144,13 +157,14 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
 ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::AbstractConfiguration & config)
 {
     auto new_cluster_config = parseClusterConfig(config, "keeper.cluster");
+    auto old_cluster_config = get_cluster_config();
 
     std::unordered_map<int, KeeperServerConfigPtr> new_ids, old_ids;
     for (const auto & new_server : new_cluster_config->get_servers())
         new_ids[new_server->get_id()] = new_server;
 
     {
-        for (const auto & old_server : cur_cluster_config->get_servers())
+        for (const auto & old_server : old_cluster_config->get_servers())
             old_ids[old_server->get_id()] = old_server;
     }
 
@@ -172,7 +186,7 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
 
     {
         /// And update priority if required
-        for (const auto & old_server : cur_cluster_config->get_servers())
+        for (const auto & old_server : old_cluster_config->get_servers())
         {
             for (const auto & new_server : new_cluster_config->get_servers())
             {
