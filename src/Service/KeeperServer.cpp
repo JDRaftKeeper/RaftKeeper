@@ -332,7 +332,7 @@ bool KeeperServer::isLeader() const
 
 bool KeeperServer::isObserver() const
 {
-    auto cluster_config = state_manager->get_cluster_config();
+    auto cluster_config = state_manager->getClusterConfig();
     return cluster_config->get_server(server_id)->is_learner();
 }
 
