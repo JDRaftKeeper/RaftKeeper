@@ -103,15 +103,18 @@ int32 KeeperServer::getLeader()
 
 void KeeperServer::shutdown()
 {
-    LOG_INFO(log, "Shutting down keeper server.");
-    state_machine->shutdown();
+    LOG_INFO(log, "Shutting down raft core.");
+    if (!launcher.shutdown(settings->raft_settings->shutdown_timeout))
+        LOG_WARNING(log, "Failed to shutdown raft server in {} seconds", 5);
+
+    LOG_INFO(log, "Flush Log store.");
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
         LOG_WARNING(log, "Log store flush error while server shutdown.");
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
 
-    if (!launcher.shutdown(settings->raft_settings->shutdown_timeout))
-        LOG_WARNING(log, "Failed to shutdown RAFT server in {} seconds", 5);
+    LOG_INFO(log, "Shutting down state machine.");
+    state_machine->shutdown();
     LOG_INFO(log, "Shut down keeper server done!");
 }
 
