@@ -195,12 +195,6 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 my_pending_requests.erase(committed_request.session_id);
             }
 
-            LOG_WARNING(
-                log,
-                "Session {} is not local, maybe it is because of disconnecting. We still should apply the committed(write) "
-                "request",
-                committed_request.session_id);
-
             applyRequest(committed_request);
             committed_queue.pop();
         }
@@ -209,7 +203,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
         {
             if (committed_request.request->getOpNum() == Coordination::OpNum::Auth)
             {
-                LOG_DEBUG(log, "Apply auth request", committed_request.session_id);
+                LOG_DEBUG(log, "Apply auth request {}", toHexString(committed_request.session_id));
                 applyRequest(committed_request);
                 committed_queue.pop();
             }
