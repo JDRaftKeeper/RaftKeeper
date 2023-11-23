@@ -90,9 +90,9 @@ struct RaftSettings
     UInt64 snapshot_distance;
     /// How many snapshots we want to store
     UInt64 max_stored_snapshots;
-    /// How many time we will until RAFT shutdown
+    /// How many milliseconds we will wait until RAFT shutdown
     UInt64 shutdown_timeout;
-    /// How many time we will until RAFT to start
+    /// How many milliseconds we will wait until RAFT started
     UInt64 startup_timeout;
     /// Log internal RAFT logs into main server log level. Valid values: 'trace', 'debug', 'information', 'warning', 'error', 'fatal'
     NuRaftLogLevel raft_logs_level;
