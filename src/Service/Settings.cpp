@@ -82,7 +82,6 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         String log_level = config.getString(get_key("raft_logs_level"), "information");
         raft_logs_level = parseNuRaftLogLevel(log_level);
         rotate_log_storage_interval = config.getUInt(get_key("rotate_log_storage_interval"), 100000);
-        /// TODO set a value according to CPU size
         nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), getNumberOfPhysicalCPUCores());
         fresh_log_gap = config.getUInt(get_key("fresh_log_gap"), 200);
         configuration_change_tries_count = config.getUInt(get_key("configuration_change_tries_count"), 30);

@@ -103,9 +103,9 @@ int32 KeeperServer::getLeader()
 
 void KeeperServer::shutdown()
 {
-    LOG_INFO(log, "Shutting down raft core.");
-    if (!launcher.shutdown(settings->raft_settings->shutdown_timeout))
-        LOG_WARNING(log, "Failed to shutdown raft server in {} seconds", 5);
+    LOG_INFO(log, "Shutting down NuRaft core.");
+    if (!launcher.shutdown(settings->raft_settings->shutdown_timeout / 1000))
+        LOG_WARNING(log, "Failed to shutdown NuRaft core in {}ms", settings->raft_settings->shutdown_timeout);
 
     LOG_INFO(log, "Flush Log store.");
     if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
@@ -115,7 +115,8 @@ void KeeperServer::shutdown()
 
     LOG_INFO(log, "Shutting down state machine.");
     state_machine->shutdown();
-    LOG_INFO(log, "Shut down keeper server done!");
+
+    LOG_INFO(log, "Shut down NuRaft core done!");
 }
 
 void KeeperServer::putRequest(const RequestForSession & request_for_session)
