@@ -233,6 +233,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
         LOG_INFO(log, "Waiting for current connections to close.");
         if (server)
             server->stop();
+
         if (forwarding_server)
             forwarding_server->stop();
 
