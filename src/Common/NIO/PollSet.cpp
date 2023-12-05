@@ -141,8 +141,6 @@ public:
         {
             Poco::Timestamp start;
             rc = epoll_wait(_epollfd, &_events[0], _events.size(), remainingTime.totalMilliseconds());
-            Poco::Timestamp end1;
-            LOG_TRACE(log, "Poll wait done {} {} {} {}us {}ms", Poco::Thread::current()->name(), _eventfd, rc, end1 - start, remainingTime.totalMilliseconds());
             if (rc == 0) return result;
             if (rc < 0 && errno == POCO_EINTR)
             {
