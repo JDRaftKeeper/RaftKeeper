@@ -21,6 +21,7 @@ enum ForwardType : int8_t
     GetSession = 3, /// get session id
     UpdateSession = 4, /// session reconnect
     Operation = 5, /// all write requests after the connection is established
+    Destory = 6,
 };
 
 std::string toString(ForwardType type);
@@ -169,6 +170,11 @@ struct ForwardOpResponse : public ForwardResponse
             + std::to_string(error_code) + " session " + std::to_string(session_id) + " xid " + std::to_string(xid) + " opnum "
             + Coordination::toString(opnum);
     }
+};
+
+struct ForwardDestryResponse : public ForwardResponse
+{
+    ForwardType forwardType() const override { return ForwardType::Destory; }
 };
 
 }
