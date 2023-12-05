@@ -16,42 +16,15 @@ SocketNotifier::SocketNotifier(const Socket& socket):
 {
 }
 
-
-SocketNotifier::~SocketNotifier()
+bool SocketNotifier::addObserverIfNotExist(SocketReactor*, const Poco::AbstractObserver& observer)
 {
+    return _nc.addObserverIfNotExist(observer);
 }
 
 
-void SocketNotifier::addObserver(SocketReactor* pReactor, const Poco::AbstractObserver& observer)
+bool SocketNotifier::removeObserverIfExist(SocketReactor*, const Poco::AbstractObserver& observer)
 {
-    _nc.addObserver(observer);
-    ScopedLock l(_mutex);
-    if (observer.accepts(pReactor->_pReadableNotification))
-        _events.insert(pReactor->_pReadableNotification.get());
-    else if (observer.accepts(pReactor->_pWritableNotification))
-        _events.insert(pReactor->_pWritableNotification.get());
-    else if (observer.accepts(pReactor->_pErrorNotification))
-        _events.insert(pReactor->_pErrorNotification.get());
-    else if (observer.accepts(pReactor->_pTimeoutNotification))
-        _events.insert(pReactor->_pTimeoutNotification.get());
-}
-
-
-void SocketNotifier::removeObserver(SocketReactor* pReactor, const Poco::AbstractObserver& observer)
-{
-    _nc.removeObserver(observer); /// TODO event leak
-    ScopedLock l(_mutex);
-    EventSet::iterator it = _events.end();
-    if (observer.accepts(pReactor->_pReadableNotification))
-        it = _events.find(pReactor->_pReadableNotification.get());
-    else if (observer.accepts(pReactor->_pWritableNotification))
-        it = _events.find(pReactor->_pWritableNotification.get());
-    else if (observer.accepts(pReactor->_pErrorNotification))
-        it = _events.find(pReactor->_pErrorNotification.get());
-    else if (observer.accepts(pReactor->_pTimeoutNotification))
-        it = _events.find(pReactor->_pTimeoutNotification.get());
-    if (it != _events.end())
-        _events.erase(it);
+    return _nc.removeObserverIfExist(observer);
 }
 
 

@@ -20,16 +20,7 @@ using Poco::Net::SocketImpl;
 namespace RK {
 
 
-SocketReactor::SocketReactor():
-    _stop(false),
-    _timeout(DEFAULT_TIMEOUT),
-    _pReadableNotification(new ReadableNotification(this)),
-    _pWritableNotification(new WritableNotification(this)),
-    _pErrorNotification(new ErrorNotification(this)),
-    _pTimeoutNotification(new TimeoutNotification(this)),
-    _pIdleNotification(new IdleNotification(this)),
-    _pShutdownNotification(new ShutdownNotification(this)),
-    _pThread(nullptr)
+SocketReactor::SocketReactor(): SocketReactor(DEFAULT_TIMEOUT)
 {
 }
 
@@ -44,11 +35,6 @@ SocketReactor::SocketReactor(const Poco::Timespan& timeout):
     _pIdleNotification(new IdleNotification(this)),
     _pShutdownNotification(new ShutdownNotification(this)),
     _pThread(nullptr)
-{
-}
-
-
-SocketReactor::~SocketReactor()
 {
 }
 
@@ -155,14 +141,14 @@ const Poco::Timespan& SocketReactor::getTimeout() const
 void SocketReactor::addEventHandler(const Socket& socket, const Poco::AbstractObserver& observer)
 {
     NotifierPtr pNotifier = getNotifier(socket, true);
-
-    if (!pNotifier->hasObserver(observer)) pNotifier->addObserver(this, observer);
-
-    int mode = 0;
-    if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
-    if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
-    if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
-    if (mode) _pollSet.add(socket, mode);
+    if (pNotifier->addObserverIfNotExist(this, observer))
+    {
+        int mode = 0;
+        if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
+        if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
+        if (pNotifier->accepts(_pErrorNotification))    mode |= PollSet::POLL_ERROR;
+        if (mode) _pollSet.add(socket, mode);
+    }
 }
 
 void SocketReactor::addEventHandlers(const Socket& socket, const std::vector<Poco::AbstractObserver *>& observers)
@@ -172,7 +158,7 @@ void SocketReactor::addEventHandlers(const Socket& socket, const std::vector<Poc
     int mode = 0;
     for (auto * observer : observers)
     {
-        if (!pNotifier->hasObserver(*observer)) pNotifier->addObserver(this, *observer);
+        pNotifier->addObserverIfNotExist(this, *observer);
 
         if (pNotifier->accepts(_pReadableNotification)) mode |= PollSet::POLL_READ;
         if (pNotifier->accepts(_pWritableNotification)) mode |= PollSet::POLL_WRITE;
@@ -218,17 +204,16 @@ void SocketReactor::removeEventHandler(const Socket& socket, const Poco::Abstrac
         if (it != _handlers.end())
             pNotifier = it->second;
 
-        if (pNotifier && pNotifier->hasObserver(observer) && pNotifier->countObservers() == 1)
+        if (pNotifier && pNotifier->onlyHas(observer))
         {
             _handlers.erase(pImpl->sockfd());
             _pollSet.remove(socket);
         }
     }
 
-    if (pNotifier && pNotifier->hasObserver(observer))
+    if (pNotifier)
     {
-        pNotifier->removeObserver(this, observer);
-
+        pNotifier->removeObserverIfExist(this, observer);
         if (pNotifier->countObservers() > 0 && socket.impl()->sockfd() > 0)
         {
             int mode = 0;

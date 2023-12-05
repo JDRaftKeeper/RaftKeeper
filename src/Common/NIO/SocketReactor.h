@@ -102,7 +102,7 @@ public:
     explicit SocketReactor(const Poco::Timespan& timeout);
     /// Creates the SocketReactor, using the given timeout.
 
-    virtual ~SocketReactor() override;
+    virtual ~SocketReactor() override = default;
     /// Destroys the SocketReactor.
 
     void run() override;
@@ -197,7 +197,7 @@ protected:
 
 private:
     using NotifierPtr = Poco::AutoPtr<SocketNotifier>;
-    typedef Poco::AutoPtr<SocketNotification> NotificationPtr;
+    using NotificationPtr = Poco::AutoPtr<SocketNotification>;
     typedef std::map<poco_socket_t, NotifierPtr>     EventHandlerMap;
     typedef Poco::FastMutex                   MutexType;
     typedef MutexType::ScopedLock             ScopedLock;
