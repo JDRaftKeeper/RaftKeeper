@@ -275,12 +275,23 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
 
 void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
+    LOG_TRACE(log, "Session {} socket writable", toHexString(session_id));
+
+    auto remove_event_handler = [this]
+    {
+        LOG_DEBUG(log, "Remove socket writable event handler", sock.peerAddress().toString());
+        reactor.removeEventHandler(
+            sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+    };
+
     try
     {
-        LOG_TRACE(log, "session {} socket writable", toHexString(session_id));
-
         if (responses->empty() && send_buf.used() == 0)
+        {
+            remove_event_handler();
+            LOG_WARNING(log, "Socket is writable, but there is nothing to send.");
             return;
+        }
 
         /// TODO use zero copy buffer
         size_t size_to_sent = 0;
@@ -343,13 +354,9 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
             return;
         }
 
-        /// If all sent unregister writable event.
+        /// If all sent remove writable event.
         if (responses->empty() && send_buf.used() == 0)
-        {
-            LOG_DEBUG(log, "Remove socket writable event handler - session {}", sock.peerAddress().toString());
-            reactor.removeEventHandler(
-                sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
-        }
+            remove_event_handler();
     }
     catch (...)
     {
