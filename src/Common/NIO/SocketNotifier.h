@@ -8,9 +8,8 @@
 #include "Poco/Net/Net.h"
 #include "Poco/Net/Socket.h"
 #include "Poco/RefCountedObject.h"
-#include "Poco/NotificationCenter.h"
+#include <Common/NIO/NotificationCenter.h>
 #include "Poco/Observer.h"
-#include <set>
 
 namespace RK {
 
@@ -28,14 +27,17 @@ public:
     explicit SocketNotifier(const Socket& socket);
     /// Creates the SocketNotifier for the given socket.
 
-    void addObserver(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
+    bool addObserverIfNotExist(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
     /// Adds the given observer.
 
-    void removeObserver(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
+    bool removeObserverIfExist(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
     /// Removes the given observer.
 
     bool hasObserver(const Poco::AbstractObserver& observer) const;
     /// Returns true if the given observer is registered.
+
+    bool onlyHas(const Poco::AbstractObserver& observer) const;
+    /// Returns true if only has the given observer
 
     bool accepts(SocketNotification* pNotification);
     /// Returns true if there is at least one observer for the given notification.
@@ -50,34 +52,32 @@ public:
     /// Returns the number of subscribers;
 
 protected:
-    ~SocketNotifier() override;
+    ~SocketNotifier() override = default;
     /// Destroys the SocketNotifier.
 
 private:
-    typedef std::multiset<SocketNotification*> EventSet;
-    typedef Poco::FastMutex                    MutexType;
-    typedef MutexType::ScopedLock              ScopedLock;
+    using MutexType =  Poco::FastMutex;
+    using ScopedLock = MutexType::ScopedLock;
 
-    EventSet                 _events;
-    Poco::NotificationCenter _nc;
+    NotificationCenter _nc;
     Socket                   _socket;
-    MutexType                _mutex;
 };
 
 
-//
-// inlines
-//
 inline bool SocketNotifier::accepts(SocketNotification* pNotification)
 {
-    ScopedLock l(_mutex);
-    return _events.find(pNotification) != _events.end();
+    return _nc.accept(pNotification);
 }
 
 
 inline bool SocketNotifier::hasObserver(const Poco::AbstractObserver& observer) const
 {
     return _nc.hasObserver(observer);
+}
+
+inline bool SocketNotifier::onlyHas(const Poco::AbstractObserver& observer) const
+{
+    return _nc.onlyHas(observer);
 }
 
 
