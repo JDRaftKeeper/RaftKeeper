@@ -277,19 +277,23 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
     LOG_TRACE(log, "Session {} socket writable", toHexString(session_id));
 
-    auto remove_event_handler = [this]
+    auto remove_event_handler_if_needed = [this]
     {
-        LOG_DEBUG(log, "Remove socket writable event handler", sock.peerAddress().toString());
-        reactor.removeEventHandler(
-            sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        std::lock_guard lock(send_response_mutex);
+        if (responses->empty() && send_buf.used() == 0)
+        {
+            LOG_TRACE(log, "Remove socket writable event handler", sock.peerAddress().toString());
+            reactor.removeEventHandler(
+                sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        }
     };
 
     try
     {
         if (responses->empty() && send_buf.used() == 0)
         {
-            remove_event_handler();
-            LOG_WARNING(log, "Socket is writable, but there is nothing to send.");
+            remove_event_handler_if_needed();
+            LOG_DEBUG(log, "Socket is writable, but there is nothing to send.");
             return;
         }
 
@@ -337,7 +341,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_TRACE(log, "sent response to {}", toHexString(session_id));
+                LOG_TRACE(log, "Sent response to {}", toHexString(session_id));
             }
             else
             {
@@ -355,8 +359,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         }
 
         /// If all sent remove writable event.
-        if (responses->empty() && send_buf.used() == 0)
-            remove_event_handler();
+        remove_event_handler_if_needed();
     }
     catch (...)
     {
@@ -644,33 +647,29 @@ std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequ
 void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & response)
 {
     LOG_TRACE(log, "Dispatch response {} to conn handler session {}", response->toString(), toHexString(session_id));
-
     updateStats(response);
 
-    /// We do not need send anything for close request to client.
-    if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
+    std::lock_guard lock(send_response_mutex);
     {
-        responses->push(ptr<FIFOBuffer>());
-    }
-    else
-    {
-        WriteBufferFromFiFoBuffer buf;
-        response->write(buf);
+        /// We do not need send anything for close request to client.
+        if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
+        {
+            responses->push(ptr<FIFOBuffer>());
+        }
+        else
+        {
+            WriteBufferFromFiFoBuffer buf;
+            response->write(buf);
 
-        /// TODO handle timeout
-        responses->push(buf.getBuffer());
+            /// TODO handle timeout
+            responses->push(buf.getBuffer());
+        }
+
+        /// Trigger socket writable event
+        reactor.addEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
     }
 
-    LOG_TRACE(log, "Add socket writable event handler - session {}", toHexString(session_id));
-    /// Trigger socket writable event
-    reactor.addEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_TRACE(
-        log,
-        "Poll trigger wakeup-- poco thread name {}, actually thread name {}",
-        Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
-        getThreadName());
-
     reactor.wakeUp();
 }
 
