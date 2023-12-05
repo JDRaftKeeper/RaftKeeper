@@ -371,7 +371,7 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 
 void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
-    if(response->forwardType() == ForwardType::Destory)
+    if (response->forwardType() == ForwardType::Destroy)
     {
         delete this;
         return;
