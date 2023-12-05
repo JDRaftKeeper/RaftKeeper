@@ -371,6 +371,12 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 
 void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
+    if(response->forwardType() == ForwardType::Destory)
+    {
+        delete this;
+        return;
+    }
+
     LOG_TRACE(log, "Send response {}", response->toString());
 
     WriteBufferFromFiFoBuffer buf;

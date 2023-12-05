@@ -336,9 +336,17 @@ void KeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCall
 void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResponseCallback callback)
 {
     std::lock_guard lock(forward_to_response_callback_mutex);
-    if (!forward_to_response_callback.try_emplace(client_id, callback).second)
-        throw Exception(
-            RK::ErrorCodes::LOGICAL_ERROR, "Server {} client {} already registered in dispatcher", client_id.first, client_id.second);
+
+    if (forward_to_response_callback.contains(client_id))
+    {
+        LOG_INFO(log, "Get client {} new registered, will destroy older one", client_id);
+        auto call_back = forward_to_response_callback[client_id];
+        forward_to_response_callback.erase(client_id);
+        auto response = std::make_shared<ForwardDestryResponse>();
+        call_back(response);
+    }
+
+    forward_to_response_callback.emplace(client_id, callback);
 }
 
 void KeeperDispatcher::sessionCleanerTask()
