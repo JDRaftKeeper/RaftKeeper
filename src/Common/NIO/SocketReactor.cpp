@@ -210,17 +210,23 @@ void SocketReactor::removeEventHandler(const Socket& socket, const Poco::Abstrac
 {
     const SocketImpl* pImpl = socket.impl();
     if (pImpl == nullptr) return;
-    NotifierPtr pNotifier = getNotifier(socket);
-    if (pNotifier && pNotifier->hasObserver(observer))
+
+    NotifierPtr pNotifier;
     {
-        if(pNotifier->countObservers() == 1)
+        ScopedLock lock(_mutex);
+        EventHandlerMap::iterator it = _handlers.find(pImpl->sockfd());
+        if (it != _handlers.end())
+            pNotifier = it->second;
+
+        if (pNotifier && pNotifier->hasObserver(observer) && pNotifier->countObservers() == 1)
         {
-            {
-                ScopedLock lock(_mutex);
-                _handlers.erase(pImpl->sockfd());
-            }
+            _handlers.erase(pImpl->sockfd());
             _pollSet.remove(socket);
         }
+    }
+
+    if (pNotifier && pNotifier->hasObserver(observer))
+    {
         pNotifier->removeObserver(this, observer);
 
         if (pNotifier->countObservers() > 0 && socket.impl()->sockfd() > 0)
