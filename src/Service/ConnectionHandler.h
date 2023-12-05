@@ -146,6 +146,8 @@ private:
 
     mutable std::mutex conn_stats_mutex;
     ConnectionStats conn_stats;
+
+    mutable std::mutex send_response_mutex;
 };
 
 }

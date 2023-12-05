@@ -30,7 +30,7 @@ bool NotificationCenter::addObserverIfNotExist(const AbstractObserver & observer
 bool NotificationCenter::removeObserverIfExist(const AbstractObserver & observer)
 {
     Mutex::ScopedLock lock(_mutex);
-    for (ObserverList::iterator it = _observers.begin(); it != _observers.end(); ++it)
+    for (auto it = _observers.begin(); it != _observers.end(); ++it)
     {
         if (observer.equals(**it))
         {
@@ -52,7 +52,9 @@ bool NotificationCenter::hasObserver(const AbstractObserver & observer) const
 
     return false;
 }
-bool NotificationCenter::onlyHas(const RK::NotificationCenter::AbstractObserver & observer) const
+
+
+bool NotificationCenter::onlyHas(const AbstractObserver & observer) const
 {
     Mutex::ScopedLock lock(_mutex);
     return _observers.size() == 1 && observer.equals(*_observers[0]);
@@ -78,6 +80,7 @@ void NotificationCenter::postNotification(Notification::Ptr pNotification)
     Poco::ScopedLockWithUnlock<Mutex> lock(_mutex);
     ObserverList copied(_observers);
     lock.unlock();
+
     for (auto & p : copied)
     {
         p->notify(pNotification);
