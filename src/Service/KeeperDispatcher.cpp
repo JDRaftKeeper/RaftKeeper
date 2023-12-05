@@ -339,7 +339,7 @@ void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResp
 
     if (forward_to_response_callback.contains(client_id))
     {
-        LOG_INFO(log, "Get client {} new registered, will destroy older one", client_id);
+        LOG_INFO(log, "Get server_id {}, client_id {} new registered, will destroy older one", client_id.first, client_id.second);
         auto call_back = forward_to_response_callback[client_id];
         forward_to_response_callback.erase(client_id);
         auto response = std::make_shared<ForwardDestryResponse>();
