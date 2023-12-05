@@ -21,7 +21,7 @@ enum ForwardType : int8_t
     GetSession = 3, /// get session id
     UpdateSession = 4, /// session reconnect
     Operation = 5, /// all write requests after the connection is established
-    Destory = 6,
+    Destroy = 6,
 };
 
 std::string toString(ForwardType type);
@@ -174,7 +174,25 @@ struct ForwardOpResponse : public ForwardResponse
 
 struct ForwardDestryResponse : public ForwardResponse
 {
-    ForwardType forwardType() const override { return ForwardType::Destory; }
+    ForwardType forwardType() const override { return ForwardType::Destroy; }
+
+    void readImpl(ReadBuffer & buf) override
+    {
+        Coordination::read(accepted, buf);
+        Coordination::read(error_code, buf);
+    }
+
+    void writeImpl(WriteBuffer &) const override {}
+
+    void onError(RequestForwarder &) const override {}
+
+    bool match(const ForwardRequestPtr &) const override { return false; }
+
+    String toString() const override
+    {
+        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
+            + std::to_string(error_code);
+    }
 };
 
 }
