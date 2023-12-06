@@ -53,7 +53,7 @@
         <!-- Processor thread count, default is CPU core size. For container is cgroup limit size. -->
         <!-- <thread_count></thread_count> -->
 
-        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm" -->
+        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp" -->
         <!-- <four_letter_word_white_list></four_letter_word_white_list> -->
 
         <!-- Super digest for root user, default is empty string.
