@@ -91,8 +91,8 @@ private:
     void processRaftRequest(ForwardRequestPtr request);
     void processSessions(ForwardRequestPtr request);
 
-    // mark is stop by dispatcher
-    bool is_destroy;
+    // The connection is stale and need destroyed
+    bool need_destroy{false};
 };
 
 }
