@@ -102,6 +102,10 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     case ForwardType::Operation:
                         current_package.is_done = false;
                         break;
+                    case ForwardType::Destroy:
+                        LOG_WARNING(log, "Got destroy forward package type {}", forward_type);
+                        destroyMe();
+                        return;
                     default:
                         LOG_ERROR(log, "Got unexpected forward package type {}", forward_type);
                         destroyMe();
@@ -294,9 +298,9 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
 
     try
     {
-        if (is_destroy)
+        if (need_destroy)
         {
-            LOG_INFO(log, "Get destroy response!");
+            LOG_WARNING(log, "The connection for server {} client {} is stale, will close it", server_id, client_id);
             delete this;
             return;
         }
@@ -382,7 +386,7 @@ void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 
     if (response->forwardType() == ForwardType::Destroy)
     {
-        is_destroy = true;
+        need_destroy = true;
     }
 
     WriteBufferFromFiFoBuffer buf;
