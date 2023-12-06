@@ -61,8 +61,6 @@ private:
     /// we need to interrupt the processing.
     bool shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue);
 
-    using RequestForSessions = std::vector<RequestForSession>;
-
     ThreadFromGlobalPool main_thread;
 
     std::atomic<bool> shutdown_called{false};
@@ -76,7 +74,7 @@ private:
 
     /// <runner_id, <session_id, requests>>
     /// Requests from `requests_queue` grouped by session
-    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> pending_requests;
+    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessionList>> pending_requests;
 
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<RequestForSession> committed_queue{1000};
@@ -97,7 +95,7 @@ private:
 
     Poco::Logger * log;
 
-    UInt64 operation_timeout_ms = 10000;
+    UInt64 operation_timeout_ms;
 };
 
 }

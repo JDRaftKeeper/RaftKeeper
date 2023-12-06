@@ -35,7 +35,7 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
 
     /// Requests from previous iteration. We store them to be able
     /// to send errors to the client.
-    KeeperStore::RequestsForSessions prev_batch;
+    RequestForSessions prev_batch;
 
     while (!shutdown_called)
     {

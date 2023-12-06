@@ -17,7 +17,7 @@ void RequestAccumulator::run(RunnerId runner_id)
 
     NuRaftResult result;
 
-    KeeperStore::RequestsForSessions to_append_batch;
+    RequestForSessions to_append_batch;
     UInt64 max_wait = std::min(static_cast<uint64_t>(1000), operation_timeout_ms);
 
     while (!shutdown_called)
@@ -57,7 +57,7 @@ void RequestAccumulator::run(RunnerId runner_id)
     }
 }
 
-bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch)
+bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, const RequestForSessions & prev_batch)
 {
     /// Forcefully process all previous pending requests
 

@@ -40,6 +40,9 @@ struct RequestForSession
 
 };
 
+using RequestForSessions = std::vector<RequestForSession>;
+using RequestForSessionList = std::list<RequestForSession>;
+
 /// Attached session id to response
 struct ResponseForSession
 {

@@ -15,7 +15,6 @@ namespace RK
  */
 class RequestAccumulator
 {
-    using RequestForSession = RequestForSession;
     using NuRaftResult = nuraft::ptr<nuraft::cmd_result<nuraft::ptr<nuraft::buffer>>>;
 
 public:
@@ -26,7 +25,7 @@ public:
 
     void push(const RequestForSession & request_for_session);
 
-    bool waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch);
+    bool waitResultAndHandleError(NuRaftResult prev_result, const RequestForSessions & prev_batch);
 
     void run(RunnerId runner_id);
 

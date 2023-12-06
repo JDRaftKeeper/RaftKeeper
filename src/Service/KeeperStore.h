@@ -185,7 +185,6 @@ public:
     using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
-    using RequestsForSessions = std::vector<RequestForSession>;
     using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
 
     using Ephemerals = std::unordered_map<int64_t, std::unordered_set<std::string>>;
