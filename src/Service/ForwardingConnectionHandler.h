@@ -90,6 +90,9 @@ private:
     void processHandshake();
     void processRaftRequest(ForwardRequestPtr request);
     void processSessions(ForwardRequestPtr request);
+
+    // mark is stop by dispatcher
+    bool is_destroy;
 };
 
 }

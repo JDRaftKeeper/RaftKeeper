@@ -27,6 +27,8 @@ std::string toString(ForwardType type)
             return "UpdateSession";
         case ForwardType::Operation:
             return "Operation";
+        case ForwardType::Destroy:
+            return "Destroy";
         default:
             break;
     }

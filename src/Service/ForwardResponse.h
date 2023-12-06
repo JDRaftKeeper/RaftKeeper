@@ -21,7 +21,7 @@ enum ForwardType : int8_t
     GetSession = 3, /// get session id
     UpdateSession = 4, /// session reconnect
     Operation = 5, /// all write requests after the connection is established
-    Destroy = 6,
+    Destroy = 6, /// Only used in server side to indicate that the connection is stale and server should close it
 };
 
 std::string toString(ForwardType type);
