@@ -294,6 +294,13 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
 
     try
     {
+        if (is_destroy)
+        {
+            LOG_INFO(log, "Get destroy response!");
+            delete this;
+            return;
+        }
+
         if (responses->empty() && send_buf.used() == 0)
         {
             remove_event_handler_if_needed();
@@ -371,13 +378,12 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 
 void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
+    LOG_TRACE(log, "Send response {}", response->toString());
+
     if (response->forwardType() == ForwardType::Destroy)
     {
-        delete this;
-        return;
+        is_destroy = true;
     }
-
-    LOG_TRACE(log, "Send response {}", response->toString());
 
     WriteBufferFromFiFoBuffer buf;
     response->write(buf);
