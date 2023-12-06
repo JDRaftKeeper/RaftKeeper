@@ -1,11 +1,13 @@
+#include <Poco/Net/NetException.h>
+
+#include <Common/Stopwatch.h>
+#include <Common/setThreadName.h>
+
 #include <Service/ForwardingConnection.h>
 #include <Service/ForwardingConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperIO.h>
-#include <Poco/Net/NetException.h>
-#include <Common/Stopwatch.h>
-#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -25,7 +27,8 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
 
     auto read_handler = NObserver<ForwardingConnectionHandler, ReadableNotification>(*this, &ForwardingConnectionHandler::onSocketReadable);
     auto error_handler = NObserver<ForwardingConnectionHandler, ErrorNotification>(*this, &ForwardingConnectionHandler::onSocketError);
-    auto shutdown_handler = NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown);
+    auto shutdown_handler
+        = NObserver<ForwardingConnectionHandler, ShutdownNotification>(*this, &ForwardingConnectionHandler::onReactorShutdown);
 
     std::vector<Poco::AbstractObserver *> handlers;
     handlers.push_back(&read_handler);
@@ -267,36 +270,62 @@ void ForwardingConnectionHandler::processHandshake()
 
 void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
+    LOG_TRACE(log, "Forwarder socket writable");
+
+    auto remove_event_handler_if_needed = [this]
+    {
+        /// Double check to avoid dead lock
+        if (responses->empty() && send_buf.used() == 0)
+        {
+            std::lock_guard lock(send_response_mutex);
+            {
+                /// If all sent unregister writable event.
+                if (responses->empty() && send_buf.used() == 0)
+                {
+                    LOG_TRACE(log, "Remove socket writable event handler");
+                    reactor.removeEventHandler(
+                        sock,
+                        NObserver<ForwardingConnectionHandler, WritableNotification>(
+                            *this, &ForwardingConnectionHandler::onSocketWritable));
+                }
+            }
+        }
+    };
+
     try
     {
         if (responses->empty() && send_buf.used() == 0)
+        {
+            remove_event_handler_if_needed();
             return;
+        }
 
         /// TODO use zero copy buffer
         size_t size_to_sent = 0;
 
         /// 1. accumulate data into tmp_buf
-        responses->forEach([&size_to_sent, this](const auto & resp) -> bool
-        {
-            if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
+        responses->forEach(
+            [&size_to_sent, this](const auto & resp) -> bool
             {
-                /// add whole resp to send_buf
-                send_buf.write(resp->begin(), resp->used());
-                size_to_sent += resp->used();
-            }
-            else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
-            {
-                /// add whole resp to send_buf
-                send_buf.write(resp->begin(), resp->used());
-                size_to_sent += resp->used();
-            }
-            else
-            {
-                /// add part of resp to send_buf
-                send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
-            }
-            return size_to_sent < SENT_BUFFER_SIZE;
-        });
+                if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
+                {
+                    /// add whole resp to send_buf
+                    send_buf.write(resp->begin(), resp->used());
+                    size_to_sent += resp->used();
+                }
+                else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
+                {
+                    /// add whole resp to send_buf
+                    send_buf.write(resp->begin(), resp->used());
+                    size_to_sent += resp->used();
+                }
+                else
+                {
+                    /// add part of resp to send_buf
+                    send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
+                }
+                return size_to_sent < SENT_BUFFER_SIZE;
+            });
 
         /// 2. send data
         size_t sent = sock.sendBytes(send_buf);
@@ -320,17 +349,11 @@ void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotific
             }
         }
 
-        /// If all sent unregister writable event.
-        if (responses->empty() && send_buf.used() == 0)
-        {
-            LOG_TRACE(log, "Remove socket writable event handler - session {}", sock.peerAddress().toString());
-            reactor.removeEventHandler(
-                sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
-        }
+        remove_event_handler_if_needed();
     }
     catch (...)
     {
-        tryLogCurrentException(log, "Error when sending data to client, will close connection.");
+        tryLogCurrentException(log, "Error when sending data to follower, will close connection.");
         destroyMe();
     }
 }
@@ -349,22 +372,21 @@ void ForwardingConnectionHandler::onSocketError(const AutoPtr<ErrorNotification>
 void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
     LOG_TRACE(log, "Send response {}", response->toString());
+
     WriteBufferFromFiFoBuffer buf;
     response->write(buf);
 
-    /// TODO handle timeout
-    responses->push(buf.getBuffer());
+    /// Lock to avoid data condition which will lead response leak
+    std::lock_guard lock(send_response_mutex);
+    {
+        /// TODO handle timeout
+        responses->push(buf.getBuffer());
+        /// Trigger socket writable event
+        reactor.addEventHandler(
+            sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
+    }
 
-    /// Trigger socket writable event
-    reactor.addEventHandler(
-        sock, NObserver<ForwardingConnectionHandler, WritableNotification>(*this, &ForwardingConnectionHandler::onSocketWritable));
     /// We must wake up reactor to interrupt it's sleeping.
-    LOG_TRACE(
-        log,
-        "Poll trigger wakeup-- poco thread name {}, actually thread name {}",
-        Poco::Thread::current() ? Poco::Thread::current()->name() : "main",
-        getThreadName());
-
     reactor.wakeUp();
 }
 
