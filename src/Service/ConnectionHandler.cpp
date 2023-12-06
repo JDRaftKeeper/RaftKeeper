@@ -279,12 +279,21 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 
     auto remove_event_handler_if_needed = [this]
     {
-        std::lock_guard lock(send_response_mutex);
+        /// Double check to avoid dead lock
         if (responses->empty() && send_buf.used() == 0)
         {
-            LOG_TRACE(log, "Remove socket writable event handler", sock.peerAddress().toString());
-            reactor.removeEventHandler(
-                sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+            std::lock_guard lock(send_response_mutex);
+            {
+                /// If all sent unregister writable event.
+                if (responses->empty() && send_buf.used() == 0)
+                {
+                    LOG_TRACE(log, "Remove socket writable event handler");
+                    reactor.removeEventHandler(
+                        sock,
+                        NObserver<ConnectionHandler, WritableNotification>(
+                            *this, &ConnectionHandler::onSocketWritable));
+                }
+            }
         }
     };
 
@@ -649,6 +658,7 @@ void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & 
     LOG_TRACE(log, "Dispatch response {} to conn handler session {}", response->toString(), toHexString(session_id));
     updateStats(response);
 
+    /// Lock to avoid data condition which will lead response leak
     std::lock_guard lock(send_response_mutex);
     {
         /// We do not need send anything for close request to client.
@@ -660,8 +670,7 @@ void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & 
         {
             WriteBufferFromFiFoBuffer buf;
             response->write(buf);
-
-            /// TODO handle timeout
+            /// TODO handle push timeout
             responses->push(buf.getBuffer());
         }
 

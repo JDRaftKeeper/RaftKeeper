@@ -79,6 +79,8 @@ private:
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
 
+    std::mutex send_response_mutex;
+
     /// server id in client endpoint which actually is Raft ID
     int32_t server_id{-1};
     /// client id in client endpoint
