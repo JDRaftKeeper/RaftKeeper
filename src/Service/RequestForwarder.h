@@ -27,9 +27,6 @@ public:
     void push(const RequestForSession & request_for_session);
 
     void runSend(RunnerId runner_id);
-
-    void shutdown();
-
     void runReceive(RunnerId runner_id);
 
     void initialize(
@@ -39,33 +36,28 @@ public:
         UInt64 session_sync_period_ms_,
         UInt64 operation_timeout_ms_);
 
+    void shutdown();
 
-public:
     std::shared_ptr<RequestProcessor> request_processor;
-
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
 private:
+    void initConnections();
 
-    void runSessionSync(RunnerId runner_id);
-    void runSessionSyncReceive(RunnerId runner_id);
+    /// void runSessionSync(RunnerId runner_id);
+    /// void runSessionSyncReceive(RunnerId runner_id);
 
     void processResponse(RunnerId runner_id, ForwardResponsePtr forward_response_ptr);
-
     bool removeFromQueue(RunnerId runner_id, ForwardResponsePtr forward_response_ptr);
 
     bool processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront);
 
-    void initConnections();
-
     size_t thread_count;
-
     ptr<RequestsQueue> requests_queue;
 
     Poco::Logger * log;
 
     ThreadPoolPtr request_thread;
-
     ThreadPoolPtr response_thread;
 
     ThreadFromGlobalPool session_sync_thread;
@@ -74,10 +66,8 @@ private:
 
     std::shared_ptr<KeeperServer> server;
 
-    UInt64 session_sync_period_ms = 500;
-
+    UInt64 session_sync_period_ms;
     std::atomic<UInt64> session_sync_idx{0};
-
     Stopwatch session_sync_time_watch;
 
     using ForwardingQueue = ThreadSafeQueue<ForwardRequestPtr, std::list<ForwardRequestPtr>>;
@@ -86,9 +76,9 @@ private:
 
     Poco::Timespan operation_timeout;
 
-    std::mutex connections_mutex;
     using ConnectionPool = std::vector<ptr<ForwardingConnection>>;
     std::unordered_map<UInt32, ConnectionPool> connections;
+    std::mutex connections_mutex;
 
     using EndPoint = String; /// host:port
     std::unordered_map<UInt32, EndPoint> cluster_config_forward;
