@@ -436,12 +436,20 @@ def test_cmd_crst(started_cluster):
         print(data)
 
         data = node1.send_4lw_cmd(cmd='cons')
+        print("cons output -------------------------------------")
+        print(data)
 
         # 2 connections, 1 for 'cons' command, 1 for zk
         cons = [n for n in data.split('\n') if len(n) > 0]
         assert len(cons) == 2
 
-        conn_stat = re.match(r'(.*?)[:].*[(](.*?)[)].*', cons[0].strip(), re.S).group(2)
+        zk_con = None
+        if 'sid' in cons[0]:
+            zk_con = cons[0]
+        else:
+            zk_con = cons[1]
+
+        conn_stat = re.match(r'(.*?)[:].*[(](.*?)[)].*', zk_con.strip(), re.S).group(2)
         assert conn_stat is not None
 
         result = {}
