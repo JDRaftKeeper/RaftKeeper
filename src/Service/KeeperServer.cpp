@@ -54,12 +54,14 @@ namespace
         params.election_timeout_upper_bound_ = raft_settings->election_timeout_upper_bound_ms;
         params.reserved_log_items_ = raft_settings->reserved_log_items;
         params.snapshot_distance_ = raft_settings->snapshot_distance;
-        params.client_req_timeout_ = raft_settings->operation_timeout_ms;
         params.return_method_ = nuraft::raft_params::blocking;
         params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
+        /// TODO disable auto_forwarding_
         params.auto_forwarding_ = true;
-        params.auto_forwarding_req_timeout_ = raft_settings->operation_timeout_ms;
-        // TODO set max_batch_size to NuRaft
+        /// forwarding timeout should lower than operation_timeout_ms
+        params.auto_forwarding_req_timeout_ = std::max(raft_settings->operation_timeout_ms - 1000, raft_settings->operation_timeout_ms / 2);
+        /// client_req_timeout_ should lower than auto_forwarding_req_timeout_
+        params.client_req_timeout_ = std::max(params.auto_forwarding_req_timeout_ - 1000, params.auto_forwarding_req_timeout_ / 2);
     }
 }
 
