@@ -71,8 +71,8 @@
             <!-- User operation timeout in millisecond, default is 2000. -->
             <!-- <operation_timeout_ms>2000</operation_timeout_ms> -->
 
-            <!-- Leader will check whether session is dead in this period, default is 1000. -->
-            <!-- <dead_session_check_period_ms>100</dead_session_check_period_ms> -->
+            <!-- Leader will check whether session is dead in this period, default is 500. -->
+            <!-- <dead_session_check_period_ms>500</dead_session_check_period_ms> -->
 
             <!-- NuRaft heart beat interval in millisecond, default is 500. -->
             <!-- <heart_beat_interval_ms>500</heart_beat_interval_ms> -->

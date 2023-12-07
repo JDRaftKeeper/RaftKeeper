@@ -69,7 +69,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
             max_session_timeout_ms = Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS;
             min_session_timeout_ms = Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS;
         }
-        dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 100);
+        dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 500);
         heart_beat_interval_ms = config.getUInt(get_key("heart_beat_interval_ms"), 500);
         election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), 10000);
         election_timeout_upper_bound_ms = config.getUInt(get_key("election_timeout_upper_bound_ms"), 20000);
@@ -104,7 +104,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->max_session_timeout_ms = Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS;
     settings->min_session_timeout_ms = Coordination::DEFAULT_MIN_SESSION_TIMEOUT_MS;
     settings->operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
-    settings->dead_session_check_period_ms = 100;
+    settings->dead_session_check_period_ms = 500;
     settings->heart_beat_interval_ms = 500;
     settings->election_timeout_lower_bound_ms = 10000;
     settings->election_timeout_upper_bound_ms = 20000;
