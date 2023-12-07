@@ -135,7 +135,11 @@ private:
     Poco::Timespan min_session_timeout;
     Poco::Timespan max_session_timeout;
 
-    int64_t session_id{-1};
+    /// Default session_id is 0, so if a connection failed,
+    /// server will return 0 and when client tries connect
+    /// with previous_session_id = 0.
+    /// Server receives the 0 and will identify it as a re-connection.
+    int64_t session_id{0};
 
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
