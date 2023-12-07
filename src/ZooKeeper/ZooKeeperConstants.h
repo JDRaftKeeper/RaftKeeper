@@ -36,8 +36,8 @@ enum class OpNum : int32_t
     MultiRead = 22,
     Auth = 100,
     SetWatches = 101,
-    SessionID = 997, /// Special raftkeeper internal request. Used to get session id.
-    UpdateSession = 996, /// Special raftkeeper internal request. Used to session reconnect.
+    SessionID = 997, /// Special internal request. Used to get session id.
+    UpdateSession = 996, /// Special internal request. Used to session reconnect.
 };
 
 std::string toString(OpNum op_num);
@@ -55,6 +55,6 @@ static constexpr int32_t MAX_STRING_OR_ARRAY_SIZE = 1 << 28; /// 256 MiB
 static constexpr int32_t DEFAULT_SESSION_TIMEOUT_MS = 30000;
 static constexpr int32_t DEFAULT_MIN_SESSION_TIMEOUT_MS = 10000;
 static constexpr int32_t DEFAULT_MAX_SESSION_TIMEOUT_MS = 100000;
-static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 2000;
+static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 10000;
 
 }
