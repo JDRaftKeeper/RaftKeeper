@@ -35,6 +35,8 @@ ForwardingConnectionHandler::ForwardingConnectionHandler(Context & global_contex
     handlers.push_back(&error_handler);
     handlers.push_back(&shutdown_handler);
     reactor.addEventHandlers(sock, handlers);
+
+    need_destroy = false;
 }
 
 ForwardingConnectionHandler::~ForwardingConnectionHandler()
