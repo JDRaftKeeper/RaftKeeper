@@ -39,13 +39,17 @@ void RequestProcessor::run()
                 /// Suppose there is a sequence of write-read requests, 'moveRequestToPendingQueue' move all requests
                 /// to pending queue and then the first loop handle the write request, then If we do not check the
                 /// pending queue in our wait condition, it will result in meaningless waiting.
-                size_t pending_requests_size{};
+                bool pending_requests_empty = true;
                 for (const auto & [_, runner_pending_requests] : pending_requests)
                 {
                     for (const auto & [session_, session_pending_requests] : runner_pending_requests)
-                        pending_requests_size += session_pending_requests.size();
+                        if (!session_pending_requests.empty())
+                        {
+                            pending_requests_empty = false;
+                            break;
+                        }
                 }
-                return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty() && pending_requests_size == 0;
+                return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty() && pending_requests_empty;
             };
 
             {
