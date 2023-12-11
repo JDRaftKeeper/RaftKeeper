@@ -1,8 +1,8 @@
+#include <Common/setThreadName.h>
 
 #include <Service/KeeperCommon.h>
 #include <Service/KeeperDispatcher.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
-#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -19,7 +19,7 @@ void RequestProcessor::push(const RequestForSession & request_for_session)
     }
 }
 
-void RequestProcessor::systemExist() const
+void RequestProcessor::systemExist()
 {
     ::abort();
 }
@@ -40,7 +40,7 @@ void RequestProcessor::run()
                 if (!cv.wait_for(lk, operation_timeout_ms * 1ms, [&] { return !need_wait() || shutdown_called; }))
                     LOG_DEBUG(
                         log,
-                        "wait time out errors size {}, requests_queue size {}, committed_queue size {}",
+                        "Waiting timeout errors size {}, requests_queue size {}, committed_queue size {}",
                         error_request_ids.size(),
                         requests_queue->size(),
                         committed_queue.size());
@@ -59,10 +59,12 @@ void RequestProcessor::run()
             /// 1. process read request, multi thread
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
             {
-                request_thread->trySchedule([this, runner_id] {
-                    moveRequestToPendingQueue(runner_id);
-                    processReadRequests(runner_id);
-                });
+                request_thread->trySchedule(
+                    [this, runner_id]
+                    {
+                        moveRequestToPendingQueue(runner_id);
+                        processReadRequests(runner_id);
+                    });
             }
             request_thread->wait();
 
@@ -85,7 +87,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
     size_t request_size = requests_queue->size(runner_id);
 
     if (request_size)
-        LOG_TRACE(log, "Move request to pending queue, runner id {} request size {}", runner_id, request_size);
+        LOG_TRACE(log, "Prepare to move {} requests to pending queue of runner {}", request_size, runner_id);
 
     for (size_t i = 0; i < request_size; ++i)
     {
@@ -95,7 +97,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
             auto op_num = request.request->getOpNum();
             if (op_num != Coordination::OpNum::Auth)
             {
-                LOG_TRACE(log, "Put session {} xid {} to pending queue", toHexString(request.session_id), request.request->xid);
+                LOG_TRACE(log, "Move {} to pending queue", request.toSimpleString());
                 thread_requests[request.session_id].push_back(request);
             }
         }
@@ -130,7 +132,11 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
     }
 
     auto & first_pending_request = pending_requests_for_session.front();
-    LOG_DEBUG(log, "First session pending request {}", first_pending_request.toSimpleString());
+    LOG_DEBUG(
+        log,
+        "First pending request of session {} is {}",
+        toHexString(committed_request.session_id),
+        first_pending_request.toSimpleString());
 
     if (first_pending_request.request->xid == committed_request.request->xid)
     {
@@ -177,7 +183,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
         if (!committed_queue.peek(committed_request))
             continue;
 
-        LOG_DEBUG(log, "Process committed(write) request {}", committed_request.toString());
+        LOG_DEBUG(log, "Process committed(write) request {}", committed_request.toSimpleString());
 
         auto runner_id = getRunnerId(committed_request.session_id);
         auto & my_pending_requests = pending_requests.find(runner_id)->second;
@@ -236,7 +242,7 @@ void RequestProcessor::processErrorRequest(size_t count)
     if (error_request_ids.empty())
         return;
 
-    LOG_WARNING(log, "Has {} error requests", count);
+    LOG_INFO(log, "There are {} error requests", count);
 
     ///Note that error requests may be not processed in order.
     for (size_t i = 0; i < count; i++)
@@ -259,7 +265,7 @@ void RequestProcessor::processErrorRequest(size_t count)
                 my_pending_requests.erase(session_id);
             }
 
-            LOG_WARNING(log, "Not my error request {}", error_request.toString());
+            LOG_WARNING(log, "Error request {} is not local", error_request.toString());
             error_request_ids.erase(error_request.getRequestId());
             error_requests.erase(error_requests.begin());
         }
@@ -271,7 +277,7 @@ void RequestProcessor::processErrorRequest(size_t count)
             /// process error request
             if (request)
             {
-                LOG_ERROR(log, "Make error response for  {}", error_request.toString());
+                LOG_ERROR(log, "Make error response for {}", error_request.toString());
 
                 ZooKeeperResponsePtr response = request->request->makeResponse();
                 response->xid = request->request->xid;
@@ -332,13 +338,14 @@ std::optional<RequestForSession> RequestProcessor::findErrorRequest(const ErrorR
         auto & requests = session_requests->second;
         for (auto request_it = requests.begin(); request_it != requests.end();)
         {
-            LOG_TRACE(log, "Try match {}", toHexString(session_id), request_it->request->xid);
+            LOG_TRACE(log, "Try match {}", request_it->toSimpleString());
 
             if (request_it->request->xid == xid
                 || (request_it->request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
             {
+                LOG_WARNING(log, "Found error request {} in pending queue", request_it->toSimpleString());
                 request = *request_it;
-                request_it = requests.erase(request_it);
+                requests.erase(request_it);
                 break;
             }
             else
@@ -419,7 +426,6 @@ void RequestProcessor::applyRequest(const RequestForSession & request) const
             systemExist();
         }
     }
-
 }
 
 void RequestProcessor::shutdown()
@@ -441,6 +447,7 @@ void RequestProcessor::shutdown()
     RequestForSession request_for_session;
     while (requests_queue->tryPopAny(request_for_session))
     {
+        LOG_DEBUG(log, "Make session expire response for request {}", request_for_session.toSimpleString());
         auto response = request_for_session.request->makeResponse();
         response->xid = request_for_session.request->xid;
         response->zxid = 0;
@@ -459,7 +466,7 @@ void RequestProcessor::commit(RequestForSession request)
             std::unique_lock lk(mutex);
             cv.notify_all();
         }
-        LOG_DEBUG(log, "Commit notify committed queue size {}", committed_queue.size());
+        LOG_DEBUG(log, "Commit {}, now committed queue size is {}", request.toSimpleString(), committed_queue.size());
     }
 }
 
