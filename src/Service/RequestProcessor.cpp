@@ -32,7 +32,21 @@ void RequestProcessor::run()
     {
         try
         {
-            auto need_wait = [&]() -> bool { return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty(); };
+            auto need_wait = [&]() -> bool
+            {
+                /// We should not wait when pending queue is not empty, for function 'moveRequestToPendingQueue'
+                /// moves all pending requests to pending queue.
+                /// Suppose there is a sequence of write-read requests, 'moveRequestToPendingQueue' move all requests
+                /// to pending queue and then the first loop handle the write request, then If we do not check the
+                /// pending queue in our wait condition, it will result in meaningless waiting.
+                size_t pending_requests_size{};
+                for (const auto & [_, runner_pending_requests] : pending_requests)
+                {
+                    for (const auto & [session_, session_pending_requests] : runner_pending_requests)
+                        pending_requests_size += session_pending_requests.size();
+                }
+                return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty() && pending_requests_size == 0;
+            };
 
             {
                 using namespace std::chrono_literals;
