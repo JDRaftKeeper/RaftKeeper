@@ -1539,7 +1539,8 @@ void KeeperStore::processRequest(
                 std::lock_guard lock(watch_mutex);
 
                 /// handle watch trigger, below 1 and 2 must be atomic
-                if (watches.contains(zk_request->getPath()) || list_watches.contains(parentPath(zk_request->getPath())))
+                if (zk_request->getOpNum() == Coordination::OpNum::Multi || watches.contains(zk_request->getPath())
+                    || list_watches.contains(parentPath(zk_request->getPath())))
                 {
                     if (response->error == Coordination::Error::ZOK)
                     {
