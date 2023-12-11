@@ -114,6 +114,7 @@ private:
     Logger * log;
 
     StreamSocket sock;
+    String peer; /// remote peer address
     SocketReactor & reactor;
 
     FIFOBuffer req_header_buf = FIFOBuffer(4);

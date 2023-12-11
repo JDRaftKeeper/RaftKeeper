@@ -343,7 +343,7 @@ std::optional<RequestForSession> RequestProcessor::findErrorRequest(const ErrorR
             if (request_it->request->xid == xid
                 || (request_it->request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
             {
-                LOG_WARNING(log, "Found error request {} in pending queue", request_it->toSimpleString());
+                LOG_WARNING(log, "Matched error request {} in pending queue", request_it->toSimpleString());
                 request = *request_it;
                 requests.erase(request_it);
                 break;
