@@ -58,6 +58,7 @@ void ConnectionHandler::resetConnsStats()
 ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_)
     : log(&Logger::get("ConnectionHandler"))
     , sock(socket_)
+    , peer(socket_.peerAddress().toString())
     , reactor(reactor_)
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
@@ -76,7 +77,7 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_DEBUG(log, "New connection from {}", sock.peerAddress().toString());
+    LOG_DEBUG(log, "New connection from {}", peer);
     registerConnection(this);
 
     auto read_handler = NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
@@ -94,10 +95,7 @@ ConnectionHandler::~ConnectionHandler()
 {
     try
     {
-        /// 4lw cmd connection will not init session_id
-        if (session_id != -1)
-            LOG_INFO(log, "Disconnecting session {}", toHexString(session_id));
-
+        LOG_INFO(log, "Disconnecting peer {}#{}", peer, toHexString(session_id));
         unregisterConnection(this);
 
         reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
@@ -114,10 +112,10 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
 {
     try
     {
-        LOG_TRACE(log, "session {} socket readable", toHexString(session_id));
+        LOG_TRACE(log, "Peer {}#{} is readable", peer, toHexString(session_id));
         if (!sock.available())
         {
-            LOG_INFO(log, "Client of session {} close connection! errno {}", toHexString(session_id), errno);
+            LOG_INFO(log, "Peer {} close connection! Current errno {}", peer, errno);
             destroyMe();
             return;
         }
@@ -153,7 +151,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 }
 
                 body_len = header;
-                LOG_TRACE(log, "session {} read request length : {}", toHexString(session_id), body_len);
+                LOG_TRACE(log, "Peer {}#{} read request length : {}", peer, toHexString(session_id), body_len);
 
                 /// clear len_buf
                 req_header_buf.drain(req_header_buf.used());
@@ -182,7 +180,8 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
 
             LOG_TRACE(
                 log,
-                "session {} read request done, body length : {}, req_body_buf used {}",
+                "Peer {}#{} read request done, body length : {}, req_body_buf used {}",
+                peer,
                 toHexString(session_id),
                 body_len,
                 req_body_buf->used());
@@ -206,7 +205,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                     /// Typical for an incorrect username, password
                     /// and bad protocol version, bad las zxid, rw connection to a read only server
                     /// Close the connection directly.
-                    tryLogCurrentException(log, "Cannot receive handshake");
+                    tryLogCurrentException(log, "Failed to receive handshake");
                     destroyMe();
                     return;
                 }
@@ -275,7 +274,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
 
 void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
-    LOG_TRACE(log, "Session {} socket writable", toHexString(session_id));
+    LOG_TRACE(log, "Peer {}#{} is writable", peer, toHexString(session_id));
 
     auto remove_event_handler_if_needed = [this]
     {
@@ -287,7 +286,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
                 /// If all sent unregister writable event.
                 if (responses->empty() && send_buf.used() == 0)
                 {
-                    LOG_TRACE(log, "Remove socket writable event handler");
+                    LOG_TRACE(log, "Remove socket writable event handler for peer {}", peer);
                     reactor.removeEventHandler(
                         sock,
                         NObserver<ConnectionHandler, WritableNotification>(
@@ -302,7 +301,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
         if (responses->empty() && send_buf.used() == 0)
         {
             remove_event_handler_if_needed();
-            LOG_DEBUG(log, "Socket is writable, but there is nothing to send.");
+            LOG_DEBUG(log, "Peer {} is writable, but there is nothing to send, will remove event handler.", peer);
             return;
         }
 
@@ -350,7 +349,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_TRACE(log, "Sent response to {}", toHexString(session_id));
+                LOG_TRACE(log, "Sent response to {}#{}", peer, toHexString(session_id));
             }
             else
             {
@@ -372,20 +371,20 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
     }
     catch (...)
     {
-        tryLogCurrentException(log, "Fatal error when sending data to client, will close connection.");
+        tryLogCurrentException(log, "Fatal error when sending data to client, will disconnect peer " + peer);
         destroyMe();
     }
 }
 
 void ConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & /*pNf*/)
 {
-    LOG_INFO(log, "reactor shutdown!");
+    LOG_INFO(log, "Reactor shutdown!");
     destroyMe();
 }
 
 void ConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-    LOG_WARNING(log, "Socket of session {} error, errno {} !", toHexString(session_id), errno);
+    LOG_WARNING(log, "Socket error for peer {}#{}, errno {} !", peer, toHexString(session_id), errno);
     destroyMe();
 }
 
@@ -400,7 +399,7 @@ void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
     ConnectionStats stats = getConnectionStats();
 
     writeText(" ", buf);
-    writeText(sock.peerAddress().toString(), buf);
+    writeText(peer, buf);
     writeText("(recved=", buf);
     writeIntText(stats.getPacketsReceived(), buf);
     writeText(",sent=", buf);
@@ -500,7 +499,7 @@ ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectReq
             = std::max(min_session_timeout, std::min(Poco::Timespan(0, connect_req.session_timeout_ms * 1000), max_session_timeout));
     }
 
-    LOG_INFO(log, "Negotiated session_timeout : {}", session_timeout.totalMilliseconds());
+    LOG_INFO(log, "Negotiated session_timeout {}", session_timeout.totalMilliseconds());
 
     bool is_reconnected = false;
     bool session_expired = false;
@@ -508,7 +507,7 @@ ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectReq
 
     if (!connect_success)
     {
-        LOG_WARNING(log, "Has no leader!");
+        LOG_WARNING(log, "There is no leader!");
         return {connect_success, true, is_reconnected};
     }
 
@@ -542,7 +541,7 @@ ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectReq
                 else
                 {
                     is_reconnected = true;
-                    LOG_INFO(log, "Client reconnected with session {}", toHexString(connect_req.previous_session_id));
+                    LOG_INFO(log, "{} successfully reconnected", toHexString(connect_req.previous_session_id));
                 }
             }
         }
@@ -595,7 +594,7 @@ bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
 {
     if (!FourLetterCommandFactory::instance().isKnown(command))
     {
-        LOG_WARNING(log, "invalid four letter command {}", IFourLetterCommand::toName(command));
+        LOG_WARNING(log, "Invalid four letter command {}", IFourLetterCommand::toName(command));
         return false;
     }
     else if (!FourLetterCommandFactory::instance().isEnabled(command))
@@ -655,7 +654,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequ
 
 void ConnectionHandler::sendResponse(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_TRACE(log, "Dispatch response {} to conn handler session {}", response->toString(), toHexString(session_id));
+    LOG_TRACE(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id), response->toString());
     updateStats(response);
 
     /// Lock to avoid data condition which will lead response leak
@@ -713,11 +712,11 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
             if (elapsed > 1000)
                 LOG_WARNING(
                     log,
-                    "Request process time {}ms, session {} xid {} req type {}",
-                    elapsed,
+                    "The processing time for request #{}#{}#{} is {}ms, which is a little long.",
                     toHexString(session_id),
                     response->xid,
-                    Coordination::toString(response->getOpNum()));
+                    Coordination::toString(response->getOpNum()),
+                    elapsed);
         }
         keeper_dispatcher->updateKeeperStatLatency(elapsed);
 

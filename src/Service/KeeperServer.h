@@ -15,7 +15,7 @@ namespace RK
 
 /**
  * Encapsulate NuRaft launcher and NuRaft server,
- * and provides interfaces to interact with NuRaft and state machien.
+ * and provides interfaces to interact with NuRaft and state machine.
  */
 class KeeperServer
 {
