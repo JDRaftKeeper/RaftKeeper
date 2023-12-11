@@ -41,9 +41,6 @@ private:
     /// configurations
     const Poco::Util::AbstractConfiguration & config;
 
-    /// all response goes here
-    KeeperResponsesQueue & responses_queue;
-
     Poco::Logger * log;
 
     /// initialized flag
@@ -68,9 +65,6 @@ public:
         const Poco::Util::AbstractConfiguration & config_,
         KeeperResponsesQueue & responses_queue_,
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
-
-    /// need replaced with putRequestBatch
-    void putRequest(const RequestForSession & request);
 
     /// Put write request into queue and keeper server will append it to NuRaft asynchronously.
     ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<RequestForSession> & request_batch);

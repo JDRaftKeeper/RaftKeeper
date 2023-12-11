@@ -27,7 +27,6 @@ KeeperServer::KeeperServer(
     : server_id(settings_->my_id)
     , settings(settings_)
     , config(config_)
-    , responses_queue(responses_queue_)
     , log(&(Poco::Logger::get("KeeperServer")))
 {
     state_manager = cs_new<NuRaftStateManager>(server_id, config, settings_);
@@ -119,64 +118,6 @@ void KeeperServer::shutdown()
     state_machine->shutdown();
 
     LOG_INFO(log, "Shut down NuRaft core done!");
-}
-
-void KeeperServer::putRequest(const RequestForSession & request_for_session)
-{
-    auto [session_id, request, time, server, client] = request_for_session;
-    if (isLeaderAlive() && request->isReadRequest())
-    {
-        LOG_TRACE(
-            log, "[put read request]SessionID/xid #{}#{}, opnum {}", session_id, request->xid, Coordination::toString(request->getOpNum()));
-        state_machine->processReadRequest(request_for_session);
-    }
-    else
-    {
-        std::vector<ptr<buffer>> entries;
-        entries.push_back(getZooKeeperLogEntry(session_id, time, request));
-
-        LOG_TRACE(
-            log,
-            "[put write request]SessionID/xid #{}#{}, opnum {}, entries {}",
-            session_id,
-            request->xid,
-            Coordination::toString(request->getOpNum()),
-            entries.size());
-
-        ptr<nuraft::cmd_result<ptr<buffer>>> result;
-        {
-            result = raft_instance->append_entries(entries);
-        }
-
-        if (!result->has_result())
-            result->get();
-
-        if (result->get_accepted() && result->get_result_code() == nuraft::cmd_result_code::OK)
-        {
-            /// response pushed into queue by state machine
-            return;
-        }
-
-        auto response = request->makeResponse();
-
-        response->xid = request->xid;
-        response->zxid = 0;
-
-        response->error = result->get_result_code() == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
-                                                                                        : Coordination::Error::ZCONNECTIONLOSS;
-
-        responses_queue.push(RK::ResponseForSession{session_id, response});
-        if (!result->get_accepted())
-            throw Exception(ErrorCodes::RAFT_ERROR, "Request session {} xid {} error, result is not accepted.", session_id, request->xid);
-        else
-            throw Exception(
-                ErrorCodes::RAFT_ERROR,
-                "Request session {} xid {} error, nuraft code {} and message: '{}'",
-                session_id,
-                request->xid,
-                result->get_result_code(),
-                result->get_result_str());
-    }
 }
 
 ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::vector<RequestForSession> & request_batch)
