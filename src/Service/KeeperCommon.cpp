@@ -7,7 +7,7 @@ namespace RK
 String ErrorRequest::toString() const
 {
     return fmt::format(
-        "[session_id:{}, xid:{}, opnum:{}, accepted:{}, error_code:{}]",
+        "#{}#xid#{} accepted:{} error_code:{}",
         toHexString(session_id),
         xid,
         Coordination::toString(opnum),
@@ -22,7 +22,7 @@ RequestId ErrorRequest::getRequestId() const
 
 String RequestId::toString() const
 {
-    return fmt::format("[session_id:{}, xid:{}]", toHexString(session_id), xid);
+    return fmt::format("#{}#{}", toHexString(session_id), xid);
 }
 
 bool RequestId::operator==(const RequestId & other) const
@@ -45,20 +45,17 @@ std::size_t RequestId::RequestIdHash::operator()(const RequestId & request_id) c
 String RequestForSession::toString() const
 {
     return fmt::format(
-        "[session_id: {}, xid:{}, opnum:{}, create_time:{}, server_id:{}, client_id:{}, request:{}]",
+        "[session:{} request:{} create_time:{} server_id:{} client_id:{}]",
         toHexString(session_id),
-        request->xid,
-        Coordination::toString(request->getOpNum()),
+        request->toString(),
         create_time,
         server_id,
-        client_id,
-        request->toString());
+        client_id);
 }
 
 String RequestForSession::toSimpleString() const
 {
-    return fmt::format(
-        "[session_id:{}, xid:{}, opnum:{}]", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
+    return fmt::format("#{}#{}#{}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
 }
 
 RequestId RequestForSession::getRequestId() const

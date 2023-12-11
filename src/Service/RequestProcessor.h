@@ -41,7 +41,7 @@ public:
 private:
     void run();
     /// Exist system for fatal error.
-    [[noreturn]] void systemExist() const;
+    [[noreturn]] static void systemExist() ;
 
     void moveRequestToPendingQueue(RunnerId runner_id);
 
