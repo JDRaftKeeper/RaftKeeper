@@ -202,62 +202,77 @@ def test_watchers(started_cluster):
     try:
         genuine_zk = get_genuine_zk()
         fake_zk = get_fake_zk()
-        genuine_zk.create("/test_data_watches")
-        fake_zk.create("/test_data_watches")
-        genuine_data_watch_data = None
 
-        def genuine_callback(event):
-            print("Genuine data watch called")
-            nonlocal genuine_data_watch_data
-            genuine_data_watch_data = event
 
-        fake_data_watch_data = None
+        # test data watch
+        datas = [None, None]
+        for index, zk in enumerate([genuine_zk, fake_zk]):
+            zk.create("/test_data_watches")
 
-        def fake_callback(event):
-            print("Fake data watch called")
-            nonlocal fake_data_watch_data
-            fake_data_watch_data = event
+            def watch_data_callback(data):
+                print("data watch called")
+                datas[index] = data
 
-        genuine_zk.get("/test_data_watches", watch=genuine_callback)
-        fake_zk.get("/test_data_watches", watch=fake_callback)
+            zk.get("/test_data_watches", watch=watch_data_callback)
+            print("Calling set data")
+            zk.set("/test_data_watches", b"a")
+            time.sleep(3)
 
-        print("Calling set genuine")
-        genuine_zk.set("/test_data_watches", b"a")
-        print("Calling set fake")
-        fake_zk.set("/test_data_watches", b"a")
-        time.sleep(3)
+        print("Genuine data", datas[0])
+        print("Fake data", datas[1])
+        assert datas[0] == datas[1]
 
-        print("Genuine data", genuine_data_watch_data)
-        print("Fake data", fake_data_watch_data)
-        assert genuine_data_watch_data == fake_data_watch_data
 
-        genuine_children = None
+        # test child watch
+        child_lists = [None, None]
+        for index, zk in enumerate([genuine_zk, fake_zk]):
 
-        def genuine_child_callback(event):
-            print("Genuine child watch called")
-            nonlocal genuine_children
-            genuine_children = event
+            def watch_children_callback(children):
+                print("children watch called")
+                child_lists[index] = children
 
-        fake_children = None
+            zk.get_children("/test_data_watches", watch=watch_children_callback)
 
-        def fake_child_callback(event):
-            print("Fake child watch called")
-            nonlocal fake_children
-            fake_children = event
+            print("Calling create child")
+            zk.create("/test_data_watches/child", b"b")
+            time.sleep(3)
 
-        genuine_zk.get_children("/test_data_watches", watch=genuine_child_callback)
-        fake_zk.get_children("/test_data_watches", watch=fake_child_callback)
+        print("Genuine child", child_lists[0])
+        print("Fake child", child_lists[1])
+        assert child_lists[0] == child_lists[1]
 
-        print("Calling genuine child")
-        genuine_zk.create("/test_data_watches/child", b"b")
-        print("Calling fake child")
-        fake_zk.create("/test_data_watches/child", b"b")
 
-        time.sleep(3)
+        # test watcher in multi writes ops
+        datas = [None, None]
+        child_lists = [None, None]
+        for index, zk in enumerate([genuine_zk, fake_zk]):
+            zk.create("/test_multi_request_watches")
 
-        print("Genuine children", genuine_children)
-        print("Fake children", fake_children)
-        assert genuine_children == fake_children
+            def watch_data_callback(data):
+                print("data watch called")
+                datas[index] = data
+
+            def watch_children_callback(children):
+                print("children watch called")
+                child_lists[index] = children
+
+            zk.get("/test_multi_request_watches", watch=watch_data_callback)
+            zk.get_children("/test_multi_request_watches", watch=watch_children_callback)
+
+            t = zk.transaction()
+            zk.set("/test_multi_request_watches", b"a")
+            zk.create("/test_multi_request_watches/node-", sequence=True)
+            t.commit()
+            time.sleep(3)
+
+        print("Genuine child", datas[0])
+        print("Fake child", datas[1])
+        assert datas[0] == datas[1]
+
+        print("Genuine child", child_lists[0])
+        print("Fake child", child_lists[1])
+        assert child_lists[0] == child_lists[1]
+
     finally:
         close_zk_clients([genuine_zk, fake_zk])
 
