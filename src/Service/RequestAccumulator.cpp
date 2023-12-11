@@ -95,8 +95,7 @@ void RequestAccumulator::shutdown()
     if (shutdown_called)
         return;
 
-    LOG_INFO(log, "Shutting down request processor!");
-
+    LOG_INFO(log, "Shutting down request accumulator!");
     shutdown_called = true;
 
     RequestForSession request_for_session;
