@@ -5,27 +5,28 @@
 */
 #pragma once
 
-#include "Poco/Net/Net.h"
-#include "Poco/Net/Socket.h"
+#include <atomic>
+#include <map>
+
+#include <Poco/AutoPtr.h>
+#include <Poco/Net/Net.h>
+#include <Poco/Net/Socket.h>
+#include <Poco/Runnable.h>
+#include <Poco/Thread.h>
+#include <Poco/Timespan.h>
+
+#include <Common/NIO/Observer.h>
+#include <Common/NIO/PollSet.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
-#include <Common/NIO/PollSet.h>
-#include "Poco/Runnable.h"
-#include "Poco/Timespan.h"
-#include "Poco/Observer.h"
-#include "Poco/NObserver.h"
-#include "Poco/AutoPtr.h"
-#include "Poco/Thread.h"
-#include <map>
-#include <atomic>
 
 
-using Poco::Net::Socket;
 using Poco::AutoPtr;
+using Poco::Net::Socket;
 
-namespace RK {
+namespace RK
+{
 
-class SocketReactor: public Poco::Runnable
 /// This class, which is part of the Reactor pattern,
 /// implements the "Initiation Dispatcher".
 ///
@@ -53,7 +54,7 @@ class SocketReactor: public Poco::Runnable
 /// as argument.
 ///
 /// Once started, the SocketReactor waits for events
-/// on the registered sockets, using Socket::select().
+/// on the registered sockets, using PollSet.
 /// If an event is detected, the corresponding event handler
 /// is invoked. There are five event types (and corresponding
 /// notification classes) defined: ReadableNotification, WritableNotification,
@@ -72,7 +73,7 @@ class SocketReactor: public Poco::Runnable
 /// timeout processing.
 ///
 /// If there are no sockets for the SocketReactor to pass to
-/// Socket::select(), an IdleNotification will be dispatched to
+/// PollSet, an IdleNotification will be dispatched to
 /// all event handlers registered for it. This is done in the
 /// onIdle() method which can be overridden by subclasses
 /// to perform custom idle processing. Since onIdle() will be
@@ -94,85 +95,71 @@ class SocketReactor: public Poco::Runnable
 /// from another thread while the SocketReactor is running. Also,
 /// it is safe to call addEventHandler() and removeEventHandler()
 /// from event handlers.
+class SocketReactor : public Poco::Runnable
 {
 public:
     SocketReactor();
-    /// Creates the SocketReactor.
-
-    explicit SocketReactor(const Poco::Timespan& timeout);
-    /// Creates the SocketReactor, using the given timeout.
+    explicit SocketReactor(const Poco::Timespan & timeout);
 
     virtual ~SocketReactor() override = default;
-    /// Destroys the SocketReactor.
 
     void run() override;
-    /// Runs the SocketReactor. The reactor will run
-    /// until stop() is called (in a separate thread).
-
     void stop();
-    /// Stops the SocketReactor.
-    ///
-    /// The reactor will be stopped when the next event
-    /// (including a timeout event) occurs.
 
+    /// Wake up the Reactor
     void wakeUp();
-    /// Wakes up idle reactor.
 
-    void setTimeout(const Poco::Timespan& timeout);
     /// Sets the timeout.
     ///
     /// If no other event occurs for the given timeout
     /// interval, a timeout event is sent to all event listeners.
     ///
     /// The default timeout is 250 milliseconds;
-    ///
-    /// The timeout is passed to the Socket::select()
-    /// method.
+    /// The timeout is passed to the PollSet.
+    void setTimeout(const Poco::Timespan & timeout);
+    const Poco::Timespan & getTimeout() const;
 
-    const Poco::Timespan& getTimeout() const;
-    /// Returns the timeout.
-
-    void addEventHandler(const Socket& socket, const Poco::AbstractObserver& observer);
     /// Deprecated for it has TSAN heap-use-after-free risk.
     /// Acceptor thread wants to add 3 events(read, error, shutdown),
     /// when the first event `read` added, the handler thread can trigger
     /// read event if the socket is not available, handler thread may destroy
     /// itself and the socket, so heap-use-after-free happens.
+    void addEventHandler(const Socket & socket, const AbstractObserver & observer);
 
-    void addEventHandlers(const Socket& socket, const std::vector<Poco::AbstractObserver *>& observers);
     /// Registers an event handler with the SocketReactor.
     ///
     /// Usage:
     ///     Poco::Observer<MyEventHandler, SocketNotification> obs(*this, &MyEventHandler::handleMyEvent);
     ///     reactor.addEventHandler(obs);
+    void addEventHandlers(const Socket & socket, const std::vector<AbstractObserver *> & observers);
 
-    bool hasEventHandler(const Socket& socket, const Poco::AbstractObserver& observer);
     /// Returns true if the observer is registered with SocketReactor for the given socket.
+    bool hasEventHandler(const Socket & socket, const AbstractObserver & observer);
 
-    void removeEventHandler(const Socket& socket, const Poco::AbstractObserver& observer);
     /// Unregisters an event handler with the SocketReactor.
     ///
     /// Usage:
     ///     Poco::Observer<MyEventHandler, SocketNotification> obs(*this, &MyEventHandler::handleMyEvent);
     ///     reactor.removeEventHandler(obs);
+    void removeEventHandler(const Socket & socket, const AbstractObserver & observer);
 
-    bool has(const Socket& socket) const;
     /// Returns true if socket is registered with this rector.
+    bool has(const Socket & socket) const;
 
 protected:
-    virtual void onTimeout();
     /// Called if the timeout expires and no other events are available.
     ///
     /// Can be overridden by subclasses. The default implementation
     /// dispatches the TimeoutNotification and thus should be called by overriding
     /// implementations.
+    virtual void onTimeout();
 
-    virtual void onIdle();
     /// Called if no sockets are available to call select() on.
     ///
     /// Can be overridden by subclasses. The default implementation
     /// dispatches the IdleNotification and thus should be called by overriding
     /// implementations.
+    virtual void onIdle();
 
     virtual void onShutdown();
     /// Called when the SocketReactor is about to terminate.
@@ -181,48 +168,52 @@ protected:
     /// dispatches the ShutdownNotification and thus should be called by overriding
     /// implementations.
 
-    virtual void onBusy();
     /// Called when the SocketReactor is busy and at least one notification
     /// has been dispatched.
     ///
     /// Can be overridden by subclasses to perform additional
     /// periodic tasks. The default implementation does nothing.
+    virtual void onBusy();
 
-    void dispatch(const Socket& socket, SocketNotification* pNotification);
     /// Dispatches the given notification to all observers
     /// registered for the given socket.
+    void dispatch(const Socket & socket, SocketNotification * pNotification);
 
-    void dispatch(SocketNotification* pNotification);
     /// Dispatches the given notification to all observers.
+    void dispatch(SocketNotification * pNotification);
 
 private:
     using NotifierPtr = Poco::AutoPtr<SocketNotifier>;
     using NotificationPtr = Poco::AutoPtr<SocketNotification>;
-    typedef std::map<poco_socket_t, NotifierPtr>     EventHandlerMap;
-    typedef Poco::FastMutex                   MutexType;
-    typedef MutexType::ScopedLock             ScopedLock;
+    using EventHandlerMap = std::map<poco_socket_t, NotifierPtr>;
+    using MutexType = Poco::FastMutex;
+    using ScopedLock = MutexType::ScopedLock;
 
     bool hasSocketHandlers();
-    void dispatch(NotifierPtr& pNotifier, SocketNotification* pNotification);
-    NotifierPtr getNotifier(const Socket& socket, bool makeNew = false);
+
+    void sleep();
+    void dispatch(NotifierPtr & pNotifier, SocketNotification * pNotification);
+
+    NotifierPtr getNotifier(const Socket & socket, bool makeNew = false);
 
     enum
     {
         DEFAULT_TIMEOUT = 250000
     };
 
-    std::atomic<bool> _stop;
-    Poco::Timespan    _timeout;
-    EventHandlerMap   _handlers;
-    PollSet           _pollSet;
-    NotificationPtr   _pReadableNotification;
-    NotificationPtr   _pWritableNotification;
-    NotificationPtr   _pErrorNotification;
-    NotificationPtr   _pTimeoutNotification;
-    NotificationPtr   _pIdleNotification;
-    NotificationPtr   _pShutdownNotification;
-    MutexType         _mutex;
-    std::atomic<Poco::Thread*> _pThread;
+    std::atomic<bool> stopped;
+    Poco::Timespan timeout;
+    EventHandlerMap handlers;
+    PollSet poll_set;
+    NotificationPtr rnf;
+    NotificationPtr wnf;
+    NotificationPtr enf;
+    NotificationPtr tnf;
+    NotificationPtr inf;
+    NotificationPtr snf;
+
+    MutexType mutex;
+    Poco::Event event;
 
     friend class SocketNotifier;
 };

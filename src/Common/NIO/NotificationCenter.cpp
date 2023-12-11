@@ -18,24 +18,24 @@ namespace RK
 
 bool NotificationCenter::addObserverIfNotExist(const AbstractObserver & observer)
 {
-    Mutex::ScopedLock lock(_mutex);
-    for (const auto & p : _observers)
+    Mutex::ScopedLock lock(mutex);
+    for (const auto & p : observers)
         if (observer.equals(*p))
             return false;
-    _observers.push_back(observer.clone());
+    observers.push_back(observer.clone());
     return true;
 }
 
 
 bool NotificationCenter::removeObserverIfExist(const AbstractObserver & observer)
 {
-    Mutex::ScopedLock lock(_mutex);
-    for (auto it = _observers.begin(); it != _observers.end(); ++it)
+    Mutex::ScopedLock lock(mutex);
+    for (auto it = observers.begin(); it != observers.end(); ++it)
     {
         if (observer.equals(**it))
         {
             (*it)->disable();
-            _observers.erase(it);
+            observers.erase(it);
             return true;
         }
     }
@@ -45,8 +45,8 @@ bool NotificationCenter::removeObserverIfExist(const AbstractObserver & observer
 
 bool NotificationCenter::hasObserver(const AbstractObserver & observer) const
 {
-    Mutex::ScopedLock lock(_mutex);
-    for (const auto & p : _observers)
+    Mutex::ScopedLock lock(mutex);
+    for (const auto & p : observers)
         if (observer.equals(*p))
             return true;
 
@@ -56,15 +56,15 @@ bool NotificationCenter::hasObserver(const AbstractObserver & observer) const
 
 bool NotificationCenter::onlyHas(const AbstractObserver & observer) const
 {
-    Mutex::ScopedLock lock(_mutex);
-    return _observers.size() == 1 && observer.equals(*_observers[0]);
+    Mutex::ScopedLock lock(mutex);
+    return observers.size() == 1 && observer.equals(*observers[0]);
 }
 
 
-bool NotificationCenter::accept(Poco::Notification * pNotification) const
+bool NotificationCenter::accept(Notification * pNotification) const
 {
-    Mutex::ScopedLock lock(_mutex);
-    for (const auto & observer : _observers)
+    Mutex::ScopedLock lock(mutex);
+    for (const auto & observer : observers)
     {
         if (observer->accepts(pNotification))
             return true;
@@ -77,8 +77,8 @@ void NotificationCenter::postNotification(Notification::Ptr pNotification)
 {
     poco_check_ptr(pNotification);
 
-    Poco::ScopedLockWithUnlock<Mutex> lock(_mutex);
-    ObserverList copied(_observers);
+    Poco::ScopedLockWithUnlock<Mutex> lock(mutex);
+    Observers copied(observers);
     lock.unlock();
 
     for (auto & p : copied)
@@ -90,15 +90,15 @@ void NotificationCenter::postNotification(Notification::Ptr pNotification)
 
 bool NotificationCenter::hasObservers() const
 {
-    Mutex::ScopedLock lock(_mutex);
-    return !_observers.empty();
+    Mutex::ScopedLock lock(mutex);
+    return !observers.empty();
 }
 
 
 std::size_t NotificationCenter::countObservers() const
 {
-    Mutex::ScopedLock lock(_mutex);
-    return _observers.size();
+    Mutex::ScopedLock lock(mutex);
+    return observers.size();
 }
 
 }

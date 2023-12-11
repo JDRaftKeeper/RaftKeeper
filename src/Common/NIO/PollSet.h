@@ -4,13 +4,15 @@
 */
 #pragma once
 
-#include "Poco/Net/Socket.h"
 #include <map>
+
+#include <Poco/Net/Socket.h>
 
 
 using Poco::Net::Socket;
 
-namespace RK {
+namespace RK
+{
 
 class PollSetImpl;
 
@@ -25,7 +27,7 @@ class Net_API PollSet
 public:
     enum Mode
     {
-        POLL_READ  = 0x01,
+        POLL_READ = 0x01,
         POLL_WRITE = 0x02,
         POLL_ERROR = 0x04
     };
@@ -38,18 +40,18 @@ public:
     ~PollSet();
     /// Destroys the PollSet.
 
-    void add(const Poco::Net::Socket& socket, int mode);
+    void add(const Poco::Net::Socket & socket, int mode);
     /// Adds the given socket to the set, for polling with
     /// the given mode, which can be an OR'd combination of
     /// POLL_READ, POLL_WRITE and POLL_ERROR.
 
-    void remove(const Poco::Net::Socket& socket);
+    void remove(const Poco::Net::Socket & socket);
     /// Removes the given socket from the set.
 
-    void update(const Poco::Net::Socket& socket, int mode);
+    void update(const Poco::Net::Socket & socket, int mode);
     /// Updates the mode of the given socket.
 
-    bool has(const Socket& socket) const;
+    bool has(const Socket & socket) const;
     /// Returns true if socket is registered for polling.
 
     bool empty() const;
@@ -58,7 +60,7 @@ public:
     void clear();
     /// Removes all sockets from the PollSet.
 
-    SocketModeMap poll(const Poco::Timespan& timeout);
+    SocketModeMap poll(const Poco::Timespan & timeout);
     /// Waits until the state of at least one of the PollSet's sockets
     /// changes accordingly to its mode, or the timeout expires.
     /// Returns a PollMap containing the sockets that have had
@@ -72,10 +74,10 @@ public:
     /// On platforms/implementations where this functionality
     /// is not available, it does nothing.
 private:
-    PollSetImpl* _pImpl;
+    PollSetImpl * _pImpl;
 
-    PollSet(const PollSet&);
-    PollSet& operator = (const PollSet&);
+    PollSet(const PollSet &);
+    PollSet & operator=(const PollSet &);
 };
 
 
