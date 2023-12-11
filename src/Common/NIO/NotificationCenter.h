@@ -18,20 +18,17 @@
 #include <set>
 #include <vector>
 
-#include <Poco/AbstractObserver.h>
 #include <Poco/Foundation.h>
 #include <Poco/Mutex.h>
-#include <Poco/Notification.h>
 #include <Poco/SharedPtr.h>
 
+#include <Common/NIO/Observer.h>
 #include <Common/NIO/SocketNotification.h>
 
 
 namespace RK
 {
 
-
-class Foundation_API NotificationCenter
 /// A NotificationCenter is essentially a notification dispatcher.
 /// It notifies all observers of notifications meeting specific criteria.
 /// This information is encapsulated in Notification objects.
@@ -49,7 +46,7 @@ class Foundation_API NotificationCenter
 /// If an observer throws an exception while handling a notification, the NotificationCenter
 /// stops dispatching the notification and postNotification() rethrows the exception.
 ///
-/// In a multithreaded scenario, notifications are always delivered in the thread in which the
+/// In a multi-threaded scenario, notifications are always delivered in the thread in which the
 /// notification was posted, which may not be the same thread in which an observer registered itself.
 ///
 /// The NotificationCenter class is basically a C++ implementation of the NSNotificationCenter class
@@ -69,43 +66,39 @@ class Foundation_API NotificationCenter
 ///         ...
 ///     }
 ///
-/// Alternatively, the NObserver class template can be used to register a callback
+/// Alternatively, the Observer class template can be used to register a callback
 /// method. In this case, the callback method receives the Notification in an
 /// AutoPtr and thus does not have to deal with object ownership issues:
 ///     void MyClass::handleNotification(const AutoPtr<MyNotification>& pNf)
 ///     {
 ///         ...
 ///     }
+class NotificationCenter
 {
 public:
     using Mutex = Poco::Mutex;
-    using Notification = Poco::Notification;
-    using AbstractObserver = Poco::AbstractObserver;
 
     NotificationCenter() = default;
-    /// Creates the NotificationCenter.
 
     ~NotificationCenter() = default;
-    /// Destroys the NotificationCenter.
 
-    bool addObserverIfNotExist(const AbstractObserver & observer);
     /// Registers an observer with the NotificationCenter.
     /// Usage:
     ///     Observer<MyClass, MyNotification> obs(*this, &MyClass::handleNotification);
     ///     notificationCenter.addObserver(obs);
     ///
-    /// Alternatively, the NObserver template class can be used instead of Observer.
+    /// Alternatively, the Observer template class can be used instead of Observer.
+    bool addObserverIfNotExist(const AbstractObserver & observer);
 
-    bool removeObserverIfExist(const AbstractObserver & observer);
     /// Unregisters an observer with the NotificationCenter.
+    bool removeObserverIfExist(const AbstractObserver & observer);
 
-    bool hasObserver(const AbstractObserver & observer) const;
     /// Returns true if the observer is registered with this NotificationCenter.
+    bool hasObserver(const AbstractObserver & observer) const;
 
-    bool onlyHas(const AbstractObserver & observer) const;
     /// Returns true if only has the given observer
+    bool onlyHas(const AbstractObserver & observer) const;
 
-    void postNotification(Notification::Ptr pNotification);
     /// Posts a notification to the NotificationCenter.
     /// The NotificationCenter then delivers the notification
     /// to all interested observers.
@@ -116,26 +109,26 @@ public:
     /// a call like
     ///    notificationCenter.postNotification(new MyNotification);
     /// does not result in a memory leak.
+    void postNotification(Notification::Ptr pNotification);
 
-    bool hasObservers() const;
     /// Returns true iff there is at least one registered observer.
     ///
     /// Can be used to improve performance if an expensive notification
     /// shall only be created and posted if there are any observers.
+    bool hasObservers() const;
 
-    std::size_t countObservers() const;
     /// Returns the number of registered observers.
+    std::size_t countObservers() const;
 
-    bool accept(Poco::Notification * pNotification) const;
+    bool accept(Notification * pNotification) const;
 
 private:
     using AbstractObserverPtr = Poco::SharedPtr<AbstractObserver>;
-    using ObserverList = std::vector<AbstractObserverPtr>;
-    using EventSet = std::multiset<Poco::Notification *>;
+    using Observers = std::vector<AbstractObserverPtr>;
 
-    mutable Poco::Mutex _mutex;
+    mutable Poco::Mutex mutex;
     /// All observers
-    ObserverList _observers;
+    Observers observers;
 };
 
 

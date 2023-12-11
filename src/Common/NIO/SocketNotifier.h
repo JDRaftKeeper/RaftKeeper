@@ -5,13 +5,15 @@
 */
 #pragma once
 
-#include "Poco/Net/Net.h"
-#include "Poco/Net/Socket.h"
-#include "Poco/RefCountedObject.h"
-#include <Common/NIO/NotificationCenter.h>
-#include "Poco/Observer.h"
+#include <Poco/Net/Net.h>
+#include <Poco/Net/Socket.h>
+#include <Poco/RefCountedObject.h>
 
-namespace RK {
+#include <Common/NIO/NotificationCenter.h>
+#include <Common/NIO/Observer.h>
+
+namespace RK
+{
 
 class SocketReactor;
 class SocketNotification;
@@ -19,77 +21,76 @@ class SocketNotification;
 using Poco::Net::Socket;
 
 
-class Net_API SocketNotifier: public Poco::RefCountedObject
 /// This class is used internally by SocketReactor
 /// to notify registered event handlers of socket events.
+class Net_API SocketNotifier : public Poco::RefCountedObject
 {
 public:
-    explicit SocketNotifier(const Socket& socket);
     /// Creates the SocketNotifier for the given socket.
+    explicit SocketNotifier(const Socket & socket);
 
-    bool addObserverIfNotExist(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
     /// Adds the given observer.
+    bool addObserverIfNotExist(SocketReactor * reactor, const AbstractObserver & observer);
 
-    bool removeObserverIfExist(SocketReactor* pReactor, const Poco::AbstractObserver& observer);
     /// Removes the given observer.
+    bool removeObserverIfExist(SocketReactor * reactor, const AbstractObserver & observer);
 
-    bool hasObserver(const Poco::AbstractObserver& observer) const;
     /// Returns true if the given observer is registered.
+    bool hasObserver(const AbstractObserver & observer) const;
 
-    bool onlyHas(const Poco::AbstractObserver& observer) const;
     /// Returns true if only has the given observer
+    bool onlyHas(const AbstractObserver & observer) const;
 
-    bool accepts(SocketNotification* pNotification);
     /// Returns true if there is at least one observer for the given notification.
+    bool accepts(SocketNotification * pNotification);
 
-    void dispatch(SocketNotification* pNotification);
     /// Dispatches the notification to all observers.
+    void dispatch(SocketNotification * pNotification);
 
-    bool hasObservers() const;
     /// Returns true if there are subscribers.
+    [[maybe_unused]] bool hasObservers() const;
 
-    std::size_t countObservers() const;
     /// Returns the number of subscribers;
+    std::size_t countObservers() const;
 
 protected:
     ~SocketNotifier() override = default;
-    /// Destroys the SocketNotifier.
 
 private:
-    using MutexType =  Poco::FastMutex;
+    using MutexType = Poco::FastMutex;
     using ScopedLock = MutexType::ScopedLock;
 
-    NotificationCenter _nc;
-    Socket                   _socket;
+    NotificationCenter nc;
+    Socket socket;
 };
 
 
-inline bool SocketNotifier::accepts(SocketNotification* pNotification)
+inline bool SocketNotifier::accepts(SocketNotification * pNotification)
 {
-    return _nc.accept(pNotification);
+    return nc.accept(pNotification);
 }
 
 
-inline bool SocketNotifier::hasObserver(const Poco::AbstractObserver& observer) const
+inline bool SocketNotifier::hasObserver(const AbstractObserver & observer) const
 {
-    return _nc.hasObserver(observer);
+    return nc.hasObserver(observer);
 }
 
-inline bool SocketNotifier::onlyHas(const Poco::AbstractObserver& observer) const
+inline bool SocketNotifier::onlyHas(const AbstractObserver & observer) const
 {
-    return _nc.onlyHas(observer);
+    return nc.onlyHas(observer);
 }
 
 
-inline bool SocketNotifier::hasObservers() const
+[[maybe_unused]] inline bool SocketNotifier::hasObservers() const
 {
-    return _nc.hasObservers();
+    return nc.hasObservers();
 }
 
 
 inline std::size_t SocketNotifier::countObservers() const
 {
-    return _nc.countObservers();
+    return nc.countObservers();
 }
 
 

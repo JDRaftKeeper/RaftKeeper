@@ -3,44 +3,43 @@
 * SPDX-License-Identifier:	BSL-1.0
 *
 */
+#include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
 #include <Common/NIO/SocketReactor.h>
-#include <Common/NIO/SocketNotification.h>
 
 
-namespace RK {
+namespace RK
+{
 
-
-SocketNotifier::SocketNotifier(const Socket& socket):
-    _socket(socket)
+SocketNotifier::SocketNotifier(const Socket & socket_) : socket(socket_)
 {
 }
 
-bool SocketNotifier::addObserverIfNotExist(SocketReactor*, const Poco::AbstractObserver& observer)
+bool SocketNotifier::addObserverIfNotExist(SocketReactor *, const AbstractObserver & observer)
 {
-    return _nc.addObserverIfNotExist(observer);
+    return nc.addObserverIfNotExist(observer);
 }
 
 
-bool SocketNotifier::removeObserverIfExist(SocketReactor*, const Poco::AbstractObserver& observer)
+bool SocketNotifier::removeObserverIfExist(SocketReactor *, const AbstractObserver & observer)
 {
-    return _nc.removeObserverIfExist(observer);
+    return nc.removeObserverIfExist(observer);
 }
 
 
 namespace
 {
-    static Socket nullSocket;
+    Socket nullSocket;
 }
 
 
-void SocketNotifier::dispatch(SocketNotification* pNotification)
+void SocketNotifier::dispatch(SocketNotification * pNotification)
 {
-    pNotification->setSocket(_socket);
+    pNotification->setSocket(socket);
     pNotification->duplicate();
     try
     {
-        _nc.postNotification(pNotification);
+        nc.postNotification(pNotification);
     }
     catch (...)
     {
