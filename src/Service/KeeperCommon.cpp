@@ -7,7 +7,7 @@ namespace RK
 String ErrorRequest::toString() const
 {
     return fmt::format(
-        "#{}#xid#{} accepted:{} error_code:{}",
+        "#{}#{}#{} accepted:{} error_code:{}",
         toHexString(session_id),
         xid,
         Coordination::toString(opnum),
