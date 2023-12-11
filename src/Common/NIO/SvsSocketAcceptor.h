@@ -5,25 +5,27 @@
 */
 #pragma once
 
-#include <Poco/Net/StreamSocket.h>
-#include <Poco/Net/ServerSocket.h>
-#include <Poco/Environment.h>
-#include <Poco/NObserver.h>
-#include <Poco/SharedPtr.h>
 #include <vector>
 
-#include <Service/Context.h>
+#include <Poco/Environment.h>
+#include <Poco/Net/ServerSocket.h>
+#include <Poco/Net/StreamSocket.h>
+#include <Poco/SharedPtr.h>
+
+#include <Common/NIO/Observer.h>
 #include <Common/NIO/SvsSocketReactor.h>
 
+#include <Service/Context.h>
 
-using Poco::Net::Socket;
-using Poco::Net::ServerSocket;
-using Poco::Net::StreamSocket;
-using Poco::NObserver;
+
 using Poco::AutoPtr;
+using Poco::Net::ServerSocket;
+using Poco::Net::Socket;
+using Poco::Net::StreamSocket;
 
 
-namespace RK {
+namespace RK
+{
 
 template <class ServiceHandler, class SR>
 class SvsSocketAcceptor
@@ -43,7 +45,7 @@ public:
     using Observer = Poco::Observer<SvsSocketAcceptor, ReadableNotification>;
 
     explicit SvsSocketAcceptor(
-        const String& name, Context & keeper_context_, ServerSocket & socket, unsigned threads = Poco::Environment::processorCount())
+        const String & name, Context & keeper_context_, ServerSocket & socket, unsigned threads = Poco::Environment::processorCount())
         : name_(name), keeper_context(keeper_context_), socket_(socket), reactor_(nullptr), threads_(threads), next_(0)
     /// Creates a ParallelSocketAcceptor using the given ServerSocket,
     /// sets number of threads and populates the reactors vector.
@@ -52,19 +54,13 @@ public:
     }
 
     SvsSocketAcceptor(
-        const String& name,
+        const String & name,
         Context & keeper_context_,
         ServerSocket & socket,
         SocketReactor & reactor,
         const Poco::Timespan & timeout,
         unsigned threads = Poco::Environment::processorCount())
-        : name_(name)
-        , socket_(socket)
-        , reactor_(&reactor)
-        , threads_(threads)
-        , next_(0)
-        , keeper_context(keeper_context_)
-        , timeout_(timeout)
+        : name_(name), socket_(socket), reactor_(&reactor), threads_(threads), next_(0), keeper_context(keeper_context_), timeout_(timeout)
     /// Creates a ParallelSocketAcceptor using the given ServerSocket, sets the
     /// number of threads, populates the reactors vector and registers itself
     /// with the given SocketReactor.
@@ -90,13 +86,13 @@ public:
         }
     }
 
-    void setReactor(SocketReactor& reactor)
+    void setReactor(SocketReactor & reactor)
     /// Sets the reactor for this acceptor.
     {
         registerAcceptor(reactor);
     }
 
-    virtual void registerAcceptor(SocketReactor& reactor)
+    virtual void registerAcceptor(SocketReactor & reactor)
     /// Registers the ParallelSocketAcceptor with a SocketReactor.
     ///
     /// A subclass can override this function to e.g.
@@ -128,7 +124,7 @@ public:
         }
     }
 
-    void onAccept(ReadableNotification* pNotification)
+    void onAccept(ReadableNotification * pNotification)
     /// Accepts connection and creates event handler.
     /// TODO why wait a moment?  For when adding EventHandler it does not wake up register.
     /// and need register event? no
@@ -141,7 +137,7 @@ public:
 protected:
     using ReactorVec = std::vector<typename ParallelReactor::Ptr>;
 
-    virtual ServiceHandler* createServiceHandler(StreamSocket& socket)
+    virtual ServiceHandler * createServiceHandler(StreamSocket & socket)
     /// Create and initialize a new ServiceHandler instance.
     /// If socket is already registered with a reactor, the new
     /// ServiceHandler instance is given that reactor; otherwise,
@@ -151,19 +147,20 @@ protected:
     /// Subclasses can override this method.
     {
         socket.setBlocking(false);
-        SocketReactor* pReactor = reactor(socket);
+        SocketReactor * pReactor = reactor(socket);
         if (!pReactor)
         {
             std::size_t next = next_++;
-            if (next_ == reactors_.size()) next_ = 0;
+            if (next_ == reactors_.size())
+                next_ = 0;
             pReactor = reactors_[next];
         }
-        auto* ret = new ServiceHandler(keeper_context, socket, *pReactor);
+        auto * ret = new ServiceHandler(keeper_context, socket, *pReactor);
         pReactor->wakeUp();
         return ret;
     }
 
-    SocketReactor* reactor(const Socket& socket)
+    SocketReactor * reactor(const Socket & socket)
     /// Returns reactor where this socket is already registered
     /// for polling, if found; otherwise returns null pointer.
     {
@@ -171,12 +168,13 @@ protected:
         typename ReactorVec::iterator end = reactors_.end();
         for (; it != end; ++it)
         {
-            if ((*it)->has(socket)) return it->get();
+            if ((*it)->has(socket))
+                return it->get();
         }
         return nullptr;
     }
 
-    SocketReactor* reactor()
+    SocketReactor * reactor()
     /// Returns a pointer to the SocketReactor where
     /// this SocketAcceptor is registered.
     ///
@@ -185,7 +183,7 @@ protected:
         return reactor_;
     }
 
-    Socket& socket()
+    Socket & socket()
     /// Returns a reference to the SocketAcceptor's socket.
     {
         return socket_;
@@ -194,19 +192,19 @@ protected:
     void init()
     /// Populates the reactors vector.
     {
-        poco_assert (threads_ > 0);
+        poco_assert(threads_ > 0);
 
         for (unsigned i = 0; i < threads_; ++i)
             reactors_.push_back(new ParallelReactor(timeout_, name_ + "#" + std::to_string(i)));
     }
 
-    ReactorVec& reactors()
+    ReactorVec & reactors()
     /// Returns reference to vector of reactors.
     {
         return reactors_;
     }
 
-    SocketReactor* reactor(std::size_t idx)
+    SocketReactor * reactor(std::size_t idx)
     /// Returns reference to the reactor at position idx.
     {
         return reactors_.at(idx).get();
@@ -221,15 +219,15 @@ protected:
 private:
     SvsSocketAcceptor() = delete;
     SvsSocketAcceptor(const SvsSocketAcceptor &) = delete;
-    SvsSocketAcceptor & operator = (const SvsSocketAcceptor &) = delete;
+    SvsSocketAcceptor & operator=(const SvsSocketAcceptor &) = delete;
 
     String name_;
 
     ServerSocket socket_;
-    SocketReactor* reactor_;
+    SocketReactor * reactor_;
     unsigned threads_;
-    ReactorVec     reactors_;
-    std::size_t    next_;
+    ReactorVec reactors_;
+    std::size_t next_;
 
     Context & keeper_context;
     Poco::Timespan timeout_;
