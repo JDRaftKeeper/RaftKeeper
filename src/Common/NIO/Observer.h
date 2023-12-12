@@ -1,5 +1,8 @@
+/**
+* Copyright (c) 2005-2006, Applied Informatics Software Engineering GmbH. and Contributors.
+* SPDX-License-Identifier:	BSL-1.0
+*/
 #pragma once
-
 
 #include <Common/NIO/Notification.h>
 
@@ -12,15 +15,17 @@ class AbstractObserver
 {
 public:
     AbstractObserver() = default;
-    AbstractObserver(const AbstractObserver & observer) = default;
+    AbstractObserver(const AbstractObserver &) = default;
     virtual ~AbstractObserver() = default;
 
-    AbstractObserver & operator=(const AbstractObserver & observer) = default;
+    AbstractObserver & operator=(const AbstractObserver &) = default;
 
-    virtual void notify(Notification * nf) const = 0;
+    virtual void notify(const Notification & notification) const = 0;
+    virtual bool accepts(const Notification & notification) const = 0;
+
     virtual bool equals(const AbstractObserver & observer) const = 0;
-    virtual bool accepts(Notification * nf) const = 0;
     virtual AbstractObserver * clone() const = 0;
+
     virtual void disable() = 0;
 };
 
@@ -35,20 +40,19 @@ public:
 ///
 /// This class template is quite similar to the Observer class
 /// template. The only difference is that the Observer
-/// expects the callback function to accept a const AutoPtr&
+/// expects the callback function to accept a const std::shared_ptr&
 /// instead of a plain pointer as argument, thus simplifying memory
 /// management.
 template <class C, class N>
 class Observer : public AbstractObserver
 {
 public:
-    using NotificationPtr = Poco::AutoPtr<N>;
-    using Callback = void (C::*)(const NotificationPtr &);
+    using Callback = void (C::*)(const Notification &);
 
     Observer(C & object_, Callback method_) : object(&object_), method(method_) { }
     Observer(const Observer & observer) : AbstractObserver(observer), object(observer.object), method(observer.method) { }
 
-    ~Observer() = default;
+    ~Observer() override = default;
 
     Observer & operator=(const Observer & observer)
     {
@@ -60,34 +64,32 @@ public:
         return *this;
     }
 
-    void notify(Notification * nf) const
+    void notify(const Notification & notification) const override
     {
-        Poco::Mutex::ScopedLock lock(mutex);
-        if (object)
+        if (const N * casted = dynamic_cast<const N *>(&notification))
         {
-            N * casted = dynamic_cast<N *>(nf);
-            if (casted)
+            Poco::Mutex::ScopedLock lock(mutex);
+            if (object)
             {
-                NotificationPtr ptr(casted, true);
-                (object->*method)(ptr);
+                (object->*method)(*casted);
             }
         }
     }
 
-    bool equals(const AbstractObserver & other) const
+    bool equals(const AbstractObserver & other) const override
     {
         const Observer * casted = dynamic_cast<const Observer *>(&other);
         return casted && casted->object == object && casted->method == method;
     }
 
-    bool accepts(Notification * nf) const { return dynamic_cast<N *>(nf); }
+    bool accepts(const Notification & notification) const override { return dynamic_cast<const N *>(&notification); }
 
-    AbstractObserver * clone() const { return new Observer(*this); }
+    AbstractObserver * clone() const override { return new Observer(*this); }
 
-    void disable()
+    void disable() override
     {
         Poco::Mutex::ScopedLock lock(mutex);
-        object = 0;
+        object = nullptr;
     }
 
 private:

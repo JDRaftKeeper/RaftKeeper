@@ -9,8 +9,7 @@
 
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/NIO/SvsSocketAcceptor.h>
-#include <Common/NIO/SvsSocketReactor.h>
+#include <Common/NIO/SocketAcceptor.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
@@ -167,17 +166,17 @@ int Server::main(const std::vector<std::string> & /*args*/)
             socket.setBlocking(false);
 
             Poco::Timespan timeout(operation_timeout_ms * 1000);
-            server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-Acptr");
+            server = std::make_shared<AsyncSocketReactor>(timeout, "IO-Acptr");
 
             /// TODO add io thread count to config
-            conn_acceptor = std::make_shared<SvsSocketAcceptor<ConnectionHandler, SocketReactor>>(
-                "IO-Hdlr", global_context, socket, *server, timeout, cpu_core_size);
+            conn_acceptor
+                = std::make_shared<SocketAcceptor<ConnectionHandler>>("IO-Hdlr", global_context, socket, server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
         });
 
     /// start forwarding server
-    std::shared_ptr<SvsSocketReactor<SocketReactor>> forwarding_server;
-    std::shared_ptr<SvsSocketAcceptor<ForwardConnectionHandler, SocketReactor>> forwarding_conn_acceptor;
+    AsyncSocketReactorPtr forwarding_server;
+    std::shared_ptr<SocketAcceptor<ForwardConnectionHandler>> forwarding_conn_acceptor;
     int32_t forwarding_port = config().getInt("keeper.forwarding_port", 8102);
 
     createServer(
@@ -190,11 +189,11 @@ int Server::main(const std::vector<std::string> & /*args*/)
             socket.setBlocking(false);
 
             Poco::Timespan timeout(operation_timeout_ms * 1000);
-            forwarding_server = std::make_shared<SvsSocketReactor<SocketReactor>>(timeout, "IO-FwdAcptr");
+            forwarding_server = std::make_shared<AsyncSocketReactor>(timeout, "IO-FwdAcptr");
 
             /// TODO add io thread count to config
-            forwarding_conn_acceptor = std::make_shared<SvsSocketAcceptor<ForwardConnectionHandler, SocketReactor>>(
-                "IO-FwdHdlr", global_context, socket, *forwarding_server, timeout, cpu_core_size);
+            forwarding_conn_acceptor = std::make_shared<SocketAcceptor<ForwardConnectionHandler>>(
+                "IO-FwdHdlr", global_context, socket, forwarding_server, timeout, cpu_core_size);
             LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
         });
 

@@ -15,10 +15,13 @@
 #include <Poco/Util/ServerApplication.h>
 
 #include <Common/IO/WriteBufferFromString.h>
+#include <Common/NIO/SocketAcceptor.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketReactor.h>
-#include <Common/NIO/SvsSocketAcceptor.h>
-#include <Common/NIO/SvsSocketReactor.h>
+
+#include <Service/ConnCommon.h>
+#include <Service/ConnectionStats.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
 
 #include "ZooKeeper/ZooKeeperCommon.h"
 #include <Service/ConnCommon.h>
@@ -31,7 +34,6 @@ namespace RK
 {
 using Poco::Net::StreamSocket;
 
-using Poco::AutoPtr;
 using Poco::FIFOBuffer;
 using Poco::Logger;
 using Poco::Thread;
@@ -40,7 +42,7 @@ using Poco::Thread;
  * User connection handler with TCP protocol. It is a core class who process
  * Zookeeper network protocol and send it to dispatcher.
  *
- * We utilize a reactor network programming model. We allocate a handler for
+ * We utilize a getWorkerReactor network programming model. We allocate a handler for
  * every connection and ensure that every handler run in the same network thread.
  *
  * So there is no multi-thread issues.
@@ -65,11 +67,11 @@ public:
     ~ConnectionHandler();
 
     /// socket events: readable, writable, error
-    void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
-    void onSocketWritable(const AutoPtr<WritableNotification> & pNf);
+    void onSocketReadable(const Notification &);
+    void onSocketWritable(const Notification &);
 
-    void onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf);
-    void onSocketError(const AutoPtr<ErrorNotification> & pNf);
+    void onReactorShutdown(const Notification &);
+    void onSocketError(const Notification &);
 
     /// current connection statistics
     ConnectionStats getConnectionStats() const;

@@ -15,39 +15,28 @@ SocketNotifier::SocketNotifier(const Socket & socket_) : socket(socket_)
 {
 }
 
-bool SocketNotifier::addObserverIfNotExist(SocketReactor *, const AbstractObserver & observer)
+bool SocketNotifier::addObserverIfNotExist(const AbstractObserver & observer)
 {
     return nc.addObserverIfNotExist(observer);
 }
 
 
-bool SocketNotifier::removeObserverIfExist(SocketReactor *, const AbstractObserver & observer)
+bool SocketNotifier::removeObserverIfExist(const AbstractObserver & observer)
 {
     return nc.removeObserverIfExist(observer);
 }
 
 
-namespace
+void SocketNotifier::dispatch(const Notification & notification)
 {
-    Socket nullSocket;
-}
-
-
-void SocketNotifier::dispatch(SocketNotification * pNotification)
-{
-    pNotification->setSocket(socket);
-    pNotification->duplicate();
     try
     {
-        nc.postNotification(pNotification);
+        nc.postNotification(notification);
     }
     catch (...)
     {
-        pNotification->setSocket(nullSocket);
         throw;
     }
-    pNotification->setSocket(nullSocket);
 }
-
 
 }
