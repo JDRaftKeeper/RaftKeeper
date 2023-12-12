@@ -27,7 +27,6 @@ namespace RK
 {
 using Poco::Net::StreamSocket;
 
-using Poco::AutoPtr;
 using Poco::FIFOBuffer;
 using Poco::Logger;
 using Poco::Thread;
@@ -91,8 +90,8 @@ private:
     void processUserOrSessionRequest(ForwardRequestPtr request);
     void processSyncSessionsRequest(ForwardRequestPtr request);
 
-    // The connection is stale and need destroyed
-    bool need_destroy;
+    /// The connection is stale and need destroyed
+    std::atomic<bool> need_destroy;
 };
 
 }

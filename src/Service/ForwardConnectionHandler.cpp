@@ -20,8 +20,9 @@ ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, St
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
     , responses(std::make_unique<ThreadSafeResponseQueue>())
+    , need_destroy(false)
 {
-    LOG_INFO(log, "New forwarding connection from {}", sock.peerAddress().toString());
+    LOG_INFO(log, "New forward connection from {}", sock.peerAddress().toString());
 
     auto read_handler = Observer<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable);
     auto error_handler = Observer<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError);
@@ -33,8 +34,6 @@ ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, St
     handlers.push_back(&error_handler);
     handlers.push_back(&shutdown_handler);
     reactor.addEventHandlers(sock, handlers);
-
-    need_destroy = false;
 }
 
 ForwardConnectionHandler::~ForwardConnectionHandler()
