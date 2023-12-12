@@ -7,7 +7,6 @@
 #include <mutex>
 #include <optional>
 #include <thread>
-#include <Poco/AutoPtr.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <common/types.h>
 

@@ -1,14 +1,12 @@
 /**
 * Copyright (c) 2005-2006, Applied Informatics Software Engineering GmbH. and Contributors.
 * SPDX-License-Identifier:	BSL-1.0
-*
 */
 #pragma once
 
 #include <atomic>
 #include <map>
 
-#include <Poco/AutoPtr.h>
 #include <Poco/Net/Net.h>
 #include <Poco/Net/Socket.h>
 #include <Poco/Runnable.h>
@@ -19,15 +17,15 @@
 #include <Common/NIO/PollSet.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
+#include <Common/setThreadName.h>
 
 
-using Poco::AutoPtr;
 using Poco::Net::Socket;
 
 namespace RK
 {
 
-/// This class, which is part of the Reactor pattern,
+/// This class, which is the core of the Reactor pattern,
 /// implements the "Initiation Dispatcher".
 ///
 /// The Reactor pattern has been described in the book
@@ -41,18 +39,6 @@ namespace RK
 /// handler is responsible for servicing service-specific requests.
 /// The SocketReactor dispatches the event handlers.
 ///
-/// Event handlers (any class can be an event handler - there
-/// is no base class for event handlers) can be registered
-/// with the addEventHandler() method and deregistered with
-/// the removeEventHandler() method.
-///
-/// An event handler is always registered for a certain socket,
-/// which is given in the call to addEventHandler(). Any method
-/// of the event handler class can be registered to handle the
-/// event - the only requirement is that the method takes
-/// a pointer to an instance of SocketNotification (or a subclass of it)
-/// as argument.
-///
 /// Once started, the SocketReactor waits for events
 /// on the registered sockets, using PollSet.
 /// If an event is detected, the corresponding event handler
@@ -60,41 +46,6 @@ namespace RK
 /// notification classes) defined: ReadableNotification, WritableNotification,
 /// ErrorNotification, TimeoutNotification, IdleNotification and
 /// ShutdownNotification.
-///
-/// The ReadableNotification will be dispatched if a socket becomes
-/// readable. The WritableNotification will be dispatched if a socket
-/// becomes writable. The ErrorNotification will be dispatched if
-/// there is an error condition on a socket.
-///
-/// If the timeout expires and no event has occurred, a
-/// TimeoutNotification will be dispatched to all event handlers
-/// registered for it. This is done in the onTimeout() method
-/// which can be overridden by subclasses to perform custom
-/// timeout processing.
-///
-/// If there are no sockets for the SocketReactor to pass to
-/// PollSet, an IdleNotification will be dispatched to
-/// all event handlers registered for it. This is done in the
-/// onIdle() method which can be overridden by subclasses
-/// to perform custom idle processing. Since onIdle() will be
-/// called repeatedly in a loop, it is recommended to do a
-/// short sleep or yield in the event handler.
-///
-/// Finally, when the SocketReactor is about to shut down (as a result
-/// of stop() being called), it dispatches a ShutdownNotification
-/// to all event handlers. This is done in the onShutdown() method
-/// which can be overridden by subclasses to perform custom
-/// shutdown processing.
-///
-/// The SocketReactor is implemented so that it can
-/// run in its own thread. It is also possible to run
-/// multiple SocketReactors in parallel, as long as
-/// they work on different sockets.
-///
-/// It is safe to call addEventHandler() and removeEventHandler()
-/// from another thread while the SocketReactor is running. Also,
-/// it is safe to call addEventHandler() and removeEventHandler()
-/// from event handlers.
 class SocketReactor : public Poco::Runnable
 {
 public:
@@ -129,82 +80,70 @@ public:
     /// Registers an event handler with the SocketReactor.
     ///
     /// Usage:
-    ///     Poco::Observer<MyEventHandler, SocketNotification> obs(*this, &MyEventHandler::handleMyEvent);
-    ///     reactor.addEventHandler(obs);
+    ///     Observer<MyEventHandler, MyNotification> obs(*this, &MyEventHandler::handleMyEvent);
+    ///     getWorkerReactor.addEventHandler(obs);
     void addEventHandlers(const Socket & socket, const std::vector<AbstractObserver *> & observers);
 
     /// Returns true if the observer is registered with SocketReactor for the given socket.
-    bool hasEventHandler(const Socket & socket, const AbstractObserver & observer);
+    [[maybe_unused]] bool hasEventHandler(const Socket & socket, const AbstractObserver & observer);
 
     /// Unregisters an event handler with the SocketReactor.
     ///
     /// Usage:
-    ///     Poco::Observer<MyEventHandler, SocketNotification> obs(*this, &MyEventHandler::handleMyEvent);
-    ///     reactor.removeEventHandler(obs);
+    ///     Observer<MyEventHandler, MyNotification> obs(*this, &MyEventHandler::handleMyEvent);
+    ///     getWorkerReactor.removeEventHandler(obs);
     void removeEventHandler(const Socket & socket, const AbstractObserver & observer);
 
     /// Returns true if socket is registered with this rector.
     bool has(const Socket & socket) const;
 
 protected:
-    /// Called if the timeout expires and no other events are available.
-    ///
-    /// Can be overridden by subclasses. The default implementation
-    /// dispatches the TimeoutNotification and thus should be called by overriding
-    /// implementations.
+    /// Called if the timeout expires and no readable events are available.
     virtual void onTimeout();
 
-    /// Called if no sockets are available to call select() on.
-    ///
-    /// Can be overridden by subclasses. The default implementation
-    /// dispatches the IdleNotification and thus should be called by overriding
-    /// implementations.
+    /// Called if no sockets are available.
     virtual void onIdle();
 
-    virtual void onShutdown();
     /// Called when the SocketReactor is about to terminate.
-    ///
-    /// Can be overridden by subclasses. The default implementation
-    /// dispatches the ShutdownNotification and thus should be called by overriding
-    /// implementations.
+    virtual void onShutdown();
 
     /// Called when the SocketReactor is busy and at least one notification
     /// has been dispatched.
-    ///
-    /// Can be overridden by subclasses to perform additional
-    /// periodic tasks. The default implementation does nothing.
     virtual void onBusy();
 
-    /// Dispatches the given notification to all observers
-    /// registered for the given socket.
-    void dispatch(const Socket & socket, SocketNotification * pNotification);
+    /// Dispatches the given notification to observers which are registered for the given socket.
+    void dispatch(const Socket & socket, const Notification & notification);
 
     /// Dispatches the given notification to all observers.
-    void dispatch(SocketNotification * pNotification);
+    void dispatch(const Notification & notification);
 
 private:
-    using NotifierPtr = Poco::AutoPtr<SocketNotifier>;
-    using NotificationPtr = Poco::AutoPtr<SocketNotification>;
-    using EventHandlerMap = std::map<poco_socket_t, NotifierPtr>;
+    using SocketNotifierMap = std::map<poco_socket_t, SocketNotifierPtr>;
+
     using MutexType = Poco::FastMutex;
     using ScopedLock = MutexType::ScopedLock;
 
+    void sleep();
+
+    static void dispatch(SocketNotifierPtr & pNotifier, const Notification & notification);
+
     bool hasSocketHandlers();
 
-    void sleep();
-    void dispatch(NotifierPtr & pNotifier, SocketNotification * pNotification);
-
-    NotifierPtr getNotifier(const Socket & socket, bool makeNew = false);
+    SocketNotifierPtr getNotifier(const Socket & socket, bool makeNew = false);
 
     enum
     {
         DEFAULT_TIMEOUT = 250000
     };
 
-    std::atomic<bool> stopped;
+    ///
     Poco::Timespan timeout;
-    EventHandlerMap handlers;
+    std::atomic<bool> stopped;
+
+    SocketNotifierMap notifiers;
     PollSet poll_set;
+
+    /// Notifications which will dispatched to observers
     NotificationPtr rnf;
     NotificationPtr wnf;
     NotificationPtr enf;
@@ -214,9 +153,28 @@ private:
 
     MutexType mutex;
     Poco::Event event;
-
-    friend class SocketNotifier;
 };
 
+
+/// SocketReactor which run asynchronously.
+class AsyncSocketReactor : public SocketReactor
+{
+public:
+    explicit AsyncSocketReactor(const std::string & name = "");
+    explicit AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name = "");
+
+    ~AsyncSocketReactor() override;
+
+protected:
+    void onIdle() override;
+
+private:
+    void start(const std::string & name);
+    Poco::Thread thread;
+};
+
+
+using SocketReactorPtr = std::shared_ptr<SocketReactor>;
+using AsyncSocketReactorPtr = std::shared_ptr<AsyncSocketReactor>;
 
 }

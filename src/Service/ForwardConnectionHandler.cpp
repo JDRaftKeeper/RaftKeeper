@@ -12,8 +12,6 @@
 namespace RK
 {
 
-using Poco::NObserver;
-
 
 ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_)
     : log(&Logger::get("ForwardConnectionHandler"))
@@ -25,12 +23,12 @@ ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, St
 {
     LOG_INFO(log, "New forwarding connection from {}", sock.peerAddress().toString());
 
-    auto read_handler = NObserver<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable);
-    auto error_handler = NObserver<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError);
+    auto read_handler = Observer<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable);
+    auto error_handler = Observer<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError);
     auto shutdown_handler
-        = NObserver<ForwardConnectionHandler, ShutdownNotification>(*this, &ForwardConnectionHandler::onReactorShutdown);
+        = Observer<ForwardConnectionHandler, ShutdownNotification>(*this, &ForwardConnectionHandler::onReactorShutdown);
 
-    std::vector<Poco::AbstractObserver *> handlers;
+    std::vector<AbstractObserver *> handlers;
     handlers.push_back(&read_handler);
     handlers.push_back(&error_handler);
     handlers.push_back(&shutdown_handler);
@@ -44,20 +42,20 @@ ForwardConnectionHandler::~ForwardConnectionHandler()
     try
     {
         reactor.removeEventHandler(
-            sock, NObserver<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable));
+            sock, Observer<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable));
         reactor.removeEventHandler(
-            sock, NObserver<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
+            sock, Observer<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
         reactor.removeEventHandler(
-            sock, NObserver<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError));
+            sock, Observer<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError));
         reactor.removeEventHandler(
-            sock, NObserver<ForwardConnectionHandler, ShutdownNotification>(*this, &ForwardConnectionHandler::onReactorShutdown));
+            sock, Observer<ForwardConnectionHandler, ShutdownNotification>(*this, &ForwardConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
     }
 }
 
-void ForwardConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /*pNf*/)
+void ForwardConnectionHandler::onSocketReadable(const Notification &)
 {
     try
     {
@@ -261,7 +259,7 @@ void ForwardConnectionHandler::processHandshake()
     keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
 }
 
-void ForwardConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
+void ForwardConnectionHandler::onSocketWritable(const Notification &)
 {
     LOG_TRACE(log, "Forwarder socket writable");
 
@@ -278,7 +276,7 @@ void ForwardConnectionHandler::onSocketWritable(const AutoPtr<WritableNotificati
                     LOG_TRACE(log, "Remove socket writable event handler");
                     reactor.removeEventHandler(
                         sock,
-                        NObserver<ForwardConnectionHandler, WritableNotification>(
+                        Observer<ForwardConnectionHandler, WritableNotification>(
                             *this, &ForwardConnectionHandler::onSocketWritable));
                 }
             }
@@ -358,13 +356,13 @@ void ForwardConnectionHandler::onSocketWritable(const AutoPtr<WritableNotificati
     }
 }
 
-void ForwardConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & /*pNf*/)
+void ForwardConnectionHandler::onReactorShutdown(const Notification &)
 {
     LOG_INFO(log, "Reactor shutdown!");
     destroyMe();
 }
 
-void ForwardConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
+void ForwardConnectionHandler::onSocketError(const Notification &)
 {
     destroyMe();
 }
@@ -388,10 +386,10 @@ void ForwardConnectionHandler::sendResponse(ForwardResponsePtr response)
         responses->push(buf.getBuffer());
         /// Trigger socket writable event
         reactor.addEventHandler(
-            sock, NObserver<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
+            sock, Observer<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
     }
 
-    /// We must wake up reactor to interrupt it's sleeping.
+    /// We must wake up getWorkerReactor to interrupt it's sleeping.
     reactor.wakeUp();
 }
 
