@@ -27,8 +27,8 @@ SocketReactor::SocketReactor() : SocketReactor(DEFAULT_TIMEOUT)
 
 
 SocketReactor::SocketReactor(const Poco::Timespan & timeout_)
-    : stopped(false)
-    , timeout(timeout_)
+    : timeout(timeout_)
+    , stopped(false)
     , rnf(new ReadableNotification(this))
     , wnf(new WritableNotification(this))
     , enf(new ErrorNotification(this))
@@ -54,35 +54,39 @@ void SocketReactor::run()
             {
                 bool readable = false;
                 PollSet::SocketModeMap sm = poll_set.poll(timeout);
+
                 if (!sm.empty())
                 {
                     onBusy();
-                    PollSet::SocketModeMap::iterator it = sm.begin();
-                    PollSet::SocketModeMap::iterator end = sm.end();
-                    for (; it != end; ++it)
+                    for (auto & socket_and_events : sm)
                     {
-                        if (it->second & PollSet::POLL_READ)
+                        if (socket_and_events.second & PollSet::POLL_READ)
                         {
-                            dispatch(it->first, rnf);
+                            dispatch(socket_and_events.first, *rnf);
                             readable = true;
                         }
-                        if (it->second & PollSet::POLL_WRITE)
-                            dispatch(it->first, wnf);
-                        if (it->second & PollSet::POLL_ERROR)
-                            dispatch(it->first, enf);
+                        if (socket_and_events.second & PollSet::POLL_WRITE)
+                        {
+                            dispatch(socket_and_events.first, *wnf);
+                        }
+                        if (socket_and_events.second & PollSet::POLL_ERROR)
+                        {
+                            dispatch(socket_and_events.first, *enf);
+                        }
                     }
                 }
+
                 if (!readable)
                     onTimeout();
             }
         }
-        catch (Exception & exc)
+        catch (Exception & e)
         {
-            ErrorHandler::handle(exc);
+            ErrorHandler::handle(e);
         }
-        catch (std::exception & exc)
+        catch (std::exception & e)
         {
-            ErrorHandler::handle(exc);
+            ErrorHandler::handle(e);
         }
         catch (...)
         {
@@ -95,12 +99,12 @@ void SocketReactor::run()
 
 bool SocketReactor::hasSocketHandlers()
 {
-    if (!poll_set.empty())
+    ScopedLock lock(mutex);
+    if (!notifiers.empty())
     {
-        ScopedLock lock(mutex);
-        for (auto & p : handlers)
+        for (auto & p : notifiers)
         {
-            if (p.second->accepts(rnf) || p.second->accepts(wnf) || p.second->accepts(enf))
+            if (p.second->accepts(*rnf) || p.second->accepts(*wnf) || p.second->accepts(*enf))
                 return true;
         }
     }
@@ -143,15 +147,15 @@ const Poco::Timespan & SocketReactor::getTimeout() const
 
 void SocketReactor::addEventHandler(const Socket & socket, const AbstractObserver & observer)
 {
-    NotifierPtr notifier = getNotifier(socket, true);
-    if (notifier->addObserverIfNotExist(this, observer))
+    SocketNotifierPtr notifier = getNotifier(socket, true);
+    if (notifier->addObserverIfNotExist(observer))
     {
         int mode = 0;
-        if (notifier->accepts(rnf))
+        if (notifier->accepts(*rnf))
             mode |= PollSet::POLL_READ;
-        if (notifier->accepts(wnf))
+        if (notifier->accepts(*wnf))
             mode |= PollSet::POLL_WRITE;
-        if (notifier->accepts(enf))
+        if (notifier->accepts(*enf))
             mode |= PollSet::POLL_ERROR;
         if (mode)
             poll_set.add(socket, mode);
@@ -160,18 +164,18 @@ void SocketReactor::addEventHandler(const Socket & socket, const AbstractObserve
 
 void SocketReactor::addEventHandlers(const Socket & socket, const std::vector<AbstractObserver *> & observers)
 {
-    NotifierPtr notifier = getNotifier(socket, true);
+    SocketNotifierPtr notifier = getNotifier(socket, true);
 
     int mode = 0;
     for (auto * observer : observers)
     {
-        notifier->addObserverIfNotExist(this, *observer);
+        notifier->addObserverIfNotExist(*observer);
 
-        if (notifier->accepts(rnf))
+        if (notifier->accepts(*rnf))
             mode |= PollSet::POLL_READ;
-        if (notifier->accepts(wnf))
+        if (notifier->accepts(*wnf))
             mode |= PollSet::POLL_WRITE;
-        if (notifier->accepts(enf))
+        if (notifier->accepts(*enf))
             mode |= PollSet::POLL_ERROR;
     }
     if (mode)
@@ -179,9 +183,9 @@ void SocketReactor::addEventHandlers(const Socket & socket, const std::vector<Ab
 }
 
 
-bool SocketReactor::hasEventHandler(const Socket & socket, const AbstractObserver & observer)
+[[maybe_unused]] bool SocketReactor::hasEventHandler(const Socket & socket, const AbstractObserver & observer)
 {
-    NotifierPtr notifier = getNotifier(socket);
+    SocketNotifierPtr notifier = getNotifier(socket);
     if (!notifier)
         return false;
     if (notifier->hasObserver(observer))
@@ -190,19 +194,20 @@ bool SocketReactor::hasEventHandler(const Socket & socket, const AbstractObserve
 }
 
 
-SocketReactor::NotifierPtr SocketReactor::getNotifier(const Socket & socket, bool makeNew)
+SocketNotifierPtr SocketReactor::getNotifier(const Socket & socket, bool makeNew)
 {
     const SocketImpl * impl = socket.impl();
     if (impl == nullptr)
         return nullptr;
+
     poco_socket_t sock_fd = impl->sockfd();
     ScopedLock lock(mutex);
 
-    EventHandlerMap::iterator it = handlers.find(sock_fd);
-    if (it != handlers.end())
+    SocketNotifierMap::iterator it = notifiers.find(sock_fd);
+    if (it != notifiers.end())
         return it->second;
     else if (makeNew)
-        return (handlers[sock_fd] = new SocketNotifier(socket));
+        return (notifiers[sock_fd] = std::make_shared<SocketNotifier>(socket));
 
     return nullptr;
 }
@@ -214,31 +219,31 @@ void SocketReactor::removeEventHandler(const Socket & socket, const AbstractObse
     if (impl == nullptr)
         return;
 
-    NotifierPtr notifier;
+    SocketNotifierPtr notifier;
     {
         ScopedLock lock(mutex);
-        EventHandlerMap::iterator it = handlers.find(impl->sockfd());
-        if (it != handlers.end())
+        SocketNotifierMap::iterator it = notifiers.find(impl->sockfd());
+        if (it != notifiers.end())
             notifier = it->second;
 
         if (notifier && notifier->onlyHas(observer))
         {
-            handlers.erase(impl->sockfd());
+            notifiers.erase(impl->sockfd());
             poll_set.remove(socket);
         }
     }
 
     if (notifier)
     {
-        notifier->removeObserverIfExist(this, observer);
-        if (notifier->countObservers() > 0 && socket.impl()->sockfd() > 0)
+        notifier->removeObserverIfExist(observer);
+        if (notifier->size() > 0 && socket.impl()->sockfd() > 0)
         {
             int mode = 0;
-            if (notifier->accepts(rnf))
+            if (notifier->accepts(*rnf))
                 mode |= PollSet::POLL_READ;
-            if (notifier->accepts(wnf))
+            if (notifier->accepts(*wnf))
                 mode |= PollSet::POLL_WRITE;
-            if (notifier->accepts(enf))
+            if (notifier->accepts(*enf))
                 mode |= PollSet::POLL_ERROR;
             poll_set.update(socket, mode);
         }
@@ -254,19 +259,19 @@ bool SocketReactor::has(const Socket & socket) const
 
 void SocketReactor::onTimeout()
 {
-    dispatch(tnf);
+    dispatch(*tnf);
 }
 
 
 void SocketReactor::onIdle()
 {
-    dispatch(inf);
+    dispatch(*inf);
 }
 
 
 void SocketReactor::onShutdown()
 {
-    dispatch(snf);
+    dispatch(*snf);
 }
 
 
@@ -275,44 +280,44 @@ void SocketReactor::onBusy()
 }
 
 
-void SocketReactor::dispatch(const Socket & socket, SocketNotification * pNotification)
+void SocketReactor::dispatch(const Socket & socket, const Notification & notification)
 {
-    NotifierPtr notifier = getNotifier(socket);
+    SocketNotifierPtr notifier = getNotifier(socket);
     if (!notifier)
         return;
-    dispatch(notifier, pNotification);
+    dispatch(notifier, notification);
 }
 
 
-void SocketReactor::dispatch(SocketNotification * pNotification)
+void SocketReactor::dispatch(const Notification & notification)
 {
-    std::vector<NotifierPtr> delegates;
+    std::vector<SocketNotifierPtr> copied;
     {
         ScopedLock lock(mutex);
-        delegates.reserve(handlers.size());
-        for (auto & handler : handlers)
-            delegates.push_back(handler.second);
+        copied.reserve(notifiers.size());
+        for (auto & notifier : notifiers)
+            copied.push_back(notifier.second);
     }
-    for (auto & delegate : delegates)
+    for (auto & notifier : copied)
     {
-        dispatch(delegate, pNotification);
+        dispatch(notifier, notification);
     }
 }
 
 
-void SocketReactor::dispatch(NotifierPtr & notifier, SocketNotification * pNotification)
+void SocketReactor::dispatch(SocketNotifierPtr & notifier, const Notification & notification)
 {
     try
     {
-        notifier->dispatch(pNotification);
+        notifier->dispatch(notification);
     }
-    catch (Exception & exc)
+    catch (Exception & e)
     {
-        ErrorHandler::handle(exc);
+        ErrorHandler::handle(e);
     }
-    catch (std::exception & exc)
+    catch (std::exception & e)
     {
-        ErrorHandler::handle(exc);
+        ErrorHandler::handle(e);
     }
     catch (...)
     {
@@ -320,5 +325,43 @@ void SocketReactor::dispatch(NotifierPtr & notifier, SocketNotification * pNotif
     }
 }
 
+
+AsyncSocketReactor::AsyncSocketReactor(const std::string & name)
+{
+    start(name);
+}
+
+AsyncSocketReactor::AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name) : SocketReactor(timeout)
+{
+    start(name);
+}
+
+void AsyncSocketReactor::start(const std::string & name)
+{
+    thread.start(*this);
+    if (!name.empty())
+    {
+        thread.setName(name);
+        setThreadName(name.c_str());
+    }
+}
+
+AsyncSocketReactor::~AsyncSocketReactor()
+{
+    try
+    {
+        this->stop();
+        thread.join();
+    }
+    catch (...)
+    {
+    }
+}
+
+void AsyncSocketReactor::onIdle()
+{
+    SocketReactor::onIdle();
+    Poco::Thread::yield();
+}
 
 }

@@ -1,7 +1,6 @@
 /**
 * Copyright (c) 2005-2006, Applied Informatics Software Engineering GmbH. and Contributors.
 * SPDX-License-Identifier:	BSL-1.0
-*
 */
 #pragma once
 
@@ -9,6 +8,7 @@
 #include <Poco/Net/Socket.h>
 
 #include <Common/NIO/Notification.h>
+#include <Common/NIO/SocketReactor.h>
 
 using Poco::Net::Socket;
 
@@ -25,16 +25,14 @@ public:
     explicit SocketNotification(SocketReactor * reactor_) : reactor(reactor_) { }
     virtual ~SocketNotification() override = default;
 
-    SocketReactor & source() const;
-    Socket socket() const;
+    [[maybe_unused]] SocketReactorPtr getSocketReactor() const;
+    [[maybe_unused]] Socket getSocket() const;
 
 private:
-    void setSocket(const Socket & target);
+    [[maybe_unused]] void setSocket(const Socket & socket_);
 
-    SocketReactor * reactor;
-    Socket socket_;
-
-    friend class SocketNotifier;
+    SocketReactorPtr reactor;
+    Socket socket;
 };
 
 /// This notification is sent if a socket has become readable.
@@ -88,21 +86,28 @@ public:
     ~ShutdownNotification() override = default;
 };
 
+using SocketNotificationPtr [[maybe_unused]] = std::shared_ptr<SocketNotification>;
+using ReadableNotificationPtr [[maybe_unused]] = std::shared_ptr<ReadableNotification>;
+using WritableNotificationPtr [[maybe_unused]] = std::shared_ptr<WritableNotification>;
+using ErrorNotificationPtr [[maybe_unused]] = std::shared_ptr<ErrorNotification>;
+using TimeoutNotificationPtr [[maybe_unused]] = std::shared_ptr<TimeoutNotification>;
+using IdleNotificationPtr [[maybe_unused]] = std::shared_ptr<IdleNotification>;
+using ShutdownNotificationPtr [[maybe_unused]] = std::shared_ptr<ShutdownNotification>;
 
-inline SocketReactor & SocketNotification::source() const
+[[maybe_unused]] [[maybe_unused]] inline SocketReactorPtr SocketNotification::getSocketReactor() const
 {
-    return *reactor;
+    return reactor;
 }
 
 
-inline Socket SocketNotification::socket() const
+[[maybe_unused]] inline Socket SocketNotification::getSocket() const
 {
-    return socket_;
+    return socket;
 }
 
-inline void SocketNotification::setSocket(const Socket & target)
+[[maybe_unused]] inline void SocketNotification::setSocket(const Socket & socket_)
 {
-    socket_ = target;
+    socket = socket_;
 }
 
 

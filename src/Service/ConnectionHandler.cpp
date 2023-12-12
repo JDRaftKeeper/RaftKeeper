@@ -81,11 +81,11 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     LOG_DEBUG(log, "New connection from {}", peer);
     registerConnection(this);
 
-    auto read_handler = NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
-    auto error_handler = NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError);
-    auto shutdown_handler = NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown);
+    auto read_handler = Observer<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
+    auto error_handler = Observer<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError);
+    auto shutdown_handler = Observer<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown);
 
-    std::vector<Poco::AbstractObserver *> handlers;
+    std::vector<AbstractObserver *> handlers;
     handlers.push_back(&read_handler);
     handlers.push_back(&error_handler);
     handlers.push_back(&shutdown_handler);
@@ -99,17 +99,17 @@ ConnectionHandler::~ConnectionHandler()
         LOG_INFO(log, "Disconnecting peer {}#{}", peer, toHexString(session_id.load()));
         unregisterConnection(this);
 
-        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
-        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
-        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
-        reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
+        reactor.removeEventHandler(sock, Observer<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
+        reactor.removeEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        reactor.removeEventHandler(sock, Observer<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError));
+        reactor.removeEventHandler(sock, Observer<ConnectionHandler, ShutdownNotification>(*this, &ConnectionHandler::onReactorShutdown));
     }
     catch (...)
     {
     }
 }
 
-void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /*pNf*/)
+void ConnectionHandler::onSocketReadable(const Notification &)
 {
     try
     {
@@ -248,7 +248,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
     }
 }
 
-void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
+void ConnectionHandler::onSocketWritable(const Notification &)
 {
     LOG_TRACE(log, "Peer {}#{} is writable", peer, toHexString(session_id.load()));
 
@@ -264,7 +264,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
                 {
                     LOG_TRACE(log, "Remove socket writable event handler for peer {}", peer);
                     reactor.removeEventHandler(
-                        sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+                        sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
                 }
             }
         }
@@ -350,13 +350,13 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
     }
 }
 
-void ConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & /*pNf*/)
+void ConnectionHandler::onReactorShutdown(const Notification &)
 {
-    LOG_INFO(log, "Reactor shutdown!");
+    LOG_INFO(log, "Reactor of peer {} shutdown!", peer);
     destroyMe();
 }
 
-void ConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
+void ConnectionHandler::onSocketError(const Notification &)
 {
     LOG_WARNING(log, "Socket error for peer {}#{}, errno {} !", peer, toHexString(session_id.load()), errno);
     destroyMe();
@@ -661,10 +661,10 @@ void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKe
         }
 
         /// Trigger socket writable event
-        reactor.addEventHandler(sock, NObserver<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
     }
 
-    /// We must wake up reactor to interrupt it's sleeping.
+    /// We must wake up getWorkerReactor to interrupt it's sleeping.
     reactor.wakeUp();
 }
 

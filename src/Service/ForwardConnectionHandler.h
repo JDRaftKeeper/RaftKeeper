@@ -14,13 +14,12 @@
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
 
+#include <Common/NIO/SocketAcceptor.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketReactor.h>
-#include <Common/NIO/SvsSocketAcceptor.h>
-#include <Common/NIO/SvsSocketReactor.h>
 
 #include <Service/ConnCommon.h>
-#include <Service/ForwardConnection.h>
+#include <Service/ForwardingConnection.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 
 
@@ -42,13 +41,12 @@ public:
     ForwardConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_);
     ~ForwardConnectionHandler();
 
-    void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
-    void onSocketWritable(const AutoPtr<WritableNotification> & pNf);
-    void onReactorShutdown(const AutoPtr<ShutdownNotification> & pNf);
-    void onSocketError(const AutoPtr<ErrorNotification> & pNf);
+    void onSocketReadable(const Notification &);
+    void onSocketWritable(const Notification &);
+    void onReactorShutdown(const Notification &);
+    void onSocketError(const Notification &);
 
 private:
-
     void sendResponse(ForwardResponsePtr response);
 
     /// destroy connection
