@@ -9,20 +9,17 @@
 #include <Poco/Net/Socket.h>
 
 
-using Poco::Net::Socket;
-
 namespace RK
 {
 
+using Socket = Poco::Net::Socket;
 class PollSetImpl;
 
-
-class Net_API PollSet
 /// A set of sockets that can be efficiently polled as a whole.
 ///
-/// If supported, PollSet is implemented using epoll (Linux) or
-/// poll (BSD) APIs. A fallback implementation using select()
-/// is also provided.
+/// PollSet is implemented using epoll (Linux) or poll (BSD) APIs.
+/// A fallback implementation using select() is also provided.
+class PollSet
 {
 public:
     enum Mode
@@ -35,46 +32,40 @@ public:
     using SocketModeMap = std::map<Poco::Net::Socket, int>;
 
     PollSet();
-    /// Creates an empty PollSet.
-
     ~PollSet();
-    /// Destroys the PollSet.
 
-    void add(const Poco::Net::Socket & socket, int mode);
-    /// Adds the given socket to the set, for polling with
-    /// the given mode, which can be an OR'd combination of
-    /// POLL_READ, POLL_WRITE and POLL_ERROR.
+    /// Adds the given socket to the set, for polling with the given mode.
+    void add(const Socket & socket, int mode);
 
-    void remove(const Poco::Net::Socket & socket);
     /// Removes the given socket from the set.
+    void remove(const Socket & socket);
 
-    void update(const Poco::Net::Socket & socket, int mode);
     /// Updates the mode of the given socket.
+    void update(const Socket & socket, int mode);
 
-    bool has(const Socket & socket) const;
     /// Returns true if socket is registered for polling.
+    bool has(const Socket & socket) const;
 
-    bool empty() const;
     /// Returns true if no socket is registered for polling.
+    bool empty() const;
 
-    void clear();
     /// Removes all sockets from the PollSet.
+    void clear();
 
-    SocketModeMap poll(const Poco::Timespan & timeout);
     /// Waits until the state of at least one of the PollSet's sockets
     /// changes accordingly to its mode, or the timeout expires.
     /// Returns a PollMap containing the sockets that have had
     /// their state changed.
+    SocketModeMap poll(const Poco::Timespan & timeout);
 
+    /// Returns the number of sockets monitored.
     int count() const;
-    /// Returns the numberof sockets monitored.
 
-    void wakeUp();
     /// Wakes up a waiting PollSet.
-    /// On platforms/implementations where this functionality
-    /// is not available, it does nothing.
+    void wakeUp();
+
 private:
-    PollSetImpl * _pImpl;
+    PollSetImpl * impl;
 
     PollSet(const PollSet &);
     PollSet & operator=(const PollSet &);
