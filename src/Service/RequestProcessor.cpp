@@ -220,7 +220,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 LOG_WARNING(
                     log,
                     "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
-                    "Just delete from pending queue",
+                    "Just delete from pending queue.",
                     toHexString(committed_request.session_id));
                 my_pending_requests.erase(committed_request.session_id);
             }
@@ -312,7 +312,7 @@ void RequestProcessor::processErrorRequest(size_t count)
                 LOG_WARNING(
                     log,
                     "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
-                    "Just delete from pending queue",
+                    "Just delete from pending queue.",
                     toHexString(session_id));
                 my_pending_requests.erase(session_id);
             }

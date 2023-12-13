@@ -226,11 +226,11 @@ ptr<buffer> NuRaftStateMachine::serializeRequest(RequestForSession & session_req
 
 ptr<buffer> NuRaftStateMachine::pre_commit(const ulong log_idx, buffer & data)
 {
-    LOG_TRACE(log, "pre commit, log indx {}, data size {}", log_idx, data.size());
+    LOG_TRACE(log, "pre commit, log index {}, data size {}", log_idx, data.size());
     return nullptr;
 }
 
-/// Do nothing, as this example doesn't do anything on pre-commit.
+/// Do nothing, as doesn't do anything on pre-commit.
 void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 {
     LOG_TRACE(log, "pre commit, log index {}, data size {}", log_idx, data.size());
@@ -304,13 +304,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         auto request_for_session = parseRequest(data);
         KeeperStore::ResponsesForSessions responses_for_sessions;
 
-        LOG_TRACE(
-            log,
-            "Commit log index {}, session {}, xid {}, request {}",
-            log_idx,
-            toHexString(request_for_session.session_id),
-            request_for_session.request->xid,
-            request_for_session.request->toString());
+        LOG_TRACE(log, "Commit log index {} fore request {}", log_idx, request_for_session.toSimpleString());
 
         if (request_for_session.create_time > 0)
         {
@@ -318,12 +312,10 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             if (elapsed > 1000)
                 LOG_WARNING(
                     log,
-                    "Commit log {} request process time {}ms, session {} xid {} req type {}",
+                    "When committing log {} for request {} the time has passed {}ms, it is a little long.",
                     log_idx,
                     elapsed,
-                    toHexString(request_for_session.session_id),
-                    request_for_session.request->xid,
-                    Coordination::toString(request_for_session.request->getOpNum()));
+                    request_for_session.toSimpleString());
         }
 
         if (request_processor)
@@ -343,7 +335,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
     return commit(log_idx, data, false);
 }
 
-void NuRaftStateMachine::processReadRequest(const RequestForSession & request_for_session)
+[[maybe_unused]] void NuRaftStateMachine::processReadRequest(const RequestForSession & request_for_session)
 {
     store.processRequest(responses_queue, request_for_session);
 }
