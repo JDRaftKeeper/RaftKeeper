@@ -102,7 +102,7 @@ protected:
         main_reactor->wakeUp();
     }
 
-    /// Socket will be dispatched by socket_fd % / worker_count.
+    /// Socket will be dispatched by socket_fd % worker_count.
     WorkerReactorPtr getWorkerReactor(const StreamSocket & socket_)
     {
         auto fd = socket_.impl()->sockfd();
