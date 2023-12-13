@@ -165,12 +165,16 @@ public:
 
     ~AsyncSocketReactor() override;
 
+    void run() override;
+
 protected:
     void onIdle() override;
 
 private:
-    void start(const std::string & name);
+    void startup();
+
     Poco::Thread thread;
+    const std::string name;
 };
 
 
