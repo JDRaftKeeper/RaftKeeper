@@ -312,10 +312,10 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             if (elapsed > 1000)
                 LOG_WARNING(
                     log,
-                    "When committing log {} for request {} the time has passed {}ms, it is a little long.",
+                    "When committing log {} for request {}, the time has passed {}ms, it is a little long.",
                     log_idx,
-                    elapsed,
-                    request_for_session.toSimpleString());
+                    request_for_session.toSimpleString(),
+                    elapsed);
         }
 
         if (request_processor)

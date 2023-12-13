@@ -326,24 +326,29 @@ void SocketReactor::dispatch(SocketNotifierPtr & notifier, const Notification & 
 }
 
 
-AsyncSocketReactor::AsyncSocketReactor(const std::string & name)
+AsyncSocketReactor::AsyncSocketReactor(const std::string & name_) : name(name_)
 {
-    start(name);
+    startup();
 }
 
-AsyncSocketReactor::AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name) : SocketReactor(timeout)
+AsyncSocketReactor::AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name_) : SocketReactor(timeout), name(name_)
 {
-    start(name);
+    startup();
 }
 
-void AsyncSocketReactor::start(const std::string & name)
+void AsyncSocketReactor::startup()
 {
     thread.start(*this);
+}
+
+void AsyncSocketReactor::run()
+{
     if (!name.empty())
     {
-        thread.setName(name);
         setThreadName(name.c_str());
+        Poco::Thread::current()->setName(name);
     }
+    SocketReactor::run();
 }
 
 AsyncSocketReactor::~AsyncSocketReactor()
