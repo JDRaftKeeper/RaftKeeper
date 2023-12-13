@@ -1,6 +1,6 @@
 # You can modify this file to change version
 SET(VERSION_MAJOR 2)
 SET(VERSION_MINOR 0)
-SET(VERSION_PATCH 3)
-SET(VERSION_STRING v2.0.3)
+SET(VERSION_PATCH 4)
+SET(VERSION_STRING v2.0.4)
 # end of version
