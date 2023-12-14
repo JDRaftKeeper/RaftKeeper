@@ -548,7 +548,7 @@ ConnectionHandler::HandShakeResult ConnectionHandler::handleHandshake(ConnectReq
         else
         {
             /// new session
-            session_id = keeper_dispatcher->getSessionID(session_timeout.totalMilliseconds());
+            session_id = keeper_dispatcher->newSession(session_timeout.totalMilliseconds());
             LOG_INFO(log, "New session with ID {}", toHexString(session_id));
         }
     }

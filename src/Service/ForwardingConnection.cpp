@@ -119,7 +119,7 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
                 response = std::make_shared<ForwardSessionResponse>();
                 break;
             case GetSession:
-                response = std::make_shared<ForwardGetSessionResponse>();
+                response = std::make_shared<ForwardNewSessionResponse>();
                 break;
             case UpdateSession:
                 response = std::make_shared<ForwardUpdateSessionResponse>();

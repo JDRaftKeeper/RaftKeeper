@@ -347,7 +347,7 @@ Coordination::ZooKeeperRequestPtr deserializeCheckVersionTxn(ReadBuffer & in)
 
 Coordination::ZooKeeperRequestPtr deserializeCreateSession(ReadBuffer & in)
 {
-    std::shared_ptr<Coordination::ZooKeeperSessionIDRequest> result = std::make_shared<Coordination::ZooKeeperSessionIDRequest>();
+    std::shared_ptr<Coordination::ZooKeeperNewSessionRequest> result = std::make_shared<Coordination::ZooKeeperNewSessionRequest>();
     int32_t timeout;
     Coordination::read(timeout, in);
     result->session_timeout_ms = timeout;
@@ -523,9 +523,9 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
     if (zxid > store.zxid)
     {
         /// Separate processing of session id requests
-        if (request->getOpNum() == Coordination::OpNum::SessionID)
+        if (request->getOpNum() == Coordination::OpNum::NewSession)
         {
-            const Coordination::ZooKeeperSessionIDRequest & session_id_request = dynamic_cast<const Coordination::ZooKeeperSessionIDRequest &>(*request);
+            const Coordination::ZooKeeperNewSessionRequest & session_id_request = dynamic_cast<const Coordination::ZooKeeperNewSessionRequest &>(*request);
             store.getSessionID(session_id_request.session_timeout_ms);
         }
         else

@@ -139,7 +139,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::ve
     return result;
 }
 
-int64_t KeeperServer::getSessionID(int64_t session_timeout_ms)
+int64_t KeeperServer::newSession(int64_t session_timeout_ms)
 {
     auto entry = buffer::alloc(sizeof(int64_t));
     /// Just special session request

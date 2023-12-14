@@ -16,12 +16,12 @@ using ForwardRequestPtr = std::shared_ptr<ForwardRequest>;
 enum ForwardType : int8_t
 {
     Unknown = -1,
-    Handshake = 1,
-    Sessions = 2, /// all local sessions
-    GetSession = 3, /// get session id
-    UpdateSession = 4, /// session reconnect
-    Operation = 5, /// all write requests after the connection is established
-    Destroy = 6, /// Only used in server side to indicate that the connection is stale and server should close it
+    Handshake = 1,         /// Forwarder handshake
+    Sessions = 2,          /// Follower will send all local sessions to leader
+    GetSession = 3,        /// New session
+    UpdateSession = 4,     /// Update session when client reconnecting
+    Operation = 5,         /// All write requests after the connection is established
+    Destroy = 6,           /// Only used in server side to indicate that the connection is stale and server should close it
 };
 
 std::string toString(ForwardType type);
@@ -43,10 +43,9 @@ struct ForwardResponse
     virtual ForwardType forwardType() const = 0;
 
     virtual void readImpl(ReadBuffer &) = 0;
-
     virtual void writeImpl(WriteBuffer &) const = 0;
-    virtual void onError(RequestForwarder & request_forwarder) const = 0;
 
+    virtual void onError(RequestForwarder & request_forwarder) const = 0;
     virtual bool match(const ForwardRequestPtr & forward_request) const = 0;
 
     void setAppendEntryResult(bool raft_accept, nuraft::cmd_result_code code)
@@ -74,9 +73,7 @@ struct ForwardHandshakeResponse : public ForwardResponse
     }
 
     void writeImpl(WriteBuffer &) const override {}
-
     void onError(RequestForwarder &) const override {}
-
     bool match(const ForwardRequestPtr &) const override { return false; }
 
     String toString() const override
@@ -91,11 +88,9 @@ struct ForwardSessionResponse : public ForwardResponse
     ForwardType forwardType() const override { return ForwardType::Sessions; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     void onError(RequestForwarder &) const override {}
-
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override
@@ -106,18 +101,16 @@ struct ForwardSessionResponse : public ForwardResponse
 };
 
 
-struct ForwardGetSessionResponse : public ForwardResponse
+struct ForwardNewSessionResponse : public ForwardResponse
 {
     int64_t internal_id;
 
     ForwardType forwardType() const override { return ForwardType::GetSession; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     void onError(RequestForwarder & request_forwarder) const override;
-
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override
@@ -134,11 +127,9 @@ struct ForwardUpdateSessionResponse : public ForwardResponse
     ForwardType forwardType() const override { return ForwardType::UpdateSession; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     void onError(RequestForwarder & request_forwarder) const override;
-
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override
@@ -157,11 +148,9 @@ struct ForwardOpResponse : public ForwardResponse
     ForwardType forwardType() const override { return ForwardType::Operation; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     void onError(RequestForwarder & request_forwarder) const override;
-
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override
@@ -172,7 +161,7 @@ struct ForwardOpResponse : public ForwardResponse
     }
 };
 
-struct ForwardDestryResponse : public ForwardResponse
+struct ForwardDestroyResponse : public ForwardResponse
 {
     ForwardType forwardType() const override { return ForwardType::Destroy; }
 
@@ -183,9 +172,7 @@ struct ForwardDestryResponse : public ForwardResponse
     }
 
     void writeImpl(WriteBuffer &) const override {}
-
     void onError(RequestForwarder &) const override {}
-
     bool match(const ForwardRequestPtr &) const override { return false; }
 
     String toString() const override

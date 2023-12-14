@@ -162,7 +162,7 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
 
     LOG_TRACE(
         log,
-        "[putRequest]SessionID/xid #{}#{},opnum {}",
+        "[putRequest]NewSession/xid #{}#{},opnum {}",
         toHexString(session_id),
         request->xid,
         Coordination::toString(request->getOpNum()));
@@ -194,7 +194,7 @@ bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, 
 
     LOG_TRACE(
         log,
-        "[putForwardingRequest] Server {} client {} SessionID/xid #{}#{},opnum {}",
+        "[putForwardingRequest] Server {} client {} NewSession/xid #{}#{},opnum {}",
         server_id,
         client_id,
         toHexString(request_info.session_id),
@@ -341,7 +341,7 @@ void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResp
     {
         LOG_WARNING(log, "Receive new forwarding connection from server_id {}, client_id {}, will destroy the older one", client_id.first, client_id.second);
         auto & call_back = forward_to_response_callback[client_id];
-        auto response = std::make_shared<ForwardDestryResponse>();
+        auto response = std::make_shared<ForwardDestroyResponse>();
         call_back(response);
         forward_to_response_callback.erase(client_id);
     }
