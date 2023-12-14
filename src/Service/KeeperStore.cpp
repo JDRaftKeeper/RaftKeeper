@@ -1546,7 +1546,9 @@ void KeeperStore::processRequest(
                 {
                     /// 1. register watch
                     auto & watches_type
-                        = zk_request->getOpNum() == Coordination::OpNum::List || zk_request->getOpNum() == Coordination::OpNum::SimpleList
+                        = zk_request->getOpNum() == Coordination::OpNum::List
+                            || zk_request->getOpNum() == Coordination::OpNum::SimpleList
+                            || zk_request->getOpNum() == Coordination::OpNum::FilteredList
                         ? list_watches
                         : watches;
                     watches_type[zk_request->getPath()].emplace_back(session_id);

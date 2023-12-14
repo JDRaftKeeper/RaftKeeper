@@ -132,7 +132,7 @@ class MultiReadRequest(object):
         self.operations.append(request)
 
 
-class GetChildren3(namedtuple('GetChildren3', 'path watcher list_type')):
+class GetChildren3(namedtuple('GetChildren3', 'path watcher list_type'), GetChildren2):
     type = 500
 
     def serialize(self):
