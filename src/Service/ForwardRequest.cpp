@@ -92,19 +92,19 @@ void ForwardGetSessionRequest::writeImpl(WriteBuffer & buf) const
 
 ForwardResponsePtr ForwardGetSessionRequest::makeResponse() const
 {
-    auto res = std::make_shared<ForwardGetSessionResponse>();
+    auto res = std::make_shared<ForwardNewSessionResponse>();
     res->accepted = false;
     res->error_code = nuraft::cmd_result_code::FAILED;
-    res->internal_id = dynamic_cast<ZooKeeperSessionIDRequest *>(request.get())->internal_id;
+    res->internal_id = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get())->internal_id;
     return res;
 }
 
 RequestForSession ForwardGetSessionRequest::requestForSession() const
 {
-    RequestForSession reuqest_info;
-    reuqest_info.request = request;
-    reuqest_info.session_id = -1;
-    return reuqest_info;
+    RequestForSession request_info;
+    request_info.request = request;
+    request_info.session_id = 0;
+    return request_info;
 }
 
 void ForwardUpdateSessionRequest::readImpl(ReadBuffer & buf)

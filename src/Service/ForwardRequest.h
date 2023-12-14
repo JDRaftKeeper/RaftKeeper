@@ -103,7 +103,7 @@ struct ForwardGetSessionRequest : public ForwardRequest
 
     String toString() const override
     {
-        auto * request_ptr = dynamic_cast<ZooKeeperSessionIDRequest *>(request.get());
+        auto * request_ptr = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get());
         return "ForwardType: " + RK::toString(forwardType()) + ", session " + std::to_string(request_ptr->internal_id) + " xid " + std::to_string(request_ptr->session_timeout_ms);
     }
 };
@@ -167,7 +167,7 @@ public:
         auto opnum = request_for_session.request->getOpNum();
         switch (opnum)
         {
-            case Coordination::OpNum::SessionID:
+            case Coordination::OpNum::NewSession:
             {
                 auto session_id_res = std::make_shared<ForwardGetSessionRequest>();
                 session_id_res->request = request_for_session.request;
