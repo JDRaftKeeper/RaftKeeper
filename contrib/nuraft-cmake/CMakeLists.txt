@@ -1,6 +1,7 @@
 set(LIBRARY_DIR ${RaftKeeper_SOURCE_DIR}/contrib/NuRaft)
 
 set(SRCS
+    ${LIBRARY_DIR}/src/log_entry.cxx
     ${LIBRARY_DIR}/src/handle_priority.cxx
     ${LIBRARY_DIR}/src/buffer_serializer.cxx
     ${LIBRARY_DIR}/src/peer.cxx
