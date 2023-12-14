@@ -9,6 +9,7 @@ from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients, close_zk_client
 
 from helpers.utils import KeeperFeatureClient
+from kazoo.protocol.states import WatchedEvent
 
 cluster = RaftKeeperCluster(__file__)
 
@@ -319,6 +320,16 @@ def test_filtered_list():
         fake_zk.create('/test_filteredList')
         ephemerals = [f'ephemeral{i}' for i in range(3)]
         persistents = [f'persistent{i}' for i in range(3)]
+
+        _event = None
+
+        def watch_children_callback(event):
+            print("children watch called")
+            nonlocal _event
+            _event = event
+
+        fake_zk.get_filtered_children('/test_filteredList', list_type=0, watch=watch_children_callback)
+
         for node in ephemerals:
             fake_zk.create("/test_filteredList/" + node, ephemeral=True)
         for node in persistents:
@@ -327,6 +338,8 @@ def test_filtered_list():
         assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=0)[0]) == sorted(ephemerals + persistents))
         assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=1)[0]) == sorted(persistents))
         assert(sorted(fake_zk.get_filtered_children('/test_filteredList', list_type=2)[0]) == sorted(ephemerals))
+
+        assert(_event == WatchedEvent(type='CHILD', state='CONNECTED', path='/test_filteredList'))
     finally:
         close_zk_clients([fake_zk])
 
