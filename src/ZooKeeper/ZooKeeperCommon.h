@@ -707,16 +707,16 @@ struct ZooKeeperMultiReadResponse final : public ZooKeeperMultiResponse
     OpNum getOpNum() const override { return OpNum::MultiRead; }
 };
 
-/// Fake internal raftkeeper request. Never received from client
-/// and never send to client. Used to get session id.
-struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
+/// Fake internal RaftKeeper request. Never received from client
+/// and never send to client. Used to create new session.
+struct ZooKeeperNewSessionRequest final : ZooKeeperRequest
 {
     int64_t internal_id;
     int64_t session_timeout_ms;
     /// Who requested this session
     int32_t server_id;
 
-    Coordination::OpNum getOpNum() const override { return OpNum::SessionID; }
+    Coordination::OpNum getOpNum() const override { return OpNum::NewSession; }
     String getPath() const override { return {}; }
     void writeImpl(WriteBuffer & out) const override;
     void readImpl(ReadBuffer & in) override;
@@ -725,9 +725,9 @@ struct ZooKeeperSessionIDRequest final : ZooKeeperRequest
     bool isReadRequest() const override { return false; }
 };
 
-/// Fake internal raftkeeper response. Never received from client
+/// Fake internal RaftKeeper response. Never received from client
 /// and never send to client.
-struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
+struct ZooKeeperNewSessionResponse final : ZooKeeperResponse
 {
     int64_t internal_id;
     int64_t session_id;
@@ -735,14 +735,13 @@ struct ZooKeeperSessionIDResponse final : ZooKeeperResponse
     int32_t server_id;
 
     void readImpl(ReadBuffer & in) override;
-
     void writeImpl(WriteBuffer & out) const override;
 
-    Coordination::OpNum getOpNum() const override { return OpNum::SessionID; }
+    Coordination::OpNum getOpNum() const override { return OpNum::NewSession; }
 };
 
 
-/// Fake internal raftkeeper request. Never received from client
+/// Fake internal RaftKeeper request. Never received from client
 /// and never send to client. Used to session reconnect.
 struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
 {
@@ -760,7 +759,7 @@ struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
     bool isReadRequest() const override { return false; }
 };
 
-/// Fake internal raftkeeper response. Never received from client
+/// Fake internal RaftKeeper response. Never received from client
 /// and never send to client.
 struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
 {
@@ -770,7 +769,6 @@ struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
     int32_t server_id;
 
     void readImpl(ReadBuffer & in) override;
-
     void writeImpl(WriteBuffer & out) const override;
 
     Coordination::OpNum getOpNum() const override { return OpNum::UpdateSession; }
@@ -778,15 +776,12 @@ struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
 
 class ZooKeeperRequestFactory final : private boost::noncopyable
 {
-
 public:
     using Creator = std::function<ZooKeeperRequestPtr()>;
     using OpNumToRequest = std::unordered_map<OpNum, Creator>;
 
     static ZooKeeperRequestFactory & instance();
-
     ZooKeeperRequestPtr get(OpNum op_num) const;
-
     void registerRequest(OpNum op_num, Creator creator);
 
 private:

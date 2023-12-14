@@ -586,33 +586,33 @@ ZooKeeperResponsePtr ZooKeeperMultiRequest::makeResponse() const
     return response;
 }
 
-void ZooKeeperSessionIDRequest::writeImpl(WriteBuffer & out) const
+void ZooKeeperNewSessionRequest::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(internal_id, out);
     Coordination::write(session_timeout_ms, out);
     Coordination::write(server_id, out);
 }
 
-void ZooKeeperSessionIDRequest::readImpl(ReadBuffer & in)
+void ZooKeeperNewSessionRequest::readImpl(ReadBuffer & in)
 {
     Coordination::read(internal_id, in);
     Coordination::read(session_timeout_ms, in);
     Coordination::read(server_id, in);
 }
 
-Coordination::ZooKeeperResponsePtr ZooKeeperSessionIDRequest::makeResponse() const
+Coordination::ZooKeeperResponsePtr ZooKeeperNewSessionRequest::makeResponse() const
 {
-    return std::make_shared<ZooKeeperSessionIDResponse>();
+    return std::make_shared<ZooKeeperNewSessionResponse>();
 }
 
-void ZooKeeperSessionIDResponse::readImpl(ReadBuffer & in)
+void ZooKeeperNewSessionResponse::readImpl(ReadBuffer & in)
 {
     Coordination::read(internal_id, in);
     Coordination::read(session_id, in);
     Coordination::read(server_id, in);
 }
 
-void ZooKeeperSessionIDResponse::writeImpl(WriteBuffer & out) const
+void ZooKeeperNewSessionResponse::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(internal_id, out);
     Coordination::write(session_id, out);
@@ -718,7 +718,8 @@ ZooKeeperRequestFactory::ZooKeeperRequestFactory()
     registerZooKeeperRequest<OpNum::Check, ZooKeeperCheckRequest>(*this);
     registerZooKeeperRequest<OpNum::Multi, ZooKeeperMultiRequest>(*this);
     registerZooKeeperRequest<OpNum::MultiRead, ZooKeeperMultiRequest>(*this);
-    registerZooKeeperRequest<OpNum::SessionID, ZooKeeperSessionIDRequest>(*this);
+    registerZooKeeperRequest<OpNum::NewSession, ZooKeeperNewSessionRequest>(*this);
+    registerZooKeeperRequest<OpNum::UpdateSession, ZooKeeperUpdateSessionRequest>(*this);
     registerZooKeeperRequest<OpNum::SetWatches, ZooKeeperSetWatchesRequest>(*this);
     registerZooKeeperRequest<OpNum::GetACL, ZooKeeperGetACLRequest>(*this);
     registerZooKeeperRequest<OpNum::SetACL, ZooKeeperSetACLRequest>(*this);

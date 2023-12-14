@@ -70,7 +70,7 @@ public:
     ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<RequestForSession> & request_batch);
 
     /// Allocate a new session id.
-    int64_t getSessionID(int64_t session_timeout_ms);
+    int64_t newSession(int64_t session_timeout_ms);
 
     /// Update session timeout, used when client reconnected
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);

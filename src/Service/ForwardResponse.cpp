@@ -22,7 +22,7 @@ std::string toString(ForwardType type)
         case ForwardType::Sessions:
             return "Sessions";
         case ForwardType::GetSession:
-            return "GetSession";
+            return "NewSession";
         case ForwardType::UpdateSession:
             return "UpdateSession";
         case ForwardType::Operation:
@@ -52,29 +52,29 @@ bool ForwardSessionResponse::match(const ForwardRequestPtr & forward_request) co
     return forward_request->forwardType() == forwardType();
 }
 
-void ForwardGetSessionResponse::readImpl(ReadBuffer & buf)
+void ForwardNewSessionResponse::readImpl(ReadBuffer & buf)
 {
     Coordination::read(accepted, buf);
     Coordination::read(error_code, buf);
     Coordination::read(internal_id, buf);
 }
 
-void ForwardGetSessionResponse::writeImpl(WriteBuffer & buf) const
+void ForwardNewSessionResponse::writeImpl(WriteBuffer & buf) const
 {
     Coordination::write(internal_id, buf);
 }
 
-void ForwardGetSessionResponse::onError([[maybe_unused]]RequestForwarder & request_forwarder) const
+void ForwardNewSessionResponse::onError([[maybe_unused]]RequestForwarder & request_forwarder) const
 {
     /// dispatcher on error
 }
 
-bool ForwardGetSessionResponse::match(const ForwardRequestPtr & forward_request) const
+bool ForwardNewSessionResponse::match(const ForwardRequestPtr & forward_request) const
 {
     auto * session_request = dynamic_cast<ForwardGetSessionRequest *>(forward_request.get());
     if (session_request)
     {
-        auto * zk_session_request = dynamic_cast<ZooKeeperSessionIDRequest *>(session_request->request.get());
+        auto * zk_session_request = dynamic_cast<ZooKeeperNewSessionRequest *>(session_request->request.get());
         if (zk_session_request)
         {
             return zk_session_request->internal_id == internal_id;

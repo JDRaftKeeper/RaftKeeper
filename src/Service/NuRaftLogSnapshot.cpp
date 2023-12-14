@@ -295,7 +295,7 @@ int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const Sna
         /// append to batch
         SnapshotItemPB * entry = batch->add_data();
         WriteBufferFromNuraftBuffer buf;
-        Coordination::write(session_it.first, buf); //SessionID
+        Coordination::write(session_it.first, buf); //NewSession
         Coordination::write(session_it.second, buf); //Timeout_ms
 
         Coordination::AuthIDs ids;

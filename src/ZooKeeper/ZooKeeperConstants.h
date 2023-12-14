@@ -37,9 +37,9 @@ enum class OpNum : int32_t
     Auth = 100,
     SetWatches = 101,
 
-    FilteredList = 500, /// Special operation for ClickHouse
+    FilteredList = 500, /// Special operation only used in ClickHouse.
 
-    SessionID = 997, /// Special internal request. Used to get session id.
+    NewSession = 997, /// Special internal request. Used to create new session.
     UpdateSession = 996, /// Special internal request. Used to session reconnect.
 };
 

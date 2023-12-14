@@ -112,7 +112,7 @@ public:
 
     bool putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
-    int64_t getSessionID(int64_t session_timeout_ms) { return server->getSessionID(session_timeout_ms); }
+    int64_t newSession(int64_t session_timeout_ms) { return server->newSession(session_timeout_ms); }
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
     {
         return server->updateSessionTimeout(session_id, session_timeout_ms);
