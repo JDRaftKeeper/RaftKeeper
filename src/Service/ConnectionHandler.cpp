@@ -143,7 +143,13 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 if (!isHandShake(header) && !handshake_done)
                 {
                     int32_t four_letter_cmd = header;
-                    tryExecuteFourLetterWordCmd(four_letter_cmd);
+
+                    /// if execute 4lw failed, just delete self
+                    if (!tryExecuteFourLetterWordCmd(four_letter_cmd))
+                    {
+                        delete this;
+                        return;
+                    }
 
                     /// Handler no need delete self
                     /// As to four letter command just wait client close connection.
@@ -596,11 +602,13 @@ bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
     if (!FourLetterCommandFactory::instance().isKnown(command))
     {
         LOG_WARNING(log, "Invalid four letter command {}", IFourLetterCommand::toName(command));
+        sock.shutdownSend();
         return false;
     }
     else if (!FourLetterCommandFactory::instance().isEnabled(command))
     {
         LOG_WARNING(log, "Not enabled four letter command {}", IFourLetterCommand::toName(command));
+        sock.shutdownSend();
         return false;
     }
     else
