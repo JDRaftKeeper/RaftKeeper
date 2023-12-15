@@ -144,9 +144,10 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 {
                     int32_t four_letter_cmd = header;
                     tryExecuteFourLetterWordCmd(four_letter_cmd);
-                    /// Handler need to delete self
-                    /// As to four letter command just close connection.
-                    delete this;
+
+                    /// Handler no need delete self
+                    /// As to four letter command just wait client close connection.
+                    req_header_buf.drain(req_header_buf.used());
                     return;
                 }
 
@@ -616,6 +617,9 @@ bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
             /// Set socket to blocking mode to simplify sending.
             sock.setBlocking(true);
             sock.sendBytes(*buf.getBuffer());
+
+            // send TCP FIN to client
+            sock.shutdownSend();
         }
         catch (...)
         {
