@@ -1,5 +1,4 @@
 set(LIBRARY_DIR ${RaftKeeper_SOURCE_DIR}/contrib/NuRaft)
-set(LIBRARY_ASIO_DIR ${RaftKeeper_SOURCE_DIR}/contrib/NuRaft/asio/asio)
 
 set(SRCS
     ${LIBRARY_DIR}/src/log_entry.cxx
@@ -35,13 +34,14 @@ add_library(nuraft ${SRCS})
 
 
 if (NOT OPENSSL_SSL_LIBRARY OR NOT OPENSSL_CRYPTO_LIBRARY)
-    target_compile_definitions(nuraft PRIVATE ASIO_STANDALONE=1 SSL_LIBRARY_NOT_FOUND=1)
+    target_compile_definitions(nuraft PRIVATE USE_BOOST_ASIO=1 BOOST_ASIO_STANDALONE=1 SSL_LIBRARY_NOT_FOUND=1)
 else()
-    target_compile_definitions(nuraft PRIVATE ASIO_STANDALONE=1)
+    target_compile_definitions(nuraft PRIVATE USE_BOOST_ASIO=1 BOOST_ASIO_STANDALONE=1)
 endif()
 
 target_include_directories (nuraft SYSTEM PRIVATE ${LIBRARY_DIR}/include/libnuraft)
-target_include_directories (nuraft SYSTEM PRIVATE ${LIBRARY_ASIO_DIR}/include)
+# for some reason include "asio.h" directly without "boost/" prefix.
+target_include_directories (nuraft SYSTEM PRIVATE ${RaftKeeper_SOURCE_DIR}/contrib/boost/boost)
 
 target_link_libraries (nuraft PRIVATE boost::headers_only boost::coroutine)
 
