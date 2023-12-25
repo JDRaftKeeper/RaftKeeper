@@ -748,8 +748,7 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
 
                         if (ephemeral_owner != 0)
                         {
-                            /// TODO LOG_INFO -> LOG_TRACE
-                            LOG_INFO(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
                             std::lock_guard l(store.ephemerals_mutex);
                             auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
                             ephemeral_nodes.emplace(key);
