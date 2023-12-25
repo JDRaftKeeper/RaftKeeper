@@ -17,6 +17,7 @@
 #include <boost/noncopyable.hpp>
 #include <Common/IO/ReadBuffer.h>
 #include <Common/IO/WriteBuffer.h>
+#include <Common/IO/WriteHelpers.h>
 
 
 namespace Coordination
@@ -711,8 +712,11 @@ struct ZooKeeperMultiReadResponse final : public ZooKeeperMultiResponse
 /// and never send to client. Used to create new session.
 struct ZooKeeperNewSessionRequest final : ZooKeeperRequest
 {
+    /// The request processing framework is designed to be concurrent,
+    /// with each request being assigned to a different thread based on session ID.
+    /// For new session request the session there is no session id yet, so we use a fake id.
     int64_t internal_id;
-    int64_t session_timeout_ms;
+    int32_t session_timeout_ms;
     /// Who requested this session
     int32_t server_id;
 
@@ -729,15 +733,28 @@ struct ZooKeeperNewSessionRequest final : ZooKeeperRequest
 /// and never send to client.
 struct ZooKeeperNewSessionResponse final : ZooKeeperResponse
 {
+    /// internal id from request
     int64_t internal_id;
     int64_t session_id;
     /// Who requested this session
     int32_t server_id;
+    bool success;
 
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
 
     Coordination::OpNum getOpNum() const override { return OpNum::NewSession; }
+
+    String toString() const override
+    {
+        WriteBufferFromOwnString out;
+        writeText(Coordination::toString(getOpNum()), out);
+        writeText(", internal_id: " + std::to_string(internal_id), out);
+        writeText(", session_id: " + std::to_string(session_id), out);
+        writeText(", server_id: " + std::to_string(server_id), out);
+        writeText(", success: " + std::to_string(success), out);
+        return out.str();
+    }
 };
 
 
@@ -764,14 +781,24 @@ struct ZooKeeperUpdateSessionRequest final : ZooKeeperRequest
 struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
 {
     int64_t session_id;
-    bool update_success;
     /// Who requested this session
     int32_t server_id;
+    bool success;
 
     void readImpl(ReadBuffer & in) override;
     void writeImpl(WriteBuffer & out) const override;
 
     Coordination::OpNum getOpNum() const override { return OpNum::UpdateSession; }
+
+    String toString() const override
+    {
+        WriteBufferFromOwnString out;
+        writeText(Coordination::toString(getOpNum()), out);
+        writeText(", session_id: " + std::to_string(session_id), out);
+        writeText(", server_id: " + std::to_string(server_id), out);
+        writeText(", success: " + std::to_string(success), out);
+        return out.str();
+    }
 };
 
 class ZooKeeperRequestFactory final : private boost::noncopyable

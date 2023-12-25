@@ -610,6 +610,7 @@ void ZooKeeperNewSessionResponse::readImpl(ReadBuffer & in)
     Coordination::read(internal_id, in);
     Coordination::read(session_id, in);
     Coordination::read(server_id, in);
+    Coordination::read(success, in);
 }
 
 void ZooKeeperNewSessionResponse::writeImpl(WriteBuffer & out) const
@@ -617,6 +618,7 @@ void ZooKeeperNewSessionResponse::writeImpl(WriteBuffer & out) const
     Coordination::write(internal_id, out);
     Coordination::write(session_id, out);
     Coordination::write(server_id, out);
+    Coordination::write(success, out);
 }
 
 void ZooKeeperUpdateSessionRequest::writeImpl(WriteBuffer & out) const
@@ -641,15 +643,15 @@ Coordination::ZooKeeperResponsePtr ZooKeeperUpdateSessionRequest::makeResponse()
 void ZooKeeperUpdateSessionResponse::readImpl(ReadBuffer & in)
 {
     Coordination::read(session_id, in);
-    Coordination::read(update_success, in);
     Coordination::read(server_id, in);
+    Coordination::read(success, in);
 }
 
 void ZooKeeperUpdateSessionResponse::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(session_id, out);
-    Coordination::write(update_success, out);
     Coordination::write(server_id, out);
+    Coordination::write(success, out);
 }
 
 void ZooKeeperRequestFactory::registerRequest(OpNum op_num, Creator creator)

@@ -25,7 +25,7 @@ KeeperDispatcher::KeeperDispatcher()
     , request_processor(std::make_shared<RequestProcessor>(responses_queue))
     , request_accumulator(request_processor)
     , request_forwarder(request_processor)
-    , uptime()
+    , new_session_internal_id_counter(1)
 {
 }
 
@@ -99,7 +99,7 @@ void KeeperDispatcher::responseThread()
 
             try
             {
-                setResponse(response_for_session.session_id, response_for_session.response);
+                invokeResponseCallBack(response_for_session.session_id, response_for_session.response);
             }
             catch (...)
             {
@@ -109,63 +109,82 @@ void KeeperDispatcher::responseThread()
     }
 }
 
-void KeeperDispatcher::setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response)
+void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response)
 {
-    std::lock_guard lock(session_to_response_callback_mutex);
-    auto session_writer = session_to_response_callback.find(session_id);
-    if (session_writer == session_to_response_callback.end())
-        return;
+    /// session request
+    if (response->getOpNum() == Coordination::OpNum::NewSession || response->getOpNum() == Coordination::OpNum::UpdateSession)
+    {
+        std::lock_guard lock(session_response_callbacks_mutex);
+        auto session_writer = session_response_callbacks.find(session_id); /// TODO session id == internal id?
+        if (session_writer == session_response_callbacks.end())
+            return;
+    }
+    /// user request
+    else
+    {
+        std::lock_guard lock(user_response_callbacks_mutex);
+        auto session_writer = user_response_callbacks.find(session_id);
+        if (session_writer == user_response_callbacks.end())
+            return;
 
-    session_writer->second(response);
-    /// Session closed, no more writes
-    if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
-        session_to_response_callback.erase(session_writer);
+        session_writer->second(response);
+        /// Session closed, no more writes
+        if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
+            user_response_callbacks.erase(session_writer);
+    }
 }
 
-void KeeperDispatcher::sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response)
+void KeeperDispatcher::invokeForwardResponseCallBack(ForwardingClientId client_id, ForwardResponsePtr response)
 {
-    std::lock_guard lock(forward_to_response_callback_mutex);
-    auto forward_response_writer = forward_to_response_callback.find(client_id);
-    if (forward_response_writer == forward_to_response_callback.end())
+    std::lock_guard lock(forward_response_callbacks_mutex);
+    auto forward_response_writer = forward_response_callbacks.find(client_id);
+    if (forward_response_writer == forward_response_callbacks.end())
         return;
 
     LOG_TRACE(
-        log, "[sendForwardResponse] server_id {}, client_id {}, response {}", client_id.first, client_id.second, response->toString());
+        log, "[invokeForwardResponseCallBack] server_id {}, client_id {}, response {}", client_id.first, client_id.second, response->toString());
 
     forward_response_writer->second(response);
 }
 
-void KeeperDispatcher::unRegisterForward(ForwardingClientId client_id)
+bool KeeperDispatcher::pushSessionRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t internal_id)
 {
-    std::lock_guard lock(forward_to_response_callback_mutex);
-    auto forward_response_writer = forward_to_response_callback.find(client_id);
-    if (forward_response_writer == forward_to_response_callback.end())
-        return;
+    RequestForSession request_info;
+    request_info.request = request;
+    request_info.session_id = internal_id;
 
-    forward_to_response_callback.erase(forward_response_writer);
+    using namespace std::chrono;
+    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    LOG_TRACE(
+        log,
+        "Push (new/update)session request #{}#{}#{}",
+        toHexString(internal_id),
+        request->xid,
+        Coordination::toString(request->getOpNum()));
+
+    if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
+        throw Exception("Cannot push session request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+    return true;
 }
 
-bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
+bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id)
 {
     {
-        std::lock_guard lock(session_to_response_callback_mutex);
+        std::lock_guard lock(user_response_callbacks_mutex);
         /// session is expired by server
-        if (session_to_response_callback.count(session_id) == 0)
+        if (user_response_callbacks.count(session_id) == 0)
             return false;
     }
 
     RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
+
     using namespace std::chrono;
     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    LOG_TRACE(
-        log,
-        "[putRequest]NewSession/xid #{}#{},opnum {}",
-        toHexString(session_id),
-        request->xid,
-        Coordination::toString(request->getOpNum()));
+    LOG_TRACE(log, "Push user request #{}#{}#{}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
 
     /// Put close requests without timeouts
     if (request->getOpNum() == Coordination::OpNum::Close)
@@ -174,15 +193,12 @@ bool KeeperDispatcher::putRequest(const Coordination::ZooKeeperRequestPtr & requ
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
-        throw Exception(
-            "Cannot push request to queue within operation timeout, requests_queue size {}",
-            requests_queue->size(),
-            ErrorCodes::TIMEOUT_EXCEEDED);
+        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 
 
-bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
+bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
     RequestForSession && request_info = request->requestForSession();
 
@@ -194,14 +210,12 @@ bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, 
 
     LOG_TRACE(
         log,
-        "[putForwardingRequest] Server {} client {} NewSession/xid #{}#{},opnum {}",
-        server_id,
-        client_id,
+        "Push forwarding request #{}#{}#{} which is from Server {} client {}",
         toHexString(request_info.session_id),
         request_info.request->xid,
-        Coordination::toString(request_info.request->getOpNum()));
-
-    //    std::lock_guard lock(push_request_mutex);
+        Coordination::toString(request_info.request->getOpNum()),
+        server_id,
+        client_id);
 
     /// Put close requests without timeouts
     if (request_info.request->getOpNum() == Coordination::OpNum::Close)
@@ -210,7 +224,7 @@ bool KeeperDispatcher::putForwardingRequest(size_t server_id, size_t client_id, 
             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
-        throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+        throw Exception("Cannot push forwarding request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
     return true;
 }
 
@@ -314,9 +328,9 @@ void KeeperDispatcher::shutdown()
         {
             auto response = request_for_session.request->makeResponse();
             response->error = Coordination::Error::ZSESSIONEXPIRED;
-            setResponse(request_for_session.session_id, response);
+            invokeResponseCallBack(request_for_session.session_id, response);
         }
-        session_to_response_callback.clear();
+        user_response_callbacks.clear();
     }
     catch (...)
     {
@@ -326,27 +340,66 @@ void KeeperDispatcher::shutdown()
     LOG_INFO(log, "Dispatcher shut down");
 }
 
-void KeeperDispatcher::registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
+void KeeperDispatcher::registerSessionRequestCallback(int64_t id, ZooKeeperResponseCallback callback)
 {
-    std::lock_guard lock(session_to_response_callback_mutex);
-    if (!session_to_response_callback.try_emplace(session_id, callback).second && !is_reconnected)
+    std::lock_guard lock(session_response_callbacks_mutex);
+    if (!session_response_callbacks.try_emplace(id, callback).second)
+        throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Callback with id {} already registered in dispatcher", toHexString(id));
+}
+
+void KeeperDispatcher::unRegisterSessionRequestCallback(int64_t id)
+{
+    LOG_INFO(log, "registerSessionRequestCallback {}", toHexString(id));
+    std::lock_guard lock(session_response_callbacks_mutex);
+    auto session_it = session_response_callbacks.find(id);
+    if (session_it != session_response_callbacks.end())
+        session_response_callbacks.erase(session_it);
+}
+
+void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
+{
+    std::lock_guard lock(user_response_callbacks_mutex);
+    if (!user_response_callbacks.try_emplace(session_id, callback).second && !is_reconnected)
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", toHexString(session_id));
+}
+
+void KeeperDispatcher::unregisterUserResponseCallBack(int64_t session_id)
+{
+    LOG_INFO(log, "unregisterUserResponseCallBack {}", toHexString(session_id));
+    std::lock_guard lock(user_response_callbacks_mutex);
+    auto session_it = user_response_callbacks.find(session_id);
+    if (session_it != user_response_callbacks.end())
+        user_response_callbacks.erase(session_it);
 }
 
 void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResponseCallback callback)
 {
-    std::lock_guard lock(forward_to_response_callback_mutex);
+    std::lock_guard lock(forward_response_callbacks_mutex);
 
-    if (forward_to_response_callback.contains(client_id))
+    if (forward_response_callbacks.contains(client_id))
     {
-        LOG_WARNING(log, "Receive new forwarding connection from server_id {}, client_id {}, will destroy the older one", client_id.first, client_id.second);
-        auto & call_back = forward_to_response_callback[client_id];
+        LOG_WARNING(
+            log,
+            "Receive new forwarding connection from server_id {}, client_id {}, will destroy the older one",
+            client_id.first,
+            client_id.second);
+        auto & call_back = forward_response_callbacks[client_id];
         auto response = std::make_shared<ForwardDestroyResponse>();
         call_back(response);
-        forward_to_response_callback.erase(client_id);
+        forward_response_callbacks.erase(client_id);
     }
 
-    forward_to_response_callback.emplace(client_id, callback);
+    forward_response_callbacks.emplace(client_id, callback);
+}
+
+void KeeperDispatcher::unRegisterForward(ForwardingClientId client_id)
+{
+    std::lock_guard lock(forward_response_callbacks_mutex);
+    auto forward_response_writer = forward_response_callbacks.find(client_id);
+    if (forward_response_writer == forward_response_callbacks.end())
+        return;
+
+    forward_response_callbacks.erase(forward_response_writer);
 }
 
 void KeeperDispatcher::sessionCleanerTask()
@@ -379,7 +432,7 @@ void KeeperDispatcher::sessionCleanerTask()
                     RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;
-//                    request_info.is_internal = true;
+                    //                    request_info.is_internal = true;
                     using namespace std::chrono;
                     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
@@ -387,7 +440,7 @@ void KeeperDispatcher::sessionCleanerTask()
                         if (!requests_queue->push(std::move(request_info)))
                             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
-//                    finishSession(dead_session);
+                    //                    unregisterUserResponseCallBack(dead_session);
                     LOG_INFO(log, "Dead session close request pushed");
                 }
             }
@@ -460,28 +513,19 @@ void KeeperDispatcher::updateConfigurationThread()
     }
 }
 
-void KeeperDispatcher::finishSession(int64_t session_id)
-{
-    LOG_INFO(log, "finish session {}", toHexString(session_id));
-    std::lock_guard lock(session_to_response_callback_mutex);
-    auto session_it = session_to_response_callback.find(session_id);
-    if (session_it != session_to_response_callback.end())
-        session_to_response_callback.erase(session_it);
-}
-
 bool KeeperDispatcher::isLocalSession(int64_t session_id)
 {
-    std::lock_guard lock(session_to_response_callback_mutex);
-    auto session_it = session_to_response_callback.find(session_id);
-    return session_it != session_to_response_callback.end();
+    std::lock_guard lock(user_response_callbacks_mutex);
+    auto session_it = user_response_callbacks.find(session_id);
+    return session_it != user_response_callbacks.end();
 }
 
 void KeeperDispatcher::filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
-    std::lock_guard lock(session_to_response_callback_mutex);
+    std::lock_guard lock(user_response_callbacks_mutex);
     for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
     {
-        if (!session_to_response_callback.contains(it->first))
+        if (!user_response_callbacks.contains(it->first))
         {
             LOG_TRACE(log, "Not local session {}", toHexString(it->first));
             it = session_to_expiration_time.erase(it);
@@ -564,8 +608,8 @@ Keeper4LWInfo KeeperDispatcher::getKeeper4LWInfo()
         result.outstanding_requests_count = requests_queue->size();
     }
     {
-        std::lock_guard lock(session_to_response_callback_mutex);
-        result.alive_connections_count = session_to_response_callback.size();
+        std::lock_guard lock(user_response_callbacks_mutex);
+        result.alive_connections_count = user_response_callbacks.size();
     }
     if (result.is_leader)
     {

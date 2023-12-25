@@ -1344,7 +1344,7 @@ void KeeperStore::processRequest(
 
     LOG_TRACE(
         log,
-        "[process request]NewSession/xid #{}#{}, opnum {}",
+        "Process request#{}#{}{}",
         toHexString(request_for_session.session_id),
         zk_request->xid,
         Coordination::toString(zk_request->getOpNum()));
