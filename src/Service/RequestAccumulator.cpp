@@ -74,7 +74,7 @@ bool RequestAccumulator::waitResultAndHandleError(NuRaftResult prev_result, cons
             ForwardResponsePtr response = request->makeResponse();
             response->setAppendEntryResult(result_accepted, prev_result->get_result_code());
 
-            keeper_dispatcher->sendForwardResponse({request_session.server_id, request_session.client_id}, response);
+            keeper_dispatcher->invokeForwardResponseCallBack({request_session.server_id, request_session.client_id}, response);
         }
         else if (!result_accepted || prev_result->get_result_code() != nuraft::cmd_result_code::OK)
         {

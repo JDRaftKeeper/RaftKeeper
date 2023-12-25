@@ -36,12 +36,17 @@ private:
     ptr<RequestsQueue> requests_queue;
     ThreadSafeQueue<ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
-    using SessionToResponseCallback = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
 
-    /// Session response callback which will send response to IO handler.
-    /// Sessions here is local session which are directly connected to the node.
-    SessionToResponseCallback session_to_response_callback;
-    std::mutex session_to_response_callback_mutex;
+    /// Response callback which will send response to IO handler. Key is session_id
+    /// which are local session which are directly connected to the node.
+    using UserResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
+    UserResponseCallbacks user_response_callbacks;
+    std::mutex user_response_callbacks_mutex;
+
+    /// Just like user_response_callbacks, but only concerns new session or update session requests.
+    using SessionResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
+    SessionResponseCallbacks session_response_callbacks;
+    std::mutex session_response_callbacks_mutex;
 
     struct PairHash
     {
@@ -56,10 +61,10 @@ private:
 
     /// <server id, client id>
     using ForwardingClientId = std::pair<int32_t, int32_t>;
-    using ForwardToResponseCallback = std::unordered_map<ForwardingClientId, ForwardResponseCallback, PairHash>;
+    using ForwardResponseCallbacks = std::unordered_map<ForwardingClientId, ForwardResponseCallback, PairHash>;
 
-    ForwardToResponseCallback forward_to_response_callback;
-    std::mutex forward_to_response_callback_mutex;
+    ForwardResponseCallbacks forward_response_callbacks;
+    std::mutex forward_response_callbacks_mutex;
 
     using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
     /// More than 1k updates is definitely misconfiguration.
@@ -92,12 +97,15 @@ private:
 
     Poco::Timestamp uptime;
 
+    /// Used as new session request internal id counter
+    std::atomic<int64_t> new_session_internal_id_counter;
+
     void requestThread(RunnerId runner_id);
     void responseThread();
 
     /// Clean dead sessions
     void sessionCleanerTask();
-    void setResponse(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
+    void invokeResponseCallBack(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
 
 public:
     KeeperDispatcher();
@@ -108,9 +116,13 @@ public:
 
     ~KeeperDispatcher() = default;
 
-    bool putRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
+    /// Push user requests
+    bool pushRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t session_id);
 
-    bool putForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
+    /// Push new session or update session request
+    bool pushSessionRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t internal_id);
+
+    bool pushForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
     int64_t newSession(int64_t session_timeout_ms) { return server->newSession(session_timeout_ms); }
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
@@ -118,13 +130,17 @@ public:
         return server->updateSessionTimeout(session_id, session_timeout_ms);
     }
 
+    /// Register response callback for forwarder
     void registerForward(ForwardingClientId client_id, ForwardResponseCallback callback);
-
     void unRegisterForward(ForwardingClientId client_id);
 
-    void registerSession(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
-    /// Call if we don't need any responses for this session no more (session was expired)
-    void finishSession(int64_t session_id);
+    /// Register response callback for user request
+    void registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
+    void unregisterUserResponseCallBack(int64_t session_id);
+
+    /// Register response callback for new session or update session request
+    void registerSessionRequestCallback(int64_t id, ZooKeeperResponseCallback callback);
+    void unRegisterSessionRequestCallback(int64_t id);
 
     bool isLocalSession(int64_t session_id);
 
@@ -143,7 +159,7 @@ public:
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
     /// Send forwarding response
-    void sendForwardResponse(ForwardingClientId client_id, ForwardResponsePtr response);
+    void invokeForwardResponseCallBack(ForwardingClientId client_id, ForwardResponsePtr response);
 
     /// Are we leader
     bool isLeader() const { return server->isLeader(); }
@@ -193,10 +209,17 @@ public:
 
     KeeperLogInfo getKeeperLogInfo() { return server->getKeeperLogInfo(); }
 
+    /// Request to be leader
     bool requestLeader() { return server->requestLeader(); }
 
     /// return process start time in us.
     int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }
+
+    /// My server id
+    int32_t myId() const { return server->myId(); }
+
+    /// When user create new session, we use this id as request id.
+    int64_t getInternalId() { return new_session_internal_id_counter++; }
 };
 
 }

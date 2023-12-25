@@ -1,9 +1,7 @@
 #pragma once
 
 #include <unordered_set>
-#include <Service/ConnCommon.h>
-#include <Service/ConnectionStats.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
+
 #include <Poco/Delegate.h>
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
@@ -15,11 +13,18 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
+
 #include <Common/IO/WriteBufferFromString.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketReactor.h>
 #include <Common/NIO/SvsSocketAcceptor.h>
 #include <Common/NIO/SvsSocketReactor.h>
+
+#include "ZooKeeper/ZooKeeperCommon.h"
+#include <Service/ConnCommon.h>
+#include <Service/ConnectionStats.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 
 
 namespace RK
@@ -85,7 +90,7 @@ private:
         bool is_reconnected{};
     };
 
-    ConnectRequest receiveHandshake(int32_t handshake_length);
+    Coordination::OpNum receiveHandshake(int32_t handshake_length);
     HandShakeResult handleHandshake(ConnectRequest & connect_req);
     void sendHandshake(HandShakeResult & result);
 
@@ -94,7 +99,10 @@ private:
 
     /// After handshake, we receive requests.
     std::pair<Coordination::OpNum, Coordination::XID> receiveRequest(int32_t length);
-    void sendResponse(const Coordination::ZooKeeperResponsePtr & resp);
+    /// Push a response of a user request to IO sending queue
+    void pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response);
+    /// Push a response of new session or update session request to IO sending queue
+    void pushSessionResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response);
 
     /// do some statistics
     void packageSent();
@@ -126,6 +134,7 @@ private:
     bool next_req_header_read_done = false;
     bool previous_req_body_read_done = true;
 
+    /// Whether session established.
     bool handshake_done = false;
 
     Context & global_context;
