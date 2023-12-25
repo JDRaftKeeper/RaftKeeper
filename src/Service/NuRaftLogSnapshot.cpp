@@ -631,7 +631,19 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
     {
         size_t cur_read_size = read_size;
         UInt64 magic;
-        readUInt64(snap_fs, magic);
+
+        // If raft snapshot version is v0, we get eof when read magic.
+        // Just log it, and break;
+        if (readUInt64(snap_fs, magic) != 0)
+        {
+            if (snap_fs->eof() && version_ == SnapshotVersion::V0)
+            {
+                LOG_INFO(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_));
+                break;
+            }
+            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load magic error, version {}", obj_path, uint8_t(version_));
+        }
+
         read_size += 8;
         if (isFileHeader(magic))
         {
