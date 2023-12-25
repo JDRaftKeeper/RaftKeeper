@@ -7,8 +7,6 @@
 namespace RK
 {
 
-using namespace Coordination;
-
 class RequestForwarder;
 struct ForwardRequest;
 using ForwardRequestPtr = std::shared_ptr<ForwardRequest>;

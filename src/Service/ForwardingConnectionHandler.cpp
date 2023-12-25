@@ -188,7 +188,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         if (request)
                         {
                             auto response = request->makeResponse();
-                            keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
+                            keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
                             LOG_ERROR(log, "Error processing request {}", e.displayText());
                         }
                         else
@@ -241,7 +241,7 @@ void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)
 
     auto response = request->makeResponse();
 
-    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
+    keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
 }
 
 void ForwardingConnectionHandler::processRaftRequest(ForwardRequestPtr request)
@@ -250,7 +250,7 @@ void ForwardingConnectionHandler::processRaftRequest(ForwardRequestPtr request)
 
     request->readImpl(body);
 
-    keeper_dispatcher->putForwardingRequest(server_id, client_id, request);
+    keeper_dispatcher->pushForwardingRequest(server_id, client_id, request);
 }
 
 void ForwardingConnectionHandler::processHandshake()
@@ -271,7 +271,7 @@ void ForwardingConnectionHandler::processHandshake()
     response->accepted = true;
     response->error_code = nuraft::OK;
 
-    keeper_dispatcher->sendForwardResponse({server_id, client_id}, response);
+    keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
 }
 
 void ForwardingConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
@@ -394,9 +394,9 @@ void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
     WriteBufferFromFiFoBuffer buf;
     response->write(buf);
 
-    /// Lock to avoid data condition which will lead response leak
-    std::lock_guard lock(send_response_mutex);
     {
+        /// Lock to avoid data condition which will lead response leak
+        std::lock_guard lock(send_response_mutex);
         /// TODO handle timeout
         responses->push(buf.getBuffer());
         /// Trigger socket writable event
