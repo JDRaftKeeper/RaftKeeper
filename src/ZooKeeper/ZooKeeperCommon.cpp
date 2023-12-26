@@ -602,7 +602,11 @@ void ZooKeeperNewSessionRequest::readImpl(ReadBuffer & in)
 
 Coordination::ZooKeeperResponsePtr ZooKeeperNewSessionRequest::makeResponse() const
 {
-    return std::make_shared<ZooKeeperNewSessionResponse>();
+    auto response = std::make_shared<ZooKeeperNewSessionResponse>();
+    response->internal_id = internal_id;
+    response->server_id = server_id;
+    response->xid = xid;
+    return response;
 }
 
 void ZooKeeperNewSessionResponse::readImpl(ReadBuffer & in)
@@ -637,7 +641,11 @@ void ZooKeeperUpdateSessionRequest::readImpl(ReadBuffer & in)
 
 Coordination::ZooKeeperResponsePtr ZooKeeperUpdateSessionRequest::makeResponse() const
 {
-    return std::make_shared<ZooKeeperUpdateSessionResponse>();
+    auto response = std::make_shared<ZooKeeperUpdateSessionResponse>();
+    response->session_id = session_id;
+    response->server_id = server_id;
+    response->xid = xid;
+    return response;
 }
 
 void ZooKeeperUpdateSessionResponse::readImpl(ReadBuffer & in)

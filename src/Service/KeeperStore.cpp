@@ -1382,6 +1382,57 @@ void KeeperStore::processRequest(
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
         return;
     }
+    else if (zk_request->getOpNum() == Coordination::OpNum::NewSession)
+    {
+        auto * new_session_req = dynamic_cast<Coordination::ZooKeeperNewSessionRequest *>(zk_request.get());
+        auto response = new_session_req->makeResponse();
+        auto * new_session_resp = dynamic_cast<Coordination::ZooKeeperNewSessionResponse *>(response.get());
+
+        /// Creating session should increase zxid
+        new_session_resp->zxid = getZXID();
+        {
+            std::lock_guard lock(session_mutex);
+
+            auto new_session_id = session_id_counter++;
+            new_session_resp->session_id = new_session_id;
+            new_session_resp->success = true;
+
+            auto it = session_and_timeout.emplace(new_session_id, new_session_req->session_timeout_ms);
+            if (!it.second)
+            {
+                LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", toHexString(new_session_id));
+            }
+            session_expiry_queue.addNewSessionOrUpdate(new_session_id, new_session_req->session_timeout_ms);
+        }
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+        return;
+    }
+    else if (zk_request->getOpNum() == Coordination::OpNum::UpdateSession)
+    {
+        auto * update_session_req = dynamic_cast<Coordination::ZooKeeperUpdateSessionRequest *>(zk_request.get());
+        auto response = update_session_req->makeResponse();
+        auto * update_session_resp = dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response.get());
+
+        /// Update session should increase zxid /// TODO
+        update_session_resp->zxid = getZXID();
+
+        {
+            std::lock_guard lock(session_mutex);
+            if (!session_and_timeout.contains(session_id))
+            {
+                LOG_WARNING(log, "Updating session timeout for {}, but it is already expired.", toHexString(session_id));
+                update_session_resp->success = false;
+            }
+            else
+            {
+                LOG_INFO(log, "Updated session timeout for {}", toHexString(session_id));
+                session_expiry_queue.addNewSessionOrUpdate(session_id, session_and_timeout[session_id]);
+                update_session_resp->success = true;
+            }
+        }
+        set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
+        return;
+    }
 
     /// ZooKeeper update sessions expiry for each request, not only for heartbeats
     {
