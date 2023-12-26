@@ -55,12 +55,7 @@ namespace
         params.snapshot_distance_ = raft_settings->snapshot_distance;
         params.return_method_ = nuraft::raft_params::blocking;
         params.parallel_log_appending_ = raft_settings->log_fsync_mode == FsyncMode::FSYNC_PARALLEL;
-        /// TODO disable auto_forwarding_
-        params.auto_forwarding_ = true;
-        /// forwarding timeout should lower than operation_timeout_ms
-        params.auto_forwarding_req_timeout_ = std::max(raft_settings->operation_timeout_ms - 1000, raft_settings->operation_timeout_ms / 2);
-        /// client_req_timeout_ should lower than auto_forwarding_req_timeout_
-        params.client_req_timeout_ = std::max(params.auto_forwarding_req_timeout_ - 1000, params.auto_forwarding_req_timeout_ / 2);
+        params.auto_forwarding_ = false;
     }
 }
 
