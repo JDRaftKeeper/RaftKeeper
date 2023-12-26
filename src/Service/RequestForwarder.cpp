@@ -251,7 +251,7 @@ void RequestForwarder::processResponse(RunnerId runner_id, ForwardResponsePtr fo
     /// common request
     LOG_ERROR(log, "Receive failed forward response {}", forward_response_ptr->toString());
 
-    forward_response_ptr->onError(*this); /// for GetSession UpdateSession Op, maybe peer not accepted or raft not accepted
+    forward_response_ptr->onError(*this); /// for NewSession UpdateSession Op, maybe peer not accepted or raft not accepted
 }
 
 void RequestForwarder::shutdown()

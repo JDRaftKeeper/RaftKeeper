@@ -95,11 +95,11 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
                 WriteBufferFromFiFoBuffer out;
 
-                switch (forward_type)
+                switch (static_cast<ForwardType>(forward_type))
                 {
                     case ForwardType::Handshake:
                     case ForwardType::Sessions:
-                    case ForwardType::GetSession:
+                    case ForwardType::NewSession:
                     case ForwardType::UpdateSession:
                     case ForwardType::Operation:
                         current_package.is_done = false;
@@ -220,7 +220,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
 
 bool ForwardingConnectionHandler::isRaftRequest(ForwardType type)
 {
-    return type == ForwardType::Operation || type == ForwardType::GetSession || type == ForwardType::UpdateSession;
+    return type == ForwardType::Operation || type == ForwardType::NewSession || type == ForwardType::UpdateSession;
 }
 
 void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)

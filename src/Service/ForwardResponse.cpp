@@ -21,7 +21,7 @@ std::string toString(ForwardType type)
             return "Handshake";
         case ForwardType::Sessions:
             return "Sessions";
-        case ForwardType::GetSession:
+        case ForwardType::NewSession:
             return "NewSession";
         case ForwardType::UpdateSession:
             return "UpdateSession";

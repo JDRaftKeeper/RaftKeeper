@@ -189,7 +189,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
             poco_assert_msg(int32_t(req_body_buf->used()) == body_len, "Request body length is not consistent.");
 
             /// 3. handshake
-            if (unlikely(!handshake_done))
+            if (unlikely(!handshake_done)) /// TODO in handshaking
             {
                 ConnectRequest connect_req;
                 try
