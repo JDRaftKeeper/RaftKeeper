@@ -13,7 +13,7 @@ namespace ErrorCodes
 
 void ForwardRequest::write(WriteBuffer & out) const
 {
-    Coordination::write(forwardType(), out);
+    Coordination::write(static_cast<int8_t>(forwardType()), out);
     writeImpl(out);
     out.next();
 }
@@ -232,7 +232,7 @@ ForwardRequestFactory::ForwardRequestFactory()
 {
     registerForwardRequest<ForwardType::Operation, ForwardOpRequest>(*this);
     registerForwardRequest<ForwardType::Sessions, ForwardSessionRequest>(*this);
-    registerForwardRequest<ForwardType::GetSession, ForwardGetSessionRequest>(*this);
+    registerForwardRequest<ForwardType::NewSession, ForwardGetSessionRequest>(*this);
     registerForwardRequest<ForwardType::UpdateSession, ForwardUpdateSessionRequest>(*this);
 }
 

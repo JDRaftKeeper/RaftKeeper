@@ -115,20 +115,20 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
         ForwardType response_type = static_cast<ForwardType>(type);
         switch (response_type)
         {
-            case Sessions:
+            case ForwardType::Sessions:
                 response = std::make_shared<ForwardSessionResponse>();
                 break;
-            case GetSession:
+            case ForwardType::NewSession:
                 response = std::make_shared<ForwardNewSessionResponse>();
                 break;
-            case UpdateSession:
+            case ForwardType::UpdateSession:
                 response = std::make_shared<ForwardUpdateSessionResponse>();
                 break;
-            case Operation:
+            case ForwardType::Operation:
                 response = std::make_shared<ForwardOpResponse>();
                 break;
             default:
-                throw Exception("Unexpected forward package type " + std::to_string(response_type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);
+                throw Exception("Unexpected forward package type " + toString(response_type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);
         }
 
         response->readImpl(*in);
@@ -148,7 +148,7 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
 void ForwardingConnection::sendHandshake()
 {
     LOG_TRACE(log, "send hand shake to {}, my_server_id {}, client_id {}", endpoint, my_server_id, client_id);
-    Coordination::write(ForwardType::Handshake, *out);
+    Coordination::write(static_cast<int8_t>(ForwardType::Handshake), *out);
     Coordination::write(my_server_id, *out);
     Coordination::write(client_id, *out);
     out->next();
@@ -159,7 +159,7 @@ bool ForwardingConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);
-    assert(type == ForwardType::Handshake);
+    assert(type == static_cast<int8_t>(ForwardType::Handshake));
 
     bool accepted;
     Coordination::read(accepted, *in);

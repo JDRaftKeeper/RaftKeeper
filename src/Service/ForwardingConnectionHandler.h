@@ -71,7 +71,7 @@ private:
         /// whether a request read completes
         bool is_done;
     };
-    CurrentPackage current_package{Unknown, true};
+    CurrentPackage current_package{ForwardType::Unknown, true};
 
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;

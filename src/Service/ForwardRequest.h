@@ -91,7 +91,7 @@ struct ForwardGetSessionRequest : public ForwardRequest
 {
     Coordination::ZooKeeperRequestPtr request;
 
-    ForwardType forwardType() const override { return ForwardType::GetSession; }
+    ForwardType forwardType() const override { return ForwardType::NewSession; }
 
     void readImpl(ReadBuffer &) override;
 
