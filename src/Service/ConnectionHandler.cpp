@@ -17,6 +17,7 @@ namespace ErrorCodes
 {
     extern const int UNEXPECTED_PACKET_FROM_CLIENT;
     extern const int TIMEOUT_EXCEEDED;
+    extern const int LOGICAL_ERROR;
 }
 
 using Poco::NObserver;
