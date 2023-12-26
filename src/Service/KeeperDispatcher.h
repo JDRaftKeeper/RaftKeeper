@@ -122,6 +122,7 @@ public:
     /// Push new session or update session request
     bool pushSessionRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t internal_id);
 
+    /// Push forwarding request
     bool pushForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
     int64_t newSession(int64_t session_timeout_ms) { return server->newSession(session_timeout_ms); }
