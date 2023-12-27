@@ -135,7 +135,7 @@ private:
     bool previous_req_body_read_done = true;
 
     /// Whether session established.
-    bool handshake_done = false;
+    std::atomic<bool> handshake_done = false;
 
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
@@ -151,7 +151,7 @@ private:
     /// Server receives the 0 and will not identify it as a re-connection.
     std::atomic<int64_t> session_id{0};
 
-    int64_t internal_id{0};
+    std::atomic<int64_t> internal_id{0};
 
     Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
