@@ -753,6 +753,7 @@ struct ZooKeeperNewSessionResponse final : ZooKeeperResponse
         writeText(", session_id: " + std::to_string(session_id), out);
         writeText(", server_id: " + std::to_string(server_id), out);
         writeText(", success: " + std::to_string(success), out);
+        writeText(", error: " + String(errorMessage(error)), out);
         return out.str();
     }
 };
@@ -797,6 +798,7 @@ struct ZooKeeperUpdateSessionResponse final : ZooKeeperResponse
         writeText(", session_id: " + std::to_string(session_id), out);
         writeText(", server_id: " + std::to_string(server_id), out);
         writeText(", success: " + std::to_string(success), out);
+        writeText(", error: " + String(errorMessage(error)), out);
         return out.str();
     }
 };
