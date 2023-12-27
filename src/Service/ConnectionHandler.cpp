@@ -96,7 +96,7 @@ ConnectionHandler::~ConnectionHandler()
 {
     try
     {
-        LOG_INFO(log, "Disconnecting peer {}#{}", peer, toHexString(session_id));
+        LOG_INFO(log, "Disconnecting peer {}#{}", peer, toHexString(session_id.load()));
         unregisterConnection(this);
 
         reactor.removeEventHandler(sock, NObserver<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
@@ -113,7 +113,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
 {
     try
     {
-        LOG_TRACE(log, "Peer {}#{} is readable", peer, toHexString(session_id));
+        LOG_TRACE(log, "Peer {}#{} is readable", peer, toHexString(session_id.load()));
         if (!sock.available())
         {
             LOG_INFO(log, "Peer {} close connection! Current errno {}", peer, errno);
@@ -152,7 +152,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 }
 
                 body_len = header;
-                LOG_TRACE(log, "Peer {}#{} read request length : {}", peer, toHexString(session_id), body_len);
+                LOG_TRACE(log, "Peer {}#{} read request length : {}", peer, toHexString(session_id.load()), body_len);
 
                 /// clear len_buf
                 req_header_buf.drain(req_header_buf.used());
@@ -183,7 +183,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 log,
                 "Peer {}#{} read request done, body length : {}, req_body_buf used {}",
                 peer,
-                toHexString(session_id),
+                toHexString(session_id.load()),
                 body_len,
                 req_body_buf->used());
             poco_assert_msg(int32_t(req_body_buf->used()) == body_len, "Request body length is not consistent.");
@@ -216,14 +216,14 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 {
                     auto [opnum, xid] = receiveRequest(body_len);
                     if (opnum == Coordination::OpNum::Close)
-                        LOG_DEBUG(log, "Received close event with xid {} for session {}", xid, toHexString(session_id));
+                        LOG_DEBUG(log, "Received close event with xid {} for session {}", xid, toHexString(session_id.load()));
 
                     /// Each request restarts session stopwatch
                     session_stopwatch.restart();
                 }
                 catch (const Exception & e)
                 {
-                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", toHexString(session_id)));
+                    tryLogCurrentException(log, fmt::format("Error processing session {} request.", toHexString(session_id.load())));
 
                     if (e.code() == ErrorCodes::TIMEOUT_EXCEEDED)
                     {
@@ -237,20 +237,20 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
     catch (Poco::Net::NetException &)
     {
         tryLogCurrentException(
-            log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id)));
+            log, fmt::format("Network error when receiving request, will close connection session {}.", toHexString(session_id.load())));
         destroyMe();
     }
     catch (...)
     {
         tryLogCurrentException(
-            log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id)));
+            log, fmt::format("Fatal error when handling request, will close connection session {}.", toHexString(session_id.load())));
         destroyMe();
     }
 }
 
 void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
 {
-    LOG_TRACE(log, "Peer {}#{} is writable", peer, toHexString(session_id));
+    LOG_TRACE(log, "Peer {}#{} is writable", peer, toHexString(session_id.load()));
 
     auto remove_event_handler_if_needed = [this]
     {
@@ -323,7 +323,7 @@ void ConnectionHandler::onSocketWritable(const AutoPtr<WritableNotification> &)
                 responses->remove();
                 /// package sent
                 packageSent();
-                LOG_TRACE(log, "Sent response to {}#{}", peer, toHexString(session_id));
+                LOG_TRACE(log, "Sent response to {}#{}", peer, toHexString(session_id.load()));
             }
             else
             {
@@ -358,7 +358,7 @@ void ConnectionHandler::onReactorShutdown(const AutoPtr<ShutdownNotification> & 
 
 void ConnectionHandler::onSocketError(const AutoPtr<ErrorNotification> & /*pNf*/)
 {
-    LOG_WARNING(log, "Socket error for peer {}#{}, errno {} !", peer, toHexString(session_id), errno);
+    LOG_WARNING(log, "Socket error for peer {}#{}, errno {} !", peer, toHexString(session_id.load()), errno);
     destroyMe();
 }
 
@@ -383,7 +383,7 @@ void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
         if (session_id != 0)
         {
             writeText(",sid=", buf);
-            writeText(toHexString(session_id), buf);
+            writeText(toHexString(session_id.load()), buf);
 
             writeText(",lop=", buf);
             LastOpPtr op = last_op.get();
@@ -478,7 +478,7 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
 
     if (opnum == OpNum::NewSession)
     {
-        LOG_TRACE(log, "Received new session request with id {}", toHexString(previous_session_id));
+        LOG_DEBUG(log, "Received new session request with internal id {}", toHexString(id));
         ZooKeeperNewSessionRequest * new_session_req = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get());
         new_session_req->session_timeout_ms = timeout_ms;
         new_session_req->server_id = keeper_dispatcher->myId();
@@ -487,7 +487,7 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
     }
     else
     {
-        LOG_TRACE(log, "Received update session request with session {}", toHexString(previous_session_id));
+        LOG_DEBUG(log, "Received update session request with session {}", toHexString(previous_session_id));
         ZooKeeperUpdateSessionRequest * update_session_req = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get());
         update_session_req->session_id = id;
         update_session_req->session_timeout_ms = timeout_ms;
@@ -495,12 +495,12 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
         update_session_req->xid = Coordination::UPDATE_SESSION_XID;
     }
 
-    auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) { pushSessionResponseToSendingQueue(response); };
+    auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) { sendSessionResponseToClient(response); };
     keeper_dispatcher->registerSessionResponseCallback(id, response_callback);
     internal_id = id;
 
     if (!keeper_dispatcher->pushSessionRequest(request, id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id.load()));
 
     return opnum;
 }
@@ -556,21 +556,21 @@ std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequ
     Coordination::OpNum opnum;
     Coordination::read(opnum, body);
 
-    LOG_DEBUG(log, "Receive request #{}#{}#{}", toHexString(session_id), xid, Coordination::toString(opnum));
+    LOG_DEBUG(log, "Receive request #{}#{}#{}", toHexString(session_id.load()), xid, Coordination::toString(opnum));
 
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
     request->xid = xid;
     request->readImpl(body);
 
     if (!keeper_dispatcher->pushRequest(request, session_id))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id.load()));
     return std::make_pair(opnum, xid);
 }
 
-void ConnectionHandler::pushSessionResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
+void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeeperResponsePtr & response)
 {
     /// 1. Push to sending queue.
-    LOG_TRACE(log, "Push a session response to IO sending queue. {}", response->toString());
+    LOG_TRACE(log, "Sending session response to client. {}", response->toString());
 
     uint64_t id;
     uint64_t sid;
@@ -601,7 +601,8 @@ void ConnectionHandler::pushSessionResponseToSendingQueue(const Coordination::Zo
         Coordination::write(42, buf);
 
     /// Session timeout -1 represent session expired in Zookeeper
-    int32_t negotiated_session_timeout = !success ? -1 : session_timeout.totalMilliseconds();
+    int32_t negotiated_session_timeout
+        = !success && response->error == Coordination::Error::ZSESSIONEXPIRED ? -1 : session_timeout.totalMilliseconds();
     Coordination::write(negotiated_session_timeout, buf);
 
     Coordination::write(sid, buf);
@@ -615,8 +616,13 @@ void ConnectionHandler::pushSessionResponseToSendingQueue(const Coordination::Zo
 
     if (!success)
     {
-        LOG_ERROR(log, "Failed to connect to me.");
-        destroyMe();
+        LOG_ERROR(log, "Failed to establish session, close connection.");
+        keeper_dispatcher->unregisterUserResponseCallBackWithoutLock(session_id);
+        if (!handshake_done)
+            keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(internal_id);
+        else
+            keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(session_id);
+        delete this;
         return;
     }
 
@@ -634,7 +640,7 @@ void ConnectionHandler::pushSessionResponseToSendingQueue(const Coordination::Zo
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_TRACE(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id), response->toString());
+    LOG_TRACE(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id.load()), response->toString());
     updateStats(response);
 
     /// Lock to avoid data condition which will lead response leak
@@ -693,7 +699,7 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
                 LOG_WARNING(
                     log,
                     "The processing time for request #{}#{}#{} is {}ms, which is a little long.",
-                    toHexString(session_id),
+                    toHexString(session_id.load()),
                     response->xid,
                     Coordination::toString(response->getOpNum()),
                     elapsed);

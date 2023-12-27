@@ -66,7 +66,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             }
             catch (...)
             {
-                tryLogCurrentException(log, "Error forward request to leader for runner " + std::to_string(runner_id));
+                tryLogCurrentException(log, "Error when forwarding request to leader for runner " + std::to_string(runner_id));
                 request_processor->onError(
                     false,
                     nuraft::cmd_result_code::FAILED,
