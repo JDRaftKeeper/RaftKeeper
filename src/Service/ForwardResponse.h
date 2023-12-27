@@ -15,9 +15,9 @@ enum class ForwardType : int8_t
 {
     Unknown = -1,
     Handshake = 1,         /// Forwarder handshake
-    Sessions = 2,          /// Follower will send all local sessions to leader periodically
-    NewSession = 3,        /// New session
-    UpdateSession = 4,     /// Update session when client reconnecting
+    SyncSessions = 2,      /// Follower will send all local sessions to leader periodically
+    NewSession = 3,        /// New session request
+    UpdateSession = 4,     /// Update session request when client reconnecting
     Operation = 5,         /// All write requests after the connection is established
     Destroy = 6,           /// Only used in server side to indicate that the connection is stale and server should close it
 };
@@ -81,9 +81,9 @@ struct ForwardHandshakeResponse : public ForwardResponse
     }
 };
 
-struct ForwardSessionResponse : public ForwardResponse
+struct ForwardSyncSessionsResponse : public ForwardResponse
 {
-    ForwardType forwardType() const override { return ForwardType::Sessions; }
+    ForwardType forwardType() const override { return ForwardType::SyncSessions; }
 
     void readImpl(ReadBuffer &) override;
     void writeImpl(WriteBuffer &) const override;
@@ -137,7 +137,7 @@ struct ForwardUpdateSessionResponse : public ForwardResponse
     }
 };
 
-struct ForwardOpResponse : public ForwardResponse
+struct ForwardUserRequestResponse : public ForwardResponse
 {
     int64_t session_id;
     int64_t xid;

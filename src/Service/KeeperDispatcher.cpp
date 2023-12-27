@@ -50,20 +50,25 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
 
             try
             {
-                if (isLocalSession(request_for_session.session_id))
+                if (unlikely(isSessionRequest(request_for_session.request)
+                             || request_for_session.request->getOpNum() == Coordination::OpNum::Auth))
                 {
-                    LOG_TRACE(log, "Put to request processor: {}", request_for_session.toSimpleString());
+                    LOG_TRACE(log, "Skip to push {} to request processor", request_for_session.toSimpleString());
+                }
+                else if (isLocalSession(request_for_session.session_id))
+                {
+                    LOG_TRACE(log, "Push {} to request processor", request_for_session.toSimpleString());
                     request_processor->push(request_for_session);
                 }
                 /// we should skip close requests from clear session task
                 else if (!request_for_session.isForwardRequest() && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
-                    LOG_WARNING(log, "not local session {}", toHexString(request_for_session.session_id));
+                    LOG_WARNING(log, "Not local session {}", toHexString(request_for_session.session_id));
                 }
 
                 if (!request_for_session.request->isReadRequest() && server->isLeaderAlive())
                 {
-                    LOG_TRACE(log, "leader is {}", server->getLeader());
+                    LOG_TRACE(log, "Leader is {}", server->getLeader());
 
                     if (server->isLeader())
                         request_accumulator.push(request_for_session);
@@ -112,12 +117,13 @@ void KeeperDispatcher::responseThread()
 void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response)
 {
     /// session request
-    if (response->getOpNum() == Coordination::OpNum::NewSession || response->getOpNum() == Coordination::OpNum::UpdateSession)
+    if (unlikely(isSessionRequest(response->getOpNum())))
     {
-        std::lock_guard lock(session_response_callbacks_mutex);
+        std::lock_guard lock(user_response_callbacks_mutex);
         auto session_writer = session_response_callbacks.find(session_id); /// TODO session id == internal id?
         if (session_writer == session_response_callbacks.end())
             return;
+        session_writer->second(response);
     }
     /// user request
     else
@@ -130,7 +136,7 @@ void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordina
         session_writer->second(response);
         /// Session closed, no more writes
         if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
-            user_response_callbacks.erase(session_writer);
+            unregisterUserResponseCallBackWithoutLock(session_id);
     }
 }
 
@@ -340,17 +346,23 @@ void KeeperDispatcher::shutdown()
     LOG_INFO(log, "Dispatcher shut down");
 }
 
-void KeeperDispatcher::registerSessionRequestCallback(int64_t id, ZooKeeperResponseCallback callback)
+void KeeperDispatcher::registerSessionResponseCallback(int64_t id, ZooKeeperResponseCallback callback)
 {
-    std::lock_guard lock(session_response_callbacks_mutex);
+    LOG_DEBUG(log, "Register session response callback {}", toHexString(id));
+    std::lock_guard lock(user_response_callbacks_mutex);
     if (!session_response_callbacks.try_emplace(id, callback).second)
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Callback with id {} already registered in dispatcher", toHexString(id));
 }
 
-void KeeperDispatcher::unRegisterSessionRequestCallback(int64_t id)
+void KeeperDispatcher::unRegisterSessionResponseCallback(int64_t id)
 {
-    LOG_INFO(log, "registerSessionRequestCallback {}", toHexString(id));
-    std::lock_guard lock(session_response_callbacks_mutex);
+    std::lock_guard lock(user_response_callbacks_mutex);
+    unRegisterSessionResponseCallbackWithoutLock(id);
+}
+
+void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
+{
+    LOG_DEBUG(log, "Unregister session response callback {}", toHexString(id));
     auto session_it = session_response_callbacks.find(id);
     if (session_it != session_response_callbacks.end())
         session_response_callbacks.erase(session_it);
@@ -359,20 +371,30 @@ void KeeperDispatcher::unRegisterSessionRequestCallback(int64_t id)
 void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
     std::lock_guard lock(user_response_callbacks_mutex);
+    registerUserResponseCallBackWithoutLock(session_id, callback, is_reconnected);
+}
+
+void KeeperDispatcher::registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
+{
     if (!user_response_callbacks.try_emplace(session_id, callback).second && !is_reconnected)
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", toHexString(session_id));
 }
 
 void KeeperDispatcher::unregisterUserResponseCallBack(int64_t session_id)
 {
-    LOG_INFO(log, "unregisterUserResponseCallBack {}", toHexString(session_id));
     std::lock_guard lock(user_response_callbacks_mutex);
+    unregisterUserResponseCallBackWithoutLock(session_id);
+}
+
+void KeeperDispatcher::unregisterUserResponseCallBackWithoutLock(int64_t session_id)
+{
+    LOG_DEBUG(log, "Unregister user response callback {}", toHexString(session_id));
     auto session_it = user_response_callbacks.find(session_id);
     if (session_it != user_response_callbacks.end())
         user_response_callbacks.erase(session_it);
 }
 
-void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResponseCallback callback)
+void KeeperDispatcher::registerForwarderResponseCallBack(ForwardingClientId client_id, ForwardResponseCallback callback)
 {
     std::lock_guard lock(forward_response_callbacks_mutex);
 
@@ -392,7 +414,7 @@ void KeeperDispatcher::registerForward(ForwardingClientId client_id, ForwardResp
     forward_response_callbacks.emplace(client_id, callback);
 }
 
-void KeeperDispatcher::unRegisterForward(ForwardingClientId client_id)
+void KeeperDispatcher::unRegisterForwarderResponseCallBack(ForwardingClientId client_id)
 {
     std::lock_guard lock(forward_response_callbacks_mutex);
     auto forward_response_writer = forward_response_callbacks.find(client_id);

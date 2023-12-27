@@ -115,8 +115,8 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
         ForwardType response_type = static_cast<ForwardType>(type);
         switch (response_type)
         {
-            case ForwardType::Sessions:
-                response = std::make_shared<ForwardSessionResponse>();
+            case ForwardType::SyncSessions:
+                response = std::make_shared<ForwardSyncSessionsResponse>();
                 break;
             case ForwardType::NewSession:
                 response = std::make_shared<ForwardNewSessionResponse>();
@@ -125,7 +125,7 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
                 response = std::make_shared<ForwardUpdateSessionResponse>();
                 break;
             case ForwardType::Operation:
-                response = std::make_shared<ForwardOpResponse>();
+                response = std::make_shared<ForwardUserRequestResponse>();
                 break;
             default:
                 throw Exception("Unexpected forward package type " + toString(response_type), ErrorCodes::UNEXPECTED_FORWARD_PACKET);

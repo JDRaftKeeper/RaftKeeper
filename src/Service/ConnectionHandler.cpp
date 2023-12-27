@@ -474,7 +474,7 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
 
     /// Generate id for new session request and use session_id for update session request
-    auto id = opnum == OpNum::NewSession ? keeper_dispatcher->getInternalId() : previous_session_id;
+    auto id = opnum == OpNum::NewSession ? keeper_dispatcher->getNewSessionInternalId() : previous_session_id;
 
     if (opnum == OpNum::NewSession)
     {
@@ -482,19 +482,22 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
         ZooKeeperNewSessionRequest * new_session_req = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get());
         new_session_req->session_timeout_ms = timeout_ms;
         new_session_req->server_id = keeper_dispatcher->myId();
-        new_session_req->internal_id = 0;
+        new_session_req->internal_id = id;
+        new_session_req->xid = Coordination::NEW_SESSION_XID;
     }
     else
     {
         LOG_TRACE(log, "Received update session request with session {}", toHexString(previous_session_id));
         ZooKeeperUpdateSessionRequest * update_session_req = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get());
-        update_session_req->session_id = previous_session_id;
+        update_session_req->session_id = id;
         update_session_req->session_timeout_ms = timeout_ms;
         update_session_req->server_id = keeper_dispatcher->myId();
+        update_session_req->xid = Coordination::UPDATE_SESSION_XID;
     }
 
     auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response) { pushSessionResponseToSendingQueue(response); };
-    keeper_dispatcher->registerSessionRequestCallback(id, response_callback);
+    keeper_dispatcher->registerSessionResponseCallback(id, response_callback);
+    internal_id = id;
 
     if (!keeper_dispatcher->pushSessionRequest(request, id))
         throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Session {} already disconnected", toHexString(session_id));
@@ -617,15 +620,16 @@ void ConnectionHandler::pushSessionResponseToSendingQueue(const Coordination::Zo
         return;
     }
 
+    session_id = sid;
     handshake_done = true;
 
     /// 2. Register callback
 
-    keeper_dispatcher->unRegisterSessionRequestCallback(id);
+    keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(id);
     auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response_) { pushUserResponseToSendingQueue(response_); };
 
     bool is_reconnected = response->getOpNum() == Coordination::OpNum::UpdateSession;
-    keeper_dispatcher->registerUserResponseCallBack(sid, response_callback, is_reconnected);
+    keeper_dispatcher->registerUserResponseCallBackWithoutLock(sid, response_callback, is_reconnected);
 }
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
@@ -708,6 +712,12 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
 void ConnectionHandler::destroyMe()
 {
     keeper_dispatcher->unregisterUserResponseCallBack(session_id);
+
+    if (!handshake_done)
+        keeper_dispatcher->unRegisterSessionResponseCallback(internal_id);
+    else
+        keeper_dispatcher->unRegisterSessionResponseCallback(session_id);
+
     delete this;
 }
 
