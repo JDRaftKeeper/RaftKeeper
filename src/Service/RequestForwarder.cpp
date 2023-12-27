@@ -214,8 +214,9 @@ bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestP
             = clock::time_point(earliest_send_time) + std::chrono::microseconds(operation_timeout.totalMicroseconds());
         if (now > earliest_operation_deadline)
         {
-            LOG_WARNING(log, "Request forward timeout, {}", request->toString());
+            LOG_WARNING(log, "Forward request {} timeout", request->toString());
             ForwardResponsePtr response = request->makeResponse();
+            response->setAppendEntryResult(false, nuraft::cmd_result_code::TIMEOUT);
             response->onError(*this); /// timeout
             return true;
         }
@@ -270,6 +271,7 @@ void RequestForwarder::shutdown()
         forwarding_queue->forEach([this](const ForwardRequestPtr & request) -> bool
         {
             ForwardResponsePtr response = request->makeResponse();
+            response->setAppendEntryResult(false, nuraft::cmd_result_code::FAILED);
             response->onError(*this); /// shutdown
             return true;
         });

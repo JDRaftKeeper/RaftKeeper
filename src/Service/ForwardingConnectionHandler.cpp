@@ -89,9 +89,9 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 ReadBufferFromMemory read_buf(req_header_buf.begin(), req_header_buf.used());
                 Coordination::read(forward_type, read_buf);
                 req_header_buf.drain(req_header_buf.used());
-                current_package.protocol = static_cast<ForwardType>(forward_type);
+                current_package.type = static_cast<ForwardType>(forward_type);
 
-                LOG_TRACE(log, "Receive {}", toString(current_package.protocol));
+                LOG_TRACE(log, "Receive {}", toString(current_package.type));
 
                 WriteBufferFromFiFoBuffer out;
 
@@ -101,7 +101,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                     case ForwardType::SyncSessions:
                     case ForwardType::NewSession:
                     case ForwardType::UpdateSession:
-                    case ForwardType::Operation:
+                    case ForwardType::User:
                         current_package.is_done = false;
                         break;
                     case ForwardType::Destroy:
@@ -116,7 +116,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
             }
             else
             {
-                if (unlikely(current_package.protocol == ForwardType::Handshake))
+                if (unlikely(current_package.type == ForwardType::Handshake))
                 {
                     if (!req_body_buf)
                     {
@@ -153,31 +153,23 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                             Coordination::read(body_len, read_buf);
                             req_body_len_buf.drain(req_body_len_buf.used());
 
-                            if (isRaftRequest(current_package.protocol))
-                            {
-                                LOG_TRACE(log, "Read request done, body length {}", body_len);
-                                req_body_buf = std::make_shared<FIFOBuffer>(body_len);
-                            }
-                            else
-                            {
-                                LOG_TRACE(log, "Read request done, session count {}", body_len);
-                                req_body_buf = std::make_shared<FIFOBuffer>(body_len * 16);
-                            }
+                            LOG_TRACE(log, "Read request done, body length {}", body_len);
+                            req_body_buf = std::make_shared<FIFOBuffer>(body_len);
                         }
 
                         sock.receiveBytes(*req_body_buf);
                         if (!req_body_buf->isFull())
                             continue;
 
-                        request = ForwardRequestFactory::instance().get(current_package.protocol);
+                        request = ForwardRequestFactory::instance().get(current_package.type);
 
-                        if (isRaftRequest(current_package.protocol))
+                        if (likely(isUserOrSessionRequest(current_package.type)))
                         {
-                            processRaftRequest(request);
+                            processUserOrSessionRequest(request);
                         }
                         else
                         {
-                            processSessions(request);
+                            processSyncSessionsRequest(request);
                         }
 
                         req_body_buf.reset();
@@ -188,8 +180,9 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                         if (request)
                         {
                             auto response = request->makeResponse();
+                            response->setAppendEntryResult(false, nuraft::cmd_result_code::FAILED);
                             keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
-                            LOG_ERROR(log, "Error processing request {}", e.displayText());
+                            tryLogCurrentException(log, "Error when forwarding request " + request->toString());
                         }
                         else
                         {
@@ -218,38 +211,33 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
     }
 }
 
-bool ForwardingConnectionHandler::isRaftRequest(ForwardType type)
+bool ForwardingConnectionHandler::isUserOrSessionRequest(ForwardType type)
 {
-    return type == ForwardType::Operation || type == ForwardType::NewSession || type == ForwardType::UpdateSession;
+    return type == ForwardType::User || type == ForwardType::NewSession || type == ForwardType::UpdateSession;
 }
 
-void ForwardingConnectionHandler::processSessions(ForwardRequestPtr request)
+void ForwardingConnectionHandler::processSyncSessionsRequest(ForwardRequestPtr request)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-    size_t session_size = req_body_buf->size() / 16;
-    for (size_t i = 0; i < session_size; ++i)
+    request->readImpl(body);
+
+    auto * sync_sessions_req = dynamic_cast<ForwardSyncSessionsRequest *>(request.get());
+    LOG_TRACE(log, "Receive {} remote sessions", sync_sessions_req->session_expiration_time.size());
+
+    for (auto [session_id, expiration_time] : sync_sessions_req->session_expiration_time)
     {
-        int64_t session_id;
-        read(session_id, body);
-        int64_t expiration_time;
-        read(expiration_time, body);
-
-        LOG_TRACE(log, "Receive remote session {}, expiration time {}", session_id, expiration_time);
-
+        LOG_TRACE(log, "Receive remote session {}, expiration time {}", toHexString(session_id), expiration_time);
         keeper_dispatcher->handleRemoteSession(session_id, expiration_time);
     }
 
     auto response = request->makeResponse();
-
     keeper_dispatcher->invokeForwardResponseCallBack({server_id, client_id}, response);
 }
 
-void ForwardingConnectionHandler::processRaftRequest(ForwardRequestPtr request)
+void ForwardingConnectionHandler::processUserOrSessionRequest(ForwardRequestPtr request)
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
-
     request->readImpl(body);
-
     keeper_dispatcher->pushForwardingRequest(server_id, client_id, request);
 }
 
