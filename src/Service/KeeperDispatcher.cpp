@@ -164,13 +164,13 @@ bool KeeperDispatcher::pushSessionRequest(const Coordination::ZooKeeperRequestPt
 
     LOG_TRACE(
         log,
-        "Push (new/update)session request #{}#{}#{}",
+        "Push new/update session request #{}#{}#{}",
         toHexString(internal_id),
         request->xid,
         Coordination::toString(request->getOpNum()));
 
     if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
-        throw Exception("Cannot push session request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Cannot push session request to queue within operation timeout");
     return true;
 }
 
@@ -351,7 +351,7 @@ void KeeperDispatcher::registerSessionResponseCallback(int64_t id, ZooKeeperResp
     LOG_DEBUG(log, "Register session response callback {}", toHexString(id));
     std::lock_guard lock(user_response_callbacks_mutex);
     if (!session_response_callbacks.try_emplace(id, callback).second)
-        throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Callback with id {} already registered in dispatcher", toHexString(id));
+        throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session response callback with id {} has already registered", toHexString(id));
 }
 
 void KeeperDispatcher::unRegisterSessionResponseCallback(int64_t id)

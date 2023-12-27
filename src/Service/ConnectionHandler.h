@@ -102,7 +102,7 @@ private:
     /// Push a response of a user request to IO sending queue
     void pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response);
     /// Push a response of new session or update session request to IO sending queue
-    void pushSessionResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response);
+    void sendSessionResponseToClient(const Coordination::ZooKeeperResponsePtr & response);
 
     /// do some statistics
     void packageSent();
@@ -149,7 +149,7 @@ private:
     /// server will return 0 and when client tries connect
     /// with previous_session_id = 0.
     /// Server receives the 0 and will not identify it as a re-connection.
-    int64_t session_id{0};
+    std::atomic<int64_t> session_id{0};
 
     int64_t internal_id{0};
 
