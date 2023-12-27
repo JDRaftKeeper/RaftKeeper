@@ -98,7 +98,7 @@ void ForwardingConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotific
                 switch (static_cast<ForwardType>(forward_type))
                 {
                     case ForwardType::Handshake:
-                    case ForwardType::Sessions:
+                    case ForwardType::SyncSessions:
                     case ForwardType::NewSession:
                     case ForwardType::UpdateSession:
                     case ForwardType::Operation:
@@ -263,7 +263,7 @@ void ForwardingConnectionHandler::processHandshake()
     /// register session response callback
     auto response_callback = [this](ForwardResponsePtr response) { sendResponse(response); };
 
-    keeper_dispatcher->registerForward({server_id, client_id}, response_callback);
+    keeper_dispatcher->registerForwarderResponseCallBack({server_id, client_id}, response_callback);
 
     LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
 
@@ -410,7 +410,7 @@ void ForwardingConnectionHandler::sendResponse(ForwardResponsePtr response)
 
 void ForwardingConnectionHandler::destroyMe()
 {
-    keeper_dispatcher->unRegisterForward({server_id, client_id});
+    keeper_dispatcher->unRegisterForwarderResponseCallBack({server_id, client_id});
     delete this;
 }
 

@@ -1,6 +1,6 @@
 
-#include <Service/ForwardResponse.h>
 #include <Service/ForwardRequest.h>
+#include <Service/ForwardResponse.h>
 #include <Service/RequestForwarder.h>
 
 
@@ -19,8 +19,8 @@ std::string toString(ForwardType type)
     {
         case ForwardType::Handshake:
             return "Handshake";
-        case ForwardType::Sessions:
-            return "Sessions";
+        case ForwardType::SyncSessions:
+            return "SyncSessions";
         case ForwardType::NewSession:
             return "NewSession";
         case ForwardType::UpdateSession:
@@ -36,18 +36,17 @@ std::string toString(ForwardType type)
     throw Exception("ForwardType " + std::to_string(raw_type) + " is unknown", ErrorCodes::UNEXPECTED_FORWARD_PACKET);
 }
 
-void ForwardSessionResponse::readImpl(ReadBuffer & buf)
+void ForwardSyncSessionsResponse::readImpl(ReadBuffer & buf)
 {
     Coordination::read(accepted, buf);
     Coordination::read(error_code, buf);
 }
 
-void ForwardSessionResponse::writeImpl(WriteBuffer &) const
+void ForwardSyncSessionsResponse::writeImpl(WriteBuffer &) const
 {
-
 }
 
-bool ForwardSessionResponse::match(const ForwardRequestPtr & forward_request) const
+bool ForwardSyncSessionsResponse::match(const ForwardRequestPtr & forward_request) const
 {
     return forward_request->forwardType() == forwardType();
 }
@@ -64,14 +63,19 @@ void ForwardNewSessionResponse::writeImpl(WriteBuffer & buf) const
     Coordination::write(internal_id, buf);
 }
 
-void ForwardNewSessionResponse::onError([[maybe_unused]]RequestForwarder & request_forwarder) const
+void ForwardNewSessionResponse::onError(RequestForwarder & request_forwarder) const
 {
-    /// dispatcher on error
+    request_forwarder.request_processor->onError(
+        accepted,
+        static_cast<nuraft::cmd_result_code>(error_code),
+        internal_id,
+        Coordination::NEW_SESSION_XID,
+        Coordination::OpNum::NewSession);
 }
 
 bool ForwardNewSessionResponse::match(const ForwardRequestPtr & forward_request) const
 {
-    auto * session_request = dynamic_cast<ForwardGetSessionRequest *>(forward_request.get());
+    auto * session_request = dynamic_cast<ForwardNewSessionRequest *>(forward_request.get());
     if (session_request)
     {
         auto * zk_session_request = dynamic_cast<ZooKeeperNewSessionRequest *>(session_request->request.get());
@@ -98,7 +102,12 @@ void ForwardUpdateSessionResponse::writeImpl(WriteBuffer & buf) const
 
 void ForwardUpdateSessionResponse::onError([[maybe_unused]] RequestForwarder & request_forwarder) const
 {
-    /// dispatcher on error
+    request_forwarder.request_processor->onError(
+        accepted,
+        static_cast<nuraft::cmd_result_code>(error_code),
+        session_id,
+        Coordination::UPDATE_SESSION_XID,
+        Coordination::OpNum::UpdateSession);
 }
 
 bool ForwardUpdateSessionResponse::match(const ForwardRequestPtr & forward_request) const
@@ -116,7 +125,7 @@ bool ForwardUpdateSessionResponse::match(const ForwardRequestPtr & forward_reque
     return false;
 }
 
-void ForwardOpResponse::readImpl(ReadBuffer & buf)
+void ForwardUserRequestResponse::readImpl(ReadBuffer & buf)
 {
     Coordination::read(accepted, buf);
     Coordination::read(error_code, buf);
@@ -126,21 +135,21 @@ void ForwardOpResponse::readImpl(ReadBuffer & buf)
     Coordination::read(opnum, buf);
 }
 
-void ForwardOpResponse::writeImpl(WriteBuffer & buf) const
+void ForwardUserRequestResponse::writeImpl(WriteBuffer & buf) const
 {
     Coordination::write(session_id, buf);
     Coordination::write(xid, buf);
     Coordination::write(opnum, buf);
 }
 
-void ForwardOpResponse::onError(RequestForwarder & request_forwarder) const
+void ForwardUserRequestResponse::onError(RequestForwarder & request_forwarder) const
 {
     request_forwarder.request_processor->onError(accepted, static_cast<nuraft::cmd_result_code>(error_code), session_id, xid, opnum);
 }
 
-bool ForwardOpResponse::match(const ForwardRequestPtr & forward_request) const
+bool ForwardUserRequestResponse::match(const ForwardRequestPtr & forward_request) const
 {
-    auto * forward_request_ptr =  dynamic_cast<ForwardOpRequest *>(forward_request.get());
+    auto * forward_request_ptr = dynamic_cast<ForwardUserRequest *>(forward_request.get());
     if (forward_request_ptr)
     {
         return forward_request_ptr->request.session_id == session_id && forward_request_ptr->request.request->xid == xid;

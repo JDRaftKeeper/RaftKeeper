@@ -63,4 +63,15 @@ RequestId RequestForSession::getRequestId() const
     return {session_id, request->xid};
 }
 
+/// Is new session request or update session request
+bool isSessionRequest(Coordination::OpNum opnum)
+{
+    return opnum == Coordination::OpNum::NewSession || opnum == Coordination::OpNum::UpdateSession;
+}
+
+bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request)
+{
+    return isSessionRequest(request->getOpNum());
+}
+
 }
