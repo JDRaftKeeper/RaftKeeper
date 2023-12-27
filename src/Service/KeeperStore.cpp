@@ -1422,6 +1422,7 @@ void KeeperStore::processRequest(
             {
                 LOG_WARNING(log, "Updating session timeout for {}, but it is already expired.", toHexString(session_id));
                 update_session_resp->success = false;
+                update_session_resp->error = Coordination::Error::ZSESSIONEXPIRED;
             }
             else
             {
