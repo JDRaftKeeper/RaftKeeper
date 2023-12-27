@@ -41,13 +41,23 @@ RequestForSession ForwardHandshakeRequest::requestForSession() const
     throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Not implemented.");
 }
 
-void ForwardSyncSessionsRequest::readImpl(ReadBuffer &)
+void ForwardSyncSessionsRequest::readImpl(ReadBuffer & buf)
 {
-    /// Implemented in ForwardingConnectionHandler::processSessions /// TODO move here
+    int32_t session_size;
+    read(session_size, buf);
+    for (int32_t i = 0; i < session_size; ++i)
+    {
+        int64_t session_id;
+        read(session_id, buf);
+        int64_t expiration_time;
+        read(expiration_time, buf);
+        session_expiration_time.emplace(session_id, expiration_time);
+    }
 }
 
 void ForwardSyncSessionsRequest::writeImpl(WriteBuffer & buf) const
 {
+    Coordination::write(static_cast<int32_t>(session_expiration_time.size() * 16 + 4), buf);
     Coordination::write(static_cast<int32_t>(session_expiration_time.size()), buf);
     for (const auto & session_expiration : session_expiration_time)
     {
@@ -93,8 +103,6 @@ void ForwardNewSessionRequest::writeImpl(WriteBuffer & buf) const
 ForwardResponsePtr ForwardNewSessionRequest::makeResponse() const
 {
     auto res = std::make_shared<ForwardNewSessionResponse>();
-    res->accepted = false;
-    res->error_code = nuraft::cmd_result_code::FAILED;
     res->internal_id = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get())->internal_id;
     return res;
 }
@@ -134,8 +142,6 @@ void ForwardUpdateSessionRequest::writeImpl(WriteBuffer & buf) const
 ForwardResponsePtr ForwardUpdateSessionRequest::makeResponse() const
 {
     auto res = std::make_shared<ForwardUpdateSessionResponse>();
-    res->accepted = false;
-    res->error_code = nuraft::cmd_result_code::FAILED;
     res->session_id = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get())->session_id;
     return res;
 }
@@ -182,8 +188,6 @@ void ForwardUserRequest::writeImpl(WriteBuffer & buf) const
 ForwardResponsePtr ForwardUserRequest::makeResponse() const
 {
     auto res = std::make_shared<ForwardUserRequestResponse>();
-    res->accepted = false;
-    res->error_code = nuraft::cmd_result_code::FAILED;
     res->session_id = request.session_id;
     res->xid = request.request->xid;
     res->opnum = request.request->getOpNum();
@@ -230,7 +234,7 @@ void ForwardRequestFactory::registerRequest(ForwardType type, Creator creator)
 
 ForwardRequestFactory::ForwardRequestFactory()
 {
-    registerForwardRequest<ForwardType::Operation, ForwardUserRequest>(*this);
+    registerForwardRequest<ForwardType::User, ForwardUserRequest>(*this);
     registerForwardRequest<ForwardType::SyncSessions, ForwardSyncSessionsRequest>(*this);
     registerForwardRequest<ForwardType::NewSession, ForwardNewSessionRequest>(*this);
     registerForwardRequest<ForwardType::UpdateSession, ForwardUpdateSessionRequest>(*this);

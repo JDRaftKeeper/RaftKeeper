@@ -67,7 +67,7 @@ private:
     /// Represent one read from socket.
     struct CurrentPackage
     {
-        ForwardType protocol;
+        ForwardType type;
         /// whether a request read completes
         bool is_done;
     };
@@ -86,10 +86,10 @@ private:
     /// client id in client endpoint
     int32_t client_id{-1};
 
-    bool isRaftRequest(ForwardType type);
+    bool isUserOrSessionRequest(ForwardType type);
     void processHandshake();
-    void processRaftRequest(ForwardRequestPtr request);
-    void processSessions(ForwardRequestPtr request);
+    void processUserOrSessionRequest(ForwardRequestPtr request);
+    void processSyncSessionsRequest(ForwardRequestPtr request);
 
     // The connection is stale and need destroyed
     bool need_destroy{false};

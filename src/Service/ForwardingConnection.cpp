@@ -124,7 +124,7 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
             case ForwardType::UpdateSession:
                 response = std::make_shared<ForwardUpdateSessionResponse>();
                 break;
-            case ForwardType::Operation:
+            case ForwardType::User:
                 response = std::make_shared<ForwardUserRequestResponse>();
                 break;
             default:

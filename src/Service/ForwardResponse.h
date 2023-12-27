@@ -18,7 +18,7 @@ enum class ForwardType : int8_t
     SyncSessions = 2,      /// Follower will send all local sessions to leader periodically
     NewSession = 3,        /// New session request
     UpdateSession = 4,     /// Update session request when client reconnecting
-    Operation = 5,         /// All write requests after the connection is established
+    User = 5,              /// All write requests after the connection is established
     Destroy = 6,           /// Only used in server side to indicate that the connection is stale and server should close it
 };
 
@@ -143,7 +143,7 @@ struct ForwardUserRequestResponse : public ForwardResponse
     int64_t xid;
     Coordination::OpNum opnum;
 
-    ForwardType forwardType() const override { return ForwardType::Operation; }
+    ForwardType forwardType() const override { return ForwardType::User; }
 
     void readImpl(ReadBuffer &) override;
     void writeImpl(WriteBuffer &) const override;

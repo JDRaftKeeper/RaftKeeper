@@ -45,11 +45,9 @@ struct ForwardHandshakeRequest : public ForwardRequest
     ForwardType forwardType() const override { return ForwardType::Handshake; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
-
     RequestForSession requestForSession() const override;
 
     String toString() const override
@@ -72,11 +70,9 @@ struct ForwardSyncSessionsRequest : public ForwardRequest
     ForwardType forwardType() const override { return ForwardType::SyncSessions; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
-
     RequestForSession requestForSession() const override;
 
     String toString() const override
@@ -115,7 +111,6 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
-
     RequestForSession requestForSession() const override;
 
     String toString() const override
@@ -130,13 +125,12 @@ struct ForwardUserRequest : public ForwardRequest
 {
     RequestForSession request;
 
-    ForwardType forwardType() const override { return ForwardType::Operation; }
+    ForwardType forwardType() const override { return ForwardType::User; }
 
     void readImpl(ReadBuffer &) override;
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
-
     RequestForSession requestForSession() const override;
 
     String toString() const override
