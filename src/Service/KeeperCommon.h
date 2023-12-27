@@ -67,7 +67,7 @@ struct ErrorRequest
 {
     bool accepted;
     nuraft::cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
-    int64_t session_id;
+    int64_t session_id; /// For new session request, this is internal_id, for there is no session_id right now.
     Coordination::XID xid;
     Coordination::OpNum opnum;
 
@@ -76,5 +76,9 @@ struct ErrorRequest
 };
 
 using ErrorRequests = std::list<ErrorRequest>;
+
+/// Is new session request or update session request
+bool isSessionRequest(Coordination::OpNum opnum);
+bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request);
 
 }

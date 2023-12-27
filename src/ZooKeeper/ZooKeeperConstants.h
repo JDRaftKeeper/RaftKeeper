@@ -12,6 +12,8 @@ using XID = int32_t;
 static constexpr XID WATCH_XID = -1;
 static constexpr XID PING_XID = -2;
 static constexpr XID AUTH_XID = -4;
+static constexpr XID NEW_SESSION_XID = -256;
+static constexpr XID UPDATE_SESSION_XID = -512;
 /// Used when RaftKeeper server close a session.
 /// But when client send a close request xid can be any digit.
 static constexpr XID CLOSE_XID = 0x7FFFFFFF;

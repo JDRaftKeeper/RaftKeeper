@@ -206,8 +206,14 @@ void RequestProcessor::processCommittedRequest(size_t count)
         auto runner_id = getRunnerId(committed_request.session_id);
         auto & my_pending_requests = pending_requests.find(runner_id)->second;
 
+        /// New session and update session requests are not put into pending queue
+        if (unlikely(isSessionRequest(committed_request.request)))
+        {
+            applyRequest(committed_request);
+            committed_queue.pop();
+        }
         /// Remote requests
-        if (!keeper_dispatcher->isLocalSession(committed_request.session_id))
+        else if (!keeper_dispatcher->isLocalSession(committed_request.session_id))
         {
             if (my_pending_requests.contains(committed_request.session_id))
             {
@@ -225,7 +231,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
         /// Local requests
         else
         {
-            if (committed_request.request->getOpNum() == Coordination::OpNum::Auth)
+            if (unlikely(committed_request.request->getOpNum() == Coordination::OpNum::Auth))
             {
                 LOG_DEBUG(log, "Apply auth request {}", toHexString(committed_request.session_id));
                 applyRequest(committed_request);
@@ -270,8 +276,36 @@ void RequestProcessor::processErrorRequest(size_t count)
 
         auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
 
-        /// request is not local
-        if (!keeper_dispatcher->isLocalSession(session_id))
+        if (unlikely(isSessionRequest(error_request.opnum)))
+        {
+            ZooKeeperResponsePtr response;
+            if (error_request.opnum == Coordination::OpNum::NewSession)
+            {
+                auto new_session_response = std::make_shared<ZooKeeperNewSessionResponse>();
+                new_session_response->xid = xid;
+                new_session_response->internal_id = session_id;
+                new_session_response->success = false;
+                response = std::move(new_session_response);
+            }
+            else
+            {
+                auto update_session_response = std::make_shared<ZooKeeperUpdateSessionResponse>();
+                update_session_response->xid = xid;
+                update_session_response->session_id = session_id;
+                update_session_response->success = false;
+                response = std::move(update_session_response);
+            }
+
+            response->error = error_request.error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
+                                                                                           : Coordination::Error::ZCONNECTIONLOSS;
+
+            responses_queue.push(ResponseForSession{session_id, response});
+
+            error_request_ids.erase(error_request.getRequestId());
+            error_requests.erase(error_requests.begin());
+        }
+        /// Remote request
+        else if (!keeper_dispatcher->isLocalSession(session_id))
         {
             if (my_pending_requests.contains(session_id))
             {
@@ -287,6 +321,7 @@ void RequestProcessor::processErrorRequest(size_t count)
             error_request_ids.erase(error_request.getRequestId());
             error_requests.erase(error_requests.begin());
         }
+        /// Local request
         else
         {
             /// find error request in pending queue
@@ -305,7 +340,7 @@ void RequestProcessor::processErrorRequest(size_t count)
                 response->error = error_request.error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                                : Coordination::Error::ZCONNECTIONLOSS;
 
-                responses_queue.push(ResponseForSession{static_cast<int64_t>(session_id), response});
+                responses_queue.push(ResponseForSession{session_id, response});
 
                 error_request_ids.erase(error_request.getRequestId());
                 error_requests.erase(error_requests.begin());

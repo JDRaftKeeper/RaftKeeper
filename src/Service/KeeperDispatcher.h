@@ -44,9 +44,10 @@ private:
     std::mutex user_response_callbacks_mutex;
 
     /// Just like user_response_callbacks, but only concerns new session or update session requests.
+    /// For new session request the key is internal_id, for update session request the key is session id.
     using SessionResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
     SessionResponseCallbacks session_response_callbacks;
-    std::mutex session_response_callbacks_mutex;
+//    std::mutex session_response_callbacks_mutex;
 
     struct PairHash
     {
@@ -132,16 +133,19 @@ public:
     }
 
     /// Register response callback for forwarder
-    void registerForward(ForwardingClientId client_id, ForwardResponseCallback callback);
-    void unRegisterForward(ForwardingClientId client_id);
+    void registerForwarderResponseCallBack(ForwardingClientId client_id, ForwardResponseCallback callback);
+    void unRegisterForwarderResponseCallBack(ForwardingClientId client_id);
 
     /// Register response callback for user request
     void registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
+    void registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     void unregisterUserResponseCallBack(int64_t session_id);
+    void unregisterUserResponseCallBackWithoutLock(int64_t session_id);
 
     /// Register response callback for new session or update session request
-    void registerSessionRequestCallback(int64_t id, ZooKeeperResponseCallback callback);
-    void unRegisterSessionRequestCallback(int64_t id);
+    void registerSessionResponseCallback(int64_t id, ZooKeeperResponseCallback callback);
+    void unRegisterSessionResponseCallback(int64_t id);
+    void unRegisterSessionResponseCallbackWithoutLock(int64_t id);
 
     bool isLocalSession(int64_t session_id);
 
@@ -164,9 +168,7 @@ public:
 
     /// Are we leader
     bool isLeader() const { return server->isLeader(); }
-
     bool hasLeader() const { return server->isLeaderAlive(); }
-
     bool isObserver() const { return server->isObserver(); }
 
     /// get log size in bytes
@@ -220,7 +222,7 @@ public:
     int32_t myId() const { return server->myId(); }
 
     /// When user create new session, we use this id as request id.
-    int64_t getInternalId() { return new_session_internal_id_counter++; }
+    int64_t getNewSessionInternalId() { return new_session_internal_id_counter++; }
 };
 
 }

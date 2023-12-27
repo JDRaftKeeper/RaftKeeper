@@ -28,7 +28,6 @@ struct ForwardRequest
     virtual void writeImpl(WriteBuffer &) const = 0;
 
     virtual ForwardResponsePtr makeResponse() const = 0;
-
     virtual RequestForSession requestForSession() const = 0;
 
     virtual String toString() const = 0;
@@ -59,18 +58,18 @@ struct ForwardHandshakeRequest : public ForwardRequest
     }
 };
 
-struct ForwardSessionRequest : public ForwardRequest
+struct ForwardSyncSessionsRequest : public ForwardRequest
 {
     std::unordered_map<int64_t, int64_t> session_expiration_time;
 
-    ForwardSessionRequest() = default;
+    ForwardSyncSessionsRequest() = default;
 
-    explicit ForwardSessionRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
+    explicit ForwardSyncSessionsRequest(std::unordered_map<int64_t, int64_t> && session_expiration_time_)
         : session_expiration_time(std::move(session_expiration_time_))
     {
     }
 
-    ForwardType forwardType() const override { return ForwardType::Sessions; }
+    ForwardType forwardType() const override { return ForwardType::SyncSessions; }
 
     void readImpl(ReadBuffer &) override;
 
@@ -87,18 +86,16 @@ struct ForwardSessionRequest : public ForwardRequest
 
 };
 
-struct ForwardGetSessionRequest : public ForwardRequest
+struct ForwardNewSessionRequest : public ForwardRequest
 {
     Coordination::ZooKeeperRequestPtr request;
 
     ForwardType forwardType() const override { return ForwardType::NewSession; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
-
     RequestForSession requestForSession() const override;
 
     String toString() const override
@@ -115,7 +112,6 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
     ForwardType forwardType() const override { return ForwardType::UpdateSession; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
@@ -130,14 +126,13 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
 };
 
 
-struct ForwardOpRequest : public ForwardRequest
+struct ForwardUserRequest : public ForwardRequest
 {
     RequestForSession request;
 
     ForwardType forwardType() const override { return ForwardType::Operation; }
 
     void readImpl(ReadBuffer &) override;
-
     void writeImpl(WriteBuffer &) const override;
 
     ForwardResponsePtr makeResponse() const override;
@@ -169,21 +164,21 @@ public:
         {
             case Coordination::OpNum::NewSession:
             {
-                auto session_id_res = std::make_shared<ForwardGetSessionRequest>();
-                session_id_res->request = request_for_session.request;
-                return session_id_res;
+                auto forward_request = std::make_shared<ForwardNewSessionRequest>();
+                forward_request->request = request_for_session.request;
+                return forward_request;
             }
             case Coordination::OpNum::UpdateSession:
             {
-                auto update_session_res = std::make_shared<ForwardUpdateSessionRequest>();
-                update_session_res->request = request_for_session.request;
-                return update_session_res;
+                auto forward_request = std::make_shared<ForwardUpdateSessionRequest>();
+                forward_request->request = request_for_session.request;
+                return forward_request;
             }
             default:
             {
-                auto op_res = std::make_shared<ForwardOpRequest>();
-                op_res->request = request_for_session;
-                return op_res;
+                auto forward_request = std::make_shared<ForwardUserRequest>();
+                forward_request->request = request_for_session;
+                return forward_request;
             }
         }
     }

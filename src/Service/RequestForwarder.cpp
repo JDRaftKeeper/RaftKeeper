@@ -101,7 +101,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
 
                         if (!session_to_expiration_time.empty())
                         {
-                            ForwardRequestPtr forward_request = std::make_shared<ForwardSessionRequest>(std::move(session_to_expiration_time));
+                            ForwardRequestPtr forward_request = std::make_shared<ForwardSyncSessionsRequest>(std::move(session_to_expiration_time));
                             forward_request->send_time = clock::now();
                             connection->send(forward_request);
                             forwarding_queues[runner_id]->push(std::move(forward_request));

@@ -9,6 +9,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int UNEXPECTED_FORWARD_PACKET;
+    extern const int NOT_IMPLEMENTED;
 }
 
 void ForwardRequest::write(WriteBuffer & out) const
@@ -37,16 +38,15 @@ ForwardResponsePtr ForwardHandshakeRequest::makeResponse() const
 
 RequestForSession ForwardHandshakeRequest::requestForSession() const
 {
-    RequestForSession reuqest_info;
-    return reuqest_info;
+    throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Not implemented.");
 }
 
-void ForwardSessionRequest::readImpl(ReadBuffer &)
+void ForwardSyncSessionsRequest::readImpl(ReadBuffer &)
 {
-    /// implement in ForwardingConnectionHandler::processSessions
+    /// Implemented in ForwardingConnectionHandler::processSessions /// TODO move here
 }
 
-void ForwardSessionRequest::writeImpl(WriteBuffer & buf) const
+void ForwardSyncSessionsRequest::writeImpl(WriteBuffer & buf) const
 {
     Coordination::write(static_cast<int32_t>(session_expiration_time.size()), buf);
     for (const auto & session_expiration : session_expiration_time)
@@ -56,18 +56,18 @@ void ForwardSessionRequest::writeImpl(WriteBuffer & buf) const
     }
 }
 
-ForwardResponsePtr ForwardSessionRequest::makeResponse() const
+ForwardResponsePtr ForwardSyncSessionsRequest::makeResponse() const
 {
-    return std::make_shared<ForwardSessionResponse>();
+    return std::make_shared<ForwardSyncSessionsResponse>();
 }
 
-RequestForSession ForwardSessionRequest::requestForSession() const
+RequestForSession ForwardSyncSessionsRequest::requestForSession() const
 {
-    RequestForSession request_info;
+    RequestForSession request_info; /// TODO throw exception
     return request_info;
 }
 
-void ForwardGetSessionRequest::readImpl(ReadBuffer & buf)
+void ForwardNewSessionRequest::readImpl(ReadBuffer & buf)
 {
     int32_t xid;
     Coordination::read(xid, buf);
@@ -81,7 +81,7 @@ void ForwardGetSessionRequest::readImpl(ReadBuffer & buf)
     request->readImpl(buf);
 }
 
-void ForwardGetSessionRequest::writeImpl(WriteBuffer & buf) const
+void ForwardNewSessionRequest::writeImpl(WriteBuffer & buf) const
 {
     WriteBufferFromOwnString out_buf;
     Coordination::write(request->xid, out_buf);
@@ -90,7 +90,7 @@ void ForwardGetSessionRequest::writeImpl(WriteBuffer & buf) const
     Coordination::write(out_buf.str(), buf);
 }
 
-ForwardResponsePtr ForwardGetSessionRequest::makeResponse() const
+ForwardResponsePtr ForwardNewSessionRequest::makeResponse() const
 {
     auto res = std::make_shared<ForwardNewSessionResponse>();
     res->accepted = false;
@@ -99,11 +99,11 @@ ForwardResponsePtr ForwardGetSessionRequest::makeResponse() const
     return res;
 }
 
-RequestForSession ForwardGetSessionRequest::requestForSession() const
+RequestForSession ForwardNewSessionRequest::requestForSession() const
 {
     RequestForSession request_info;
     request_info.request = request;
-    request_info.session_id = 0;
+    request_info.session_id = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get())->internal_id;
     return request_info;
 }
 
@@ -133,7 +133,7 @@ void ForwardUpdateSessionRequest::writeImpl(WriteBuffer & buf) const
 
 ForwardResponsePtr ForwardUpdateSessionRequest::makeResponse() const
 {
-    auto res = std::make_shared<ForwardOpResponse>();
+    auto res = std::make_shared<ForwardUpdateSessionResponse>();
     res->accepted = false;
     res->error_code = nuraft::cmd_result_code::FAILED;
     res->session_id = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get())->session_id;
@@ -142,13 +142,13 @@ ForwardResponsePtr ForwardUpdateSessionRequest::makeResponse() const
 
 RequestForSession ForwardUpdateSessionRequest::requestForSession() const
 {
-    RequestForSession reuqest_info;
-    reuqest_info.request = request;
-    reuqest_info.session_id = -1;
-    return reuqest_info;
+    RequestForSession request_for_session;
+    request_for_session.request = request;
+    request_for_session.session_id = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get())->session_id;
+    return request_for_session;
 }
 
-void ForwardOpRequest::readImpl(ReadBuffer & buf)
+void ForwardUserRequest::readImpl(ReadBuffer & buf)
 {
     Coordination::read(request.session_id, buf);
 
@@ -167,7 +167,7 @@ void ForwardOpRequest::readImpl(ReadBuffer & buf)
 //    request.is_internal = is_internal;
 }
 
-void ForwardOpRequest::writeImpl(WriteBuffer & buf) const
+void ForwardUserRequest::writeImpl(WriteBuffer & buf) const
 {
     WriteBufferFromOwnString out_buf;
     Coordination::write(request.session_id, out_buf);
@@ -179,9 +179,9 @@ void ForwardOpRequest::writeImpl(WriteBuffer & buf) const
 }
 
 
-ForwardResponsePtr ForwardOpRequest::makeResponse() const
+ForwardResponsePtr ForwardUserRequest::makeResponse() const
 {
-    auto res = std::make_shared<ForwardOpResponse>();
+    auto res = std::make_shared<ForwardUserRequestResponse>();
     res->accepted = false;
     res->error_code = nuraft::cmd_result_code::FAILED;
     res->session_id = request.session_id;
@@ -190,7 +190,7 @@ ForwardResponsePtr ForwardOpRequest::makeResponse() const
     return res;
 }
 
-RequestForSession ForwardOpRequest::requestForSession() const
+RequestForSession ForwardUserRequest::requestForSession() const
 {
     return request;
 }
@@ -230,9 +230,9 @@ void ForwardRequestFactory::registerRequest(ForwardType type, Creator creator)
 
 ForwardRequestFactory::ForwardRequestFactory()
 {
-    registerForwardRequest<ForwardType::Operation, ForwardOpRequest>(*this);
-    registerForwardRequest<ForwardType::Sessions, ForwardSessionRequest>(*this);
-    registerForwardRequest<ForwardType::NewSession, ForwardGetSessionRequest>(*this);
+    registerForwardRequest<ForwardType::Operation, ForwardUserRequest>(*this);
+    registerForwardRequest<ForwardType::SyncSessions, ForwardSyncSessionsRequest>(*this);
+    registerForwardRequest<ForwardType::NewSession, ForwardNewSessionRequest>(*this);
     registerForwardRequest<ForwardType::UpdateSession, ForwardUpdateSessionRequest>(*this);
 }
 
