@@ -47,7 +47,7 @@ private:
     /// For new session request the key is internal_id, for update session request the key is session id.
     using SessionResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
     SessionResponseCallbacks session_response_callbacks;
-//    std::mutex session_response_callbacks_mutex;
+    std::mutex session_response_callbacks_mutex;
 
     struct PairHash
     {
