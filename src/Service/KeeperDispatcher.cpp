@@ -370,6 +370,8 @@ void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
 
 void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
+    if (session_id != 0)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Session id cannot be 0"); 
     std::lock_guard lock(user_response_callbacks_mutex);
     registerUserResponseCallBackWithoutLock(session_id, callback, is_reconnected);
 }
