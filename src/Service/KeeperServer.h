@@ -20,8 +20,8 @@ namespace RK
 class KeeperServer
 {
 private:
-    /// server id configured in config.xml
-    uint32_t server_id;
+    /// my id configured in config.xml
+    uint32_t my_id;
 
     /// configurations
     SettingsPtr settings;
@@ -148,7 +148,12 @@ public:
 
     uint32_t myId() const
     {
-        return server_id;
+        return my_id;
+    }
+
+    size_t getClusterNodeCount() const
+    {
+        return state_manager->getClusterNodeCount();
     }
 };
 

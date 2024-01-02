@@ -243,6 +243,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     UInt64 operation_timeout_ms = configuration_and_settings->raft_settings->operation_timeout_ms;
 
     server = std::make_shared<KeeperServer>(configuration_and_settings, config, responses_queue, request_processor);
+    new_session_internal_id_counter = server->myId();
     /// Raft server needs to be able to handle commit when startup.
     request_processor->initialize(thread_count, server, shared_from_this(), operation_timeout_ms);
 

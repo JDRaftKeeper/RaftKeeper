@@ -207,4 +207,9 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
     return result;
 }
 
+size_t NuRaftStateManager::getClusterNodeCount() const
+{
+    return cur_cluster_config->get_servers().size();
+}
+
 }

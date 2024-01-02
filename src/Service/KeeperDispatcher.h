@@ -224,11 +224,7 @@ public:
 
     /// When user create new session, we use this id as request id.
     /// Note that the internal id for different nodes can be same.
-    int64_t getNewSessionInternalId()
-    {
-        uint32_t increment = myId() + 1; /// In case of my_id is 0
-        return new_session_internal_id_counter.fetch_add(increment) + increment;
-    }
+    int64_t getNewSessionInternalId() { return new_session_internal_id_counter.fetch_add(server->getClusterNodeCount()); }
 };
 
 }
