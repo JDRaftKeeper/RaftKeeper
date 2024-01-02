@@ -220,13 +220,13 @@ public:
     int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }
 
     /// My server id
-    int32_t myId() const { return server->myId(); }
+    uint32_t myId() const { return server->myId(); }
 
     /// When user create new session, we use this id as request id.
     /// Note that the internal id for different nodes can be same.
     int64_t getNewSessionInternalId()
     {
-        auto increment = myId() + 1; /// In case of my_id is 0
+        uint32_t increment = myId() + 1; /// In case of my_id is 0
         return new_session_internal_id_counter.fetch_add(increment) + increment;
     }
 };
