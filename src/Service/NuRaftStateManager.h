@@ -51,11 +51,9 @@ public:
     ptr<cluster_config> load_config() override;
 
     void save_config(const cluster_config & config) override;
-
     void save_state(const srv_state & state) override;
 
     ptr<srv_state> read_state() override;
-
     ptr<log_store> load_log_store() override { return curr_log_store; }
 
     int32 server_id() override { return my_id; }
@@ -67,11 +65,12 @@ public:
     //ptr<srv_config> get_srv_config() const { return curr_srv_config; }
 
     ptr<cluster_config> getClusterConfig() const;
-
     void setClusterConfig(const ptr<cluster_config>& new_config);
 
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config);
+
+    size_t getClusterNodeCount() const;
 
 protected:
     NuRaftStateManager() = default;

@@ -24,12 +24,12 @@ KeeperServer::KeeperServer(
     const Poco::Util::AbstractConfiguration & config_,
     KeeperResponsesQueue & responses_queue_,
     std::shared_ptr<RequestProcessor> request_processor_)
-    : server_id(settings_->my_id)
+    : my_id(settings_->my_id)
     , settings(settings_)
     , config(config_)
     , log(&(Poco::Logger::get("KeeperServer")))
 {
-    state_manager = cs_new<NuRaftStateManager>(server_id, config, settings_);
+    state_manager = cs_new<NuRaftStateManager>(my_id, config, settings_);
 
     state_machine = nuraft::cs_new<NuRaftStateMachine>(
         responses_queue_,
@@ -266,7 +266,7 @@ bool KeeperServer::isLeader() const
 bool KeeperServer::isObserver() const
 {
     auto cluster_config = state_manager->getClusterConfig();
-    return cluster_config->get_server(server_id)->is_learner();
+    return cluster_config->get_server(my_id)->is_learner();
 }
 
 bool KeeperServer::isFollower() const
