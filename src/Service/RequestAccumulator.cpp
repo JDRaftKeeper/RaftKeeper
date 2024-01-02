@@ -33,7 +33,7 @@ void RequestAccumulator::run(RunnerId runner_id)
         {
             if (!requests_queue->tryPop(runner_id, request_for_session))
             {
-                result = server->putRequestBatch(to_append_batch);
+                result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();
                 to_append_batch.clear();
@@ -48,7 +48,7 @@ void RequestAccumulator::run(RunnerId runner_id)
 
             if (to_append_batch.size() >= max_batch_size)
             {
-                result = server->putRequestBatch(to_append_batch);
+                result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();
                 to_append_batch.clear();

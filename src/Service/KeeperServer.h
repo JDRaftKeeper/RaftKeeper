@@ -67,7 +67,7 @@ public:
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
     /// Put write request into queue and keeper server will append it to NuRaft asynchronously.
-    ptr<nuraft::cmd_result<ptr<buffer>>> putRequestBatch(const std::vector<RequestForSession> & request_batch);
+    ptr<nuraft::cmd_result<ptr<buffer>>> pushRequestBatch(const std::vector<RequestForSession> & request_batch);
 
     /// Allocate a new session id.
     int64_t newSession(int64_t session_timeout_ms);

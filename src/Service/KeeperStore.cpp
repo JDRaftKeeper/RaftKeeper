@@ -1336,7 +1336,7 @@ void KeeperStore::processRequest(
     ThreadSafeQueue<ResponseForSession> & responses_queue,
     const RequestForSession & request_for_session,
     std::optional<int64_t> new_last_zxid,
-    bool check_acl [[maybe_unused]],
+    bool check_acl,
     bool ignore_response)
 {
     const auto & zk_request = request_for_session.request;
