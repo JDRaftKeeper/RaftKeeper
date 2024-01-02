@@ -12,7 +12,7 @@ namespace RK
 {
 using namespace nuraft;
 
-NuRaftStateManager::NuRaftStateManager(int id_, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_)
+NuRaftStateManager::NuRaftStateManager(uint32_t id_, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_)
     : settings(settings_), my_id(id_), my_host(settings_->host), my_internal_port(settings_->internal_port), log_dir(settings_->log_dir)
 {
     log = &(Poco::Logger::get("NuRaftStateManager"));
