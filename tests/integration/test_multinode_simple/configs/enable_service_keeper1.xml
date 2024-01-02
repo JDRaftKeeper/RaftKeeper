@@ -13,6 +13,8 @@
             <min_session_timeout_ms>1000</min_session_timeout_ms>
             <max_session_timeout_ms>80000</max_session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
+            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
+            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
 
         <cluster>
