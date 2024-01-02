@@ -20,6 +20,7 @@ static constexpr XID CLOSE_XID = 0x7FFFFFFF;
 
 enum class OpNum : int32_t
 {
+    Unspecified = -199, /// Used to request which has no opnum, such as triggered watch response
     Close = -11,
     Error = -1,
     Create = 1,

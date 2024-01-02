@@ -34,6 +34,8 @@ std::string toString(OpNum op_num)
 {
     switch (op_num)
     {
+        case OpNum::Unspecified:
+            return "Unspecified";
         case OpNum::Close:
             return "Close";
         case OpNum::Error:
