@@ -115,18 +115,13 @@ void KeeperServer::shutdown()
     LOG_INFO(log, "Shut down NuRaft core done!");
 }
 
-ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::putRequestBatch(const std::vector<RequestForSession> & request_batch)
+ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::pushRequestBatch(const std::vector<RequestForSession> & request_batch)
 {
-    LOG_DEBUG(log, "process the batch requests {}", request_batch.size());
+    LOG_DEBUG(log, "Push batch requests of size {}", request_batch.size());
     std::vector<ptr<buffer>> entries;
     for (const auto & request_session : request_batch)
     {
-        LOG_TRACE(
-            log,
-            "push request to entries session {}, xid {}, opnum {}",
-            request_session.session_id,
-            request_session.request->xid,
-            request_session.request->getOpNum());
+        LOG_TRACE(log, "Push request {}", request_session.toSimpleString());
         entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.create_time, request_session.request));
     }
     /// append_entries write request
@@ -250,7 +245,7 @@ void KeeperServer::handleRemoteSession(int64_t session_id, int64_t expiration_ti
 
 [[maybe_unused]] int64_t KeeperServer::getSessionTimeout(int64_t session_id)
 {
-    LOG_DEBUG(log, "get session timeout for {}", session_id);
+    LOG_DEBUG(log, "New session timeout for {}", session_id);
     if (state_machine->getStore().session_and_timeout.contains(session_id))
     {
         return state_machine->getStore().session_and_timeout.find(session_id)->second;

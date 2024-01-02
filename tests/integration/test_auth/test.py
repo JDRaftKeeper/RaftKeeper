@@ -364,18 +364,16 @@ def test_bad_auth(started_cluster):
 
 def test_auth_snapshot(started_cluster):
     print("start test_auth_snapshot")
+
     connection = get_fake_zk()
     connection.add_auth('digest', 'user1:password1')
-
     connection.create("/test_snapshot_acl", b"data", acl=[make_acl("auth", "", all=True)])
 
     connection1 = get_fake_zk()
     connection1.add_auth('digest', 'user2:password2')
-
     connection1.create("/test_snapshot_acl1", b"data", acl=[make_acl("auth", "", all=True)])
 
     connection2 = get_fake_zk()
-
     connection2.create("/test_snapshot_acl2", b"data")
 
     for i in range(100):
@@ -385,14 +383,10 @@ def test_auth_snapshot(started_cluster):
     node.wait_for_join_cluster()
 
     connection = get_fake_zk()
-
     with pytest.raises(NoAuthError):
         connection.get("/test_snapshot_acl")
-
     connection.add_auth('digest', 'user1:password1')
-
     assert connection.get("/test_snapshot_acl")[0] == b"data"
-
     with pytest.raises(NoAuthError):
         connection.get("/test_snapshot_acl1")
 
@@ -403,9 +397,7 @@ def test_auth_snapshot(started_cluster):
 
     connection1 = get_fake_zk()
     connection1.add_auth('digest', 'user2:password2')
-
     assert connection1.get("/test_snapshot_acl1")[0] == b"data"
-
     with pytest.raises(NoAuthError):
         connection1.get("/test_snapshot_acl")
 
@@ -413,13 +405,13 @@ def test_auth_snapshot(started_cluster):
     assert connection2.get("/test_snapshot_acl2")[0] == b"data"
     with pytest.raises(NoAuthError):
         connection2.get("/test_snapshot_acl")
-
     with pytest.raises(NoAuthError):
         connection2.get("/test_snapshot_acl1")
 
     close_zk_client(connection)
     close_zk_client(connection1)
     close_zk_client(connection2)
+
     print("end test_auth_snapshot")
 
 
