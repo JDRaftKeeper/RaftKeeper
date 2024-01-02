@@ -37,7 +37,7 @@ struct Settings
     static const String DEFAULT_FOUR_LETTER_WORD_CMD;
 
     Settings();
-    uint32_t my_id;
+    int32_t my_id;
 
     String host;
     int32_t port;

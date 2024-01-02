@@ -42,7 +42,7 @@ using ConfigUpdateActions = std::vector<ConfigUpdateAction>;
 class NuRaftStateManager : public nuraft::state_mgr
 {
 public:
-    NuRaftStateManager(uint32_t id, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_);
+    NuRaftStateManager(int32_t id, const Poco::Util::AbstractConfiguration & config_, SettingsPtr settings_);
 
     ~NuRaftStateManager() override = default;
 
@@ -77,7 +77,7 @@ protected:
 
 private:
     SettingsPtr settings;
-    uint32_t my_id;
+    int32_t my_id;
 
     String my_host;
     int32_t my_internal_port;
