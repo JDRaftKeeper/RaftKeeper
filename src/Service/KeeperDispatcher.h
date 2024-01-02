@@ -41,13 +41,12 @@ private:
     /// which are local session which are directly connected to the node.
     using UserResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
     UserResponseCallbacks user_response_callbacks;
-    std::mutex user_response_callbacks_mutex;
+    std::mutex response_callbacks_mutex;
 
     /// Just like user_response_callbacks, but only concerns new session or update session requests.
     /// For new session request the key is internal_id, for update session request the key is session id.
     using SessionResponseCallbacks = std::unordered_map<int64_t, ZooKeeperResponseCallback>;
     SessionResponseCallbacks session_response_callbacks;
-    std::mutex session_response_callbacks_mutex;
 
     struct PairHash
     {
