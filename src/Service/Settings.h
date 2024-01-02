@@ -55,7 +55,7 @@ struct Settings
 
     String super_digest;
 
-    bool standalone_keeper;
+    [[maybe_unused]] bool standalone_keeper;
     RaftSettingsPtr raft_settings;
 
     void dump(WriteBufferFromOwnString & buf) const;

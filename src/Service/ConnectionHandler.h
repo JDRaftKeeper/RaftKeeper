@@ -91,10 +91,8 @@ private:
     };
 
     Coordination::OpNum receiveHandshake(int32_t handshake_length);
-    HandShakeResult handleHandshake(ConnectRequest & connect_req);
-    void sendHandshake(HandShakeResult & result);
-
     static bool isHandShake(Int32 & handshake_length);
+
     bool tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
 
     /// After handshake, we receive requests.
