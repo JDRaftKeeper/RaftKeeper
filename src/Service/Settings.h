@@ -33,23 +33,23 @@ using RaftSettingsPtr = std::shared_ptr<RaftSettings>;
 
 struct Settings
 {
-    static constexpr int NOT_EXIST = -1;
+    static constexpr int32_t NOT_EXIST = -1;
     static const String DEFAULT_FOUR_LETTER_WORD_CMD;
 
     Settings();
-    int my_id;
+    uint32_t my_id;
 
     String host;
-    int port;
+    int32_t port;
 
     // TODO add forwarding_port
-    int internal_port;
+    int32_t internal_port;
 
     String log_dir;
     String snapshot_dir;
 
-    int snapshot_create_interval;
-    int thread_count;
+    int32_t snapshot_create_interval;
+    int32_t thread_count;
 
     String four_letter_word_white_list;
 
