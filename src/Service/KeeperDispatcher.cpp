@@ -119,7 +119,7 @@ void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordina
     /// session request
     if (unlikely(isSessionRequest(response->getOpNum())))
     {
-        std::lock_guard lock(user_response_callbacks_mutex);
+        std::lock_guard lock(session_response_callbacks_mutex);
         auto session_writer = session_response_callbacks.find(session_id); /// TODO session id == internal id?
         if (session_writer == session_response_callbacks.end())
             return;
@@ -349,23 +349,23 @@ void KeeperDispatcher::shutdown()
 void KeeperDispatcher::registerSessionResponseCallback(int64_t id, ZooKeeperResponseCallback callback)
 {
     LOG_DEBUG(log, "Register session response callback {}", toHexString(id));
-    std::lock_guard lock(user_response_callbacks_mutex);
+    std::lock_guard lock(session_response_callbacks_mutex);
     if (!session_response_callbacks.try_emplace(id, callback).second)
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session response callback with id {} has already registered", toHexString(id));
 }
 
 void KeeperDispatcher::unRegisterSessionResponseCallback(int64_t id)
 {
-    std::lock_guard lock(user_response_callbacks_mutex);
+    std::lock_guard lock(session_response_callbacks_mutex);
     unRegisterSessionResponseCallbackWithoutLock(id);
 }
 
 void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
 {
     LOG_DEBUG(log, "Unregister session response callback {}", toHexString(id));
-    auto session_it = session_response_callbacks.find(id);
-    if (session_it != session_response_callbacks.end())
-        session_response_callbacks.erase(session_it);
+    auto it = session_response_callbacks.find(id);
+    if (it != session_response_callbacks.end())
+        session_response_callbacks.erase(it);
 }
 
 [[maybe_unused]] void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
@@ -391,9 +391,9 @@ void KeeperDispatcher::unregisterUserResponseCallBack(int64_t session_id)
 void KeeperDispatcher::unregisterUserResponseCallBackWithoutLock(int64_t session_id)
 {
     LOG_DEBUG(log, "Unregister user response callback {}", toHexString(session_id));
-    auto session_it = user_response_callbacks.find(session_id);
-    if (session_it != user_response_callbacks.end())
-        user_response_callbacks.erase(session_it);
+    auto it = user_response_callbacks.find(session_id);
+    if (it != user_response_callbacks.end())
+        user_response_callbacks.erase(it);
 }
 
 void KeeperDispatcher::registerForwarderResponseCallBack(ForwardingClientId client_id, ForwardResponseCallback callback)
@@ -540,8 +540,8 @@ void KeeperDispatcher::updateConfigurationThread()
 bool KeeperDispatcher::isLocalSession(int64_t session_id)
 {
     std::lock_guard lock(user_response_callbacks_mutex);
-    auto session_it = user_response_callbacks.find(session_id);
-    return session_it != user_response_callbacks.end();
+    auto it = user_response_callbacks.find(session_id);
+    return it != user_response_callbacks.end();
 }
 
 void KeeperDispatcher::filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
