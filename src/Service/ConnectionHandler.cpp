@@ -216,7 +216,7 @@ void ConnectionHandler::onSocketReadable(const AutoPtr<ReadableNotification> & /
                 {
                     auto [opnum, xid] = receiveRequest(body_len);
                     if (opnum == Coordination::OpNum::Close)
-                        LOG_DEBUG(log, "Received close event with xid {} for session {}", xid, toHexString(session_id.load()));
+                        LOG_DEBUG(log, "Received close request #{}#{}#Close", toHexString(session_id.load()), xid);
 
                     /// Each request restarts session stopwatch
                     session_stopwatch.restart();
@@ -570,7 +570,7 @@ std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequ
 void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeeperResponsePtr & response)
 {
     /// 1. Push to sending queue.
-    LOG_TRACE(log, "Sending session response to client. {}", response->toString());
+    LOG_DEBUG(log, "Sending session response to client. {}", response->toString());
 
     uint64_t id;
     uint64_t sid;
@@ -641,7 +641,7 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_TRACE(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id.load()), response->toString());
+    LOG_DEBUG(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id.load()), response->toString());
     updateStats(response);
 
     /// Lock to avoid data condition which will lead response leak
