@@ -617,7 +617,8 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
     if (!success)
     {
         LOG_ERROR(log, "Failed to establish session, close connection.");
-        keeper_dispatcher->unregisterUserResponseCallBackWithoutLock(session_id);
+        if (session_id)
+            keeper_dispatcher->unregisterUserResponseCallBackWithoutLock(session_id);
         if (!handshake_done)
             keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(internal_id);
         else
