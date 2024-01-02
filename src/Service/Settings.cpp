@@ -11,6 +11,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int UNKNOWN_SETTING;
+    extern const int ILLEGAL_SETTING_VALUE;
 }
 
 namespace FsyncModeNS
@@ -228,10 +229,12 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     std::shared_ptr<Settings> ret = std::make_shared<Settings>();
 
     ret->my_id = config.getInt("keeper.my_id");
+    if (ret->my_id < 0)
+        throw Exception(ErrorCodes::ILLEGAL_SETTING_VALUE, "my_id can not be a negative value.");
+
     ret->standalone_keeper = standalone_keeper_;
 
     ret->port = config.getInt("keeper.port", 8101);
-
     ret->host = config.getString("keeper.host", "0.0.0.0");
 
     ret->internal_port = config.getInt("keeper.internal_port", 8103);

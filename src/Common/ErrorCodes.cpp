@@ -101,6 +101,7 @@
     M(113, RAFT_NO_LEADER) \
     M(114, RAFT_FWD_NO_CONN) \
     M(115, FORWARDING_DISCONNECTED) \
+    M(116, ILLEGAL_SETTING_VALUE) \
     /* See END */
 
 namespace RK

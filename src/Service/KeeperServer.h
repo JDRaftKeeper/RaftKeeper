@@ -21,7 +21,7 @@ class KeeperServer
 {
 private:
     /// my id configured in config.xml
-    uint32_t my_id;
+    int32_t my_id;
 
     /// configurations
     SettingsPtr settings;
@@ -146,7 +146,7 @@ public:
 
     void registerForWardListener(UpdateForwardListener forward_listener);
 
-    uint32_t myId() const
+    int32_t myId() const
     {
         return my_id;
     }

@@ -219,7 +219,7 @@ public:
     int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }
 
     /// My server id
-    uint32_t myId() const { return server->myId(); }
+    int32_t myId() const { return server->myId(); }
 
     /// When user create new session, we use this id as request id.
     /// Note that the internal id for different nodes can be same.
