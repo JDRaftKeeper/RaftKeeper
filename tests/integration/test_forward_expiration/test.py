@@ -3,7 +3,7 @@ import time
 import pytest
 
 from datetime import datetime
-from kazoo.exceptions import ConnectionLoss
+from kazoo.exceptions import OperationTimeoutError
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.network import PartitionManager
 from helpers.utils import close_zk_clients
@@ -40,7 +40,7 @@ def test_forward_expiration(started_cluster):
             pm.partition_instances(node3, node1)
             time.sleep(3)
             begin = datetime.now()
-            with pytest.raises(ConnectionLoss):
+            with pytest.raises(OperationTimeoutError):
                 node1_zk.sync("/")
             end = datetime.now()
             # (read_timeout = negotiated_session_timeout * 2.0 / 3.0), this is operation timeout
