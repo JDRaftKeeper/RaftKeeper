@@ -240,4 +240,30 @@ ForwardRequestFactory::ForwardRequestFactory()
     registerForwardRequest<ForwardType::UpdateSession, ForwardUpdateSessionRequest>(*this);
 }
 
+ForwardRequestPtr ForwardRequestFactory::convertFromRequest(const RequestForSession & request_for_session)
+{
+    auto opnum = request_for_session.request->getOpNum();
+    switch (opnum)
+    {
+        case Coordination::OpNum::NewSession:
+        {
+            auto forward_request = std::make_shared<ForwardNewSessionRequest>();
+            forward_request->request = request_for_session.request;
+            return forward_request;
+        }
+        case Coordination::OpNum::UpdateSession:
+        {
+            auto forward_request = std::make_shared<ForwardUpdateSessionRequest>();
+            forward_request->request = request_for_session.request;
+            return forward_request;
+        }
+        default:
+        {
+            auto forward_request = std::make_shared<ForwardUserRequest>();
+            forward_request->request = request_for_session;
+            return forward_request;
+        }
+    }
+}
+
 }

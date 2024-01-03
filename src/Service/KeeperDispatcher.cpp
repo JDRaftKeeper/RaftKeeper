@@ -216,7 +216,7 @@ bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id,
 
     LOG_TRACE(
         log,
-        "Push forwarding request #{}#{}#{} which is from Server {} client {}",
+        "Push forwarding request #{}#{}#{} which is from server {} client {}",
         toHexString(request_info.session_id),
         request_info.request->xid,
         Coordination::toString(request_info.request->getOpNum()),
@@ -227,10 +227,10 @@ bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id,
     if (request_info.request->getOpNum() == Coordination::OpNum::Close)
     {
         if (!requests_queue->push(std::move(request_info)))
-            throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
+            throw Exception(ErrorCodes::SYSTEM_ERROR, "Cannot push request to queue");
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
-        throw Exception("Cannot push forwarding request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Cannot push forwarding request to queue within operation timeout");
     return true;
 }
 
@@ -277,7 +277,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     }
     responses_thread->trySchedule([this] { responseThread(); });
 
-    session_cleaner_thread = ThreadFromGlobalPool([this] { sessionCleanerTask(); });
+    session_cleaner_thread = ThreadFromGlobalPool([this] { deadSessionCleanThread(); });
     update_configuration_thread = ThreadFromGlobalPool([this] { updateConfigurationThread(); });
 
     updateConfiguration(config);
@@ -371,14 +371,15 @@ void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
 
 [[maybe_unused]] void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
-    if (session_id != 0)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Session id cannot be 0");
     std::lock_guard lock(response_callbacks_mutex);
     registerUserResponseCallBackWithoutLock(session_id, callback, is_reconnected);
 }
 
 void KeeperDispatcher::registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
+    if (session_id != 0)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Session id cannot be 0");
+
     if (!user_response_callbacks.try_emplace(session_id, callback).second && !is_reconnected)
         throw Exception(RK::ErrorCodes::LOGICAL_ERROR, "Session with id {} already registered in dispatcher", toHexString(session_id));
 }
@@ -427,11 +428,11 @@ void KeeperDispatcher::unRegisterForwarderResponseCallBack(ForwardingClientId cl
     forward_response_callbacks.erase(forward_response_writer);
 }
 
-void KeeperDispatcher::sessionCleanerTask()
+void KeeperDispatcher::deadSessionCleanThread()
 {
-    setThreadName("SessionCleaner");
+    setThreadName("DeadSessnClean");
 
-    LOG_INFO(log, "start session clear task");
+    LOG_INFO(log, "Start dead session clean thread");
     while (true)
     {
         if (shutdown_called)
@@ -457,7 +458,7 @@ void KeeperDispatcher::sessionCleanerTask()
                     RequestForSession request_info;
                     request_info.request = request;
                     request_info.session_id = dead_session;
-                    //                    request_info.is_internal = true;
+                    // request_info.is_internal = true;
                     using namespace std::chrono;
                     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
                     {
@@ -465,8 +466,8 @@ void KeeperDispatcher::sessionCleanerTask()
                         if (!requests_queue->push(std::move(request_info)))
                             throw Exception("Cannot push request to queue", ErrorCodes::SYSTEM_ERROR);
                     }
-                    //                    unregisterUserResponseCallBack(dead_session);
-                    LOG_INFO(log, "Dead session close request pushed");
+                    // unregisterUserResponseCallBack(dead_session);
+                    LOG_DEBUG(log, "Dead session close request pushed");
                 }
             }
             else
@@ -481,7 +482,7 @@ void KeeperDispatcher::sessionCleanerTask()
         }
     }
 
-    LOG_INFO(log, "end session clear task!");
+    LOG_INFO(log, "End dead session clean thread!");
 }
 
 

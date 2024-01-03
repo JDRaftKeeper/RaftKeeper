@@ -15,36 +15,34 @@
 namespace RK
 {
 
-class ForwardingConnection
+class ForwardConnection
 {
 public:
-    ForwardingConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan socket_timeout_)
+    ForwardConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan socket_timeout_)
         : my_server_id(server_id_)
         , client_id(thread_id_)
         , endpoint(endpoint_)
         , socket_timeout(socket_timeout_)
-        , log(&Poco::Logger::get("ForwardingConnection"))
+        , log(&Poco::Logger::get("ForwardConnection"))
     {
     }
 
     void connect();
+    void disconnect();
 
     void send(ForwardRequestPtr request);
     void receive(ForwardResponsePtr & response);
 
-    void disconnect();
-
     /// Send hand shake to forwarding server,
     /// server will register me.
     void sendHandshake();
-
     bool receiveHandshake();
 
     bool poll(UInt64 timeout_microseconds);
 
     bool isConnected() const { return connected; }
 
-    ~ForwardingConnection()
+    ~ForwardConnection()
     {
         try
         {
@@ -59,11 +57,15 @@ public:
     }
 
 private:
+    /// Retries count when connecting
+    static constexpr size_t num_retries = 3;
+
     int32_t my_server_id;
     int32_t client_id;
 
     std::atomic<bool> connected{false};
 
+    /// Remote endpoint
     String endpoint;
 
     /// socket send and receive timeout, but it not work for

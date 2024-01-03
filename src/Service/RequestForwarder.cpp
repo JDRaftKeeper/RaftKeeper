@@ -49,7 +49,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                     throw Exception("Raft no leader", ErrorCodes::RAFT_NO_LEADER);
 
                 int32_t leader = server->getLeader();
-                ptr<ForwardingConnection> connection;
+                ptr<ForwardConnection> connection;
                 {
                     std::lock_guard<std::mutex> lock(connections_mutex);
                     connection = connections[leader][runner_id];
@@ -84,7 +84,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                 try
                 {
                     int32_t leader = server->getLeader();
-                    ptr<ForwardingConnection> connection;
+                    ptr<ForwardConnection> connection;
                     {
                         std::lock_guard<std::mutex> lock(connections_mutex);
                         connection = connections[leader][runner_id];
@@ -162,7 +162,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 int32_t leader = server->getLeader();
-                ptr<ForwardingConnection> connection;
+                ptr<ForwardConnection> connection;
                 {
                     std::lock_guard<std::mutex> lock(connections_mutex);
                     connection = connections[leader][runner_id];
@@ -338,10 +338,10 @@ void RequestForwarder::initConnections()
         ConnectionPool connection_pool;
         for (size_t thread_id = 0; thread_id < thread_count; ++thread_id)
         {
-            std::shared_ptr<ForwardingConnection> connection = std::make_shared<ForwardingConnection>(
+            std::shared_ptr<ForwardConnection> connection = std::make_shared<ForwardConnection>(
                 my_id, thread_id, endpoint, operation_timeout);
             connection_pool.push_back(connection);
-            LOG_INFO(log, "Create ForwardingConnection for {}, {}, thread {}", id, endpoint, thread_id);
+            LOG_INFO(log, "Create forward connection for {}, {}, thread {}", id, endpoint, thread_id);
         }
         connections.emplace(id, connection_pool);
     }

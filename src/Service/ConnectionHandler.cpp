@@ -718,8 +718,8 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
 
 void ConnectionHandler::destroyMe()
 {
-    keeper_dispatcher->unregisterUserResponseCallBack(session_id);
-
+    if (session_id)
+        keeper_dispatcher->unregisterUserResponseCallBack(session_id);
     if (!handshake_done)
         keeper_dispatcher->unRegisterSessionResponseCallback(internal_id);
     else
