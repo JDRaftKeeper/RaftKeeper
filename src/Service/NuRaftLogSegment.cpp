@@ -536,7 +536,6 @@ int NuRaftLogSegment::loadLogEntryHeader(int fd, off_t offset, LogEntryHeader * 
     header->data_length = bs.get_u32();
     header->data_crc = bs.get_u32();
 
-    LOG_TRACE(log, "Offset {}, header data length {}, data crc {}", offset, header->data_length, header->data_crc);
     return 0;
 }
 
@@ -545,7 +544,6 @@ int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, 
     if (loadLogEntryHeader(fd, offset, head) != 0)
         return -1;
 
-    LOG_TRACE(log, "Load entry header, length {}, crc {}.", head->data_length, head->data_crc);
     char * entry_str = new char[head->data_length];
 
     errno = 0;
@@ -557,8 +555,6 @@ int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, 
         delete[] entry_str;
         return -1;
     }
-
-    LOG_TRACE(log, "Load entry body, length {}, crc {}.", head->data_length, head->data_crc);
 
     if (!verifyCRC32(entry_str, head->data_length, head->data_crc))
     {
@@ -576,7 +572,6 @@ int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, 
     }
 
     entry = LogEntry::parseEntry(entry_str, head->term, head->data_length);
-    LOG_TRACE(log, "Alloc buffer, offset {}, length {}, crc {}, term {}.", offset, head->data_length, head->data_crc, entry->get_term());
 
     delete[] entry_str;
     return 0;
