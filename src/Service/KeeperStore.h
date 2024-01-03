@@ -250,7 +250,7 @@ public:
     int64_t getSessionID(int64_t session_timeout_ms)
     {
         /// Creating session should increase zxid
-        getZXID();
+        fetchAndGetZxid();
 
         std::lock_guard lock(session_mutex);
         auto result = session_id_counter++;
@@ -263,10 +263,21 @@ public:
         return result;
     }
 
-    [[maybe_unused]] int64_t getSessionIDCounter() const
+    int64_t getSessionIDCounter() const
     {
         std::lock_guard lock(session_mutex);
         return session_id_counter;
+    }
+
+    int64_t getZxid() const
+    {
+        return zxid.load();
+    }
+
+    int64_t getSessionCount() const
+    {
+        std::lock_guard lock(session_mutex);
+        return session_and_timeout.size();
     }
 
     bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
@@ -352,8 +363,7 @@ public:
     void reset();
 
 private:
-    /// increase zxid
-    int64_t getZXID() { return zxid++; }
+    int64_t fetchAndGetZxid() { return zxid++; }
 
     void cleanDeadWatches(int64_t session_id);
     void cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response);

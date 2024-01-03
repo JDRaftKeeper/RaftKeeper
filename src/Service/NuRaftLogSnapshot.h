@@ -217,7 +217,7 @@ public:
 
     ~KeeperSnapshotManager() = default;
 
-    size_t createSnapshot(snapshot & meta, KeeperStore & storage, int64_t next_zxid = 0, int64_t next_session_id = 0);
+    size_t createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
     /// save snapshot meta, invoked when we receive an snapshot from leader.
     bool receiveSnapshotMeta(snapshot & meta);

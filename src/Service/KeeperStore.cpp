@@ -1339,15 +1339,7 @@ void KeeperStore::processRequest(
     bool check_acl,
     bool ignore_response)
 {
-    const auto & zk_request = request_for_session.request;
-    const auto session_id = request_for_session.session_id;
-
-    LOG_TRACE(
-        log,
-        "Process request#{}#{}{}",
-        toHexString(request_for_session.session_id),
-        zk_request->xid,
-        Coordination::toString(zk_request->getOpNum()));
+    LOG_TRACE(log, "Process request {}", request_for_session.toSimpleString());
 
     if (new_last_zxid)
     {
@@ -1356,6 +1348,9 @@ void KeeperStore::processRequest(
                 ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
         zxid = *new_last_zxid;
     }
+
+    const auto & zk_request = request_for_session.request;
+    const auto session_id = request_for_session.session_id;
 
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
@@ -1366,7 +1361,7 @@ void KeeperStore::processRequest(
         /// Finish connection
         auto response = std::make_shared<Coordination::ZooKeeperCloseResponse>();
         response->xid = zk_request->xid;
-        response->zxid = new_last_zxid ? zxid.load() : getZXID();
+        response->zxid = new_last_zxid ? zxid.load() : fetchAndGetZxid();
         {
             std::lock_guard lock(session_mutex);
             session_expiry_queue.remove(session_id);
@@ -1385,11 +1380,14 @@ void KeeperStore::processRequest(
     else if (zk_request->getOpNum() == Coordination::OpNum::NewSession)
     {
         auto * new_session_req = dynamic_cast<Coordination::ZooKeeperNewSessionRequest *>(zk_request.get());
+        assert(new_session_req != nullptr);
+
         auto response = new_session_req->makeResponse();
         auto * new_session_resp = dynamic_cast<Coordination::ZooKeeperNewSessionResponse *>(response.get());
 
         /// Creating session should increase zxid
-        new_session_resp->zxid = getZXID();
+        new_session_resp->zxid = fetchAndGetZxid();
+
         {
             std::lock_guard lock(session_mutex);
 
@@ -1410,11 +1408,13 @@ void KeeperStore::processRequest(
     else if (zk_request->getOpNum() == Coordination::OpNum::UpdateSession)
     {
         auto * update_session_req = dynamic_cast<Coordination::ZooKeeperUpdateSessionRequest *>(zk_request.get());
+        assert(update_session_req != nullptr);
+
         auto response = update_session_req->makeResponse();
         auto * update_session_resp = dynamic_cast<Coordination::ZooKeeperUpdateSessionResponse *>(response.get());
 
         /// Update session should increase zxid /// TODO
-        update_session_resp->zxid = getZXID();
+        update_session_resp->zxid = fetchAndGetZxid();
 
         {
             std::lock_guard lock(session_mutex);
@@ -1561,7 +1561,7 @@ void KeeperStore::processRequest(
         response->request_created_time_ms = request_for_session.create_time;
 
         response->xid = zk_request->xid;
-        response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? getZXID() : zxid.load());
+        response->zxid = new_last_zxid ? zxid.load() : (shouldIncreaseZxid(zk_request) ? fetchAndGetZxid() : zxid.load());
 
         //2^19 = 524,288
         if (container.size() << 45 == 0)
@@ -1747,7 +1747,7 @@ void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<Respon
 
 void KeeperStore::cleanDeadWatches(int64_t session_id)
 {
-    LOG_DEBUG(log, "Clean watches for session {}", toHexString(session_id));
+    LOG_DEBUG(log, "Clean dead watches for session {}", toHexString(session_id));
 
     std::lock_guard watch_lock(watch_mutex);
     auto watches_it = sessions_and_watchers.find(session_id);
