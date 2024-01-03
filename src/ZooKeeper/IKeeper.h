@@ -476,7 +476,7 @@ public:
 
     virtual void watchCallBack(const WatchResponse &)
     {
-        throw Exception("Unspport watchCallBack methed.", Error::ZSYSTEMERROR);
+        throw Exception("Unsupported watchCallBack method.", Error::ZSYSTEMERROR);
     }
 };
 

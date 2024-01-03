@@ -71,10 +71,13 @@ struct LastOp
 {
     /// Short name for operation.
     String name{"NA"};
+
     /// cxid for the operation
     int64_t last_cxid{-1};
+
     /// zxid for the operation
     int64_t last_zxid{-1};
+
     /// response timestamp for the operation in millisecond
     int64_t last_response_time{0};
 };

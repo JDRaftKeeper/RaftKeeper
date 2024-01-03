@@ -13,7 +13,7 @@ namespace ErrorCodes
     extern const int UNEXPECTED_FORWARD_PACKET;
 }
 
-std::string toString(ForwardType type)
+String toString(ForwardType type)
 {
     switch (type)
     {
@@ -32,8 +32,8 @@ std::string toString(ForwardType type)
         default:
             break;
     }
-    int32_t raw_type = static_cast<int32_t>(type);
-    throw Exception("ForwardType " + std::to_string(raw_type) + " is unknown", ErrorCodes::UNEXPECTED_FORWARD_PACKET);
+    auto raw_type = static_cast<int8_t>(type);
+    throw Exception(ErrorCodes::UNEXPECTED_FORWARD_PACKET, "ForwardType {} is unknown", std::to_string(raw_type));
 }
 
 void ForwardSyncSessionsResponse::readImpl(ReadBuffer & buf)
@@ -63,9 +63,9 @@ void ForwardNewSessionResponse::writeImpl(WriteBuffer & buf) const
     Coordination::write(internal_id, buf);
 }
 
-void ForwardNewSessionResponse::onError(RequestForwarder & request_forwarder) const
+void ForwardNewSessionResponse::onError(RequestForwarder & forwarder) const
 {
-    request_forwarder.request_processor->onError(
+    forwarder.request_processor->onError(
         accepted,
         static_cast<nuraft::cmd_result_code>(error_code),
         internal_id,
@@ -100,9 +100,9 @@ void ForwardUpdateSessionResponse::writeImpl(WriteBuffer & buf) const
     Coordination::write(session_id, buf);
 }
 
-void ForwardUpdateSessionResponse::onError([[maybe_unused]] RequestForwarder & request_forwarder) const
+void ForwardUpdateSessionResponse::onError(RequestForwarder & forwarder) const
 {
-    request_forwarder.request_processor->onError(
+    forwarder.request_processor->onError(
         accepted,
         static_cast<nuraft::cmd_result_code>(error_code),
         session_id,
@@ -142,9 +142,9 @@ void ForwardUserRequestResponse::writeImpl(WriteBuffer & buf) const
     Coordination::write(opnum, buf);
 }
 
-void ForwardUserRequestResponse::onError(RequestForwarder & request_forwarder) const
+void ForwardUserRequestResponse::onError(RequestForwarder & forwarder) const
 {
-    request_forwarder.request_processor->onError(accepted, static_cast<nuraft::cmd_result_code>(error_code), session_id, xid, opnum);
+    forwarder.request_processor->onError(accepted, static_cast<nuraft::cmd_result_code>(error_code), session_id, xid, opnum);
 }
 
 bool ForwardUserRequestResponse::match(const ForwardRequestPtr & forward_request) const

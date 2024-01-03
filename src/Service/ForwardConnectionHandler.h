@@ -1,9 +1,7 @@
 #pragma once
 
 #include <unordered_set>
-#include <Service/ConnCommon.h>
-#include <Service/ForwardingConnection.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
+
 #include <Poco/Delegate.h>
 #include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
@@ -15,10 +13,15 @@
 #include <Poco/Util/Option.h>
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
+
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketReactor.h>
 #include <Common/NIO/SvsSocketAcceptor.h>
 #include <Common/NIO/SvsSocketReactor.h>
+
+#include <Service/ConnCommon.h>
+#include <Service/ForwardConnection.h>
+#include <Service/WriteBufferFromFiFoBuffer.h>
 
 
 namespace RK
@@ -33,11 +36,11 @@ using Poco::Thread;
 /**
  * Server endpoint for forwarding request.
  */
-class ForwardingConnectionHandler
+class ForwardConnectionHandler
 {
 public:
-    ForwardingConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_);
-    ~ForwardingConnectionHandler();
+    ForwardConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_);
+    ~ForwardConnectionHandler();
 
     void onSocketReadable(const AutoPtr<ReadableNotification> & pNf);
     void onSocketWritable(const AutoPtr<WritableNotification> & pNf);
@@ -76,12 +79,11 @@ private:
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
-    Stopwatch session_stopwatch;
     ThreadSafeResponseQueuePtr responses;
 
     std::mutex send_response_mutex;
 
-    /// server id in client endpoint which actually is Raft ID
+    /// server id in client endpoint which actually is my_id
     int32_t server_id{-1};
     /// client id in client endpoint
     int32_t client_id{-1};
@@ -92,7 +94,7 @@ private:
     void processSyncSessionsRequest(ForwardRequestPtr request);
 
     // The connection is stale and need destroyed
-    bool need_destroy{false};
+    bool need_destroy;
 };
 
 }
