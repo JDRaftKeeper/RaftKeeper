@@ -859,7 +859,7 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
                     {
                         LOG_WARNING(
                             log,
-                            "Can't read uint map snapshot {}, data index {}, key {}, excepiton {}",
+                            "Can't read uint map snapshot {}, data index {}, key {}, exception {}",
                             obj_path,
                             data_idx,
                             e.displayText());
@@ -903,7 +903,7 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
                 {
                     LOG_INFO(
                         thread_log,
-                        "Parse object, thread_idx {}, obj_index {}, path {}, obj size {}",
+                        "Parse snapshot object, thread_idx {}, obj_index {}, path {}, obj size {}",
                         thread_idx,
                         it->first,
                         it->second,
@@ -923,24 +923,17 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     }
     object_thread_pool.wait();
 
-    size_t ephemeral_nodes = 0;
-    for (auto & paths : store.ephemerals)
-    {
-        ephemeral_nodes += paths.second.size();
-    }
-    LOG_INFO(log, "Load snapshot done, ephemeral sessions {} nodes {}", store.ephemerals.size(), ephemeral_nodes);
-
+    /// Build node tree relationship
     store.buildPathChildren();
 
-    auto node = store.container.get("/");
-    if (node != nullptr)
-    {
-        LOG_INFO(log, "Root path children count {}", node->children.size());
-    }
-    else
-    {
-        LOG_INFO(log, "Can't find root path");
-    }
+    LOG_INFO(
+        log,
+        "Load snapshot done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        store.getNodesCount(),
+        store.getTotalEphemeralNodesCount(),
+        store.getSessionCount(),
+        store.getSessionIDCounter(),
+        store.getZxid());
 }
 
 bool KeeperSnapshotStore::existObject(ulong obj_id)
@@ -1067,21 +1060,24 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
     objects_path[obj_id] = path;
 }
 
-size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, KeeperStore & storage, int64_t next_zxid, int64_t next_session_id)
+size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
-    size_t store_size = storage.container.size() + storage.ephemerals.size();
+    size_t store_size = store.container.size() + store.ephemerals.size();
     meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
     snap_store->init();
     LOG_INFO(
         log,
-        "Create snapshot last_log_term {}, last_log_idx {}, size {}, SM container size {}, SM ephemeral size {}",
+        "Create snapshot last_log_term {}, last_log_idx {}, size {}, nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
         meta.get_last_log_term(),
         meta.get_last_log_idx(),
         meta.size(),
-        storage.container.size(),
-        storage.ephemerals.size());
-    size_t obj_size = snap_store->createObjects(storage, next_zxid, next_session_id);
+        store.getNodesCount(),
+        store.getTotalEphemeralNodesCount(),
+        store.getSessionCount(),
+        store.getSessionIDCounter(),
+        store.getZxid());
+    size_t obj_size = snap_store->createObjects(store, next_zxid, next_session_id);
     snapshots[meta.get_last_log_idx()] = snap_store;
     return obj_size;
 }
@@ -1155,11 +1151,6 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & s
     }
     ptr<KeeperSnapshotStore> store = it->second;
     store->loadLatestSnapshot(storage);
-    LOG_INFO(
-        log,
-        "Finish parse snapshot, StateMachine container size {}, ephemeral size {}",
-        storage.container.size(),
-        storage.ephemerals.size());
     return true;
 }
 

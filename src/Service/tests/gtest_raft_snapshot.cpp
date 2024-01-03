@@ -738,9 +738,9 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     /// wait snapshot done
     {
         std::unique_lock lock(mutex);
-        if (!snapshot_done)
+        while (!snapshot_done)
         {
-            cv.wait_for(lock, std::chrono::seconds(10));
+            cv.wait_for(lock, std::chrono::seconds(1), [&snapshot_done]() { return snapshot_done.load(); });
         }
     }
 

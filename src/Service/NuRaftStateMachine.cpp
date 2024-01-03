@@ -69,7 +69,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
 
     /// Load snapshot meta from disk
-    LOG_INFO(log, "Loading snapshot, found {} snapshots from disk, load the latest one", snap_mgr->loadSnapshotMetas());
+    LOG_INFO(log, "Found {} snapshots from disk, load the latest one", snap_mgr->loadSnapshotMetas());
     auto last_snapshot = snap_mgr->lastSnapshot();
     if (last_snapshot != nullptr)
         applySnapshotImpl(*last_snapshot);
@@ -84,6 +84,15 @@ NuRaftStateMachine::NuRaftStateMachine(
     /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
     if (log_store_ && log_store_->next_slot() <= last_committed_idx)
         log_store_->compact(last_committed_idx);
+
+    LOG_INFO(
+        log,
+        "Load logs done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        store.getNodesCount(),
+        store.getTotalEphemeralNodesCount(),
+        store.getSessionCount(),
+        store.getSessionIDCounter(),
+        store.zxid);
 
     LOG_INFO(log, "Starting background creating snapshot thread.");
     snap_thread = ThreadFromGlobalPool([this] { snapThread(); });
@@ -441,7 +450,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
             if (++wait_times % 1000 == 0)
             {
-                LOG_WARNING(log, "Wait commit queue to empty 1s");
+                LOG_WARNING(log, "Wait commit queue to empty");
             }
         }
 
@@ -704,8 +713,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
             {
                 /// replay user requests
                 auto & request = (*batch.request_vec)[i];
-                LOG_TRACE(
-                    log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
+                LOG_TRACE(log, "Replay log request {}", request->toString());
                 store.processRequest(responses_queue, *request, {}, true, true);
                 if (request->request->getOpNum() != Coordination::OpNum::NewSession && request->session_id > store.session_id_counter)
                 {
