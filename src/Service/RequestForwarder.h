@@ -1,14 +1,16 @@
 #pragma once
 
 #include <chrono>
+
+#include <Common/Stopwatch.h>
+
+#include <Service/ForwardConnection.h>
+#include <Service/ForwardRequest.h>
+#include <Service/ForwardResponse.h>
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
-#include <Common/Stopwatch.h>
 #include <Service/Types.h>
-#include <Service/ForwardRequest.h>
-#include <Service/ForwardResponse.h>
-#include <Service/ForwardingConnection.h>
 
 
 namespace RK
@@ -76,7 +78,7 @@ private:
 
     Poco::Timespan operation_timeout;
 
-    using ConnectionPool = std::vector<ptr<ForwardingConnection>>;
+    using ConnectionPool = std::vector<ptr<ForwardConnection>>;
     std::unordered_map<UInt32, ConnectionPool> connections;
     std::mutex connections_mutex;
 

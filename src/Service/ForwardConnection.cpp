@@ -1,7 +1,8 @@
 
-#include <Service/ForwardingConnection.h>
-#include <ZooKeeper/ZooKeeperIO.h>
 #include <Common/IO/WriteHelpers.h>
+
+#include <Service/ForwardConnection.h>
+#include <ZooKeeper/ZooKeeperIO.h>
 
 namespace RK
 {
@@ -15,15 +16,13 @@ namespace ErrorCodes
     extern const int FORWARDING_DISCONNECTED;
 }
 
-void ForwardingConnection::connect()
+void ForwardConnection::connect()
 {
     auto connection_timeout = socket_timeout.totalMicroseconds() / 3;
-
     Poco::Net::SocketAddress address{endpoint};
-    static constexpr size_t num_tries = 3;
 
     WriteBufferFromOwnString fail_reasons;
-    for (size_t try_no = 0; try_no < num_tries; ++try_no)
+    for (size_t i = 0; i < num_retries; i++)
     {
         try
         {
@@ -45,9 +44,7 @@ void ForwardingConnection::connect()
             LOG_TRACE(log, "Sent handshake to {}", endpoint);
 
             if (!receiveHandshake())
-                throw Exception("Receive handshake failed from " + endpoint, ErrorCodes::RAFT_FORWARDING_ERROR);
-
-            LOG_TRACE(log, "Received handshake from {}", endpoint);
+                throw Exception(ErrorCodes::RAFT_FORWARDING_ERROR, "Handshake with {} failed", endpoint);
 
             connected = true;
             LOG_TRACE(log, "Connect to {} success", endpoint);
@@ -60,7 +57,7 @@ void ForwardingConnection::connect()
     }
 }
 
-void ForwardingConnection::disconnect()
+void ForwardConnection::disconnect()
 {
     if (connected)
     {
@@ -71,7 +68,7 @@ void ForwardingConnection::disconnect()
     }
 }
 
-void ForwardingConnection::send(ForwardRequestPtr request)
+void ForwardConnection::send(ForwardRequestPtr request)
 {
     if (!connected)
         connect();
@@ -92,14 +89,14 @@ void ForwardingConnection::send(ForwardRequestPtr request)
     }
 }
 
-bool ForwardingConnection::poll(UInt64 timeout_microseconds)
+bool ForwardConnection::poll(UInt64 timeout_microseconds)
 {
     if (!connected)
         return false;
     return in->poll(timeout_microseconds);
 }
 
-void ForwardingConnection::receive(ForwardResponsePtr & response)
+void ForwardConnection::receive(ForwardResponsePtr & response)
 {
     if (!connected)
         throw Exception("Forwarding connection disconnected", ErrorCodes::FORWARDING_DISCONNECTED);
@@ -145,28 +142,26 @@ void ForwardingConnection::receive(ForwardResponsePtr & response)
     }
 }
 
-void ForwardingConnection::sendHandshake()
+void ForwardConnection::sendHandshake()
 {
-    LOG_TRACE(log, "send hand shake to {}, my_server_id {}, client_id {}", endpoint, my_server_id, client_id);
-    Coordination::write(static_cast<int8_t>(ForwardType::Handshake), *out);
-    Coordination::write(my_server_id, *out);
-    Coordination::write(client_id, *out);
-    out->next();
+    LOG_TRACE(log, "Send handshake to leader {}, my_server_id {}, client_id {}", endpoint, my_server_id, client_id);
+    ForwardHandshakeRequest handshake;
+    handshake.server_id = my_server_id;
+    handshake.client_id = client_id;
+    handshake.write(*out);
 }
 
 
-bool ForwardingConnection::receiveHandshake()
+bool ForwardConnection::receiveHandshake()
 {
     int8_t type;
     Coordination::read(type, *in);
     assert(type == static_cast<int8_t>(ForwardType::Handshake));
 
-    bool accepted;
-    Coordination::read(accepted, *in);
+    ForwardHandshakeResponse handshake;
+    handshake.readImpl(*in);
 
-    int32_t code;
-    Coordination::read(code, *in);
-    return accepted;
+    return handshake.accepted;
 }
 
 }

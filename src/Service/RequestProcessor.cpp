@@ -137,7 +137,7 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
         found_in_pending_queue = false;
         LOG_WARNING(
             this->log,
-            "Not found committed(write) request {} in pending queue. Possible reason: 1.close requests from sessionCleanerTask are not put "
+            "Not found committed(write) request {} in pending queue. Possible reason: 1.close requests from deadSessionCleanThread are not put "
             "into pending queue; 2.error occurs(because of forward or append entries) but request is still committed, "
             "'processErrorRequest' may delete request from pending request first, so here we can not find it.",
             committed_request.toSimpleString());
@@ -349,7 +349,7 @@ void RequestProcessor::processErrorRequest(size_t count)
             {
                 LOG_WARNING(
                     this->log,
-                    "Not found error request {} in pending queue. Possible reason: 1.close requests from sessionCleanerTask are not put "
+                    "Not found error request {} in pending queue. Possible reason: 1.close requests from deadSessionCleanThread are not put "
                     "into pending queue; 2.error occurs(forward or append entries) but request is still committed, "
                     "'processCommittedRequest' may delete request from pending request first, so here we can not find it. We also delete "
                     "it from errors.",

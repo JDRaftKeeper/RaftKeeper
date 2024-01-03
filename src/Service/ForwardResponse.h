@@ -22,7 +22,7 @@ enum class ForwardType : int8_t
     Destroy = 6,           /// Only used in server side to indicate that the connection is stale and server should close it
 };
 
-std::string toString(ForwardType type);
+String toString(ForwardType type);
 
 
 struct ForwardResponse
@@ -53,7 +53,6 @@ struct ForwardResponse
     }
 
     virtual ~ForwardResponse()= default;
-
     virtual String toString() const = 0;
 };
 
@@ -127,7 +126,7 @@ struct ForwardUpdateSessionResponse : public ForwardResponse
     void readImpl(ReadBuffer &) override;
     void writeImpl(WriteBuffer &) const override;
 
-    void onError(RequestForwarder & request_forwarder) const override;
+    void onError(RequestForwarder & forwarder) const override;
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override
@@ -148,7 +147,7 @@ struct ForwardUserRequestResponse : public ForwardResponse
     void readImpl(ReadBuffer &) override;
     void writeImpl(WriteBuffer &) const override;
 
-    void onError(RequestForwarder & request_forwarder) const override;
+    void onError(RequestForwarder & forwarder) const override;
     bool match(const ForwardRequestPtr & forward_request) const override;
 
     String toString() const override

@@ -104,7 +104,7 @@ private:
     void responseThread();
 
     /// Clean dead sessions
-    void sessionCleanerTask();
+    void deadSessionCleanThread();
     void invokeResponseCallBack(int64_t session_id, const Coordination::ZooKeeperResponsePtr & response);
 
 public:
