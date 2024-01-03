@@ -66,12 +66,18 @@ RequestId RequestForSession::getRequestId() const
 /// Is new session request or update session request
 bool isSessionRequest(Coordination::OpNum opnum)
 {
-    return opnum == Coordination::OpNum::NewSession || opnum == Coordination::OpNum::UpdateSession;
+    return opnum == Coordination::OpNum::NewSession || opnum == Coordination::OpNum::OldNewSession
+        || opnum == Coordination::OpNum::UpdateSession;
 }
 
 bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request)
 {
     return isSessionRequest(request->getOpNum());
+}
+
+bool isNewSessionRequest(Coordination::OpNum opnum)
+{
+    return opnum == Coordination::OpNum::NewSession || opnum == Coordination::OpNum::OldNewSession;
 }
 
 }

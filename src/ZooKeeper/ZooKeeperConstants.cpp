@@ -23,6 +23,7 @@ static const std::unordered_set<int32_t> VALID_OPERATIONS =
     static_cast<int32_t>(OpNum::MultiRead),
     static_cast<int32_t>(OpNum::Auth),
     static_cast<int32_t>(OpNum::NewSession),
+    static_cast<int32_t>(OpNum::OldNewSession),
     static_cast<int32_t>(OpNum::SetWatches),
     static_cast<int32_t>(OpNum::SetACL),
     static_cast<int32_t>(OpNum::GetACL),
@@ -68,6 +69,8 @@ std::string toString(OpNum op_num)
             return "Auth";
         case OpNum::NewSession:
             return "NewSession";
+        case OpNum::OldNewSession:
+            return "OldNewSession";
         case OpNum::SetWatches:
             return "SetWatches";
         case OpNum::SetACL:

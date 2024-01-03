@@ -1377,7 +1377,7 @@ void KeeperStore::processRequest(
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
         return;
     }
-    else if (zk_request->getOpNum() == Coordination::OpNum::NewSession)
+    else if (isNewSessionRequest(zk_request->getOpNum()))
     {
         auto * new_session_req = dynamic_cast<Coordination::ZooKeeperNewSessionRequest *>(zk_request.get());
         assert(new_session_req != nullptr);
