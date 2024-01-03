@@ -213,6 +213,15 @@ void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::stri
         deserializeKeeperStoreFromSnapshot(store, existing_snapshots.rbegin()->second, log);
     else
         throw Exception(ErrorCodes::CORRUPTED_DATA, "No snapshots found on path {}. At least one snapshot must exist.", path);
+
+    LOG_INFO(
+        log,
+        "Deserialize snapshot to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        store.getNodesCount(),
+        store.getTotalEphemeralNodesCount(),
+        store.getSessionCount(),
+        store.getSessionIDCounter(),
+        store.getZxid());
 }
 
 void deserializeLogMagic(ReadBuffer & in)
@@ -566,7 +575,7 @@ void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_
             throw Exception(ErrorCodes::NOT_IMPLEMENTED, "Forty two check byte ({}) is not equal 0x42", forty_two);
     }
 
-    LOG_INFO(log, "Finished {} deserialization, totally read {} records", log_path, counter);
+    LOG_INFO(log, "Finished {} deserialization, totally read {} records. ", log_path, counter);
 }
 
 void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & path, Poco::Logger * log)
@@ -606,6 +615,14 @@ void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & pat
         deserializeLogAndApplyToStore(store, *it, log);
     }
 
+    LOG_INFO(
+        log,
+        "Deserialize logs to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        store.getNodesCount(),
+        store.getTotalEphemeralNodesCount(),
+        store.getSessionCount(),
+        store.getSessionIDCounter(),
+        store.getZxid());
 }
 
 }
