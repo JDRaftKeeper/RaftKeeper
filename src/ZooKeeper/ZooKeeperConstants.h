@@ -39,11 +39,10 @@ enum class OpNum : int32_t
     MultiRead = 22,
     Auth = 100,
     SetWatches = 101,
+    NewSession = -10, /// Used to create new session.
 
     FilteredList = 500, /// Special operation only used in ClickHouse.
-
-    NewSession = 997, /// Special internal request. Used to create new session.
-    UpdateSession = 996, /// Special internal request. Used to session reconnect.
+    UpdateSession = 1001, /// Special internal request. Used to session reconnect.
 };
 
 std::string toString(OpNum op_num);

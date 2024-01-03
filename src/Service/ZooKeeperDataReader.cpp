@@ -350,6 +350,8 @@ Coordination::ZooKeeperRequestPtr deserializeCreateSession(ReadBuffer & in)
     std::shared_ptr<Coordination::ZooKeeperNewSessionRequest> result = std::make_shared<Coordination::ZooKeeperNewSessionRequest>();
     int32_t timeout;
     Coordination::read(timeout, in);
+    result->internal_id = 1; /// fake value
+    result->server_id = 1; /// fake value
     result->session_timeout_ms = timeout;
     result->restored_from_zookeeper_log = true;
     return result;
@@ -520,17 +522,17 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
 
     request->xid = xid;
 
-    if (zxid > store.zxid)
+    if (zxid > store.getZxid())
     {
         /// Separate processing of session id requests
         if (request->getOpNum() == Coordination::OpNum::NewSession)
         {
-            const Coordination::ZooKeeperNewSessionRequest & session_id_request = dynamic_cast<const Coordination::ZooKeeperNewSessionRequest &>(*request);
+            const auto & session_id_request = dynamic_cast<const Coordination::ZooKeeperNewSessionRequest &>(*request);
             store.getSessionID(session_id_request.session_timeout_ms);
         }
         else
         {
-            /// Skip failed multirequests
+            /// Skip failed multi-requests
             if (request->getOpNum() == Coordination::OpNum::Multi && hasErrorsInMultiRequest(request))
                 return true;
 

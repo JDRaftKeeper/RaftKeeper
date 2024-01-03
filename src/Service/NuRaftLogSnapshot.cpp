@@ -1075,8 +1075,8 @@ size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, KeeperStore & stor
         store.getNodesCount(),
         store.getTotalEphemeralNodesCount(),
         store.getSessionCount(),
-        store.getSessionIDCounter(),
-        store.getZxid());
+        next_session_id,
+        next_zxid);
     size_t obj_size = snap_store->createObjects(store, next_zxid, next_session_id);
     snapshots[meta.get_last_log_idx()] = snap_store;
     return obj_size;
