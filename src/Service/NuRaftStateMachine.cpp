@@ -707,7 +707,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 LOG_TRACE(
                     log, "Replay log request, session {}, request {}", toHexString(request->session_id), request->request->toString());
                 store.processRequest(responses_queue, *request, {}, true, true);
-                if (request->session_id > store.session_id_counter)
+                if (request->request->getOpNum() != Coordination::OpNum::NewSession && request->session_id > store.session_id_counter)
                 {
                     LOG_WARNING(
                         log,
