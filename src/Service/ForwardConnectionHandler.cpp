@@ -250,7 +250,6 @@ void ForwardConnectionHandler::processHandshake()
 
     /// register session response callback
     auto response_callback = [this](ForwardResponsePtr response) { sendResponse(response); };
-
     keeper_dispatcher->registerForwarderResponseCallBack({server_id, client_id}, response_callback);
 
     LOG_INFO(log, "Register forward from server {} client {}", server_id, client_id);
