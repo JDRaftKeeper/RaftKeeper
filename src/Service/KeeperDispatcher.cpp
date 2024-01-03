@@ -377,7 +377,7 @@ void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
 
 void KeeperDispatcher::registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
-    if (session_id != 0)
+    if (session_id == 0)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Session id cannot be 0");
 
     if (!user_response_callbacks.try_emplace(session_id, callback).second && !is_reconnected)
