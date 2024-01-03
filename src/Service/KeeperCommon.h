@@ -81,4 +81,6 @@ using ErrorRequests = std::list<ErrorRequest>;
 bool isSessionRequest(Coordination::OpNum opnum);
 bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request);
 
+bool isNewSessionRequest(Coordination::OpNum opnum);
+
 }

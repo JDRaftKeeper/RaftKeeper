@@ -279,7 +279,7 @@ void RequestProcessor::processErrorRequest(size_t count)
         if (unlikely(isSessionRequest(error_request.opnum)))
         {
             ZooKeeperResponsePtr response;
-            if (error_request.opnum == Coordination::OpNum::NewSession)
+            if (isNewSessionRequest(error_request.opnum))
             {
                 auto new_session_response = std::make_shared<ZooKeeperNewSessionResponse>();
                 new_session_response->xid = xid;
