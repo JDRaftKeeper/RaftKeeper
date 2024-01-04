@@ -7,6 +7,7 @@
 #include <Poco/Exception.h>
 #include <Poco/Thread.h>
 
+#include <Common/Exception.h>
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
 #include <Common/NIO/SocketReactor.h>
@@ -35,6 +36,7 @@ SocketReactor::SocketReactor(const Poco::Timespan & timeout_)
     , tnf(new TimeoutNotification(this))
     , inf(new IdleNotification(this))
     , snf(new ShutdownNotification(this))
+    , log(&Poco::Logger::get("SocketReactor"))
 {
 }
 
@@ -71,6 +73,7 @@ void SocketReactor::run()
                         }
                         if (socket_and_events.second & PollSet::POLL_ERROR)
                         {
+                            dynamic_cast<ErrorNotification *>(enf.get())->setErrorNo(errno);
                             dispatch(socket_and_events.first, *enf);
                         }
                     }
@@ -80,17 +83,9 @@ void SocketReactor::run()
                     onTimeout();
             }
         }
-        catch (Exception & e)
-        {
-            ErrorHandler::handle(e);
-        }
-        catch (std::exception & e)
-        {
-            ErrorHandler::handle(e);
-        }
         catch (...)
         {
-            ErrorHandler::handle();
+            tryLogCurrentException(log, "Failed to handle socket event");
         }
     }
     onShutdown();
@@ -279,7 +274,6 @@ void SocketReactor::onBusy()
 {
 }
 
-
 void SocketReactor::dispatch(const Socket & socket, const Notification & notification)
 {
     SocketNotifierPtr notifier = getNotifier(socket);
@@ -309,27 +303,18 @@ void SocketReactor::dispatch(SocketNotifierPtr & notifier, const Notification & 
 {
     try
     {
+        const auto & sock = notifier->getSocket();
+        const auto socket_name = sock.isStream() ? sock.address().toString() /// use local address for server socket
+                                                 : sock.peerAddress().toString(); /// use remote address for server socket
+        LOG_TRACE(log, "Dispatch event {} for {} ", notification.name(), socket_name);
         notifier->dispatch(notification);
-    }
-    catch (Exception & e)
-    {
-        ErrorHandler::handle(e);
-    }
-    catch (std::exception & e)
-    {
-        ErrorHandler::handle(e);
     }
     catch (...)
     {
-        ErrorHandler::handle();
+        tryLogCurrentException(log, "Failed to dispatch socket event " + notification.name());
     }
 }
 
-
-AsyncSocketReactor::AsyncSocketReactor(const std::string & name_) : name(name_)
-{
-    startup();
-}
 
 AsyncSocketReactor::AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name_) : SocketReactor(timeout), name(name_)
 {

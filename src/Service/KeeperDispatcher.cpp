@@ -314,22 +314,16 @@ void KeeperDispatcher::shutdown()
                 responses_thread->wait();
         }
 
-        LOG_INFO(log, "Shutting down request forwarder");
         request_forwarder.shutdown();
-
-        LOG_INFO(log, "Shutting down request accumulator");
         request_accumulator.shutdown();
-
-        LOG_INFO(log, "Shutting down request processor");
         request_processor->shutdown();
 
         if (server)
         {
-            LOG_INFO(log, "Shutting down server");
             server->shutdown();
         }
 
-        LOG_INFO(log, "for unhandled requests sending session expired error to client.");
+        LOG_INFO(log, "Sending session expired error for unhandled request.");
         RequestForSession request_for_session;
         while (requests_queue->tryPopAny(request_for_session))
         {
