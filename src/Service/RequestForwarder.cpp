@@ -8,7 +8,7 @@ namespace RK
 
 namespace ErrorCodes
 {
-    extern const int RAFT_FORWARDING_ERROR;
+    extern const int RAFT_FORWARD_ERROR;
     extern const int RAFT_IS_LEADER;
     extern const int RAFT_NO_LEADER;
     extern const int RAFT_FWD_NO_CONN;
@@ -23,7 +23,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
 {
     setThreadName(("ReqFwdSend#" + toString(runner_id)).c_str());
 
-    LOG_DEBUG(log, "Starting forwarding request sending thread.");
+    LOG_DEBUG(log, "Starting forward request sending thread.");
     while (!shutdown_called)
     {
         UInt64 max_wait = session_sync_period_ms;
@@ -62,7 +62,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
                 forward_request->send_time = clock::now();
                 connection->send(forward_request);
 
-                forwarding_queues[runner_id]->push(std::move(forward_request));
+                forward_request_queue[runner_id]->push(std::move(forward_request));
             }
             catch (...)
             {
@@ -104,14 +104,13 @@ void RequestForwarder::runSend(RunnerId runner_id)
                             ForwardRequestPtr forward_request = std::make_shared<ForwardSyncSessionsRequest>(std::move(session_to_expiration_time));
                             forward_request->send_time = clock::now();
                             connection->send(forward_request);
-                            forwarding_queues[runner_id]->push(std::move(forward_request));
+                            forward_request_queue[runner_id]->push(std::move(forward_request));
                         }
                     }
                     else
                     {
                         throw Exception(
-                            "Not found connection when sending sessions for runner " + std::to_string(runner_id),
-                            ErrorCodes::RAFT_FORWARDING_ERROR);
+                            ErrorCodes::RAFT_FORWARD_ERROR, "Not found connection when sending sessions for runner {}", runner_id);
                     }
                 }
                 catch (...)
@@ -130,7 +129,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
 {
     setThreadName(("ReqFwdRecv#" + toString(runner_id)).c_str());
 
-    LOG_DEBUG(log, "Starting forwarding response receiving thread.");
+    LOG_DEBUG(log, "Starting forward response receiving thread.");
     while (!shutdown_called)
     {
         try
@@ -140,7 +139,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
 
             /// Check if the earliest request has timed out. And handle all timed out requests.
             ForwardRequestPtr earliest_request;
-            if (forwarding_queues[runner_id]->peek(earliest_request))
+            if (forward_request_queue[runner_id]->peek(earliest_request))
             {
                 auto earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
                 if (now > earliest_request_deadline)
@@ -195,7 +194,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
         }
         catch (...)
         {
-            tryLogCurrentException(log, "Error when receiving forwarding response, runner " + std::to_string(runner_id));
+            tryLogCurrentException(log, "Error when receiving forward response, runner " + std::to_string(runner_id));
             std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
         }
     }
@@ -203,7 +202,7 @@ void RequestForwarder::runReceive(RunnerId runner_id)
 
 bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront)
 {
-    LOG_INFO(log, "Process timeout request for runner {} queue size {}", runner_id, forwarding_queues[runner_id]->size());
+    LOG_INFO(log, "Process timeout request for runner {} queue size {}", runner_id, forward_request_queue[runner_id]->size());
 
     clock::time_point now = clock::now();
 
@@ -226,13 +225,13 @@ bool RequestForwarder::processTimeoutRequest(RunnerId runner_id, ForwardRequestP
         }
     };
 
-    return forwarding_queues[runner_id]->removeFrontIf(func, newFront);
+    return forward_request_queue[runner_id]->removeFrontIf(func, newFront);
 }
 
 
 bool RequestForwarder::removeFromQueue(RunnerId runner_id, ForwardResponsePtr forward_response_ptr)
 {
-    return forwarding_queues[runner_id]->findAndRemove([forward_response_ptr](const ForwardRequestPtr & request) -> bool
+    return forward_request_queue[runner_id]->findAndRemove([forward_response_ptr](const ForwardRequestPtr & request) -> bool
     {
         if (request->forwardType() != forward_response_ptr->forwardType())
             return false;
@@ -266,9 +265,9 @@ void RequestForwarder::shutdown()
     request_thread->wait();
     response_thread->wait();
 
-    for (auto & forwarding_queue : forwarding_queues)
+    for (auto & queue : forward_request_queue)
     {
-        forwarding_queue->forEach([this](const ForwardRequestPtr & request) -> bool
+        queue->forEach([this](const ForwardRequestPtr & request) -> bool
         {
             ForwardResponsePtr response = request->makeResponse();
             response->setAppendEntryResult(false, nuraft::cmd_result_code::FAILED);
@@ -380,7 +379,7 @@ void RequestForwarder::initialize(
 
     for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
     {
-        forwarding_queues.push_back(std::make_unique<ForwardingQueue>());
+        forward_request_queue.push_back(std::make_unique<ForwardRequestQueue>());
     }
 
     initConnections();

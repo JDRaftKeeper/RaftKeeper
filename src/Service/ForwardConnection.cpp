@@ -12,8 +12,8 @@ namespace ErrorCodes
     extern const int ALL_CONNECTION_TRIES_FAILED;
     extern const int NETWORK_ERROR;
     extern const int UNEXPECTED_FORWARD_PACKET;
-    extern const int RAFT_FORWARDING_ERROR;
-    extern const int FORWARDING_DISCONNECTED;
+    extern const int RAFT_FORWARD_ERROR;
+    extern const int FORWARD_NOT_CONNECTED;
 }
 
 void ForwardConnection::connect()
@@ -44,7 +44,7 @@ void ForwardConnection::connect()
             LOG_TRACE(log, "Sent handshake to {}", endpoint);
 
             if (!receiveHandshake())
-                throw Exception(ErrorCodes::RAFT_FORWARDING_ERROR, "Handshake with {} failed", endpoint);
+                throw Exception(ErrorCodes::RAFT_FORWARD_ERROR, "Handshake with {} failed", endpoint);
 
             connected = true;
             LOG_TRACE(log, "Connect to {} success", endpoint);
@@ -76,7 +76,7 @@ void ForwardConnection::send(ForwardRequestPtr request)
     if (!connected)
         throw Exception("Connect to server failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
 
-    LOG_TRACE(log, "Forwarding request {} to endpoint {}", request->toString(), endpoint);
+    LOG_TRACE(log, "Forward request {} to endpoint {}", request->toString(), endpoint);
 
     try
     {
@@ -99,7 +99,7 @@ bool ForwardConnection::poll(UInt64 timeout_microseconds)
 void ForwardConnection::receive(ForwardResponsePtr & response)
 {
     if (!connected)
-        throw Exception("Forwarding connection disconnected", ErrorCodes::FORWARDING_DISCONNECTED);
+        throw Exception(ErrorCodes::FORWARD_NOT_CONNECTED, "Forwarding connection disconnected");
 
     /// There are two situations,
     ///     1. Feedback not accepted.
