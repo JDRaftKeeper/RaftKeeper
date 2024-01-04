@@ -1,8 +1,6 @@
 package raftkeeper;
 
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.ZooDefs;
-import org.apache.zookeeper.ZooKeeper;
+import org.apache.zookeeper.*;
 import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
@@ -30,9 +28,15 @@ public class ZooTask implements Runnable {
         this.id = id;
     }
 
-    public static ZooKeeper createClient() throws IOException {
+    public static ZooKeeper createClient() throws IOException, InterruptedException {
         // init zookeeper client
-        return new ZooKeeper(Benchmark.nodes, 1000000, null);
+        ZooKeeper zk = new ZooKeeper(Benchmark.nodes, 10000, event -> {});
+
+        if (zk.getState() != ZooKeeper.States.CONNECTED) {
+            System.out.println("Failed to connect server!");
+            System.exit(1);
+        }
+        return zk;
     }
 
     public void run() {
@@ -43,7 +47,9 @@ public class ZooTask implements Runnable {
             // create root dir
             try {
                 zoo.create(Benchmark.ROOT_PATH, Benchmark.BLANK_BYTE, ZooDefs.Ids.OPEN_ACL_UNSAFE, PERSISTENT);
-            } catch (KeeperException ignored) {
+            } catch (KeeperException.NodeExistsException ignored) {
+            } catch (KeeperException e) {
+                e.printStackTrace();
             }
 
             // pre run
@@ -298,7 +304,7 @@ public class ZooTask implements Runnable {
                 ZooKeeper zooC = null;
                 try {
                     zooC = createClient();
-                } catch (IOException ignored) {
+                } catch (IOException | InterruptedException ignored) {
                 }
                 for (long j = 0; j < batchSize; j++) {
                     try {
