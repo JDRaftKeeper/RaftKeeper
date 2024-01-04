@@ -8,13 +8,13 @@ namespace RK
 {
 
 /// deserialize one snapshot segment
-void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string & snapshot_path, Poco::Logger * log);
+void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const String & snapshot_path, Poco::Logger * log);
 /// deserialize snapshot
-void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::string & path, Poco::Logger * log);
+void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const String & path, Poco::Logger * log);
 
 ///deserialize one log segment
-void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_path, Poco::Logger * log);
+void deserializeLogAndApplyToStore(KeeperStore & store, const String & log_path, Poco::Logger * log);
 /// deserialize log
-void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & path, Poco::Logger * log);
+void deserializeLogsAndApplyToStore(KeeperStore & store, const String & path, Poco::Logger * log);
 
 }

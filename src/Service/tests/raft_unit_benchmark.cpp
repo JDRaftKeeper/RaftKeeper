@@ -28,10 +28,10 @@ using namespace nuraft;
 
 namespace RK
 {
-static const std::string LOG_DIR = "./test_raft_log";
-static const std::string SNAP_DIR = "./test_raft_snapshot";
+static const String LOG_DIR = "./test_raft_log";
+static const String SNAP_DIR = "./test_raft_snapshot";
 
-void setNode(KeeperStore & storage, const std::string key, const std::string value, bool is_ephemeral = false, int64_t session_id = 0)
+void setNode(KeeperStore & storage, const String key, const String value, bool is_ephemeral = false, int64_t session_id = 0)
 {
     ACLs default_acls;
     ACL acl;
@@ -111,7 +111,7 @@ public:
         config().setString("logger.level", log_level);
         config().setBool("ignore-error", false);
 
-        std::vector<std::string> arguments;
+        std::vector<String> arguments;
         for (int arg_num = 1; arg_num < argc; ++arg_num)
             arguments.emplace_back(argv[arg_num]);
         argsToConfig(arguments, config(), 100);
@@ -128,12 +128,12 @@ public:
 
 }
 
-void cleanDirectory(const std::string & log_dir, bool remove_dir = true)
+void cleanDirectory(const String & log_dir, bool remove_dir = true)
 {
     Poco::File dir_obj(log_dir);
     if (dir_obj.exists())
     {
-        std::vector<std::string> files;
+        std::vector<String> files;
         dir_obj.list(files);
         for (const auto& file : files)
         {
@@ -146,7 +146,7 @@ void cleanDirectory(const std::string & log_dir, bool remove_dir = true)
     }
 }
 
-void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key, std::string & data, std::shared_ptr<LogEntryPB> & entry_pb)
+void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data, std::shared_ptr<LogEntryPB> & entry_pb)
 {
     entry_pb = std::make_shared<LogEntryPB>();
     entry_pb->set_entry_type(ENTRY_TYPE_DATA);
@@ -158,7 +158,7 @@ void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key,
     data_pb->set_data(data);
 }
 
-void getCurrentTime(std::string & date_str)
+void getCurrentTime(String & date_str)
 {
     const char time_fmt[] = "%Y%m%d%H%M%S";
     time_t curr_time;
@@ -177,7 +177,7 @@ void getCurrentTime(std::string & date_str)
 void logSegmentThread()
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    std::string log_dir(LOG_DIR + "/10");
+    String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
 
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
@@ -188,13 +188,13 @@ void logSegmentThread()
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
-    std::string key;
+    String key;
     for (int i = 0; i < key_bytes; i++)
     {
         key.append("k");
     }
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");
@@ -307,7 +307,7 @@ void logSegmentThread()
 void snapshotVolume(int last_index)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftSnapshot"));
-    std::string snap_dir(SNAP_DIR + "/100");
+    String snap_dir(SNAP_DIR + "/100");
     cleanDirectory(snap_dir);
     KeeperSnapshotManager snap_mgr(snap_dir, 1000000, 20);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -322,7 +322,7 @@ void snapshotVolume(int last_index)
     //UInt32 last_index = 1000000;
     int value_bytes = 300;
     //300 BYTE
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");
@@ -341,7 +341,7 @@ void snapshotVolume(int last_index)
             LOG_INFO(thread_log, "Begin run thread {}/{}, send_count {}, range[{} - {}) ", thread_idx, thread_size, send_count, begin, end);
             while (begin < end)
             {
-                std::string key = std::to_string(begin + 1);
+                String key = std::to_string(begin + 1);
                 setNode(storage, key, data);
                 begin++;
             }
@@ -351,7 +351,7 @@ void snapshotVolume(int last_index)
     /*
     for (int i = 0; i < last_index; i++)
     {
-        std::string key = std::to_string(i + 1);
+        String key = std::to_string(i + 1);
         setNode(storage, key, data);
     }
     */

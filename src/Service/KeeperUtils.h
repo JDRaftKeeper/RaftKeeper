@@ -13,7 +13,7 @@
 namespace RK
 {
 
-std::string checkAndGetSuperdigest(const String & user_and_digest);
+String checkAndGetSuperdigest(const String & user_and_digest);
 nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
 nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 
@@ -25,7 +25,7 @@ struct BackendTimer
     UInt32 interval = 1 * 3600;
     UInt32 random_window = 1200; //20 minutes
 
-    static void getCurrentTime(std::string & date_str)
+    static void getCurrentTime(String & date_str)
     {
         time_t curr_time;
         time(&curr_time);
@@ -34,7 +34,7 @@ struct BackendTimer
         date_str = tmp_buf;
     }
 
-    static time_t parseTime(const std::string & date_str)
+    static time_t parseTime(const String & date_str)
     {
         struct tm prev_tm;
         memset(&prev_tm, 0, sizeof(tm));
@@ -55,7 +55,7 @@ struct BackendTimer
 class Directory
 {
 public:
-    static int createDir(const std::string & path);
+    static int createDir(const String & path);
 };
 
 

@@ -45,7 +45,7 @@ private:
 class RaftTaskManager
 {
 public:
-    explicit RaftTaskManager(const std::string & snapshot_dir);
+    explicit RaftTaskManager(const String & snapshot_dir);
     ~RaftTaskManager();
 
     /// save last index after commit log to state machine
@@ -64,7 +64,7 @@ private:
     std::mutex write_file;
 
     std::atomic<bool> is_shut_down{false};
-    std::vector<std::string> task_file_names;
+    std::vector<String> task_file_names;
 
     std::vector<int> task_files;
     Poco::Logger * log;

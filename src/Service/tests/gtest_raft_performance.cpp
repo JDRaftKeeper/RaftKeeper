@@ -20,19 +20,19 @@ static const UInt32 LOG_COUNT = 100000;
 TEST(RaftPerformance, appendLogPerformance)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    std::string log_dir(LOG_DIR + "/50");
+    String log_dir(LOG_DIR + "/50");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
-    std::string key;
+    String key;
     for (int i = 0; i < key_bytes; i++)
     {
         key.append("k");
     }
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");
@@ -78,7 +78,7 @@ TEST(RaftPerformance, appendLogPerformance)
 TEST(RaftPerformance, appendLogThread)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    std::string log_dir(LOG_DIR + "/51");
+    String log_dir(LOG_DIR + "/51");
     cleanDirectory(log_dir);
     //auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
@@ -86,13 +86,13 @@ TEST(RaftPerformance, appendLogThread)
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
-    std::string key;
+    String key;
     for (int i = 0; i < key_bytes; i++)
     {
         key.append("k");
     }
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");
@@ -153,7 +153,7 @@ TEST(RaftPerformance, appendLogThread)
 TEST(RaftPerformance, machineCreateThread)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
-    std::string snap_dir(LOG_DIR + "/51");
+    String snap_dir(LOG_DIR + "/51");
     cleanDirectory(snap_dir);
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
@@ -165,13 +165,13 @@ TEST(RaftPerformance, machineCreateThread)
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
-    std::string key("/");
+    String key("/");
     for (int i = 0; i < key_bytes - 16; i++)
     {
         key.append("k");
     }
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");
@@ -197,7 +197,7 @@ TEST(RaftPerformance, machineCreateThread)
                 while (begin < end)
                 {
                     snprintf(key_buf, 257, "%s%02d%02d%010d", key.data(), thread_size, thread_idx, begin);
-                    std::string key_str(key_buf);
+                    String key_str(key_buf);
                     //LOG_INFO(thread_log, "KEY:[{}] ", key_str);
                     createZNode(machine, key_str, data);
                     begin++;

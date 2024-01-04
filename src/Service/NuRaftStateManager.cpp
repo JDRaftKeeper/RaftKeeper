@@ -114,7 +114,7 @@ void NuRaftStateManager::system_exit(const int exit_code)
 }
 
 ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
-    const Poco::Util::AbstractConfiguration & config, const std::string & config_name)
+    const Poco::Util::AbstractConfiguration & config, const String & config_name)
 {
     Poco::Util::AbstractConfiguration::Keys keys;
     config.keys(config_name, keys);
@@ -145,7 +145,7 @@ ptr<cluster_config> NuRaftStateManager::parseClusterConfig(
         ret_cluster_config->get_servers().push_back(cs_new<srv_config>(my_id, 0, my_endpoint, "", false, 1));
     }
 
-    std::string s;
+    String s;
     std::for_each(ret_cluster_config->get_servers().cbegin(), ret_cluster_config->get_servers().cend(), [&s](ptr<srv_config> srv)
     {
         s += " ";

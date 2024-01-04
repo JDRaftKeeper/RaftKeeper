@@ -45,10 +45,10 @@ static String parentPath(const String & path)
     return "/";
 }
 
-static std::string getBaseName(const String & path)
+static String getBaseName(const String & path)
 {
     size_t basename_start = path.rfind('/');
-    return std::string{&path[basename_start + 1], path.length() - basename_start - 1};
+    return String{&path[basename_start + 1], path.length() - basename_start - 1};
 }
 
 static String base64Encode(const String & decoded)
@@ -371,7 +371,7 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
             return {response_ptr, undo};
         }
 
-        std::string path_created = request.path;
+        String path_created = request.path;
         if (request.is_sequential)
         {
             auto seq_num = parent->stat.cversion;

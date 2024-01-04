@@ -24,7 +24,7 @@ namespace RK
 
 struct StoreRequest;
 using StoreRequestPtr = std::shared_ptr<StoreRequest>;
-using ChildrenSet = std::unordered_set<std::string>;
+using ChildrenSet = std::unordered_set<String>;
 
 /**
  * Represent an entry in data tree.
@@ -81,32 +81,32 @@ class ConcurrentMap
 {
 public:
     using SharedElement = std::shared_ptr<Element>;
-    using ElementMap = std::unordered_map<std::string, SharedElement>;
+    using ElementMap = std::unordered_map<String, SharedElement>;
     using Action = std::function<void(const String &, const SharedElement &)>;
 
     /// Simple encapsulate unordered_map with lock.
     class InnerMap
     {
     public:
-        SharedElement get(std::string const & key)
+        SharedElement get(String const & key)
         {
             std::shared_lock lock(mut_);
             auto i = map_.find(key);
             return (i != map_.end()) ? i->second : nullptr;
         }
-        bool emplace(std::string const & key, SharedElement && value)
+        bool emplace(String const & key, SharedElement && value)
         {
             std::unique_lock lock(mut_);
             auto [_, created] = map_.insert_or_assign(key, std::move(value));
             return created;
         }
-        bool emplace(std::string const & key, const SharedElement & value)
+        bool emplace(String const & key, const SharedElement & value)
         {
             std::unique_lock lock(mut_);
             auto [_, created] = map_.insert_or_assign(key, value);
             return created;
         }
-        bool erase(std::string const & key)
+        bool erase(String const & key)
         {
             std::unique_lock write_lock(mut_);
             return map_.erase(key);
@@ -144,18 +144,18 @@ public:
 
 private:
     std::array<InnerMap, NumBlocks> maps_;
-    std::hash<std::string> hash_;
+    std::hash<String> hash_;
 
 public:
-    SharedElement get(const std::string & key) { return mapFor(key).get(key); }
-    SharedElement at(const std::string & key) { return mapFor(key).get(key); }
+    SharedElement get(const String & key) { return mapFor(key).get(key); }
+    SharedElement at(const String & key) { return mapFor(key).get(key); }
 
-    bool emplace(const std::string & key, SharedElement && value) { return mapFor(key).emplace(key, std::move(value)); }
-    bool emplace(const std::string & key, const SharedElement & value) { return mapFor(key).emplace(key, value); }
-    size_t count(const std::string & key) { return get(key) != nullptr ? 1 : 0; }
-    bool erase(std::string const & key) { return mapFor(key).erase(key); }
+    bool emplace(const String & key, SharedElement && value) { return mapFor(key).emplace(key, std::move(value)); }
+    bool emplace(const String & key, const SharedElement & value) { return mapFor(key).emplace(key, value); }
+    size_t count(const String & key) { return get(key) != nullptr ? 1 : 0; }
+    bool erase(String const & key) { return mapFor(key).erase(key); }
 
-    InnerMap & mapFor(std::string const & key) { return maps_[hash_(key) % NumBlocks]; }
+    InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBlocks]; }
     UInt32 getBlockNum() const { return NumBlocks; }
     InnerMap & getMap(const UInt32 & index) { return maps_[index]; }
 
@@ -188,9 +188,9 @@ public:
     using RequestsForSessions = std::vector<RequestForSession>;
     using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
 
-    using Ephemerals = std::unordered_map<int64_t, std::unordered_set<std::string>>;
+    using Ephemerals = std::unordered_map<int64_t, std::unordered_set<String>>;
     using EphemeralsPtr = std::shared_ptr<Ephemerals>;
-    using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<std::string>>;
+    using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<String>>;
     using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
     using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
     using SessionIDs = std::vector<int64_t>;
@@ -247,7 +247,7 @@ public:
 
     /// Allocate a new session id with initialized expiry timeout session_timeout_ms.
     /// Will increase session_id_counter and zxid.
-    int64_t getSessionID(int64_t session_timeout_ms)
+    int64_t getSessionID(int64_t session_timeout_ms)  /// TODO delete
     {
         /// Creating session should increase zxid
         fetchAndGetZxid();
@@ -280,7 +280,7 @@ public:
         return session_and_timeout.size();
     }
 
-    bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
+    bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms); /// TODO delete
 
     /// process request
     void processRequest(
@@ -290,7 +290,7 @@ public:
         bool check_acl = true,
         bool ignore_response = false);
 
-    /// build path children after load data from snapshot
+    /// Build path children after load data from snapshot
     void buildPathChildren(bool from_zk_snapshot = false);
 
     void finalize();

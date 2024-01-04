@@ -16,10 +16,10 @@ namespace ErrorCodes
     extern const int CORRUPTED_DATA;
 }
 
-int64_t getZxidFromName(const std::string & filename)
+int64_t getZxidFromName(const String & filename)
 {
     std::filesystem::path path(filename);
-    std::string extension = path.extension();
+    String extension = path.extension();
     char * end;
     int64_t zxid = std::strtoul(extension.data() + 1, &end, 16);
     return zxid;
@@ -98,7 +98,7 @@ void deserializeACLMap(KeeperStore & store, ReadBuffer & in)
 int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
 {
     int64_t max_zxid = 0;
-    std::string path;
+    String path;
 
     Coordination::read(path, in);
     size_t count = 0;
@@ -154,7 +154,7 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
     return max_zxid;
 }
 
-void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string & snapshot_path, Poco::Logger * log)
+void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const String & snapshot_path, Poco::Logger * log)
 {
     LOG_INFO(log, "Deserializing snapshot {}", snapshot_path);
     int64_t zxid = getZxidFromName(snapshot_path);
@@ -192,10 +192,10 @@ void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const std::string &
     LOG_INFO(log, "Finished, snapshot ZXID {}", store.zxid);
 }
 
-void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::string & path, Poco::Logger * log)
+void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const String & path, Poco::Logger * log)
 {
     namespace fs = std::filesystem;
-    std::map<int64_t, std::string> existing_snapshots;
+    std::map<int64_t, String> existing_snapshots;
 
     for (const auto & p : fs::directory_iterator(path))
     {
@@ -362,7 +362,7 @@ Coordination::ZooKeeperRequestPtr deserializeCloseSession(ReadBuffer & in, bool 
     std::shared_ptr<Coordination::ZooKeeperCloseRequest> result = std::make_shared<Coordination::ZooKeeperCloseRequest>();
     if (!empty)
     {
-        std::vector<std::string> data;
+        std::vector<String> data;
         Coordination::read(data, in);
     }
     result->restored_from_zookeeper_log = true;
@@ -544,7 +544,7 @@ bool deserializeTxn(KeeperStore & store, ReadBuffer & in, Poco::Logger * log)
     return true;
 }
 
-void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_path, Poco::Logger * log)
+void deserializeLogAndApplyToStore(KeeperStore & store, const String & log_path, Poco::Logger * log)
 {
     ReadBufferFromFile reader(log_path);
 
@@ -569,10 +569,10 @@ void deserializeLogAndApplyToStore(KeeperStore & store, const std::string & log_
     LOG_INFO(log, "Finished {} deserialization, totally read {} records. ", log_path, counter);
 }
 
-void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & path, Poco::Logger * log)
+void deserializeLogsAndApplyToStore(KeeperStore & store, const String & path, Poco::Logger * log)
 {
     namespace fs = std::filesystem;
-    std::map<int64_t, std::string> existing_logs;
+    std::map<int64_t, String> existing_logs;
 
     for (const auto & p : fs::directory_iterator(path))
     {
@@ -586,7 +586,7 @@ void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & pat
 
     LOG_INFO(log, "Totally have {} logs", existing_logs.size());
 
-    std::vector<std::string> stored_files;
+    std::vector<String> stored_files;
     for (auto it = existing_logs.rbegin(); it != existing_logs.rend(); ++it)
     {
         if (it->first >= store.zxid)

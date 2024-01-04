@@ -57,7 +57,7 @@ void LogEntryQueue::clear()
 }
 
 NuRaftFileLogStore::NuRaftFileLogStore(
-    const std::string & log_dir,
+    const String & log_dir,
     bool force_new,
     FsyncMode log_fsync_mode_,
     UInt64 log_fsync_interval_,

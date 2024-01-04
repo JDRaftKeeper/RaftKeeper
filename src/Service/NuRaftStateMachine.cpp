@@ -43,13 +43,13 @@ struct ReplayLogBatch
 NuRaftStateMachine::NuRaftStateMachine(
     KeeperResponsesQueue & responses_queue_,
     const RaftSettingsPtr & raft_settings_,
-    std::string & snap_dir,
+    String & snap_dir,
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     std::mutex & new_session_id_callback_mutex_,
     std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
     ptr<log_store> log_store_,
-    std::string super_digest,
+    String super_digest,
     UInt32 object_node_size,
     std::shared_ptr<RequestProcessor> request_processor_)
     : raft_settings(raft_settings_)
@@ -755,12 +755,12 @@ ptr<snapshot> NuRaftStateMachine::last_snapshot()
     return snap_mgr->lastSnapshot();
 }
 
-bool NuRaftStateMachine::exists(const std::string & path)
+bool NuRaftStateMachine::exists(const String & path)
 {
     return (store.container.count(path) == 1);
 }
 
-KeeperNode & NuRaftStateMachine::getNode(const std::string & path)
+KeeperNode & NuRaftStateMachine::getNode(const String & path)
 {
     auto node_ptr = store.container.get(path);
     if (node_ptr != nullptr)

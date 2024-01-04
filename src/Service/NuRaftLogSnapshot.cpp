@@ -44,7 +44,7 @@ const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
 const String MAGIC_SNAPSHOT_TAIL = "SnapTail";
 const String MAGIC_SNAPSHOT_HEAD = "SnapHead";
 
-int openFileForWrite(const std::string & obj_path)
+int openFileForWrite(const String & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     errno = 0;
@@ -94,7 +94,7 @@ void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checks
     out->close();
 }
 
-int openFileForRead(std::string & obj_path)
+int openFileForRead(String & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     errno = 0;
@@ -113,7 +113,7 @@ std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, 
     if (!batch)
         batch = cs_new<SnapshotBatchPB>();
 
-    std::string str_buf;
+    String str_buf;
     batch->SerializeToString(&str_buf);
 
     SnapshotBatchHeader header;
@@ -187,7 +187,7 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
 
         ptr<buffer> data = buf.getBuffer();
         data->pos(0);
-        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 
         index++;
     }
@@ -244,7 +244,7 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
 
         ptr<buffer> data = buf.getBuffer();
         data->pos(0);
-        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 
         index++;
     }
@@ -258,7 +258,7 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
 /**
  * Serialize sessions and return the next_session_id before serialize
  */
-int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, std::string & path)
+int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
 
@@ -305,7 +305,7 @@ int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const Sna
 
         ptr<buffer> data = buf.getBuffer();
         data->pos(0);
-        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 
         index++;
     }
@@ -322,7 +322,7 @@ int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const Sna
  * Save map<string, string> or map<string, uint64>
  */
 template <typename T>
-void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, std::string & path)
+void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     LOG_INFO(log, "Begin create snapshot map object, map size {}, path {}", snap_map.size(), path);
@@ -363,7 +363,7 @@ void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version,
 
         ptr<buffer> data = buf.getBuffer();
         data->pos(0);
-        entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 
         index++;
     }
@@ -374,7 +374,7 @@ void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version,
     writeTailAndClose(out, checksum);
 }
 
-void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
+void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path)
 {
     char path_buf[1024];
     snprintf(path_buf, 1024, SNAPSHOT_FILE_NAME, curr_time.c_str(), last_log_index, object_id);
@@ -382,7 +382,7 @@ void KeeperSnapshotStore::getObjectPath(ulong object_id, std::string & obj_path)
     obj_path = snap_dir + "/" + obj_path;
 }
 
-size_t KeeperSnapshotStore::getObjectIdx(const std::string & file_name)
+size_t KeeperSnapshotStore::getObjectIdx(const String & file_name)
 {
     auto it1 = file_name.find_last_of('_');
     return std::stoi(file_name.substr(it1 + 1, file_name.size() - it1));
@@ -493,7 +493,7 @@ void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const St
 
     ptr<buffer> data = buf.getBuffer();
     data->pos(0);
-    entry->set_data(std::string(reinterpret_cast<char *>(data->data_begin()), data->size()));
+    entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 }
 
 size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
@@ -570,7 +570,7 @@ size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid
     return total_obj_count;
 }
 
-void KeeperSnapshotStore::init(std::string create_time = "")
+void KeeperSnapshotStore::init(String create_time = "")
 {
     if (create_time.empty())
     {
@@ -608,7 +608,7 @@ bool KeeperSnapshotStore::loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHea
     return true;
 }
 
-bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
+bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -699,7 +699,7 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
             return false;
         }
         SnapshotBatchPB batch_pb;
-        batch_pb.ParseFromString(std::string(body_buf, header.data_length));
+        batch_pb.ParseFromString(String(body_buf, header.data_length));
         switch (batch_pb.batch_type())
         {
             case SnapshotTypePB::SNAPSHOT_TYPE_DATA: {
@@ -707,14 +707,14 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const std::string & data = item_pb.data();
+                    const String & data = item_pb.data();
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     //buf->put(data.data(), data.size());
                     buf->put(data);
                     buf->pos(0);
                     ReadBufferFromNuraftBuffer in(buf);
                     ptr<KeeperNode> node = cs_new<KeeperNode>();
-                    std::string key;
+                    String key;
                     try
                     {
                         Coordination::read(key, in);
@@ -776,7 +776,7 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const std::string & data = item_pb.data();
+                    const String & data = item_pb.data();
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
@@ -821,7 +821,7 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
                     for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                     {
                         const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                        const std::string & data = item_pb.data();
+                        const String & data = item_pb.data();
                         ptr<buffer> buf = buffer::alloc(data.size() + 1);
                         buf->put(data);
                         buf->pos(0);
@@ -843,12 +843,12 @@ bool KeeperSnapshotStore::parseObject(std::string obj_path, KeeperStore & store)
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const std::string & data = item_pb.data();
+                    const String & data = item_pb.data();
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
                     ReadBufferFromNuraftBuffer in(buf);
-                    std::string key;
+                    String key;
                     int64_t value;
                     try
                     {
@@ -949,7 +949,7 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
         return;
     }
 
-    std::string obj_path = objects_path.at(obj_id);
+    String obj_path = objects_path.at(obj_id);
 
     int snap_fd = openFileForRead(obj_path);
     if (snap_fd < 0)
@@ -1006,7 +1006,7 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
         return;
     }
 
-    std::string obj_path;
+    String obj_path;
     getObjectPath(obj_id, obj_path);
 
     int snap_fd = openFileForWrite(obj_path);
@@ -1055,7 +1055,7 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
     LOG_INFO(log, "Save object path {}, file size {}, obj_id {}.", obj_path, buffer.size(), obj_id);
 }
 
-void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
+void KeeperSnapshotStore::addObjectPath(ulong obj_id, String & path)
 {
     objects_path[obj_id] = path;
 }
@@ -1161,7 +1161,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     if (!file_dir.exists())
         return 0;
 
-    std::vector<std::string> file_vec;
+    std::vector<String> file_vec;
     file_dir.list(file_vec);
     char time_str[128];
 
@@ -1186,7 +1186,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             snapshots[meta.get_last_log_idx()] = snap_store;
             LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
         }
-        std::string full_path = snap_dir + "/" + file;
+        String full_path = snap_dir + "/" + file;
         snapshots[log_last_index]->addObjectPath(object_id, full_path);
     }
     LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
@@ -1225,7 +1225,7 @@ size_t KeeperSnapshotManager::removeSnapshots()
         Poco::File dir_obj(snap_dir);
         if (dir_obj.exists())
         {
-            std::vector<std::string> files;
+            std::vector<String> files;
             dir_obj.list(files);
             for (const auto & file : files)
             {

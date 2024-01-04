@@ -37,7 +37,7 @@ public:
         config().setString("logger.level", log_level);
         config().setBool("ignore-error", false);
 
-        std::vector<std::string> arguments;
+        std::vector<String> arguments;
         for (int arg_num = 1; arg_num < argc; ++arg_num)
             arguments.emplace_back(argv[arg_num]);
         argsToConfig(arguments, config(), 100);
@@ -54,7 +54,7 @@ public:
 
 }
 
-void getCurrentTime(std::string & date_str)
+void getCurrentTime(String & date_str)
 {
     const char time_fmt[] = "%Y%m%d%H%M%S";
     time_t curr_time;
@@ -76,7 +76,7 @@ int main(int argc, char ** argv)
     char * ip = argv[1];
     char * port_str = argv[2];
     snprintf(buf, 64, "%s:%s", ip, port_str);
-    std::string ip_port(buf);
+    String ip_port(buf);
     std::cout << "Connect server[" << ip_port << "]." << std::endl;
 
     int thread_size = 5;
@@ -99,8 +99,8 @@ int main(int argc, char ** argv)
     auto * log = &Poco::Logger::get("raft_service_client");
     LOG_INFO(log, "Run test server!");
 
-    std::string identity;
-    std::vector<std::string> hosts_strings;
+    String identity;
+    std::vector<String> hosts_strings;
     hosts_strings.emplace_back(ip_port);
     Coordination::ZooKeeper::Nodes nodes;
     nodes.reserve(hosts_strings.size());
@@ -121,9 +121,9 @@ int main(int argc, char ** argv)
         }
     }
 
-    std::string key = "/";
+    String key = "/";
     //8+6=14 byte
-    std::string curr_time;
+    String curr_time;
     getCurrentTime(curr_time);
     key.append(curr_time);
     for (int i = 0; i < key_size - 25; i++)
@@ -134,7 +134,7 @@ int main(int argc, char ** argv)
     LOG_INFO(log, "Create prefix key {}", key);
 
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_size; i++)
     {
         data.append("v");

@@ -9,7 +9,7 @@ using nuraft::cs_new;
 
 [[maybe_unused]] ptr<log_entry> LogEntry::setTermAndIndex(ptr<log_entry> & entry, ulong term, ulong index)
 {
-    std::string pb_str(reinterpret_cast<const char *>(entry->get_buf().data()));
+    String pb_str(reinterpret_cast<const char *>(entry->get_buf().data()));
 
     ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
     entry_pb->ParseFromString(pb_str);
@@ -17,7 +17,7 @@ using nuraft::cs_new;
     entry_pb->mutable_log_index()->set_term(term);
     entry_pb->mutable_log_index()->set_index(index);
 
-    std::string new_pb;
+    String new_pb;
     entry_pb->SerializeToString(&new_pb);
 
     ptr<buffer> new_buf = buffer::alloc(sizeof(uint32_t) + new_pb.size());
@@ -62,7 +62,7 @@ ptr<buffer> LogEntry::serializePB(ptr<LogEntryPB> msg_pb)
 
 ptr<buffer> LogEntry::serializePB(LogEntryPB & msg_pb)
 {
-    std::string msg_str;
+    String msg_str;
     msg_pb.SerializeToString(&msg_str);
 
     ptr<buffer> msg_buf = buffer::alloc(sizeof(byte) + msg_str.size());
@@ -82,7 +82,7 @@ ptr<LogEntryPB> LogEntry::parsePB(buffer & msg_buf)
     msg_buf.pos(0);
     ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
 
-    std::string msg_str(msg_buf.get_str());
+    String msg_str(msg_buf.get_str());
     entry_pb->ParseFromString(msg_str);
 
     return entry_pb;

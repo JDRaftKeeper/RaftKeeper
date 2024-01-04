@@ -43,7 +43,7 @@ void TestServer::init(int argc, char ** argv)
 
     config().setBool("ignore-error", false);
 
-    std::vector<std::string> arguments;
+    std::vector<String> arguments;
     for (int arg_num = 1; arg_num < argc; ++arg_num)
         arguments.emplace_back(argv[arg_num]);
     argsToConfig(arguments, config(), 100);
@@ -57,12 +57,12 @@ void TestServer::init(int argc, char ** argv)
     }
 }
 
-void cleanDirectory(const std::string & log_dir, bool remove_dir)
+void cleanDirectory(const String & log_dir, bool remove_dir)
 {
     Poco::File dir_obj(log_dir);
     if (dir_obj.exists())
     {
-        std::vector<std::string> files;
+        std::vector<String> files;
         dir_obj.list(files);
         for (auto & file : files)
         {
@@ -75,7 +75,7 @@ void cleanDirectory(const std::string & log_dir, bool remove_dir)
     }
 }
 
-ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key, std::string & data)
+ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data)
 {
     ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
     entry_pb->set_entry_type(ENTRY_TYPE_DATA);
@@ -88,7 +88,7 @@ ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::st
     return entry_pb;
 }
 
-ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, const std::string & key, const std::string & data)
+ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, const String & key, const String & data)
 {
     ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
     entry_pb->set_entry_type(ENTRY_TYPE_DATA);
@@ -101,7 +101,7 @@ ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, const s
     return entry_pb;
 }
 
-void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key, std::string & data, ptr<LogEntryPB> & entry_pb)
+void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data, ptr<LogEntryPB> & entry_pb)
 {
     entry_pb = cs_new<LogEntryPB>();
     entry_pb->set_entry_type(ENTRY_TYPE_DATA);
@@ -113,7 +113,7 @@ void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, std::string & key,
     data_pb->set_data(data);
 }
 
-void createEntry(UInt64 term, LogOpTypePB op, std::string & key, std::string & data, std::vector<ptr<log_entry>> & entry_vec)
+void createEntry(UInt64 term, LogOpTypePB op, String & key, String & data, std::vector<ptr<log_entry>> & entry_vec)
 {
     auto entry_pb = createEntryPB(term, 0, op, key, data);
     ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
@@ -123,7 +123,7 @@ void createEntry(UInt64 term, LogOpTypePB op, std::string & key, std::string & d
 
 }
 
-UInt64 appendEntry(ptr<LogSegmentStore> store, UInt64 term, LogOpTypePB op, std::string & key, std::string & data)
+UInt64 appendEntry(ptr<LogSegmentStore> store, UInt64 term, LogOpTypePB op, String & key, String & data)
 {
     auto entry_pb = createEntryPB(term, 0, op, key, data);
     ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
@@ -156,12 +156,12 @@ TEST(RaftLog, writeAndReadUInt32)
 
 TEST(RaftLog, serializeStr)
 {
-    std::string str("a string buffer");
+    String str("a string buffer");
     size_t size = str.size();
     ptr<buffer> msg_buf = buffer::alloc(sizeof(uint32_t) + size);
     msg_buf->put(str);
     msg_buf->pos(0);
-    std::string str2(msg_buf->get_str());
+    String str2(msg_buf->get_str());
     ASSERT_EQ(str, str2);
 }
 
@@ -181,8 +181,8 @@ TEST(RaftLog, serializeRaw)
 TEST(RaftLog, serializeProto)
 {
     UInt64 term = 1, index = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/ck/table/table1");
+    String data("CREATE TABLE table1;");
     LogOpTypePB op = OP_TYPE_CREATE;
     auto entry_pb = createEntryPB(term, index, op, key, data);
 
@@ -201,7 +201,7 @@ TEST(RaftLog, serializeProto)
 TEST(RaftLog, serializeStr2Raw)
 {
     //Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    std::string str("a string buffer");
+    String str("a string buffer");
     ulong term = 1;
     size_t size = sizeof(uint32_t) + str.size();
     ptr<buffer> msg_buf_1 = buffer::alloc(size);
@@ -224,8 +224,8 @@ TEST(RaftLog, serializeStr2Raw)
 TEST(RaftLog, serializeEntry)
 {
     UInt64 term = 1, index = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/ck/table/table1");
+    String data("CREATE TABLE table1;");
     LogOpTypePB op = OP_TYPE_CREATE;
 
     auto entry_pb_1 = createEntryPB(term, index, op, key, data);
@@ -251,14 +251,14 @@ TEST(RaftLog, serializeEntry)
 
 TEST(RaftLog, appendEntry)
 {
-    std::string log_dir(LOG_DIR + "/1");
+    String log_dir(LOG_DIR + "/1");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(), 0);
 
     UInt64 term = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/ck/table/table1");
+    String data("CREATE TABLE table1;");
     LogOpTypePB op = OP_TYPE_CREATE;
 
     ASSERT_EQ(appendEntry(log_store, term, op, key, data), 1);
@@ -267,7 +267,7 @@ TEST(RaftLog, appendEntry)
 
 TEST(RaftLog, appendSomeEntry)
 {
-    std::string log_dir(LOG_DIR + "/2");
+    String log_dir(LOG_DIR + "/2");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(), 0);
@@ -275,8 +275,8 @@ TEST(RaftLog, appendSomeEntry)
     for (int i = 0; i < 3; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -286,15 +286,15 @@ TEST(RaftLog, appendSomeEntry)
 
 TEST(RaftLog, loadLog)
 {
-    std::string log_dir(LOG_DIR + "/3");
+    String log_dir(LOG_DIR + "/3");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(), 0);
     for (int i = 0; i < 3; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -304,8 +304,8 @@ TEST(RaftLog, loadLog)
     for (int i = 0; i < 3; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 4);
     }
@@ -315,15 +315,15 @@ TEST(RaftLog, loadLog)
 
 TEST(RaftLog, splitSegment)
 {
-    std::string log_dir(LOG_DIR + "/4");
+    String log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(200, 10), 0); //75 byte / log
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -334,7 +334,7 @@ TEST(RaftLog, splitSegment)
 
 TEST(RaftLog, removeSegment)
 {
-    std::string log_dir(LOG_DIR + "/5");
+    String log_dir(LOG_DIR + "/5");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(100, 3), 0);
@@ -342,8 +342,8 @@ TEST(RaftLog, removeSegment)
     for (int i = 0; i < 10; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -364,7 +364,7 @@ TEST(RaftLog, removeSegment)
 
 TEST(RaftLog, truncateLog)
 {
-    std::string log_dir(LOG_DIR + "/6");
+    String log_dir(LOG_DIR + "/6");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(100, 3), 0);
@@ -372,8 +372,8 @@ TEST(RaftLog, truncateLog)
     for (int i = 0; i < 16; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -425,13 +425,13 @@ TEST(RaftLog, truncateLog)
 
 TEST(RaftLog, writeAt)
 {
-    std::string log_dir(LOG_DIR + "/9");
+    String log_dir(LOG_DIR + "/9");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
 
     UInt64 term = 1;
-    std::string key("/ck");
-    std::string data("CRE;");
+    String key("/ck");
+    String data("CRE;");
     LogOpTypePB op = OP_TYPE_CREATE;
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
@@ -508,14 +508,14 @@ TEST(RaftLog, writeAt)
 
 TEST(RaftLog, compact)
 {
-    std::string log_dir(LOG_DIR + "/10");
+    String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store
         = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC_PARALLEL, 1000, static_cast<UInt32>(100), static_cast<UInt32>(3));
 
     UInt64 term = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/ck/table/table1");
+    String data("CREATE TABLE table1;");
     LogOpTypePB op = OP_TYPE_CREATE;
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
@@ -566,13 +566,13 @@ TEST(RaftLog, compact)
 
 TEST(RaftLog, getEntry)
 {
-    std::string log_dir(LOG_DIR + "/7");
+    String log_dir(LOG_DIR + "/7");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(100, 3), 0);
     UInt64 term = 1;
-    std::string key("/ck/table/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/ck/table/table1");
+    String data("CREATE TABLE table1;");
     for (int i = 0; i < 6; i++)
     {
         LogOpTypePB op = OP_TYPE_CREATE;
@@ -601,15 +601,15 @@ TEST(RaftLog, getEntry)
 
 TEST(RaftLog, getEntries)
 {
-    std::string log_dir(LOG_DIR + "/8");
+    String log_dir(LOG_DIR + "/8");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
     ASSERT_EQ(log_store->init(250, 3), 0); //69 * 4 = 276
     for (int i = 0; i < 8; i++)
     {
         UInt64 term = 1;
-        std::string key("/ck/table/table1");
-        std::string data("CREATE TABLE table1;");
+        String key("/ck/table/table1");
+        String data("CREATE TABLE table1;");
         LogOpTypePB op = OP_TYPE_CREATE;
         ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
     }
@@ -633,7 +633,7 @@ TEST(RaftLog, getEntries)
 TEST(RaftLog, logSegmentThread)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    std::string log_dir(LOG_DIR + "/10");
+    String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
 
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
@@ -644,13 +644,13 @@ TEST(RaftLog, logSegmentThread)
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
-    std::string key;
+    String key;
     for (int i = 0; i < key_bytes; i++)
     {
         key.append("k");
     }
     //1024 byte
-    std::string data;
+    String data;
     for (int i = 0; i < value_bytes; i++)
     {
         data.append("v");

@@ -18,7 +18,7 @@ using namespace Coordination;
 
 namespace RK
 {
-void setNode(KeeperStore & storage, const std::string key, const std::string value, bool is_ephemeral, int64_t session_id)
+void setNode(KeeperStore & storage, const String key, const String value, bool is_ephemeral, int64_t session_id)
 {
     ACLs default_acls;
     ACL acl;
@@ -72,7 +72,7 @@ ptr<buffer> closeSessionLog(int64_t session_id)
     return buf;
 }
 
-ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::string & data, bool is_ephemeral = false)
+ptr<buffer> createLog(int64_t session_id, const String & key, const String & data, bool is_ephemeral = false)
 {
     ACLs default_acls;
     ACL acl;
@@ -99,7 +99,7 @@ ptr<buffer> createLog(int64_t session_id, const std::string & key, const std::st
     return buf;
 }
 
-ptr<buffer> setLog(int64_t session_id, const std::string & key, const std::string value, const int32_t version = -1)
+ptr<buffer> setLog(int64_t session_id, const String & key, const String value, const int32_t version = -1)
 {
     ACLs default_acls;
     ACL acl;
@@ -124,7 +124,7 @@ ptr<buffer> setLog(int64_t session_id, const std::string & key, const std::strin
     return buf;
 }
 
-ptr<buffer> removeLog(int64_t session_id, const std::string & key)
+ptr<buffer> removeLog(int64_t session_id, const String & key)
 {
     ACLs default_acls;
     ACL acl;
@@ -160,11 +160,11 @@ void commitLog(NuRaftStateMachine & machine, ptr<buffer> buf)
 
 void setACLNode(
     KeeperStore & storage,
-    const std::string key,
-    const std::string value,
+    const String key,
+    const String value,
     int32_t permissions,
-    const std::string & scheme,
-    const std::string & id)
+    const String & scheme,
+    const String & id)
 {
     ACLs default_acls;
     ACL acl;
@@ -189,7 +189,7 @@ void setACLNode(
     storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
-void setACLNode(KeeperStore & storage, const std::string key, const std::string value, const ACLs & acls)
+void setACLNode(KeeperStore & storage, const String key, const String value, const ACLs & acls)
 {
     auto request = cs_new<ZooKeeperCreateRequest>();
     request->path = "/" + key;
@@ -204,7 +204,7 @@ void setACLNode(KeeperStore & storage, const std::string key, const std::string 
     storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
-void addAuth(KeeperStore & storage, int64_t session_id, const std::string & scheme, const std::string & id)
+void addAuth(KeeperStore & storage, int64_t session_id, const String & scheme, const String & id)
 {
     //    'digest', 'user1:password1'
     //    String scheme = "digest";
@@ -219,7 +219,7 @@ void addAuth(KeeperStore & storage, int64_t session_id, const std::string & sche
     storage.processRequest(responses_queue, {request, session_id, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
 }
 
-ACLs getACL(KeeperStore & storage, const std::string key)
+ACLs getACL(KeeperStore & storage, const String key)
 {
     auto request = cs_new<ZooKeeperGetACLRequest>();
     request->path = key;
@@ -233,7 +233,7 @@ ACLs getACL(KeeperStore & storage, const std::string key)
     return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses.response).acl;
 }
 
-void setEphemeralNode(KeeperStore & storage, const std::string key, const std::string value)
+void setEphemeralNode(KeeperStore & storage, const String key, const String value)
 {
     ACLs default_acls;
     ACL acl;
@@ -338,7 +338,7 @@ TEST(RaftSnapshot, whenToSnapshot)
 
 TEST(RaftSnapshot, createSnapshot_1)
 {
-    std::string snap_dir(SNAP_DIR + "/1");
+    String snap_dir(SNAP_DIR + "/1");
     cleanDirectory(snap_dir);
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 10);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -356,7 +356,7 @@ TEST(RaftSnapshot, createSnapshot_1)
 
 TEST(RaftSnapshot, createSnapshot_2)
 {
-    std::string snap_dir(SNAP_DIR + "/2");
+    String snap_dir(SNAP_DIR + "/2");
     cleanDirectory(snap_dir);
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -368,8 +368,8 @@ TEST(RaftSnapshot, createSnapshot_2)
     UInt32 term = 1;
     for (int i = 0; i < last_index; i++)
     {
-        std::string key = std::to_string(i + 1);
-        std::string value = "table_" + key;
+        String key = std::to_string(i + 1);
+        String value = "table_" + key;
         setNode(store, key, value);
     }
     snapshot meta(last_index, term, config);
@@ -380,8 +380,8 @@ TEST(RaftSnapshot, createSnapshot_2)
 
 TEST(RaftSnapshot, readAndSaveSnapshot)
 {
-    std::string snap_read_dir(SNAP_DIR + "/3");
-    std::string snap_save_dir(SNAP_DIR + "/4");
+    String snap_read_dir(SNAP_DIR + "/3");
+    String snap_save_dir(SNAP_DIR + "/4");
     cleanDirectory(snap_read_dir);
     cleanDirectory(snap_save_dir);
 
@@ -397,8 +397,8 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
     for (int i = 0; i < last_index; i++)
     {
-        std::string key = std::to_string(i + 1);
-        std::string value = "table_" + key;
+        String key = std::to_string(i + 1);
+        String value = "table_" + key;
         setNode(store, key, value);
     }
     snapshot meta(last_index, term, config);
@@ -431,7 +431,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
 void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion parse_version)
 {
-    std::string snap_dir(SNAP_DIR + "/5");
+    String snap_dir(SNAP_DIR + "/5");
     cleanDirectory(snap_dir);
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -447,8 +447,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     UInt32 term = 1;
     for (int i = 1; i <= 1024; i++)
     {
-        std::string key = std::to_string(i);
-        std::string value = "table_" + key;
+        String key = std::to_string(i);
+        String value = "table_" + key;
 
         if (i == 1020)
         {
@@ -487,8 +487,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     for (int i = 0; i < 1024; i++)
 
     {
-        std::string key = std::to_string(i);
-        std::string value = "table_" + key;
+        String key = std::to_string(i);
+        String value = "table_" + key;
 
         /// create EphemeralNode to even number, session 1 auth is "digest", "user1:password1"
         setEphemeralNode(store, "/2/" + key, value);
@@ -621,8 +621,8 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 
     for (int i = last_index; i < 2 * last_index; i++)
     {
-        std::string key = std::to_string(i + 1);
-        std::string value = "table_" + key;
+        String key = std::to_string(i + 1);
+        String value = "table_" + key;
         setNode(store, key, value);
     }
 
@@ -650,8 +650,8 @@ TEST(RaftSnapshot, parseSnapshot)
 TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 {
     auto * log = &(Poco::Logger::get("Test_RaftSnapshot"));
-    std::string snap_dir(SNAP_DIR + "/6");
-    std::string log_dir(LOG_DIR + "/6");
+    String snap_dir(SNAP_DIR + "/6");
+    String log_dir(LOG_DIR + "/6");
 
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
