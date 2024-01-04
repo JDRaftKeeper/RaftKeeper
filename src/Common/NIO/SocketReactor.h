@@ -18,6 +18,7 @@
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
 #include <Common/setThreadName.h>
+#include <common/types.h>
 
 
 using Poco::Net::Socket;
@@ -160,8 +161,8 @@ private:
 class AsyncSocketReactor : public SocketReactor
 {
 public:
-    explicit AsyncSocketReactor(const std::string & name = "");
-    explicit AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name = "");
+    explicit AsyncSocketReactor(const String & name = "");
+    explicit AsyncSocketReactor(const Poco::Timespan & timeout, const String & name = "");
 
     ~AsyncSocketReactor() override;
 
@@ -174,7 +175,7 @@ private:
     void startup();
 
     Poco::Thread thread;
-    const std::string name;
+    const String name;
 };
 
 
