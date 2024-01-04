@@ -30,6 +30,7 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
     Poco::Logger * logger = &Poco::Logger::get("RaftKeeperConverter");
 
     logger->setChannel(console_channel);
+    logger->root().setChannel(console_channel);
 
     if (options.count("help"))
     {
