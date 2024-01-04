@@ -209,6 +209,7 @@ ConfigUpdateActions NuRaftStateManager::getConfigurationDiff(const Poco::Util::A
 
 size_t NuRaftStateManager::getClusterNodeCount() const
 {
+    std::lock_guard<std::mutex> lock(cluster_config_mutex);
     return cur_cluster_config->get_servers().size();
 }
 

@@ -76,17 +76,6 @@ public:
     void resetStats();
 
 private:
-    /// client hand shake result
-    struct HandShakeResult
-    {
-        /// handshake result
-        bool connect_success{};
-        bool session_expired{};
-
-        /// whether is reconnected request
-        bool is_reconnected{};
-    };
-
     Coordination::OpNum receiveHandshake(int32_t handshake_length);
     static bool isHandShake(Int32 & handshake_length);
 
