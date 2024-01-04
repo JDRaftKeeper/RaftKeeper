@@ -60,8 +60,8 @@ private:
     };
 
     /// <server id, client id>
-    using ForwardingClientId = std::pair<int32_t, int32_t>;
-    using ForwardResponseCallbacks = std::unordered_map<ForwardingClientId, ForwardResponseCallback, PairHash>;
+    using ForwardClientId = std::pair<int32_t, int32_t>;
+    using ForwardResponseCallbacks = std::unordered_map<ForwardClientId, ForwardResponseCallback, PairHash>;
 
     ForwardResponseCallbacks forward_response_callbacks;
     std::mutex forward_response_callbacks_mutex;
@@ -122,8 +122,8 @@ public:
     /// Push new session or update session request
     bool pushSessionRequest(const Coordination::ZooKeeperRequestPtr & request, int64_t internal_id);
 
-    /// Push forwarding request
-    bool pushForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
+    /// Push forward request
+    bool pushForwardRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
     /// TODO remove
     int64_t newSession(int64_t session_timeout_ms) { return server->newSession(session_timeout_ms); }
@@ -133,8 +133,8 @@ public:
     }
 
     /// Register response callback for forwarder
-    void registerForwarderResponseCallBack(ForwardingClientId client_id, ForwardResponseCallback callback);
-    void unRegisterForwarderResponseCallBack(ForwardingClientId client_id);
+    void registerForwarderResponseCallBack(ForwardClientId client_id, ForwardResponseCallback callback);
+    void unRegisterForwarderResponseCallBack(ForwardClientId client_id);
 
     /// Register response callback for user request
     [[maybe_unused]] void registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
@@ -163,8 +163,8 @@ public:
     /// Invoked when a request completes.
     void updateKeeperStatLatency(uint64_t process_time_ms);
 
-    /// Send forwarding response
-    void invokeForwardResponseCallBack(ForwardingClientId client_id, ForwardResponsePtr response);
+    /// Send forward response
+    void invokeForwardResponseCallBack(ForwardClientId client_id, ForwardResponsePtr response);
 
     /// Are we leader
     bool isLeader() const { return server->isLeader(); }

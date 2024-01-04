@@ -58,7 +58,7 @@ void ForwardConnectionHandler::onSocketReadable(const Notification &)
 {
     try
     {
-        LOG_TRACE(log, "Forwarding handler socket readable");
+        LOG_TRACE(log, "Forward handler socket readable");
         if (!sock.available())
         {
             LOG_INFO(log, "Client close connection!");
@@ -68,7 +68,7 @@ void ForwardConnectionHandler::onSocketReadable(const Notification &)
 
         while (sock.available())
         {
-            LOG_TRACE(log, "forwarding handler socket available");
+            LOG_TRACE(log, "Forward handler socket available");
 
             if (current_package.is_done)
             {
@@ -235,7 +235,7 @@ void ForwardConnectionHandler::processUserOrSessionRequest(ForwardRequestPtr req
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
     request->readImpl(body);
-    keeper_dispatcher->pushForwardingRequest(server_id, client_id, request);
+    keeper_dispatcher->pushForwardRequest(server_id, client_id, request);
 }
 
 void ForwardConnectionHandler::processHandshake()

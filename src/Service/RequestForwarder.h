@@ -72,9 +72,9 @@ private:
     std::atomic<UInt64> session_sync_idx{0};
     Stopwatch session_sync_time_watch;
 
-    using ForwardingQueue = ThreadSafeQueue<ForwardRequestPtr, std::list<ForwardRequestPtr>>;
-    using ForwardingQueuePtr = std::unique_ptr<ForwardingQueue>;
-    std::vector<ForwardingQueuePtr> forwarding_queues;
+    using ForwardRequestQueue = ThreadSafeQueue<ForwardRequestPtr, std::list<ForwardRequestPtr>>;
+    using ForwardRequestQueuePtr = std::unique_ptr<ForwardRequestQueue>;
+    std::vector<ForwardRequestQueuePtr> forward_request_queue;
 
     Poco::Timespan operation_timeout;
 
