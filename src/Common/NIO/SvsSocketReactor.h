@@ -19,25 +19,25 @@ class SvsSocketReactor : public SR
 public:
     using Ptr = Poco::SharedPtr<SvsSocketReactor>;
 
-    SvsSocketReactor(const std::string& name = "")
+    SvsSocketReactor(const std::string& name = "") : _name(name)
     {
         _thread.start(*this);
-        if (!name.empty())
-        {
-            _thread.setName(name);
-            setThreadName(name.c_str());
-        }
     }
 
     SvsSocketReactor(const Poco::Timespan& timeout, const std::string& name = ""):
-        SR(timeout)
+        SR(timeout), _name(name)
     {
         _thread.start(*this);
-        if (!name.empty())
+    }
+
+    void run() override
+    {
+        if (!_name.empty())
         {
-            _thread.setName(name);
-            setThreadName(name.c_str());
+            _thread.setName(_name);
+            setThreadName(_name.c_str());
         }
+        SR::run();
     }
 
     ~SvsSocketReactor() override
@@ -61,6 +61,7 @@ protected:
 
 private:
     Poco::Thread _thread;
+    std::string _name;
 };
 
 }
