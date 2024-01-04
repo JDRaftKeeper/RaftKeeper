@@ -17,8 +17,7 @@
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
-            <version>3.4.5</version>
-<!--            <version>3.7.1</version>-->
+            <version>3.7.1</version>
             <exclusions>
                 <exclusion>
                     <groupId>javax.jms</groupId>
@@ -43,6 +42,11 @@
             <groupId>io.etcd</groupId>
             <artifactId>jetcd-core</artifactId>
             <version>0.5.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-nop</artifactId>
+            <version>1.7.32</version>
         </dependency>
     </dependencies>
 
