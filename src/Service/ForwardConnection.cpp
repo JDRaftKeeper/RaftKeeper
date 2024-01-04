@@ -21,7 +21,6 @@ void ForwardConnection::connect()
     auto connection_timeout = socket_timeout.totalMicroseconds() / 3;
     Poco::Net::SocketAddress address{endpoint};
 
-    WriteBufferFromOwnString fail_reasons;
     for (size_t i = 0; i < num_retries; i++)
     {
         try
@@ -52,7 +51,10 @@ void ForwardConnection::connect()
         }
         catch (...)
         {
-            LOG_ERROR(log, "Exception when connect to server {}, {}: {}", endpoint, address.toString(), getCurrentExceptionMessage(true));
+            if (i == (num_retries - 1))
+                tryLogCurrentException(log, "Exception when connect to server " + endpoint);
+            else
+                Poco::Thread::current()->sleep(1000);
         }
     }
 }
