@@ -15,6 +15,7 @@
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketReactor.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
+#include <common/logger_useful.h>
 
 #include <Service/Context.h>
 
@@ -22,8 +23,13 @@
 namespace RK
 {
 
-using Poco::Net::Socket;
+namespace ErrorCodes
+{
+    extern const int EPOLL_ERROR;
+}
+
 using Poco::Net::ServerSocket;
+using Poco::Net::Socket;
 using Poco::Net::StreamSocket;
 
 /// This class implements the Acceptor part of the Acceptor-Connector design pattern.
@@ -43,6 +49,7 @@ public:
     using WorkerReactorPtr = AsyncSocketReactorPtr;
     using WorkerReactors = std::vector<WorkerReactorPtr>;
     using AcceptorObserver = Observer<SocketAcceptor, ReadableNotification>;
+    using ErrorObserver = Observer<SocketAcceptor, ErrorNotification>;
 
     SocketAcceptor() = delete;
     SocketAcceptor(const SocketAcceptor &) = delete;
@@ -61,6 +68,7 @@ public:
         , worker_count(worker_count_)
         , keeper_context(keeper_context_)
         , timeout(timeout_)
+        , log(&Poco::Logger::get("SocketAcceptor"))
     {
         initialize();
     }
@@ -70,7 +78,10 @@ public:
         try
         {
             if (main_reactor)
+            {
                 main_reactor->removeEventHandler(socket, AcceptorObserver(*this, &SocketAcceptor::onAccept));
+                main_reactor->removeEventHandler(socket, ErrorObserver(*this, &SocketAcceptor::onError));
+            }
         }
         catch (...)
         {
@@ -80,8 +91,25 @@ public:
     /// Accepts connection and dispatches event handler.
     void onAccept(const Notification &)
     {
-        StreamSocket sock = socket.acceptConnection();
-        createServiceHandler(sock);
+        StreamSocket sock;
+        try
+        {
+            LOG_TRACE(log, "{} tries to accept connection", socket.address().toString());
+            sock = socket.acceptConnection();
+            LOG_TRACE(log, "Successfully accepted {}", sock.peerAddress().toString());
+            createServiceHandler(sock);
+        }
+        catch (...)
+        {
+            LOG_ERROR(log, "Failed to accept a connection");
+            sock.close();
+        }
+    }
+
+    virtual void onError(const Notification & enf)
+    {
+        auto error_no = dynamic_cast<const ErrorNotification *>(&enf)->getErrorNo();
+        throwFromErrno("Error when accepting connection for " + socket.address().toString(), ErrorCodes::EPOLL_ERROR, error_no);
     }
 
     /// Returns a reference to the listening socket.
@@ -97,6 +125,7 @@ protected:
 
         /// Register accept event handler to main reactor
         main_reactor->addEventHandler(socket, AcceptorObserver(*this, &SocketAcceptor::onAccept));
+        main_reactor->addEventHandler(socket, ErrorObserver(*this, &SocketAcceptor::onError));
 
         /// It is necessary to wake up the getWorkerReactor.
         main_reactor->wakeUp();
@@ -141,6 +170,8 @@ private:
 
     /// A period in which worker reactor poll waits.
     Poco::Timespan timeout;
+
+    Poco::Logger * log;
 };
 
 

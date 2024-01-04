@@ -48,7 +48,9 @@ public:
     [[maybe_unused]] bool hasObservers() const;
 
     /// Returns the number of subscribers;
-    std::size_t size() const;
+    size_t size() const;
+
+    const Socket & getSocket() const;
 
     ~SocketNotifier() = default;
 
@@ -83,9 +85,14 @@ inline bool SocketNotifier::onlyHas(const AbstractObserver & observer) const
 }
 
 
-inline std::size_t SocketNotifier::size() const
+inline size_t SocketNotifier::size() const
 {
     return nc.size();
+}
+
+inline const Socket & SocketNotifier::getSocket() const
+{
+    return socket;
 }
 
 

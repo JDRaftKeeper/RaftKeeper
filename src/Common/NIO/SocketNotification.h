@@ -32,7 +32,7 @@ private:
     [[maybe_unused]] void setSocket(const Socket & socket_);
 
     SocketReactorPtr reactor;
-    Socket socket;
+    Socket socket; /// TODO delete
 };
 
 /// This notification is sent if a socket has become readable.
@@ -41,6 +41,8 @@ class ReadableNotification : public SocketNotification
 public:
     explicit ReadableNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~ReadableNotification() override = default;
+
+    std::string name() const override { return "read"; }
 };
 
 /// This notification is sent if a socket has become writable.
@@ -49,6 +51,8 @@ class WritableNotification : public SocketNotification
 public:
     explicit WritableNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~WritableNotification() override = default;
+
+    std::string name() const override { return "write"; }
 };
 
 /// This notification is sent if a socket has signalled an error.
@@ -57,6 +61,13 @@ class ErrorNotification : public SocketNotification
 public:
     explicit ErrorNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~ErrorNotification() override = default;
+
+    std::string name() const override { return "error"; }
+    int getErrorNo() const { return error_no; }
+    void setErrorNo(int error_no_) { error_no = error_no_; }
+
+private:
+    int error_no;
 };
 
 /// This notification is sent if no other event has occurred
@@ -66,6 +77,8 @@ class TimeoutNotification : public SocketNotification
 public:
     explicit TimeoutNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~TimeoutNotification() override = default;
+
+    std::string name() const override { return "timeout"; }
 };
 
 /// This notification is sent when the SocketReactor does
@@ -75,6 +88,8 @@ class IdleNotification : public SocketNotification
 public:
     explicit IdleNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~IdleNotification() override = default;
+
+    std::string name() const override { return "idle"; }
 };
 
 /// This notification is sent when the SocketReactor is
@@ -84,6 +99,8 @@ class ShutdownNotification : public SocketNotification
 public:
     explicit ShutdownNotification(SocketReactor * reactor_) : SocketNotification(reactor_) { }
     ~ShutdownNotification() override = default;
+
+    std::string name() const override { return "shutdown"; }
 };
 
 using SocketNotificationPtr [[maybe_unused]] = std::shared_ptr<SocketNotification>;
