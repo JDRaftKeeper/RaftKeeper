@@ -22,8 +22,8 @@
 namespace RK
 {
 
-using Poco::Net::ServerSocket;
 using Poco::Net::Socket;
+using Poco::Net::ServerSocket;
 using Poco::Net::StreamSocket;
 
 /// This class implements the Acceptor part of the Acceptor-Connector design pattern.
