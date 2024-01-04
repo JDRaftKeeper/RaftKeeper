@@ -12,8 +12,6 @@
 #include <Common/config_version.h>
 #include <Common/getCurrentProcessFDCount.h>
 #include <Common/getMaxFileDescriptorCount.h>
-#include <common/find_symbols.h>
-#include <common/logger_useful.h>
 
 #include <unistd.h>
 
@@ -168,7 +166,7 @@ void FourLetterCommandFactory::initializeWhiteList(KeeperDispatcher & keeper_dis
     Strings tokens;
     splitInto<','>(tokens, list_str);
 
-    for (String token: tokens)
+    for (const String& token: tokens)
     {
         Poco::trim(token);
 

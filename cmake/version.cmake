@@ -20,7 +20,7 @@ endif ()
 find_program(DATE_CMD NAMES date)
 if (DATE_CMD)
     execute_process(
-            COMMAND ${DATE_CMD} "+%Y-%m-%d %H:%M:%S"
+            COMMAND ${DATE_CMD} "+%Y-%m-%d %H:%M:%S %Z"
             OUTPUT_VARIABLE BUILD_TIME
             OUTPUT_STRIP_TRAILING_WHITESPACE
     )
