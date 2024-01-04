@@ -1051,7 +1051,7 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, std::string & path)
 
 size_t KeeperSnapshotManager::createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
-    size_t store_size = store.container.size() + store.ephemerals.size();
+    size_t store_size = store.container.size();
     meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
     snap_store->init();

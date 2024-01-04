@@ -213,15 +213,6 @@ void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const std::stri
         deserializeKeeperStoreFromSnapshot(store, existing_snapshots.rbegin()->second, log);
     else
         throw Exception(ErrorCodes::CORRUPTED_DATA, "No snapshots found on path {}. At least one snapshot must exist.", path);
-
-    LOG_INFO(
-        log,
-        "Deserialize snapshot to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
-        store.getNodesCount(),
-        store.getTotalEphemeralNodesCount(),
-        store.getSessionCount(),
-        store.getSessionIDCounter(),
-        store.getZxid());
 }
 
 void deserializeLogMagic(ReadBuffer & in)
@@ -614,15 +605,6 @@ void deserializeLogsAndApplyToStore(KeeperStore & store, const std::string & pat
     {
         deserializeLogAndApplyToStore(store, *it, log);
     }
-
-    LOG_INFO(
-        log,
-        "Deserialize logs to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
-        store.getNodesCount(),
-        store.getTotalEphemeralNodesCount(),
-        store.getSessionCount(),
-        store.getSessionIDCounter(),
-        store.getZxid());
 }
 
 }
