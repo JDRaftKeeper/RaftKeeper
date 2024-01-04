@@ -34,13 +34,13 @@ private:
     static inline const int LEVEL_MIN = static_cast<int>(RAFT_LOG_FATAL);
 
 public:
-    LoggerWrapper(const std::string & name, NuRaftLogLevel level_) : log(&Poco::Logger::get(name)), nuraft_log_level(level_)
+    LoggerWrapper(const String & name, NuRaftLogLevel level_) : log(&Poco::Logger::get(name)), nuraft_log_level(level_)
     {
         log->setLevel(toPocoLogLevel(static_cast<NuRaftLogLevel>(nuraft_log_level)));
     }
 
     void
-    put_details(int level_, const char *, const char *, size_t, const std::string & msg)
+    put_details(int level_, const char *, const char *, size_t, const String & msg)
         override
     {
         LOG_IMPL(log, toPocoLogLevel(static_cast<NuRaftLogLevel>(level_)), msg);

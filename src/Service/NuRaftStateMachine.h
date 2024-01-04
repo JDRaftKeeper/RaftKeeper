@@ -31,13 +31,13 @@ public:
     NuRaftStateMachine(
         KeeperResponsesQueue & responses_queue_,
         const RaftSettingsPtr & raft_settings_,
-        std::string & snap_dir,
+        String & snap_dir,
         UInt32 internal,
         UInt32 keep_max_snapshot_count,
         std::mutex & new_session_id_callback_mutex_,
         std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
         ptr<nuraft::log_store> log_store_ = nullptr,
-        std::string super_digest = "",
+        String super_digest = "",
         UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
@@ -223,10 +223,10 @@ public:
     }
 
     /// whether znode exist
-    bool exists(const std::string & path);
+    bool exists(const String & path);
 
     /// get an znode
-    KeeperNode & getNode(const std::string & path);
+    KeeperNode & getNode(const String & path);
 
     KeeperStore & getStore() { return store; }
 
@@ -328,7 +328,7 @@ private:
     ptr<RaftTaskManager> task_manager;
 
     std::mutex snapshot_mutex;
-    std::string snapshot_dir;
+    String snapshot_dir;
 
     BackendTimer timer;
 

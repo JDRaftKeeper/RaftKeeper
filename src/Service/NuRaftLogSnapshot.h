@@ -58,11 +58,11 @@ struct SnapshotBatchHeader
 class KeeperSnapshotStore
 {
 public:
-    using StringMap = std::unordered_map<std::string, std::string>;
-    using IntMap = std::unordered_map<std::string, int64_t>;
+    using StringMap = std::unordered_map<String, String>;
+    using IntMap = std::unordered_map<String, int64_t>;
 
     KeeperSnapshotStore(
-        const std::string & snap_dir_,
+        const String & snap_dir_,
         snapshot & meta,
         UInt32 max_object_node_size_ = MAX_OBJECT_NODE_SIZE,
         UInt32 save_batch_size_ = SAVE_BATCH_SIZE)
@@ -90,7 +90,7 @@ public:
     size_t createObjects(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
     /// initialize a snapshot store
-    void init(std::string create_time);
+    void init(String create_time);
 
     /// parse the latest snapshot
     void loadLatestSnapshot(KeeperStore & store);
@@ -104,7 +104,7 @@ public:
     /// save an object
     void saveObject(ulong obj_id, buffer & buffer);
 
-    void addObjectPath(ulong obj_id, std::string & path);
+    void addObjectPath(ulong obj_id, String & path);
 
     /// get snapshot metadata
     ptr<snapshot> getSnapshotMeta() { return snap_meta; }
@@ -113,7 +113,7 @@ public:
     time_t & getCreateTimeT() { return curr_time_t; }
 
     /// parse object id from file name
-    static size_t getObjectIdx(const std::string & file_name);
+    static size_t getObjectIdx(const String & file_name);
 
 #ifdef __APPLE__
     /// create_time, last_log_index, object_id
@@ -142,10 +142,10 @@ public:
 
 private:
     /// get path of an object
-    void getObjectPath(ulong object_id, std::string & path);
+    void getObjectPath(ulong object_id, String & path);
 
     /// parse object
-    bool parseObject(std::string obj_path, KeeperStore & store);
+    bool parseObject(String obj_path, KeeperStore & store);
 
     /// load batch header in an object
     /// TODO use inter nal buffer
@@ -169,7 +169,7 @@ private:
     inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
     /// snapshot directory, note than the directory may contain more than one snapshot.
-    std::string snap_dir;
+    String snap_dir;
 
     /// an object can contain how many items
     UInt32 max_object_node_size;
@@ -188,9 +188,9 @@ private:
     /// lost log index term in the snapshot
     UInt64 last_log_term;
 
-    std::map<ulong, std::string> objects_path;
+    std::map<ulong, String> objects_path;
 
-    std::string curr_time;
+    String curr_time;
     /// snapshot create time, determined when create a new snapshot.
     time_t curr_time_t;
 
@@ -207,7 +207,7 @@ using KeeperSnapshotStoreMap = std::map<uint64_t, ptr<KeeperSnapshotStore>>;
 class KeeperSnapshotManager
 {
 public:
-    KeeperSnapshotManager(const std::string & snap_dir_, UInt32 keep_max_snapshot_count_, UInt32 object_node_size_)
+    KeeperSnapshotManager(const String & snap_dir_, UInt32 keep_max_snapshot_count_, UInt32 object_node_size_)
         : snap_dir(snap_dir_)
         , keep_max_snapshot_count(keep_max_snapshot_count_)
         , object_node_size(object_node_size_)
@@ -251,7 +251,7 @@ public:
 private:
 
     /// snapshot directory
-    std::string snap_dir;
+    String snap_dir;
 
     /// max snapshot count to remain
     UInt32 keep_max_snapshot_count;
@@ -261,7 +261,7 @@ private:
     Poco::Logger * log;
 
     KeeperSnapshotStoreMap snapshots;
-    std::string last_create_time_str;
+    String last_create_time_str;
 };
 
 }

@@ -18,18 +18,18 @@ namespace ErrorCodes
     extern const int INVALID_CONFIG_PARAMETER;
 }
 
-int Directory::createDir(const std::string & dir)
+int Directory::createDir(const String & dir)
 {
     Poco::File(dir).createDirectories();
     return 0;
 }
 
-std::string checkAndGetSuperdigest(const String & user_and_digest)
+String checkAndGetSuperdigest(const String & user_and_digest)
 {
     if (user_and_digest.empty())
         return "";
 
-    std::vector<std::string> scheme_and_id;
+    std::vector<String> scheme_and_id;
     boost::split(scheme_and_id, user_and_digest, [](char c) { return c == ':'; });
     if (scheme_and_id.size() != 2 || scheme_and_id[0] != "super")
         throw Exception(

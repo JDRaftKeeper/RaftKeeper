@@ -46,35 +46,35 @@ bool compareSegment(ptr<NuRaftLogSegment> & seg1, ptr<NuRaftLogSegment> & seg2)
     return seg1->firstIndex() < seg2->firstIndex();
 }
 
-std::string NuRaftLogSegment::getOpenFileName()
+String NuRaftLogSegment::getOpenFileName()
 {
     char buf[1024];
     snprintf(buf, 1024, LOG_OPEN_FILE_NAME, first_index, create_time.c_str());
-    return std::string(buf);
+    return String(buf);
 }
 
-std::string NuRaftLogSegment::getOpenPath()
+String NuRaftLogSegment::getOpenPath()
 {
-    std::string path(log_dir);
+    String path(log_dir);
     path += "/" + getOpenFileName();
     return path;
 }
 
-std::string NuRaftLogSegment::getFinishFileName()
+String NuRaftLogSegment::getFinishFileName()
 {
     char buf[1024];
     snprintf(buf, 1024, LOG_FINISH_FILE_NAME, first_index, last_index.load(std::memory_order_relaxed), create_time.c_str());
-    return std::string(buf);
+    return String(buf);
 }
 
-std::string NuRaftLogSegment::getFinishPath()
+String NuRaftLogSegment::getFinishPath()
 {
-    std::string path(log_dir);
+    String path(log_dir);
     path += "/" + getFinishFileName();
     return path;
 }
 
-std::string NuRaftLogSegment::getFileName()
+String NuRaftLogSegment::getFileName()
 {
     if (!file_name.empty())
         return file_name;
@@ -85,7 +85,7 @@ std::string NuRaftLogSegment::getFileName()
         return getFinishFileName();
 }
 
-std::string NuRaftLogSegment::getPath()
+String NuRaftLogSegment::getPath()
 {
     return log_dir + "/" + getFileName();
 }
@@ -96,7 +96,7 @@ int NuRaftLogSegment::openFile()
     {
         return 0;
     }
-    std::string full_path = getPath();
+    String full_path = getPath();
     if (!Poco::File(full_path).exists())
     {
         LOG_ERROR(log, "File path {} is not exists.", full_path);
@@ -133,7 +133,7 @@ int NuRaftLogSegment::create()
     std::lock_guard write_lock(log_mutex);
     BackendTimer::getCurrentTime(create_time);
     file_name = getOpenFileName();
-    std::string full_path = getOpenPath();
+    String full_path = getOpenPath();
     if (Poco::File(full_path).exists())
     {
         LOG_ERROR(log, "File {} is exists.", full_path);
@@ -349,8 +349,8 @@ int NuRaftLogSegment::close(bool is_full)
 
     if (is_full)
     {
-        std::string old_path = getOpenPath();
-        std::string new_path = getFinishPath();
+        String old_path = getOpenPath();
+        String new_path = getFinishPath();
 
         LOG_INFO(
             log,
@@ -392,7 +392,7 @@ int NuRaftLogSegment::remove()
 {
     std::lock_guard write_lock(log_mutex);
     closeFile();
-    std::string full_path = getPath();
+    String full_path = getPath();
     Poco::File file_obj(full_path);
     if (file_obj.exists())
     {
@@ -655,8 +655,8 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     /// because the node may crash before truncate.
     if (!is_open)
     {
-        std::string old_path = getFinishPath();
-        std::string new_path = getOpenPath();
+        String old_path = getFinishPath();
+        String new_path = getOpenPath();
 
         LOG_INFO(
             log,
@@ -706,7 +706,7 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
 
 ptr<LogSegmentStore> LogSegmentStore::segment_store = nullptr;
 
-ptr<LogSegmentStore> LogSegmentStore::getInstance(const std::string & log_dir_, bool force_new)
+ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool force_new)
 {
     if (segment_store == nullptr || force_new)
         segment_store = cs_new<LogSegmentStore>(log_dir_);
@@ -1201,12 +1201,12 @@ int LogSegmentStore::listSegments()
         return 0;
     }
 
-    std::vector<std::string> files;
+    std::vector<String> files;
     file_dir.list(files);
 
     for (const auto& file_name : files)
     {
-        if (file_name.find("log_") == std::string::npos)
+        if (file_name.find("log_") == String::npos)
             continue;
 
         LOG_INFO(log, "List log dir {}, file name {}", log_dir, file_name);
@@ -1233,7 +1233,7 @@ int LogSegmentStore::listSegments()
             LOG_INFO(log, "Restore open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
             if (!open_segment)
             {
-                open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, std::string(create_time));
+                open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, String(create_time));
                 LOG_INFO(log, "Create open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
                 continue;
             }
