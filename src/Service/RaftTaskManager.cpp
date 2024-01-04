@@ -51,7 +51,7 @@ int CommittedTask::read(int & fd)
     return 0;
 }
 
-RaftTaskManager::RaftTaskManager(const std::string & snapshot_dir) : thread_pool(1), log(&Poco::Logger::get("RaftTaskManager"))
+RaftTaskManager::RaftTaskManager(const String & snapshot_dir) : thread_pool(1), log(&Poco::Logger::get("RaftTaskManager"))
 {
     if (!Poco::File(snapshot_dir).exists())
     {

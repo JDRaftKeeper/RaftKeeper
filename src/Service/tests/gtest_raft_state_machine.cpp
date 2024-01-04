@@ -30,7 +30,7 @@ uint64_t createSession(NuRaftStateMachine & machine)
     return machine.getStore().getSessionID(30000);
 }
 
-void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string & data, ptr<NuRaftFileLogStore> store, UInt64 term)
+void createZNodeLog(NuRaftStateMachine & machine, String & key, String & data, ptr<NuRaftFileLogStore> store, UInt64 term)
 {
     ACLs default_acls;
     ACL acl;
@@ -67,12 +67,12 @@ void createZNodeLog(NuRaftStateMachine & machine, std::string & key, std::string
     machine.commit(index, *(buf.get()), true);
 }
 
-void createZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
+void createZNode(NuRaftStateMachine & machine, String & key, String & data)
 {
     createZNodeLog(machine, key, data, nullptr, 0);
 }
 
-void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & data)
+void setZNode(NuRaftStateMachine & machine, String & key, String & data)
 {
     ACLs default_acls;
     ACL acl;
@@ -99,7 +99,7 @@ void setZNode(NuRaftStateMachine & machine, std::string & key, std::string & dat
     machine.commit(index, *(buf.get()));
 }
 
-void removeZNode(NuRaftStateMachine & machine, std::string & key)
+void removeZNode(NuRaftStateMachine & machine, String & key)
 {
     ACLs default_acls;
     ACL acl;
@@ -126,7 +126,7 @@ void removeZNode(NuRaftStateMachine & machine, std::string & key)
 
 TEST(RaftStateMachine, serializeAndParse)
 {
-    std::string snap_dir(SNAP_DIR + "/0");
+    String snap_dir(SNAP_DIR + "/0");
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
@@ -168,7 +168,7 @@ TEST(RaftStateMachine, serializeAndParse)
 
 TEST(RaftStateMachine, appendEntry)
 {
-    std::string snap_dir(SNAP_DIR + "/1");
+    String snap_dir(SNAP_DIR + "/1");
     cleanDirectory(snap_dir);
 
     KeeperResponsesQueue queue;
@@ -178,8 +178,8 @@ TEST(RaftStateMachine, appendEntry)
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
-    std::string key("/table1");
-    std::string data("CREATE TABLE table1;");
+    String key("/table1");
+    String data("CREATE TABLE table1;");
     createZNode(machine, key, data);
     KeeperNode & node = machine.getNode(key);
     ASSERT_EQ(node.data, data);
@@ -190,7 +190,7 @@ TEST(RaftStateMachine, appendEntry)
 
 TEST(RaftStateMachine, modifyEntry)
 {
-    std::string snap_dir(SNAP_DIR + "/2");
+    String snap_dir(SNAP_DIR + "/2");
     cleanDirectory(snap_dir);
 
     KeeperResponsesQueue queue;
@@ -200,14 +200,14 @@ TEST(RaftStateMachine, modifyEntry)
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
-    std::string key("/table1");
-    std::string data1("CREATE TABLE table1;");
+    String key("/table1");
+    String data1("CREATE TABLE table1;");
     //LogOpTypePB op = OP_TYPE_CREATE;
     createZNode(machine, key, data1);
     KeeperNode & node1 = machine.getNode(key);
     ASSERT_EQ(node1.data, data1);
 
-    std::string data2("CREATE TABLE table2;");
+    String data2("CREATE TABLE table2;");
     //op = OP_TYPE_SET;
     setZNode(machine, key, data2);
 
@@ -228,7 +228,7 @@ TEST(RaftStateMachine, modifyEntry)
 TEST(RaftStateMachine, createSnapshot)
 {
     auto *log = &(Poco::Logger::get("Test_RaftStateMachine"));
-    std::string snap_dir(SNAP_DIR + "/3");
+    String snap_dir(SNAP_DIR + "/3");
     cleanDirectory(snap_dir);
 
     KeeperResponsesQueue queue;
@@ -244,8 +244,8 @@ TEST(RaftStateMachine, createSnapshot)
     UInt32 last_index = 35;
     for (auto i = 0; i < last_index; i++)
     {
-        std::string key = "/" + std::to_string(i + 1);
-        std::string data = "table_" + key;
+        String key = "/" + std::to_string(i + 1);
+        String data = "table_" + key;
         createZNode(machine, key, data);
     }
 
@@ -265,8 +265,8 @@ TEST(RaftStateMachine, createSnapshot)
 
 TEST(RaftStateMachine, syncSnapshot)
 {
-    std::string snap_dir_1(SNAP_DIR + "/4");
-    std::string snap_dir_2(SNAP_DIR + "/5");
+    String snap_dir_1(SNAP_DIR + "/4");
+    String snap_dir_2(SNAP_DIR + "/5");
     cleanDirectory(snap_dir_1);
     cleanDirectory(snap_dir_2);
 
@@ -286,8 +286,8 @@ TEST(RaftStateMachine, syncSnapshot)
     UInt32 last_index = 1024;
     for (auto i = 0; i < last_index; i++)
     {
-        std::string key = "/" + std::to_string(i + 1);
-        std::string data = "table_" + key;
+        String key = "/" + std::to_string(i + 1);
+        String data = "table_" + key;
         //LogOpTypePB op = OP_TYPE_CREATE;
         createZNode(machine_source, key, data);
     }
@@ -321,8 +321,8 @@ TEST(RaftStateMachine, syncSnapshot)
 TEST(RaftStateMachine, initStateMachine)
 {
     auto * log = &(Poco::Logger::get("Test_RaftStateMachine"));
-    std::string snap_dir(SNAP_DIR + "/6");
-    std::string log_dir(LOG_DIR + "/6");
+    String snap_dir(SNAP_DIR + "/6");
+    String log_dir(LOG_DIR + "/6");
 
     cleanDirectory(snap_dir, true);
     cleanDirectory(log_dir, true);
@@ -348,8 +348,8 @@ TEST(RaftStateMachine, initStateMachine)
         for (auto i = 0; i < last_index; i++)
         {
             UInt32 index = i + 1;
-            std::string key = "/" + std::to_string(index);
-            std::string data = "table_" + key;
+            String key = "/" + std::to_string(index);
+            String data = "table_" + key;
             createZNodeLog(machine, key, data, log_store, term);
         }
         sleep(1);
@@ -361,8 +361,8 @@ TEST(RaftStateMachine, initStateMachine)
         for (auto i = 0; i < last_index; i++)
         {
             UInt32 index = last_index + i + 1;
-            std::string key = "/" + std::to_string(index);
-            std::string data = "table_" + key;
+            String key = "/" + std::to_string(index);
+            String data = "table_" + key;
             createZNodeLog(machine, key, data, log_store, term);
         }
         sleep(1);

@@ -38,7 +38,7 @@ class NuRaftLogSegment
 {
 public:
     NuRaftLogSegment(
-        const std::string & log_dir_, UInt64 first_index_, const std::string & file_name_ = "", const std::string & create_time_ = "")
+        const String & log_dir_, UInt64 first_index_, const String & file_name_ = "", const String & create_time_ = "")
         : log_dir(log_dir_)
         , first_index(first_index_)
         , last_index(first_index_ - 1)
@@ -52,7 +52,7 @@ public:
     {
     }
 
-    NuRaftLogSegment(const std::string & log_dir_, UInt64 first_index_, UInt64 last_index_, const std::string file_name_ = "")
+    NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, UInt64 last_index_, const String file_name_ = "")
         : log_dir(log_dir_)
         , first_index(first_index_)
         , last_index(last_index_)
@@ -124,7 +124,7 @@ public:
     UInt64 lastIndex() const { return last_index.load(std::memory_order_consume); }
 
     /// Segment file name, see LOG_FINISH_FILE_NAME and LOG_OPEN_FILE_NAME
-    std::string getFileName();
+    String getFileName();
 
 #ifdef __APPLE__
     /// log_start_index, log_end_index, create_time
@@ -152,18 +152,18 @@ private:
     };
 
     /// invoked when create new segment
-    std::string getOpenFileName();
-    std::string getOpenPath();
+    String getOpenFileName();
+    String getOpenPath();
 
     /// when open segment reach log limit,
     /// we should open a new open segment
     /// and move current open segment as
     /// close segment.
-    std::string getFinishFileName();
-    std::string getFinishPath();
+    String getFinishFileName();
+    String getFinishPath();
 
     /// current segment file path
-    std::string getPath();
+    String getPath();
 
     /// open file by fd, return 0 if success.
     int openFile();
@@ -181,7 +181,7 @@ private:
     int loadLogEntry(int fd, off_t offset, LogEntryHeader * head, ptr<log_entry> & entry) const;
 
     /// segment file directory
-    std::string log_dir;
+    String log_dir;
 
     /// first log index in the segment
     const UInt64 first_index;
@@ -193,11 +193,11 @@ private:
     int seg_fd;
 
     /// segment file name
-    std::string file_name;
+    String file_name;
 
     /// segment file create time
     /// TODO use
-    std::string create_time;
+    String create_time;
 
     /// segment file size
     std::atomic<UInt64> file_size;
@@ -235,14 +235,14 @@ public:
     static constexpr UInt32 MAX_SEGMENT_COUNT = 50; //50G
     static constexpr int LOAD_THREAD_NUM = 8;
 
-    explicit LogSegmentStore(const std::string & log_dir_)
+    explicit LogSegmentStore(const String & log_dir_)
         : log_dir(log_dir_), first_log_index(1), last_log_index(0), log(&(Poco::Logger::get("LogSegmentStore")))
     {
         LOG_INFO(log, "Create LogSegmentStore {}.", log_dir_);
     }
 
     virtual ~LogSegmentStore() = default;
-    static ptr<LogSegmentStore> getInstance(const std::string & log_dir, bool force_new = false);
+    static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false);
 
     /// Init log store, will create dir if not exist, return 0 if success
     int init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE, UInt32 max_segment_count_ = MAX_SEGMENT_COUNT);
@@ -306,7 +306,7 @@ private:
     static ptr<LogSegmentStore> segment_store;
 
     /// file log store directory
-    std::string log_dir;
+    String log_dir;
 
     /// log range [first_log_index, last_log_index]
     std::atomic<UInt64> first_log_index;

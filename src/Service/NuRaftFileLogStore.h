@@ -53,7 +53,7 @@ private:
 class NuRaftFileLogStore : public nuraft::log_store
 {
     __nocopy__(NuRaftFileLogStore) public : explicit NuRaftFileLogStore(
-         const std::string & log_dir,
+         const String & log_dir,
          bool force_new = false,
          FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
          UInt64 log_fsync_interval_ = 1000,

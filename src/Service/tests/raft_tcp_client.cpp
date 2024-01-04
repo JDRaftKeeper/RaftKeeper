@@ -12,9 +12,9 @@ using namespace Coordination;
 
 int main(int, char **)
 {
-    std::string identity;
+    String identity;
 
-    std::vector<std::string> hosts_strings;
+    std::vector<String> hosts_strings;
     hosts_strings.emplace_back("127.0.0.1:8101");
     Coordination::ZooKeeper::Nodes nodes;
     nodes.reserve(hosts_strings.size());
