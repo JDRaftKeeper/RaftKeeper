@@ -18,7 +18,7 @@
 #include <Common/NIO/SocketNotification.h>
 #include <Common/NIO/SocketNotifier.h>
 #include <Common/setThreadName.h>
-#include <common/types.h>
+#include <common/logger_useful.h>
 
 
 using Poco::Net::Socket;
@@ -126,7 +126,7 @@ private:
 
     void sleep();
 
-    static void dispatch(SocketNotifierPtr & pNotifier, const Notification & notification);
+    void dispatch(SocketNotifierPtr & pNotifier, const Notification & notification);
 
     bool hasSocketHandlers();
 
@@ -154,6 +154,8 @@ private:
 
     MutexType mutex;
     Poco::Event event;
+
+    Poco::Logger * log;
 };
 
 
@@ -161,9 +163,7 @@ private:
 class AsyncSocketReactor : public SocketReactor
 {
 public:
-    explicit AsyncSocketReactor(const String & name = "");
-    explicit AsyncSocketReactor(const Poco::Timespan & timeout, const String & name = "");
-
+    explicit AsyncSocketReactor(const Poco::Timespan & timeout, const std::string & name);
     ~AsyncSocketReactor() override;
 
     void run() override;
@@ -175,7 +175,7 @@ private:
     void startup();
 
     Poco::Thread thread;
-    const String name;
+    const std::string name;
 };
 
 

@@ -13,6 +13,7 @@
 #include <Poco/Net/SocketImpl.h>
 #include <Poco/Thread.h>
 
+#include <Common/Exception.h>
 #include <Common/NIO/PollSet.h>
 #include <common/logger_useful.h>
 
@@ -20,6 +21,24 @@ using Poco::Net::SocketImpl;
 
 namespace RK
 {
+
+namespace ErrorCodes
+{
+    extern const int EPOLL_ERROR;
+    extern const int EPOLL_CTL;
+    extern const int EPOLL_CREATE;
+    extern const int EPOLL_WAIT;
+    extern const int LOGICAL_ERROR;
+}
+
+namespace
+{
+    /// Return local address string for server socket, or return remote address for stream socket.
+    std::string getAddressName(const Socket & sock)
+    {
+        return sock.isStream() ? sock.peerAddress().toString() : sock.address().toString();
+    }
+}
 
 /// PollSet implementation with epoll
 class PollSetImpl
@@ -70,7 +89,7 @@ PollSetImpl::PollSetImpl()
     int err = addImpl(waking_up_fd, PollSet::POLL_READ, this);
     if ((err) || (epoll_fd < 0))
     {
-        errno;
+        throwFromErrno("Error when initializing poll set", ErrorCodes::EPOLL_ERROR, errno);
     }
 }
 
@@ -92,7 +111,7 @@ void PollSetImpl::add(const Socket & socket, int mode)
         if (errno == EEXIST)
             update(socket, mode);
         else
-            errno;
+            throwFromErrno("Error when updating epoll event to " + getAddressName(socket), ErrorCodes::EPOLL_CTL, errno);
     }
 
     if (socket_map.find(socket_impl) == socket_map.end())
@@ -123,7 +142,7 @@ void PollSetImpl::remove(const Socket & socket)
     ev.data.ptr = nullptr;
     int err = epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev);
     if (err)
-        errno;
+        throwFromErrno("Error when updating epoll event to " + getAddressName(socket), ErrorCodes::EPOLL_CTL, errno);
 
     socket_map.erase(socket.impl());
 }
@@ -146,18 +165,19 @@ void PollSetImpl::update(const Socket & socket, int mode)
     poco_socket_t fd = socket.impl()->sockfd();
     struct epoll_event ev;
     ev.events = 0;
+
     if (mode & PollSet::POLL_READ)
         ev.events |= EPOLLIN;
     if (mode & PollSet::POLL_WRITE)
         ev.events |= EPOLLOUT;
     if (mode & PollSet::POLL_ERROR)
         ev.events |= EPOLLERR;
+
     ev.data.ptr = socket.impl();
     int err = epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &ev);
+
     if (err)
-    {
-        errno;
-    }
+        throwFromErrno("Error when updating epoll event to " + getAddressName(socket), ErrorCodes::EPOLL_CTL, errno);
 }
 
 void PollSetImpl::clear()
@@ -169,7 +189,7 @@ void PollSetImpl::clear()
     epoll_fd = epoll_create(1);
     if (epoll_fd < 0)
     {
-        errno;
+        throwFromErrno("Error when creating epoll fd", ErrorCodes::EPOLL_CREATE, errno);
     }
 }
 
@@ -177,13 +197,19 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
 {
     PollSet::SocketModeMap result;
     Poco::Timespan remaining_time(timeout);
+
     int rc;
     do
     {
         Poco::Timestamp start;
         rc = epoll_wait(epoll_fd, &events[0], events.size(), remaining_time.totalMilliseconds());
+
         if (rc == 0)
+        {
+            LOG_TRACE(log, "epoll_wait got 0 events");
             return result;
+        }
+
         if (rc < 0 && errno == POCO_EINTR)
         {
             Poco::Timestamp end;
@@ -191,26 +217,28 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
             if (waited < remaining_time)
                 remaining_time -= waited;
             else
-                remaining_time = 0;
-            LOG_TRACE(log, "Poll wait encounter error EINTR {}ms", remaining_time.totalMilliseconds());
+                break; /// timeout
         }
     } while (rc < 0 && errno == POCO_EINTR);
-    if (rc < 0)
-        errno;
+
+    if (rc < 0 && errno != POCO_EINTR)
+        throwFromErrno("Error when epoll waiting", ErrorCodes::EPOLL_WAIT, errno);
+
+    LOG_TRACE(log, "Got {} events", rc);
 
     Poco::FastMutex::ScopedLock lock(mutex);
 
     for (int i = 0; i < rc; i++)
     {
+        /// Read data from 'wakeUp' method
         if (events[i].data.ptr == this)
         {
             uint64_t val;
             auto n = ::read(waking_up_fd, &val, sizeof(val));
-            LOG_TRACE(
-                log, "Poll wakeup {} {} {} {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", waking_up_fd, n, errno);
             if (n < 0)
-                errno;
+                throwFromErrno("Error when reading data from 'wakeUp' method", ErrorCodes::EPOLL_CREATE, errno);
         }
+        /// Handle IO events
         else if (events[i].data.ptr)
         {
             std::map<SocketImpl *, Socket>::iterator it = socket_map.find(static_cast<SocketImpl *>(events[i].data.ptr));
@@ -226,7 +254,7 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
         }
         else
         {
-            LOG_ERROR(log, "Poll receive null data socket event {}", static_cast<unsigned int>(events[i].events));
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Should never reach here.");
         }
     }
 
@@ -235,11 +263,11 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
 
 void PollSetImpl::wakeUp()
 {
-    uint64_t val = 1;
+    LOG_TRACE(log, "Try to wakeup poll set");
+    uint64_t val = 0;
     int n = ::write(waking_up_fd, &val, sizeof(val));
-    LOG_TRACE(log, "Poll trigger wakeup {} {} {}", Poco::Thread::current() ? Poco::Thread::current()->name() : "main", waking_up_fd, n);
     if (n < 0)
-        errno;
+        throwFromErrno("Error when trying to wakeup poll set", ErrorCodes::EPOLL_CREATE, errno);
 }
 
 int PollSetImpl::count() const

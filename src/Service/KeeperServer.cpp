@@ -108,8 +108,6 @@ void KeeperServer::shutdown()
         LOG_WARNING(log, "Log store flush error while server shutdown.");
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
-
-    LOG_INFO(log, "Shutting down state machine.");
     state_machine->shutdown();
 
     LOG_INFO(log, "Shut down NuRaft core done!");

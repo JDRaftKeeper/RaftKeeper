@@ -86,6 +86,9 @@
     M(74, CANNOT_PARSE_ELF)          \
     M(75, CANNOT_STAT)          \
     M(76, NETLINK_ERROR)          \
+    M(78, EPOLL_CTL)          \
+    M(79, EPOLL_CREATE)          \
+    M(80, EPOLL_WAIT)          \
                                  \
     M(102, KEEPER_EXCEPTION) \
     M(103, POCO_EXCEPTION) \
@@ -126,7 +129,7 @@ namespace ErrorCodes
         }
     } error_codes_names;
 
-    std::string_view getName(ErrorCode error_code)
+    [[maybe_unused]] std::string_view getName(ErrorCode error_code)
     {
         if (error_code >= END)
             return std::string_view();
