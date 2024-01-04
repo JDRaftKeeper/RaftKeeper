@@ -474,7 +474,7 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
     Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
 
     /// Generate id for new session request and use session_id for update session request
-    auto id = opnum == OpNum::NewSession ? keeper_dispatcher->getNewSessionInternalId() : previous_session_id;
+    auto id = opnum == OpNum::NewSession ? keeper_dispatcher->getAndAddInternalId() : previous_session_id;
 
     if (opnum == OpNum::NewSession)
     {
