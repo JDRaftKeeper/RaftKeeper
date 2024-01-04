@@ -28,6 +28,7 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
     Poco::AutoPtr<Poco::ConsoleChannel> console_channel(new Poco::ConsoleChannel);
 
     Poco::Logger * logger = &Poco::Logger::get("RaftKeeperConverter");
+
     logger->setChannel(console_channel);
 
     if (options.count("help"))
@@ -43,14 +44,28 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
     try
     {
         RK::KeeperStore store(500);
-
         RK::deserializeKeeperStoreFromSnapshotsDir(store, options["zookeeper-snapshots-dir"].as<std::string>(), logger);
+        LOG_INFO(
+            logger,
+            "Deserialize snapshot to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+            store.getNodesCount(),
+            store.getTotalEphemeralNodesCount(),
+            store.getSessionCount(),
+            store.getSessionIDCounter(),
+            store.getZxid());
         RK::deserializeLogsAndApplyToStore(store, options["zookeeper-logs-dir"].as<std::string>(), logger);
-        std::cout << "storage.container.size():" << store.container.size() << std::endl;
-        nuraft::ptr<snapshot> new_snapshot(nuraft::cs_new<snapshot>(store.zxid, 1, std::make_shared<nuraft::cluster_config>())); // TODO 1 ?
+        LOG_INFO(
+            logger,
+            "Deserialize logs to store done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+            store.getNodesCount(),
+            store.getTotalEphemeralNodesCount(),
+            store.getSessionCount(),
+            store.getSessionIDCounter(),
+            store.getZxid());
+        nuraft::ptr<snapshot> new_snapshot(nuraft::cs_new<snapshot>(store.getZxid(), 1, std::make_shared<nuraft::cluster_config>()));
         nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(
             options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
-        snap_mgr->createSnapshot(*new_snapshot, store);
+        snap_mgr->createSnapshot(*new_snapshot, store, store.getZxid(), store.getSessionIDCounter());
         std::cout << "Snapshot serialized to path:" << options["output-dir"].as<std::string>() << std::endl;
     }
     catch (...)
