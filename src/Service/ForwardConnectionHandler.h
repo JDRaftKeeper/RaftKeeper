@@ -19,7 +19,7 @@
 #include <Common/NIO/SocketReactor.h>
 
 #include <Service/ConnCommon.h>
-#include <Service/ForwardingConnection.h>
+#include <Service/ForwardConnection.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 
 
@@ -32,7 +32,7 @@ using Poco::Logger;
 using Poco::Thread;
 
 /**
- * Server endpoint for forwarding request.
+ * Server endpoint for forward request.
  */
 class ForwardConnectionHandler
 {

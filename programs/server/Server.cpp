@@ -150,8 +150,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
         = global_context.getConfigRef().getUInt("keeper.raft_settings.operation_timeout_ms", Coordination::DEFAULT_OPERATION_TIMEOUT_MS);
 
     /// start server
-    std::shared_ptr<SvsSocketReactor<SocketReactor>> server;
-    std::shared_ptr<SvsSocketAcceptor<ConnectionHandler, SocketReactor>> conn_acceptor;
+    AsyncSocketReactorPtr server;
+    std::shared_ptr<SocketAcceptor<ConnectionHandler>> conn_acceptor;
     int32_t port = config().getInt("keeper.port", 8101);
 
     auto cpu_core_size = getNumberOfPhysicalCPUCores();

@@ -140,7 +140,7 @@ void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordina
     }
 }
 
-void KeeperDispatcher::invokeForwardResponseCallBack(ForwardingClientId client_id, ForwardResponsePtr response)
+void KeeperDispatcher::invokeForwardResponseCallBack(ForwardClientId client_id, ForwardResponsePtr response)
 {
     std::lock_guard lock(forward_response_callbacks_mutex);
     auto forward_response_writer = forward_response_callbacks.find(client_id);
@@ -204,7 +204,7 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
 }
 
 
-bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
+bool KeeperDispatcher::pushForwardRequest(size_t server_id, size_t client_id, ForwardRequestPtr request)
 {
     RequestForSession && request_info = request->requestForSession();
 
@@ -216,7 +216,7 @@ bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id,
 
     LOG_TRACE(
         log,
-        "Push forwarding request #{}#{}#{} which is from server {} client {}",
+        "Push forward request #{}#{}#{} which is from server {} client {}",
         toHexString(request_info.session_id),
         request_info.request->xid,
         Coordination::toString(request_info.request->getOpNum()),
@@ -230,7 +230,7 @@ bool KeeperDispatcher::pushForwardingRequest(size_t server_id, size_t client_id,
             throw Exception(ErrorCodes::SYSTEM_ERROR, "Cannot push request to queue");
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
-        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Cannot push forwarding request to queue within operation timeout");
+        throw Exception(ErrorCodes::TIMEOUT_EXCEEDED, "Cannot push forward request to queue within operation timeout");
     return true;
 }
 
@@ -398,7 +398,7 @@ void KeeperDispatcher::unregisterUserResponseCallBackWithoutLock(int64_t session
         user_response_callbacks.erase(it);
 }
 
-void KeeperDispatcher::registerForwarderResponseCallBack(ForwardingClientId client_id, ForwardResponseCallback callback)
+void KeeperDispatcher::registerForwarderResponseCallBack(ForwardClientId client_id, ForwardResponseCallback callback)
 {
     std::lock_guard lock(forward_response_callbacks_mutex);
 
@@ -406,7 +406,7 @@ void KeeperDispatcher::registerForwarderResponseCallBack(ForwardingClientId clie
     {
         LOG_WARNING(
             log,
-            "Receive new forwarding connection from server_id {}, client_id {}, will destroy the older one",
+            "Receive new forward connection from server_id {}, client_id {}, will destroy the older one",
             client_id.first,
             client_id.second);
         auto & call_back = forward_response_callbacks[client_id];
@@ -418,7 +418,7 @@ void KeeperDispatcher::registerForwarderResponseCallBack(ForwardingClientId clie
     forward_response_callbacks.emplace(client_id, callback);
 }
 
-void KeeperDispatcher::unRegisterForwarderResponseCallBack(ForwardingClientId client_id)
+void KeeperDispatcher::unRegisterForwarderResponseCallBack(ForwardClientId client_id)
 {
     std::lock_guard lock(forward_response_callbacks_mutex);
     auto forward_response_writer = forward_response_callbacks.find(client_id);
