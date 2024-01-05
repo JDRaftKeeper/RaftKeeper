@@ -196,8 +196,10 @@ struct StoreRequest
     Coordination::ZooKeeperRequestPtr zk_request;
 
     explicit StoreRequest(const Coordination::ZooKeeperRequestPtr & zk_request_) : zk_request(zk_request_) { }
+
     virtual std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const = 0;
+
     virtual bool checkAuth(KeeperStore & /*storage*/, int64_t /*session_id*/) const { return true; }
 
     virtual KeeperStore::ResponsesForSessions
@@ -209,9 +211,10 @@ struct StoreRequest
     virtual ~StoreRequest() = default;
 };
 
-struct SvsKeeperStorageHeartbeatRequest final : public StoreRequest
+struct StoreRequestHeartbeat final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & /* store */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -219,9 +222,10 @@ struct SvsKeeperStorageHeartbeatRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageSetWatchesRequest final : public StoreRequest
+struct StoreRequestSetWatches final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & /* storage */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -235,9 +239,10 @@ struct SvsKeeperStorageSetWatchesRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageSyncRequest final : public StoreRequest
+struct StoreRequestSync final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & /* storage */, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -248,7 +253,7 @@ struct SvsKeeperStorageSyncRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageCreateRequest final : public StoreRequest
+struct StoreRequestCreate final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
 
@@ -421,8 +426,10 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageGetRequest final : public StoreRequest
+struct StoreRequestGet final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageGetRequest"));
@@ -451,7 +458,6 @@ struct SvsKeeperStorageGetRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -478,8 +484,10 @@ struct SvsKeeperStorageGetRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageRemoveRequest final : public StoreRequest
+struct StoreRequestRemove final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -507,7 +515,6 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
     }
 
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t zxid, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -588,9 +595,10 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageExistsRequest final : public StoreRequest
+struct StoreRequestExists final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /* zxid */, int64_t /* session_id */, int64_t /* time */) const override
     {
@@ -616,8 +624,10 @@ struct SvsKeeperStorageExistsRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageSetRequest final : public StoreRequest
+struct StoreRequestSet final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -644,7 +654,6 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t zxid, int64_t /* session_id */, int64_t time) const override
     {
@@ -690,8 +699,10 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageListRequest final : public StoreRequest
+struct StoreRequestList final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -718,7 +729,6 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
@@ -792,8 +802,10 @@ struct SvsKeeperStorageListRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageCheckRequest final : public StoreRequest
+struct StoreRequestCheck final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -820,7 +832,6 @@ struct SvsKeeperStorageCheckRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
@@ -845,8 +856,10 @@ struct SvsKeeperStorageCheckRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageSetACLRequest final : public StoreRequest
+struct StoreRequestSetACL final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -872,7 +885,6 @@ struct SvsKeeperStorageSetACLRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
@@ -915,13 +927,15 @@ struct SvsKeeperStorageSetACLRequest final : public StoreRequest
             response.error = Coordination::Error::ZOK;
         }
 
-        /// It cannot be used insied multitransaction?
+        /// It cannot be used inside multi-transaction?
         return {response_ptr, {}};
     }
 };
 
-struct SvsKeeperStorageGetACLRequest final : public StoreRequest
+struct StoreRequestGetACL final : public StoreRequest
 {
+    using StoreRequest::StoreRequest;
+
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
@@ -948,8 +962,6 @@ struct SvsKeeperStorageGetACLRequest final : public StoreRequest
         }
     }
 
-    using StoreRequest::StoreRequest;
-
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
     {
@@ -973,9 +985,10 @@ struct SvsKeeperStorageGetACLRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageAuthRequest final : public StoreRequest
+struct StoreRequestAuth final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
@@ -1013,7 +1026,7 @@ struct SvsKeeperStorageAuthRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageMultiRequest final : public StoreRequest
+struct StoreRequestMultiTxn final : public StoreRequest
 {
     using OperationType = Coordination::ZooKeeperMultiRequest::OperationType;
     OperationType operation_type = OperationType::Unspecified;
@@ -1027,7 +1040,7 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
     }
 
     std::vector<StoreRequestPtr> concrete_requests;
-    explicit SvsKeeperStorageMultiRequest(const Coordination::ZooKeeperRequestPtr & zk_request_) : StoreRequest(zk_request_)
+    explicit StoreRequestMultiTxn(const Coordination::ZooKeeperRequestPtr & zk_request_) : StoreRequest(zk_request_)
     {
         Coordination::ZooKeeperMultiRequest & request = dynamic_cast<Coordination::ZooKeeperMultiRequest &>(*zk_request);
         concrete_requests.reserve(request.requests.size());
@@ -1045,38 +1058,38 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
             if (sub_zk_request->getOpNum() == Coordination::OpNum::Create)
             {
                 check_operation_type(OperationType::Write);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageCreateRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestCreate>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Remove)
             {
                 check_operation_type(OperationType::Write);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageRemoveRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestRemove>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Set)
             {
                 check_operation_type(OperationType::Write);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageSetRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestSet>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Check)
             {
                 check_operation_type(OperationType::Write);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageCheckRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestCheck>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Get)
             {
                 check_operation_type(OperationType::Read);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageGetRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestGet>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::Exists)
             {
                 check_operation_type(OperationType::Read);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageExistsRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestExists>(sub_zk_request));
             }
             else if (sub_zk_request->getOpNum() == Coordination::OpNum::List || sub_zk_request->getOpNum() == Coordination::OpNum::SimpleList
                      || sub_zk_request->getOpNum() == Coordination::OpNum::FilteredList)
             {
                 check_operation_type(OperationType::Read);
-                concrete_requests.push_back(std::make_shared<SvsKeeperStorageListRequest>(sub_zk_request));
+                concrete_requests.push_back(std::make_shared<StoreRequestList>(sub_zk_request));
             }
             else
                 throw RK::Exception(
@@ -1157,20 +1170,21 @@ struct SvsKeeperStorageMultiRequest final : public StoreRequest
     }
 };
 
-struct SvsKeeperStorageCloseRequest final : public StoreRequest
+struct StoreRequestClose final : public StoreRequest
 {
     using StoreRequest::StoreRequest;
+
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & /* store */, int64_t, int64_t, int64_t /* time */) const override
     {
-        throw RK::Exception("Called process on close request", ErrorCodes::LOGICAL_ERROR);
+        throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Called process on close request");
     }
 };
 
 void KeeperStore::finalize()
 {
     if (finalized)
-        throw RK::Exception("keeper store already finalized", ErrorCodes::LOGICAL_ERROR);
+        throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "keeper store already finalized");
 
     finalized = true;
 
@@ -1206,15 +1220,15 @@ void KeeperStore::finalize()
     }
 }
 
-class NuKeeperWrapperFactory final : private boost::noncopyable
+class StoreRequestFactory final : private boost::noncopyable
 {
 public:
     using Creator = std::function<StoreRequestPtr(const Coordination::ZooKeeperRequestPtr &)>;
     using OpNumToRequest = std::unordered_map<Coordination::OpNum, Creator>;
 
-    static NuKeeperWrapperFactory & instance()
+    static StoreRequestFactory & instance()
     {
-        static NuKeeperWrapperFactory factory;
+        static StoreRequestFactory factory;
         return factory;
     }
 
@@ -1235,37 +1249,37 @@ public:
 
 private:
     OpNumToRequest op_num_to_request;
-    NuKeeperWrapperFactory();
+    StoreRequestFactory();
 };
 
 template <Coordination::OpNum num, typename RequestT>
-void registerNuKeeperRequestWrapper(NuKeeperWrapperFactory & factory)
+void registerNuKeeperRequestWrapper(StoreRequestFactory & factory)
 {
     factory.registerRequest(
         num, [](const Coordination::ZooKeeperRequestPtr & zk_request) { return std::make_shared<RequestT>(zk_request); });
 }
 
 
-NuKeeperWrapperFactory::NuKeeperWrapperFactory()
+StoreRequestFactory::StoreRequestFactory()
 {
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Heartbeat, SvsKeeperStorageHeartbeatRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::SetWatches, SvsKeeperStorageSetWatchesRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Sync, SvsKeeperStorageSyncRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Auth, SvsKeeperStorageAuthRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Close, SvsKeeperStorageCloseRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Create, SvsKeeperStorageCreateRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Remove, SvsKeeperStorageRemoveRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Exists, SvsKeeperStorageExistsRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Get, SvsKeeperStorageGetRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Set, SvsKeeperStorageSetRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::List, SvsKeeperStorageListRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::SimpleList, SvsKeeperStorageListRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::FilteredList, SvsKeeperStorageListRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Check, SvsKeeperStorageCheckRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, SvsKeeperStorageMultiRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::MultiRead, SvsKeeperStorageMultiRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::SetACL, SvsKeeperStorageSetACLRequest>(*this);
-    registerNuKeeperRequestWrapper<Coordination::OpNum::GetACL, SvsKeeperStorageGetACLRequest>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Heartbeat, StoreRequestHeartbeat>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::SetWatches, StoreRequestSetWatches>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Sync, StoreRequestSync>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Auth, StoreRequestAuth>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Close, StoreRequestClose>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Create, StoreRequestCreate>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Remove, StoreRequestRemove>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Exists, StoreRequestExists>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Get, StoreRequestGet>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Set, StoreRequestSet>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::List, StoreRequestList>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::SimpleList, StoreRequestList>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::FilteredList, StoreRequestList>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Check, StoreRequestCheck>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::Multi, StoreRequestMultiTxn>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::MultiRead, StoreRequestMultiTxn>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::SetACL, StoreRequestSetACL>(*this);
+    registerNuKeeperRequestWrapper<Coordination::OpNum::GetACL, StoreRequestGetACL>(*this);
 }
 
 
@@ -1390,7 +1404,7 @@ void KeeperStore::processRequest(
 
     if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
-        StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
+        StoreRequestPtr store_request = StoreRequestFactory::instance().get(zk_request);
         auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
         response->xid = zk_request->xid;
         /// Heartbeat not increase zxid
@@ -1399,7 +1413,7 @@ void KeeperStore::processRequest(
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
-        StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
+        StoreRequestPtr store_request = StoreRequestFactory::instance().get(zk_request);
         auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
         response->xid = zk_request->xid;
         /// SetWatches not increase zxid
@@ -1481,7 +1495,7 @@ void KeeperStore::processRequest(
     }
     else
     {
-        StoreRequestPtr store_request = NuKeeperWrapperFactory::instance().get(zk_request);
+        StoreRequestPtr store_request = StoreRequestFactory::instance().get(zk_request);
         Coordination::ZooKeeperResponsePtr response;
 
         if (check_acl && !store_request->checkAuth(*this, session_id))
@@ -1861,7 +1875,6 @@ void KeeperStore::reset()
         watches.clear();
         list_watches.clear();
     }
-
 }
 
 }
