@@ -131,7 +131,6 @@ int NuRaftLogSegment::create()
         return -1;
     }
     std::lock_guard write_lock(log_mutex);
-    BackendTimer::getCurrentTime(create_time);
     file_name = getOpenFileName();
     String full_path = getOpenPath();
     if (Poco::File(full_path).exists())

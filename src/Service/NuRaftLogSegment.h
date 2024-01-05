@@ -6,6 +6,9 @@
 #include <shared_mutex>
 #include <vector>
 
+#include <Poco/DateTime.h>
+#include <Poco/DateTimeFormatter.h>
+
 #include <common/logger_useful.h>
 #include <libnuraft/basic_types.hxx>
 #include <libnuraft/nuraft.hxx>
@@ -44,12 +47,20 @@ public:
         , last_index(first_index_ - 1)
         , seg_fd(-1)
         , file_name(file_name_)
-        , create_time(create_time_)
         , file_size(0)
         , is_open(true)
         , log(&(Poco::Logger::get("LogSegment")))
         , version(CURRENT_LOG_VERSION)
     {
+        if (create_time_.empty())
+        {
+            Poco::DateTime now;
+            create_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
+        }
+        else
+        {
+            create_time = create_time_;
+        }
     }
 
     NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, UInt64 last_index_, const String file_name_ = "")
