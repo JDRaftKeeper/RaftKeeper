@@ -13,10 +13,18 @@
 namespace RK
 {
 
-String checkAndGetSuperdigest(const String & user_and_digest);
 nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
 nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 
+/// Parent of a path, for example: got '/a/b' from '/a/b/c'
+String getParentPath(const String & path);
+/// Base name of a path, for example: got 'c' from '/a/b/c'
+String getBaseName(const String & path);
+
+String base64Encode(const String & decoded);
+String getSHA1(const String & userdata);
+String generateDigest(const String & userdata);
+String checkAndGetSuperdigest(const String & user_and_digest);
 
 inline int readUInt32(nuraft::ptr<std::fstream> & fs, UInt32 & x)
 {
