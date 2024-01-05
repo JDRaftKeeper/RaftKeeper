@@ -43,6 +43,7 @@ struct ACL
 };
 
 using ACLs = std::vector<ACL>;
+String toString(const Coordination::ACLs & acls);
 
 struct AuthID
 {

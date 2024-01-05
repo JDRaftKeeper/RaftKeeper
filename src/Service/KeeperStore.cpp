@@ -1,10 +1,8 @@
 #include <functional>
 #include <iomanip>
 #include <Service/KeeperStore.h>
+#include <Service/KeeperUtils.h>
 #include <ZooKeeper/IKeeper.h>
-#include <boost/algorithm/string.hpp>
-#include <Poco/Base64Encoder.h>
-#include <Poco/SHA1Engine.h>
 #include <Common/StringUtils.h>
 
 namespace RK
@@ -35,67 +33,6 @@ static inline void set_response(
     KeeperStore::ResponsesForSessions responses;
     responses.push_back(response);
     set_response(responses_queue, responses, ignore_response);
-}
-
-static String parentPath(const String & path)
-{
-    auto rslash_pos = path.rfind('/');
-    if (rslash_pos > 0)
-        return path.substr(0, rslash_pos);
-    return "/";
-}
-
-static String getBaseName(const String & path)
-{
-    size_t basename_start = path.rfind('/');
-    return String{&path[basename_start + 1], path.length() - basename_start - 1};
-}
-
-static String base64Encode(const String & decoded)
-{
-    std::ostringstream ostr; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
-    ostr.exceptions(std::ios::failbit);
-    Poco::Base64Encoder encoder(ostr);
-    encoder.rdbuf()->setLineLength(0);
-    encoder << decoded;
-    encoder.close();
-    return ostr.str();
-}
-
-static String getSHA1(const String & userdata)
-{
-    Poco::SHA1Engine engine;
-    engine.update(userdata);
-    const auto & digest_id = engine.digest();
-    return String{digest_id.begin(), digest_id.end()};
-}
-
-static String generateDigest(const String & userdata)
-{
-    std::vector<String> user_password;
-    boost::split(user_password, userdata, [](char c) { return c == ':'; });
-    return user_password[0] + ":" + base64Encode(getSHA1(userdata));
-}
-
-static String toString(const Coordination::ACLs & acls)
-{
-    WriteBufferFromOwnString ret;
-    String left_bracket = "[ ";
-    String comma = ", ";
-    String right_bracket = " ]";
-    ret.write(left_bracket.c_str(), left_bracket.length());
-    for (const auto & acl : acls)
-    {
-        auto permissions = std::to_string(acl.permissions);
-        ret.write(permissions.c_str(), permissions.length());
-        ret.write(comma.c_str(), comma.length());
-        ret.write(acl.scheme.c_str(), acl.scheme.length());
-        ret.write(comma.c_str(), comma.length());
-        ret.write(acl.id.c_str(), acl.id.length());
-        ret.write(comma.c_str(), comma.length());
-    }
-    ret.write(right_bracket.c_str(), right_bracket.length());
-    return ret.str();
 }
 
 static bool checkACL(int32_t permission, const Coordination::ACLs & node_acls, const std::vector<Coordination::AuthID> & session_auths)
@@ -193,7 +130,7 @@ processWatchesImpl(const String & path, KeeperStore::Watches & watches, KeeperSt
         watches.erase(it);
     }
 
-    auto parent_path = parentPath(path);
+    auto parent_path = getParentPath(path);
 
     Strings paths_to_check_for_list_watches;
     if (event_type == Coordination::Event::CREATED)
@@ -323,7 +260,7 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
-        auto parent_path = parentPath(zk_request->getPath());
+        auto parent_path = getParentPath(zk_request->getPath());
 
         auto parent = container.get(parent_path);
         if (parent == nullptr)
@@ -358,10 +295,10 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
         Coordination::ZooKeeperCreateResponse & response = dynamic_cast<Coordination::ZooKeeperCreateResponse &>(*response_ptr);
         Coordination::ZooKeeperCreateRequest & request = dynamic_cast<Coordination::ZooKeeperCreateRequest &>(*zk_request);
 
-        auto parent = store.container.get(parentPath(request.path));
+        auto parent = store.container.get(getParentPath(request.path));
         if (parent == nullptr)
         {
-            LOG_TRACE(log, "Create no parent {}, path {}", parentPath(request.path), request.path);
+            LOG_TRACE(log, "Create no parent {}, path {}", getParentPath(request.path), request.path);
             response.error = Coordination::Error::ZNONODE;
             return {response_ptr, undo};
         }
@@ -457,7 +394,7 @@ struct SvsKeeperStorageCreateRequest final : public StoreRequest
                 path_created,
                 pzxid,
                 is_ephemeral = request.is_ephemeral,
-                parent_path = parentPath(request.path),
+                parent_path = getParentPath(request.path),
                 child_path,
                 acl_id] {
             {
@@ -546,7 +483,7 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
         auto & container = store.container;
-        auto parent = container.get(parentPath(zk_request->getPath()));
+        auto parent = container.get(getParentPath(zk_request->getPath()));
         if (parent == nullptr)
             return true;
 
@@ -602,7 +539,7 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
             auto prev_node = node->clone();
             auto child_basename = getBaseName(request.path);
 
-            auto parent = store.container.at(parentPath(request.path));
+            auto parent = store.container.at(getParentPath(request.path));
             {
                 std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
@@ -632,7 +569,7 @@ struct SvsKeeperStorageRemoveRequest final : public StoreRequest
                 store.acl_map.addUsage(prev_node->acl_id);
 
                 store.container.emplace(path, prev_node);
-                auto undo_parent = store.container.at(parentPath(path));
+                auto undo_parent = store.container.at(getParentPath(path));
                 {
                     std::lock_guard parent_lock(undo_parent->mutex);
                     ++(undo_parent->stat.numChildren);
@@ -733,7 +670,7 @@ struct SvsKeeperStorageSetRequest final : public StoreRequest
                 node->data = request.data;
             }
 
-            auto parent = store.container.at(parentPath(request.path));
+            auto parent = store.container.at(getParentPath(request.path));
             response.stat = node->statForResponse();
             response.error = Coordination::Error::ZOK;
 
@@ -1240,7 +1177,7 @@ void KeeperStore::finalize()
     for (const auto & [session_id, ephemerals_paths] : ephemerals)
         for (const String & ephemeral_path : ephemerals_paths)
         {
-            auto parent = container.at(parentPath(ephemeral_path));
+            auto parent = container.at(getParentPath(ephemeral_path));
             {
                 std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
@@ -1632,7 +1569,7 @@ void KeeperStore::processRequest(
 
                 /// handle watch trigger, below 1 and 2 must be atomic
                 if (zk_request->getOpNum() == Coordination::OpNum::Multi || watches.contains(zk_request->getPath())
-                    || list_watches.contains(parentPath(zk_request->getPath())))
+                    || list_watches.contains(getParentPath(zk_request->getPath())))
                 {
                     if (response->error == Coordination::Error::ZOK)
                     {
@@ -1689,7 +1626,7 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
             if (it.first == "/")
                 continue;
 
-            auto parent_path = parentPath(it.first);
+            auto parent_path = getParentPath(it.first);
             auto child_path = getBaseName(it.first);
             auto parent = container.get(parent_path);
             if (parent == nullptr)
@@ -1718,7 +1655,7 @@ void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<Respon
         for (const auto & ephemeral_path : it->second)
         {
             LOG_TRACE(log, "Disconnect session {}, deleting its ephemeral node {}", toHexString(session_id), ephemeral_path);
-            auto parent = container.at(parentPath(ephemeral_path));
+            auto parent = container.at(getParentPath(ephemeral_path));
             if (!parent)
             {
                 LOG_ERROR(

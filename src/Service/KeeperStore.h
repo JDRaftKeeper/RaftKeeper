@@ -131,8 +131,6 @@ public:
                 fn(key, value);
         }
 
-        std::shared_mutex & getMutex() { return mut_; }
-
         /// This method will destroy InnerMap thread safety property.
         /// deprecated use forEach instead.
         ElementMap & getMap() { return map_; }
@@ -180,13 +178,13 @@ class KeeperStore
 public:
     /// block num for ConcurrentMap
     static constexpr int MAP_BLOCK_NUM = 16;
+    using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
 
     using ResponsesForSessions = std::vector<ResponseForSession>;
     using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
     using RequestsForSessions = std::vector<RequestForSession>;
-    using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
 
     using Ephemerals = std::unordered_map<int64_t, std::unordered_set<String>>;
     using EphemeralsPtr = std::shared_ptr<Ephemerals>;
