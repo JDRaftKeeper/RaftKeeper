@@ -6,6 +6,8 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include <Poco/DateTime.h>
+#include <Poco/DateTimeFormatter.h>
 #include <Poco/File.h>
 #include <Poco/NumberFormatter.h>
 
@@ -574,13 +576,13 @@ void KeeperSnapshotStore::init(String create_time = "")
 {
     if (create_time.empty())
     {
-        BackendTimer::getCurrentTime(curr_time);
+        Poco::DateTime now;
+        curr_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
     }
     else
     {
         curr_time = create_time;
     }
-    curr_time_t = BackendTimer::parseTime(curr_time);
 }
 
 bool KeeperSnapshotStore::loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
@@ -1200,14 +1202,6 @@ ptr<snapshot> KeeperSnapshotManager::lastSnapshot()
     if (entry == snapshots.rend())
         return nullptr;
     return entry->second->getSnapshotMeta();
-}
-
-time_t KeeperSnapshotManager::getLastCreateTime()
-{
-    auto entry = snapshots.rbegin();
-    if (entry == snapshots.rend())
-        return 0L;
-    return entry->second->getCreateTimeT();
 }
 
 size_t KeeperSnapshotManager::removeSnapshots()

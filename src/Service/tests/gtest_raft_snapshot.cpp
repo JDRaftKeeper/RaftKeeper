@@ -4,7 +4,6 @@
 #include <Service/KeeperStore.h>
 #include <Service/KeeperCommon.h>
 #include <Service/NuRaftFileLogStore.h>
-#include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/Settings.h>
 #include <Service/tests/raft_test_common.h>
@@ -322,17 +321,6 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
     ASSERT_EQ(storage.acl_map, ano_storage.acl_map);
 }
 
-}
-
-TEST(RaftSnapshot, whenToSnapshot)
-{
-    BackendTimer timer;
-    /// every 1 day
-    timer.interval = 24 * 3600;
-
-    /// first snapshot
-    bool is_time = timer.isActionTime(0, 0);
-    ASSERT_EQ(is_time, true);
 }
 
 

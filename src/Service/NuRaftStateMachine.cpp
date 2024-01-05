@@ -57,6 +57,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     , responses_queue(responses_queue_)
     , request_processor(request_processor_)
     , last_committed_idx(0)
+    , snapshot_creating_interval(internal * 1000000)
+    , last_snapshot_time(Poco::Timestamp().epochMicroseconds())
     , new_session_id_callback_mutex(new_session_id_callback_mutex_)
     , new_session_id_callback(new_session_id_callback_)
 {
@@ -65,7 +67,6 @@ NuRaftStateMachine::NuRaftStateMachine(
     LOG_INFO(log, "Begin to initialize state machine");
 
     snapshot_dir = snap_dir;
-    timer.interval = internal;
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
 
     /// Load snapshot meta from disk
@@ -92,7 +93,7 @@ NuRaftStateMachine::NuRaftStateMachine(
         store.getTotalEphemeralNodesCount(),
         store.getSessionCount(),
         store.getSessionIDCounter(),
-        store.zxid);
+        store.getZxid());
 
     LOG_INFO(log, "Starting background creating snapshot thread.");
     snap_thread = ThreadFromGlobalPool([this] { snapThread(); });
@@ -166,6 +167,8 @@ void NuRaftStateMachine::snapThread()
 
             snap_count.fetch_add(1);
             snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+
+            last_snapshot_time = Poco::Timestamp().epochMicroseconds();
 
             LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
         }
@@ -421,14 +424,8 @@ void NuRaftStateMachine::shutdown()
 
 bool NuRaftStateMachine::chk_create_snapshot()
 {
-    return chk_create_snapshot(0L);
-}
-
-bool NuRaftStateMachine::chk_create_snapshot(time_t curr_time)
-{
-    std::lock_guard<std::mutex> lock(snapshot_mutex);
-    time_t prev_time = snap_mgr->getLastCreateTime();
-    return !in_snapshot && timer.isActionTime(prev_time, curr_time);
+    Poco::Timestamp now;
+    return !in_snapshot && now > last_snapshot_time + snapshot_creating_interval;
 }
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
@@ -461,6 +458,8 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 
         snap_count.fetch_add(1);
         snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+
+        last_snapshot_time = Poco::Timestamp().epochMicroseconds();
 
         LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
     }

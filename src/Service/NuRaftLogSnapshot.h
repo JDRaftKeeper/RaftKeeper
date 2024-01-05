@@ -109,9 +109,6 @@ public:
     /// get snapshot metadata
     ptr<snapshot> getSnapshotMeta() { return snap_meta; }
 
-    /// get snapshot create time
-    time_t & getCreateTimeT() { return curr_time_t; }
-
     /// parse object id from file name
     static size_t getObjectIdx(const String & file_name);
 
@@ -190,9 +187,8 @@ private:
 
     std::map<ulong, String> objects_path;
 
+    /// Appended to snapshot file name
     String curr_time;
-    /// snapshot create time, determined when create a new snapshot.
-    time_t curr_time_t;
 
     /// used to create snapshot asynchronously,
     /// but now creating snapshot is synchronous
@@ -242,8 +238,6 @@ public:
 
     /// when initializing, load snapshots meta
     size_t loadSnapshotMetas();
-
-    time_t getLastCreateTime();
 
     /// remove outdated snapshots, after invoked at mast keep_max_snapshot_count remains.
     size_t removeSnapshots();
