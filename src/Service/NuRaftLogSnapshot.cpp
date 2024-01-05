@@ -504,11 +504,8 @@ size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid
     {
         return 0;
     }
-    if (Directory::createDir(snap_dir) != 0)
-    {
-        LOG_ERROR(log, "Fail to create snapshot directory {}", snap_dir);
-        throw Exception(ErrorCodes::CANNOT_CREATE_DIRECTORY, "Fail to create snapshot directory {}", snap_dir);
-    }
+
+    Poco::File(snap_dir).createDirectories();
 
     size_t data_object_count = store.container.size() / max_object_node_size;
     if (store.container.size() % max_object_node_size)
@@ -1002,11 +999,7 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
 
 void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
 {
-    if (Directory::createDir(snap_dir) != 0)
-    {
-        LOG_ERROR(log, "Fail to create snapshot directory {}", snap_dir);
-        return;
-    }
+    Poco::File(snap_dir).createDirectories();
 
     String obj_path;
     getObjectPath(obj_id, obj_path);
