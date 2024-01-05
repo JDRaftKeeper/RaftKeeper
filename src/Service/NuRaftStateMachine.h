@@ -80,8 +80,6 @@ public:
      *         `false` if does not want to create snapshot.
      */
     bool chk_create_snapshot() override;
-    /// for unit test
-    bool chk_create_snapshot(time_t curr_time);
 
     /**
      * Create a snapshot corresponding to the given info.
@@ -330,9 +328,12 @@ private:
     std::mutex snapshot_mutex;
     String snapshot_dir;
 
-    BackendTimer timer;
-
     ptr<KeeperSnapshotManager> snap_mgr;
+
+    /// The minimal interval to create snapshot
+    int32_t snapshot_creating_interval;
+
+    std::atomic<int64_t> last_snapshot_time;
 
     /// When get a not exist node, return blank.
     KeeperNode default_node;
