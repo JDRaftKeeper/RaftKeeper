@@ -90,6 +90,25 @@
     M(ZooKeeperBytesSent, "") \
     M(ZooKeeperBytesReceived, "") \
     \
+    M(ServiceKeeperInit, "") \
+    M(ServiceKeeperTransactions, "") \
+    M(ServiceKeeperList, "") \
+    M(ServiceKeeperCreate, "") \
+    M(ServiceKeeperRemove, "") \
+    M(ServiceKeeperExists, "") \
+    M(ServiceKeeperGet, "") \
+    M(ServiceKeeperSet, "") \
+    M(ServiceKeeperMulti, "") \
+    M(ServiceKeeperCheck, "") \
+    M(ServiceKeeperClose, "") \
+    M(ServiceKeeperWatchResponse, "") \
+    M(ServiceKeeperUserExceptions, "") \
+    M(ServiceKeeperHardwareExceptions, "") \
+    M(ServiceKeeperOtherExceptions, "") \
+    M(ServiceKeeperWaitMicroseconds, "") \
+    M(ServiceKeeperBytesSent, "") \
+    M(ServiceKeeperBytesReceived, "") \
+    \
     M(DistributedConnectionFailTry, "Total count when distributed connection fails with retry") \
     M(DistributedConnectionMissingTable, "") \
     M(DistributedConnectionStaleReplica, "") \
