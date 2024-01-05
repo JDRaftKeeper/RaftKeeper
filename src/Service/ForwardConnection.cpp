@@ -52,7 +52,7 @@ void ForwardConnection::connect()
         catch (...)
         {
             if (i == (num_retries - 1))
-                tryLogCurrentException(log, "Exception when connect to server " + endpoint);
+                throw Exception(ErrorCodes::ALL_CONNECTION_TRIES_FAILED, "Connect to forward server {} failed", endpoint);
             else
                 Poco::Thread::current()->sleep(1000);
         }
@@ -72,13 +72,10 @@ void ForwardConnection::disconnect()
 
 void ForwardConnection::send(ForwardRequestPtr request)
 {
-    if (!connected)
-        connect();
-
-    if (!connected)
-        throw Exception("Connect to server failed", ErrorCodes::ALL_CONNECTION_TRIES_FAILED);
-
     LOG_TRACE(log, "Forward request {} to endpoint {}", request->toString(), endpoint);
+
+    if (unlikely(!connected))
+        connect();
 
     try
     {
@@ -87,7 +84,7 @@ void ForwardConnection::send(ForwardRequestPtr request)
     catch (...)
     {
         disconnect();
-        throw Exception(ErrorCodes::NETWORK_ERROR, "Exception while send request to {}", endpoint);
+        throw;
     }
 }
 
