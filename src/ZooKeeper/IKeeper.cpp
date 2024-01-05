@@ -1,5 +1,6 @@
-#include "IKeeper.h"
-#include "Common/ProfileEvents.h"
+#include <ZooKeeper/IKeeper.h>
+#include <Common/ProfileEvents.h>
+#include <Common/IO/WriteBufferFromString.h>
 
 
 namespace RK
@@ -158,6 +159,27 @@ void MultiResponse::removeRootPath(const String & root_path)
 {
     for (auto & response : responses)
         response->removeRootPath(root_path);
+}
+
+String toString(const Coordination::ACLs & acls)
+{
+    WriteBufferFromOwnString ret;
+    String left_bracket = "[ ";
+    String comma = ", ";
+    String right_bracket = " ]";
+    ret.write(left_bracket.c_str(), left_bracket.length());
+    for (const auto & acl : acls)
+    {
+        auto permissions = std::to_string(acl.permissions);
+        ret.write(permissions.c_str(), permissions.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.scheme.c_str(), acl.scheme.length());
+        ret.write(comma.c_str(), comma.length());
+        ret.write(acl.id.c_str(), acl.id.length());
+        ret.write(comma.c_str(), comma.length());
+    }
+    ret.write(right_bracket.c_str(), right_bracket.length());
+    return ret.str();
 }
 
 }
