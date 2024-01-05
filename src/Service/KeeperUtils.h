@@ -17,12 +17,6 @@ String checkAndGetSuperdigest(const String & user_and_digest);
 nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
 nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 
-class Directory
-{
-public:
-    static int createDir(const String & path);
-};
-
 
 inline int readUInt32(nuraft::ptr<std::fstream> & fs, UInt32 & x)
 {

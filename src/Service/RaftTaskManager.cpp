@@ -54,13 +54,7 @@ int CommittedTask::read(int & fd)
 RaftTaskManager::RaftTaskManager(const String & snapshot_dir) : thread_pool(1), log(&Poco::Logger::get("RaftTaskManager"))
 {
     if (!Poco::File(snapshot_dir).exists())
-    {
-        if (Directory::createDir(snapshot_dir) != 0)
-        {
-            LOG_ERROR(log, "Fail to create directory {}", snapshot_dir);
-            return;
-        }
-    }
+        Poco::File(snapshot_dir).createDirectories();
 
     //task file names
     task_file_names.push_back(snapshot_dir + "/committed.task");
