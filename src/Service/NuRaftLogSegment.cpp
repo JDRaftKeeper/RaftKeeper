@@ -724,11 +724,7 @@ int LogSegmentStore::init(UInt32 max_segment_file_size_, UInt32 max_segment_coun
     max_segment_file_size = max_segment_file_size_;
     max_segment_count = max_segment_count_;
 
-    if (Directory::createDir(log_dir) != 0)
-    {
-        LOG_ERROR(log, "Fail to create directory {}", log_dir);
-        return -1;
-    }
+    Poco::File(log_dir).createDirectories();
 
     int ret = 0;
 

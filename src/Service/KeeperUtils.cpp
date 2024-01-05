@@ -18,12 +18,6 @@ namespace ErrorCodes
     extern const int INVALID_CONFIG_PARAMETER;
 }
 
-int Directory::createDir(const String & dir)
-{
-    Poco::File(dir).createDirectories();
-    return 0;
-}
-
 String checkAndGetSuperdigest(const String & user_and_digest)
 {
     if (user_and_digest.empty())
