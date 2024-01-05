@@ -10,7 +10,6 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int ALL_CONNECTION_TRIES_FAILED;
-    extern const int NETWORK_ERROR;
     extern const int UNEXPECTED_FORWARD_PACKET;
     extern const int RAFT_FORWARD_ERROR;
     extern const int FORWARD_NOT_CONNECTED;
