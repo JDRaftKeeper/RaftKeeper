@@ -34,7 +34,6 @@ namespace ErrorCodes
     extern const int CHECKSUM_DOESNT_MATCH;
     extern const int CORRUPTED_DATA;
     extern const int UNKNOWN_FORMAT_VERSION;
-    extern const int CANNOT_CREATE_DIRECTORY;
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
 }
 
