@@ -1135,12 +1135,12 @@ struct StoreRequestMultiTxn final : public StoreRequest
                 }
                 else
                 {
-                    if (cur_response->error != Coordination::Error::ZOK)
-                    {
-                        auto response_error = cur_response->error;
-                        response.responses[i] = std::make_shared<Coordination::ZooKeeperErrorResponse>();
-                        response.responses[i]->error = response_error;
-                    }
+                    /// if (cur_response->error != Coordination::Error::ZOK)
+                    /// {
+                    ///     auto response_error = cur_response->error;
+                    ///     response.responses[i] = std::make_shared<Coordination::ZooKeeperErrorResponse>();
+                    ///     response.responses[i]->error = response_error;
+                    /// }
                     undo_actions.emplace_back(std::move(undo_action));
                 }
                 ++i;
