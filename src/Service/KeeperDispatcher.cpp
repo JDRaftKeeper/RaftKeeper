@@ -263,8 +263,7 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
 
     UInt64 session_sync_period_ms = configuration_and_settings->raft_settings->dead_session_check_period_ms * 2;
     request_forwarder.initialize(thread_count, server, shared_from_this(), session_sync_period_ms, operation_timeout_ms);
-    request_accumulator.initialize(
-        1, shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
+    request_accumulator.initialize(shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
     requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
 
     request_thread = std::make_shared<ThreadPool>(thread_count);

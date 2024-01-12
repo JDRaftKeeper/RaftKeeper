@@ -11,9 +11,9 @@ void RequestAccumulator::push(const RequestForSession & request_for_session)
 }
 
 
-void RequestAccumulator::run(RunnerId runner_id)
+void RequestAccumulator::run()
 {
-    setThreadName(("ReqAccumu#" + toString(runner_id)).c_str());
+    setThreadName("ReqAccumu");
 
     NuRaftResult result;
 
@@ -27,11 +27,11 @@ void RequestAccumulator::run(RunnerId runner_id)
         bool pop_success;
         if (to_append_batch.empty())
         {
-            pop_success = requests_queue->tryPop(runner_id, request_for_session, max_wait);
+            pop_success = requests_queue->tryPop(request_for_session, max_wait);
         }
         else
         {
-            if (!requests_queue->tryPop(runner_id, request_for_session))
+            if (!requests_queue->tryPop(request_for_session))
             {
                 result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
@@ -99,7 +99,7 @@ void RequestAccumulator::shutdown()
     shutdown_called = true;
 
     RequestForSession request_for_session;
-    while (requests_queue->tryPopAny(request_for_session))
+    while (requests_queue->tryPop(request_for_session))
     {
         request_processor->onError(
             false,
@@ -111,7 +111,6 @@ void RequestAccumulator::shutdown()
 }
 
 void RequestAccumulator::initialize(
-    size_t runner_count,
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     std::shared_ptr<KeeperServer> server_,
     UInt64 operation_timeout_ms_,
@@ -121,12 +120,9 @@ void RequestAccumulator::initialize(
     operation_timeout_ms = operation_timeout_ms_;
     max_batch_size = max_batch_size_;
     server = server_;
-    requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
-    request_thread = std::make_shared<ThreadPool>(runner_count);
-    for (size_t i = 0; i < runner_count; i++)
-    {
-        request_thread->trySchedule([this, i] { run(i); });
-    }
+    requests_queue = std::make_shared<ConcurrentBoundedQueue<RequestForSession>>(20000);
+    request_thread = std::make_shared<ThreadPool>(1);
+    request_thread->trySchedule([this] { run(); });
 }
 
 }
