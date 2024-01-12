@@ -1797,8 +1797,8 @@ void KeeperStore::dumpSessionsAndEphemerals(WriteBufferFromOwnString & buf) cons
         }
     }
 
-    std::lock_guard lock(ephemerals_mutex);
     buf << "Sessions with Ephemerals (" << getSessionWithEphemeralNodesCount() << "):\n";
+    std::lock_guard lock(ephemerals_mutex);
     for (const auto & [session_id, ephemeral_paths] : ephemerals)
     {
         buf << toHexString(session_id) << "\n";
