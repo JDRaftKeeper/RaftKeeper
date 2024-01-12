@@ -23,15 +23,15 @@ namespace RK
  * The whole requests execution pipeline looks like:
  *
  *        1        2        3         4         5
- *      -----    -----    -----               -----
+ *      -----    -----                        -----
  *      -----    -----    -----     -----     -----
- *      -----    -----    -----               -----
+ *      -----    -----                        -----
  * 1 KeeperDispatcher: receive user requests and dispatcher to RequestForwarder(write request)
  *   or RequestProcessor(read request).
  * 2 RequestForwarder: redirect request to leader.
  * 3 RequestAccumulator: accumulate request and send to Raft in batch.
  * 4 Raft data replication
- * 5 RequestProcessor: process user requests, for read requests
+ * 5 RequestProcessor: process user requests, for write requests only 1 thread running, for read requests multi-thread running.
  */
 struct RequestsQueue
 {
@@ -75,18 +75,11 @@ struct RequestsQueue
         return queues[queue_id]->tryPop(request, wait_ms);
     }
 
-    [[maybe_unused]] bool tryPopMicro(size_t queue_id, RequestForSession & request, UInt64 wait_micro = 0)
-    {
-        assert(queue_id < queues.size());
-        return queues[queue_id]->tryPopMicro(request, wait_micro);
-    }
-
-
     bool tryPopAny(RequestForSession & request, UInt64 wait_ms = 0)
     {
         for (const auto & queue : queues)
         {
-            if (queue->tryPop(request, wait_ms * 1000))
+            if (queue->tryPop(request, wait_ms))
                 return true;
         }
         return false;

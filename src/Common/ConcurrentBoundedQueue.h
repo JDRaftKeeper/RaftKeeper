@@ -223,12 +223,6 @@ public:
         return popImpl(x, milliseconds);
     }
 
-    /// Returns false if queue is (finished and empty) or (object was not popped during timeout microseconds)
-    bool tryPopMicro(T & x, UInt64 microseconds = 0)
-    {
-        return popImplMicro(x, microseconds);
-    }
-
     /// Returns size of queue
     size_t size() const
     {
