@@ -28,12 +28,11 @@ public:
 
     bool waitResultAndHandleError(NuRaftResult prev_result, const KeeperStore::RequestsForSessions & prev_batch);
 
-    void run(RunnerId runner_id);
+    void run();
 
     void shutdown();
 
     void initialize(
-        size_t runner_count,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         std::shared_ptr<KeeperServer> server_,
         UInt64 operation_timeout_ms_,
@@ -42,7 +41,7 @@ public:
 private:
     Poco::Logger * log;
 
-    ptr<RequestsQueue> requests_queue;
+    ptr<ConcurrentBoundedQueue<RequestForSession>> requests_queue;
     ThreadPoolPtr request_thread;
 
     std::atomic<bool> shutdown_called{false};
