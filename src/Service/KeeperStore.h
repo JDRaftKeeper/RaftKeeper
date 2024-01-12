@@ -348,7 +348,7 @@ public:
 
     uint64_t getSessionWithEphemeralNodesCount() const
     {
-        std::lock_guard lock(watch_mutex);
+        std::lock_guard lock(ephemerals_mutex);
         return ephemerals.size();
     }
     uint64_t getTotalEphemeralNodesCount() const;
