@@ -193,7 +193,7 @@ public:
     using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
     using SessionIDs = std::vector<int64_t>;
 
-    using Watches = std::map<String /* path, relative of root_path */, SessionIDs>;
+    using Watches = std::unordered_map<String /* path, relative of root_path */, SessionIDs>;
 
     /// global session id counter, used to allocate new session id.
     /// It should be same across all nodes.
