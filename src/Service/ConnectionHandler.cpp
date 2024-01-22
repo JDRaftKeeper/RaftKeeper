@@ -78,7 +78,7 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
     , responses(std::make_unique<ThreadSafeResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
-    LOG_DEBUG(log, "New connection from {}", peer);
+    LOG_INFO(log, "New connection from {}", peer);
     registerConnection(this);
 
     auto read_handler = Observer<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
@@ -336,6 +336,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
 
         if (responses->peek(resp) && resp == is_close)
         {
+            LOG_DEBUG(log, "Received close event for session_id {}, internal_id {}", toHexString(session_id.load()), toHexString(internal_id.load()));
             destroyMe();
             return;
         }
@@ -609,34 +610,39 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
     Coordination::write(passwd, buf);
 
-    /// Set socket to blocking mode to simplify sending.
-    sock.setBlocking(true);
-    sock.sendBytes(*buf.getBuffer());
-    sock.setBlocking(false);
+    // Send response to client
+    {
+        std::lock_guard lock(send_response_mutex);
+        responses->push(buf.getBuffer());
+        reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+    }
+    reactor.wakeUp();
 
     if (!success)
     {
         LOG_ERROR(log, "Failed to establish session, close connection.");
-        if (session_id)
-            keeper_dispatcher->unregisterUserResponseCallBackWithoutLock(session_id);
-        if (!handshake_done)
-            keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(internal_id);
-        else
-            keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(session_id);
-        delete this;
-        return;
+
+        // Send empty FIFOBuffer to close connection
+        {
+            std::lock_guard lock(send_response_mutex);
+            responses->push(ptr<FIFOBuffer>());
+            reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+        }
+        reactor.wakeUp();
     }
+    else
+    {
+        session_id = sid;
+        handshake_done = true;
 
-    session_id = sid;
-    handshake_done = true;
+        /// 2. Register callback
 
-    /// 2. Register callback
+        keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(id);
+        auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response_) { pushUserResponseToSendingQueue(response_); };
 
-    keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(id);
-    auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response_) { pushUserResponseToSendingQueue(response_); };
-
-    bool is_reconnected = response->getOpNum() == Coordination::OpNum::UpdateSession;
-    keeper_dispatcher->registerUserResponseCallBackWithoutLock(sid, response_callback, is_reconnected);
+        bool is_reconnected = response->getOpNum() == Coordination::OpNum::UpdateSession;
+        keeper_dispatcher->registerUserResponseCallBackWithoutLock(sid, response_callback, is_reconnected);
+    }
 }
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
