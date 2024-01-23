@@ -310,7 +310,7 @@ def test_cmd_srvr(started_cluster):
         assert 'RaftKeeper version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '11'
-        assert result['Sent'] == '10'
+        assert result['Sent'] == '11'
         assert int(result['Connections']) == 1
         assert int(result['Zxid']) > 14
         assert result['Mode'] == 'leader'
@@ -348,7 +348,7 @@ def test_cmd_stat(started_cluster):
         assert 'RaftKeeper version' in result
         assert 'Latency min/avg/max' in result
         assert result['Received'] == '11'
-        assert result['Sent'] == '10'
+        assert result['Sent'] == '11'
         assert int(result['Connections']) == 1
         assert int(result['Zxid']) > 14
         assert result['Mode'] == 'leader'
@@ -369,7 +369,7 @@ def test_cmd_stat(started_cluster):
             result[col[0]] = col[1]
 
         assert result['recved'] == '11'
-        assert result['sent'] == '10'
+        assert result['sent'] == '11'
 
     finally:
         close_zk_client(zk)
@@ -403,7 +403,7 @@ def test_cmd_cons(started_cluster):
             result[col[0]] = col[1]
 
         assert result['recved'] == '11'
-        assert result['sent'] == '10'
+        assert result['sent'] == '11'
         assert 'sid' in result
         assert result['lop'] == 'Create'
         assert 'est' in result
