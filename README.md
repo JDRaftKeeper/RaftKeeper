@@ -6,14 +6,19 @@ client. It implements most of the functions of Zookeeper (except: Container node
 TTL node, quota etc.) and provides some additional functions, such as more 
 monitoring indicators, manual Leader switching and so on. 
 
-RaftKeeper provides a multi-thread processor for performance consideration. 
-But also it provides below guarantee:
-1. Requests response must be returned in order in one session.
+RaftKeeper provides same consistency guarantee:
+1. Responses must be returned in order in one session.
 2. All committed write requests must be handled in order, across all sessions.
 
 RaftKeeper data resides in memory and provides snapshot + operation log data 
 persistence capabilities. The execution framework adopts pipeline and batch 
-execution methods to greatly improve system throughput, see [Benchmark](benchmark%2FBenchmark.md) for details.
+execution methods to greatly improve system throughput.
+
+The main features of RaftKeeper are its performance and query stability. 
+1. It provides a throughput that is twice as high as Zookeeper
+2. TP99 is smoother than Zookeeper
+
+See [benchmark](benchmark%2FBenchmark.md) for details.
 
 RaftKeeper is derived from [ClickHouse](https://github.com/ClickHouse/ClickHouse) 
 and take [NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
