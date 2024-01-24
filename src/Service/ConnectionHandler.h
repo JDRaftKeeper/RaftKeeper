@@ -15,9 +15,9 @@
 #include <Poco/Util/ServerApplication.h>
 
 #include <Common/IO/WriteBufferFromString.h>
-#include <Common/NIO/SocketAcceptor.h>
-#include <Common/NIO/SocketNotification.h>
-#include <Common/NIO/SocketReactor.h>
+#include <NIO/SocketAcceptor.h>
+#include <NIO/SocketNotification.h>
+#include <NIO/SocketReactor.h>
 
 #include <Service/ConnCommon.h>
 #include <Service/ConnectionStats.h>

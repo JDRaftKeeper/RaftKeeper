@@ -3,9 +3,9 @@
 * SPDX-License-Identifier:	BSL-1.0
 *
 */
-#include <Common/NIO/SocketNotification.h>
-#include <Common/NIO/SocketNotifier.h>
-#include <Common/NIO/SocketReactor.h>
+#include <NIO/SocketNotification.h>
+#include <NIO/SocketNotifier.h>
+#include <NIO/SocketReactor.h>
 
 
 namespace RK

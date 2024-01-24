@@ -31,12 +31,12 @@ if (COMPILER_GCC)
 endif ()
 
 add_subdirectory (Common)
+add_subdirectory (NIO)
 add_subdirectory (Common/IO)
 add_subdirectory (Service)
 
 add_headers_and_sources(raftkeeper_common_io Common)
 add_headers_and_sources(raftkeeper_common_io Common/IO)
-add_headers_and_sources(raftkeeper_common_io Common/NIO)
 list (REMOVE_ITEM raftkeeper_common_io_sources Common/malloc.cpp Common/new_delete.cpp)
 
 list (APPEND raftkeeper_common_io_sources ${CONFIG_BUILD})
@@ -81,6 +81,7 @@ macro(add_object_library name common_path)
 endmacro()
 
 add_object_library(raftkeeper_service Service)
+add_object_library(raftkeeper_nio NIO)
 
 if (MAKE_STATIC_LIBRARIES OR NOT SPLIT_SHARED_LIBRARIES)
     add_library (dbms STATIC ${dbms_headers} ${dbms_sources})

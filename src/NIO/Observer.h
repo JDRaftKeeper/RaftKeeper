@@ -4,7 +4,7 @@
 */
 #pragma once
 
-#include <Common/NIO/Notification.h>
+#include <NIO/Notification.h>
 
 namespace RK
 {
