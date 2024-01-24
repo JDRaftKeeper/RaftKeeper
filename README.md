@@ -29,19 +29,6 @@ We really appreciate the excellent work of the ClickHouse and NuRaft team.
 
 ## 1. Build RaftKeeper
 
-### Build on Centos
-
-Requirement: Centos 7.4+, Gcc 10.2.0+, Cmake 3.12+
-```
-# clone project
-git clone https://github.com/JDRaftKeeper/RaftKeeper.git
-git submodule sync && git submodule update --init --recursive
-
-# build project
-export CC=`which gcc-10` CXX=`which g++-10`
-cd RaftKeeper && sh build.sh
-```
-
 ### Build on Ubuntu
 
 Requirement: Ubuntu 20.04+, Clang 13+, Cmake 3.12+
@@ -58,39 +45,11 @@ export CC=`which clang-13` CXX=`which clang++-13`
 cd RaftKeeper && /bin/bash build.sh
 ```
 
-### Build on macOS
-
-Requirement: macOS 10+, Clang 13+, Cmake 3.12+
-
-```
-# install tools
-brew install cmake llvm@13
- 
-# clone project
-git clone https://github.com/JDRaftKeeper/RaftKeeper.git
-git submodule sync && git submodule update --init --recursive
- 
-# build project
-export CC=/usr/local/opt/llvm@13/bin/clang CXX=/usr/local/opt/llvm@13/bin/clang++
-cd RaftKeeper && sh build.sh
-```
+Now RaftKeeper support build on Linux and Mac OX, details see [how-to-build](docs%2Fhow-to-build.md)
 
 ## 2. Deploy RaftKeeper
 
-Deploy a three nodes cluster.
-```
-# use tar.gz file in step 1.
-tar -xzvf RaftKeeper.tar.gz
- 
-# configure it: replace my_id under <my_id> 
-# If you deploy a multi nodes cluster, configure id & host under <cluster>. 
-#     Pls note that nodes must has different id.
-vim RaftKeeper/conf/config.xml
- 
-# start it
-cd RaftKeeper/bin && sh start.sh
-```
-
+To deploy a RaftKeeper cluster you can see [how-to-deploy](docs%2Fhow-to-deploy.md).
 
 ## 3. Access RaftKeeper
 
@@ -98,7 +57,13 @@ You can use ZooKeeper's shell client [zkCli.sh](https://zookeeper.apache.org/doc
 to access to RaftKeeper, or you can use Java, python or C ZooKeeper clients to access. 
 Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
 
+The following is a `zkCli.sh` demo
+
+```
+./zkCli.sh -server node1:8101
+```
+
 # How to migrate from Zookeeper?
 
 RaftKeeper provides tool to translate Zookeeper data to RaftKeeper format. So you can 
-simply move data into RaftKeeper, detail is in [migrate-from-zookeeper](docs%2Fmigrate-from-zookeeper.md).
+simply move data into RaftKeeper, detail is in [how-to-migrate-from-zookeeper](docs%2Fhow-to-migrate-from-zookeeper.md).
