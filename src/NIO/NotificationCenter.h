@@ -13,7 +13,7 @@
 #include <Poco/Mutex.h>
 #include <Poco/SharedPtr.h>
 
-#include <Common/NIO/Observer.h>
+#include <NIO/Observer.h>
 
 
 namespace RK

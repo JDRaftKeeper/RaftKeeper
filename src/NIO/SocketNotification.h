@@ -7,8 +7,8 @@
 #include <Poco/Net/Net.h>
 #include <Poco/Net/Socket.h>
 
-#include <Common/NIO/Notification.h>
-#include <Common/NIO/SocketReactor.h>
+#include <NIO/Notification.h>
+#include <NIO/SocketReactor.h>
 
 using Poco::Net::Socket;
 

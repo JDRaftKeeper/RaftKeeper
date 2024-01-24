@@ -9,7 +9,7 @@
 
 #include <Common/Config/ConfigReloader.h>
 #include <Common/CurrentMetrics.h>
-#include <Common/NIO/SocketAcceptor.h>
+#include <NIO/SocketAcceptor.h>
 #include <Common/config_version.h>
 #include <Common/getExecutablePath.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
