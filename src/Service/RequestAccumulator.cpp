@@ -1,6 +1,7 @@
+#include <Common/setThreadName.h>
+
 #include <Service/KeeperDispatcher.h>
 #include <Service/RequestAccumulator.h>
-#include <Common/setThreadName.h>
 
 namespace RK
 {
@@ -13,7 +14,7 @@ void RequestAccumulator::push(const RequestForSession & request_for_session)
 
 void RequestAccumulator::run()
 {
-    setThreadName("ReqAccumu");
+    setThreadName("ReqAccumulator");
 
     NuRaftResult result;
 
@@ -121,8 +122,7 @@ void RequestAccumulator::initialize(
     max_batch_size = max_batch_size_;
     server = server_;
     requests_queue = std::make_shared<ConcurrentBoundedQueue<RequestForSession>>(20000);
-    request_thread = std::make_shared<ThreadPool>(1);
-    request_thread->trySchedule([this] { run(); });
+    request_thread = ThreadFromGlobalPool([this] { run(); });
 }
 
 }

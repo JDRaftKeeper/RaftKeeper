@@ -42,7 +42,7 @@ private:
     Poco::Logger * log;
 
     ptr<ConcurrentBoundedQueue<RequestForSession>> requests_queue;
-    ThreadPoolPtr request_thread;
+    ThreadFromGlobalPool request_thread;
 
     std::atomic<bool> shutdown_called{false};
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
