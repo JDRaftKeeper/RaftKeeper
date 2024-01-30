@@ -6,9 +6,12 @@ demonstrate how to deploy a standalone node and a 3-node cluster.
 ### Deploy a standalone node
 
 1. Download binary file from [here](https://github.com/JDRaftKeeper/RaftKeeper/releases).
+Please note that If you want to use RaftKeeper in ClickHouse, please choose the installation package whose name contains 'clickhouse'.
+Because ClickHouse from v22.10 is a little incompatible with Zookeeper, and we provide 2 installation packages.
+
 2. Uncompress the file using the following command:
 ```
-tar -xzvf RaftKeeper.xxx.tar.gz
+tar -xzvf RaftKeeper-xxx.tar.gz
 ```
 
 3. Update `conf/config.xml`
@@ -38,10 +41,11 @@ cd RaftKeeper/bin && sh start.sh
 ### Deploy a 3-nodes cluster
 
 1. Download binary file from [here](https://github.com/JDRaftKeeper/RaftKeeper/releases).
+Please choose the correct installation package.
 
 2. Uncompress the file using the following command:
 ```
-tar -xzvf RaftKeeper.xxx.tar.gz
+tar -xzvf RaftKeeper-xxx.tar.gz
 ```
 
 3. Update the `conf/config.xml` file for each node in the cluster:
@@ -108,6 +112,7 @@ Node 2:
     </keeper>
 </raftkeeper>
 ```
+
 Node 3:
 ```xml
 <?xml version="1.0"?>
@@ -118,7 +123,7 @@ Node 3:
     </logger>
     <keeper>
         <my_id>3</my_id>
-        <log_dir>/path/to/raftkeeper/root/dir//data/log</log_dir>
+        <log_dir>/path/to/raftkeeper/root/dir/data/log</log_dir>
         <snapshot_dir>/path/to/raftkeeper/root/dir/data/snapshot</snapshot_dir>
         <cluster>
             <server>
@@ -137,9 +142,11 @@ Node 3:
     </keeper>
 </raftkeeper>
 ```
-Please note that you need to replace ip_of_node1, ip_of_node2, and ip_of_node3 with the respective IP addresses of the nodes in the cluster.
+Please note that you need to replace `ip_of_node1`, `ip_of_node2`, and `ip_of_node3` with the respective IP addresses of the nodes in the cluster
+and `/path/to/raftkeeper/root/dir/` with your RaftKeeper root directory.
 
-4. Start the cluster by executing the following command:
+
+4. Start the cluster by executing the following command in every node:
 ```
 cd RaftKeeper/bin && sh start.sh
 ```
