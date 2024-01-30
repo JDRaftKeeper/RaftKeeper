@@ -30,7 +30,7 @@ project(RaftKeeper)
 
 option(COMPATIBLE_MODE_ZOOKEEPER
     "ClickHouse client from v22.10 is a little incompatible with Zookeeper, for example multi-read response.
-    If it is OFF, the built binary is ClickHouse compatible, else it is Zookeeper compatible." ON)
+    If it is ON, the built binary is Zookeeper compatible, else it is ClickHouse compatible." ON)
 
 message(STATUS "COMPATIBLE_MODE_ZOOKEEPER: ${COMPATIBLE_MODE_ZOOKEEPER}")
 

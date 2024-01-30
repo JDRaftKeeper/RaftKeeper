@@ -43,6 +43,9 @@ git submodule sync && git submodule update --init --recursive
 # build project
 export CC=`which clang-13` CXX=`which clang++-13`
 cd RaftKeeper && /bin/bash build.sh
+
+# build for ClickHouse usage
+cd RaftKeeper && /bin/bash build.sh 'clickhouse'
 ```
 
 Now RaftKeeper support build on Linux and Mac OX, details see [how-to-build](docs%2Fhow-to-build.md)

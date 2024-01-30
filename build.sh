@@ -1,6 +1,20 @@
 #!/bin/bash
 set -eo pipefail
 
+mode=''
+
+# The argument must be either 'zookeeper' or 'clickhouse'
+if [ "$#" -lt 0 ] && [ "$1" != "zookeeper" ] && [ "$1" != "clickhouse" ]; then
+  echo "Usage: $0 [zookeeper|clickhouse]"
+  exit 1
+fi
+
+if [ "$1" != "clickhouse" ]; then
+  mode='zookeeper'
+else
+  mode='clickhouse'
+fi
+
 ROOT=$(dirname "$0")
 ROOT=$(cd "$ROOT"; pwd)
 mkdir -p $ROOT/build
@@ -13,6 +27,7 @@ function version()
 # build binary
 function build()
 {
+  echo "Building in $1 compatible mode."
   cd $ROOT/build && find $ROOT/build -type f ! -name '*.tar.gz' -exec rm -f {} +
 
   COMPATIBLE_MODE_ZOOKEEPER="ON"
@@ -23,11 +38,15 @@ function build()
 
   PARALLEL="$(($(nproc) / 4 + 1))"
   make -j $PARALLEL
+
+  echo "Build complete!"
+  echo ""
 }
 
 # make tarball
 function package()
 {
+  echo "Packaging in $1 compatible mode."
   cd "$ROOT"
   mkdir -p build/RaftKeeper
   mkdir -p build/RaftKeeper/bin
@@ -55,11 +74,6 @@ function package()
   echo "RaftKeeper is built into build/${file_name}."
 }
 
-# Zookeeper compatible installation package
-build "zookeeper"
-package "zookeeper"
-
-# ClickHouse compatible installation package
-build "clickhouse"
-package "clickhouse"
-
+build "$mode"
+package "$mode"
+echo "Done!"
