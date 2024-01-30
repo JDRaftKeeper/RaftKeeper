@@ -1135,7 +1135,7 @@ struct StoreRequestMultiTxn final : public StoreRequest
                 }
                 else
                 {
-#ifndef CLICKHOUSE_COMPATIBLE_MODE
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
                     if (cur_response->error != Coordination::Error::ZOK)
                     {
                         auto response_error = cur_response->error;

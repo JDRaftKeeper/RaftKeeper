@@ -235,6 +235,11 @@ String MonitorCommand::run()
     writeText(BUILD_TIME, version);
 
     print(ret, "version", version.str());
+#ifdef  COMPATIBLE_MODE_ZOOKEEPER
+    print(ret, "compatible_mode", "zookeeper");
+#else
+    print(ret, "compatible_mode", "clickhouse");
+#endif
 
     print(ret, "avg_latency", stats.getAvgLatency());
     print(ret, "max_latency", stats.getMaxLatency());
