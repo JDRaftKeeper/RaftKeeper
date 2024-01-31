@@ -20,6 +20,7 @@ public class ZooTask implements Runnable {
 
     private final int id;
     private ZooKeeper zoo;
+    private static final int MAX_RETRIES = 10;
 
     private final CountDownLatch latch;
 
@@ -32,10 +33,16 @@ public class ZooTask implements Runnable {
         // init zookeeper client
         ZooKeeper zk = new ZooKeeper(Benchmark.nodes, 10000, event -> {});
 
-        if (zk.getState() != ZooKeeper.States.CONNECTED) {
-            System.out.println("Failed to connect server!");
-            System.exit(1);
+        int retryCount = 0;
+        // waiting for connection to be established
+        while (zk.getState() != ZooKeeper.States.CONNECTED) {
+            Thread.sleep(100);
+            if (++retryCount > MAX_RETRIES) {
+                System.out.println("Failed to connect server!");
+                System.exit(1);
+            }
         }
+
         return zk;
     }
 
