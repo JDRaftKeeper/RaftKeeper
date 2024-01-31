@@ -15,14 +15,14 @@ persistence capabilities. The execution framework adopts pipeline and batch
 execution methods to greatly improve system throughput.
 
 The main features of RaftKeeper are its performance and query stability. 
-1. It provides a throughput that is twice as high as Zookeeper
+1. The write-request throughput is twice as high as Zookeeper
 2. TP99 is smoother than Zookeeper
 
 See [benchmark](benchmark%2FBenchmark.md) for details.
 
 RaftKeeper is derived from [ClickHouse](https://github.com/ClickHouse/ClickHouse) 
 and take [NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
-We really appreciate the excellent work of the ClickHouse and NuRaft team.
+We really appreciate the excellent work of the ClickHouse and NuRaft teams.
 
 
 # How to start?
@@ -44,8 +44,10 @@ git submodule sync && git submodule update --init --recursive
 export CC=`which clang-13` CXX=`which clang++-13`
 cd RaftKeeper && /bin/bash build.sh
 
-# build for ClickHouse usage
+# build for ClickHouse usage (for ClickHouse client is slightly incompatible with zookeeper)
 cd RaftKeeper && /bin/bash build.sh 'clickhouse'
+
+# now you can find built files in director 'build/'
 ```
 
 Now RaftKeeper support build on Linux and Mac OX, details see [how-to-build](docs%2Fhow-to-build.md)
@@ -57,16 +59,16 @@ To deploy a RaftKeeper cluster you can see [how-to-deploy](docs%2Fhow-to-deploy.
 ## 3. Access RaftKeeper
 
 You can use ZooKeeper's shell client [zkCli.sh](https://zookeeper.apache.org/doc/r3.6.0/zookeeperCLI.html) 
-to access to RaftKeeper, or you can use Java, python or C ZooKeeper clients to access. 
-Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
-
+to access to RaftKeeper, or you can use Java, python or C ZooKeeper clients to access it.
 The following is a `zkCli.sh` demo
 
 ```
-./zkCli.sh -server node1:8101
+./zkCli.sh -server localhost:8101
 ```
+Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
+4lw command provide the ablility to monitor and manage RaftKeeper, details see [how-to-monitor-and-manage](docs%2Fhow-to-monitor-and-manage.md)
 
 # How to migrate from Zookeeper?
 
-RaftKeeper provides tool to translate Zookeeper data to RaftKeeper format. So you can 
-simply move data into RaftKeeper, detail is in [how-to-migrate-from-zookeeper](docs%2Fhow-to-migrate-from-zookeeper.md).
+RaftKeeper provides a tool to translate Zookeeper data to RaftKeeper format. So you can 
+simply move the translated data into RaftKeeper, detail is in [how-to-migrate-from-zookeeper](docs%2Fhow-to-migrate-from-zookeeper.md).

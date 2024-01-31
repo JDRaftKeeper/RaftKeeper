@@ -1,6 +1,6 @@
 # Build RaftKeeper
 
-Now RaftKeeper support build on Linux and Mac OX.
+RaftKeeper supports build on Linux and Mac OX.
 
 ### Build on Ubuntu
 
@@ -51,18 +51,18 @@ cd RaftKeeper && sh build.sh
 ### Build for ClickHouse usage
 
 ClickHouse client from v22.10 is a little incompatible with Zookeeper, for example multi-read response.
-If you want to build a ClickHouse compatible binary.
+If you want to build a ClickHouse compatible binary, you can take the following command
 
 ```
 sh build.sh 'clickhouse'
 ```
 
-Uou can use `mntr` command to check the compatible mode of the binary.
+You can use `mntr` command to check the compatible mode of the binary.
 
 ```
 echo mntr | nc localhost 8101
+
 zk_version	RaftKeeper v2.0.4-8071b19a301138ea6525e9884d99e779d6d127c9, built on 2024-01-30 16:52:15 CST
 zk_compatible_mode	zookeeper       /// The binary is zookeeper compatible.
-zk_avg_latency	0
 ...
 ```
