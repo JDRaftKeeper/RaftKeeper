@@ -4,10 +4,11 @@ The four-letter word command, abbreviated as the 4lw command, is currently the s
 It is based on the Zookeeper v3.5 4lw command, and we have made some extensions on this basis to better facilitate monitoring. 
 Additionally, we provide some basic management commands.
 
-The 4lw commands has a white list configuration four_letter_word_white_list which has default value 
-`conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp`.
+The 4lw commands has a white list configuration `four_letter_word_white_list` which has default value 
+`conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp`. If you want to 
+enable more command, just add to it, or use `*`. 
 
-You can send the commands to ClickHouse Keeper `nc`.
+You can send the commands to ClickHouse Keeper by `nc`.
 
 ```
 echo mntr | nc localhost 8101
@@ -32,7 +33,7 @@ Process uptime in seconds.
 ```
 
 #### mntr
-`mntr` is the provide rich metrics and is the main monitoring command. The following is the output
+`mntr` provide rich metrics and is the main monitoring command. The following is the output
 
 ```
 zk_version	RaftKeeper v2.0.4-e80e94979318adc94e81664053d782d0c9d7e60f, built on 2024-01-11 10:59:45 CST
@@ -57,6 +58,31 @@ zk_max_file_descriptor_count	60480000
 zk_followers	2
 zk_synced_followers	2
 ```
+The explanation of the metrics is as follows:
+```
+zk_version: RaftKeeper version including binary built time
+zk_compatible_mode:	the binary compatible mode, the valid values is 'zookeeper' and 'clickhouse', ClickHouse is somewhat incompatible with Zookeeper, so we provide two binary packages.
+zk_avg_latency: average latency in the whole process live time
+zk_max_latency: max latency in the whole process live time
+zk_min_latency: min latency in the whole process live time
+zk_packets_received: packet received count in the whole process live time, you can simply think of it as the number of requests 
+zk_packets_sent: packet sent count in the whole process live time, you can simply think of it as the number of requests
+zk_num_alive_connections: active connections right now
+zk_outstanding_requests: requests count in waiting queue, if it is large means that the process is under presure
+zk_server_state: server role, leader for multi-node cluster and role is leader, follower for multi-node cluster and role is follower, observer for node who dees not participate in leader election and log replication, standalone for 1 node cluster.
+zk_znode_count: znode count
+zk_watch_count: watch
+zk_ephemerals_count	41933
+zk_approximate_data_size: approximate data size in byte
+zk_snap_count: the number of snapshots created in the whole process live time
+zk_snap_time_ms: The time spent creating snapshots in the whole process live time
+zk_in_snapshot: whether process is creating snapshot right now
+zk_open_file_descriptor_count: current opening fd count
+zk_max_file_descriptor_count: max opening fd count
+zk_followers: follower count, only present on the leader
+zk_synced_followers: synced follower count, only present on the leader
+```
+Please note that the metrics `zk_followers` and `zk_synced_followers` are only present on the leader.
 
 #### srvr
 Lists full details for the server.
@@ -157,6 +183,21 @@ Tests if server is running in read-only mode. The server will respond with ro if
 ```
 rw
 ```
+#### envi
+Basic system information.
+```
+Environment:
+raftkeeper.version=RaftKeeper v2.0.4
+host.name=lf06-ch-000335-raftkeeper-0-1
+os.name=Linux
+os.arch=x86_64
+os.version=4.18.0-193.el8.jd_017.x86_64
+cpu.count=96
+user.name=
+user.home=/root/
+user.dir=/software/servers/
+user.tmp=/tmp/
+```
 
 #### wchs
 Lists brief information on watches for the server.
@@ -215,7 +256,7 @@ last_snapshot_idx	3749065412
 
 ### For management
 
-RaftKeeper also provides some useful command to manage system.
+RaftKeeper also provides some useful commands to manage system.
 
 #### rqld
 Request to become new leader. Return `Sent leadership request to leader.` if request sent 

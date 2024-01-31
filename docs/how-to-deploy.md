@@ -6,8 +6,8 @@ demonstrate how to deploy a standalone node and a 3-node cluster.
 ### Deploy a standalone node
 
 1. Download binary file from [here](https://github.com/JDRaftKeeper/RaftKeeper/releases).
-Please note that If you want to use RaftKeeper in ClickHouse, please choose the installation package whose name contains 'clickhouse'.
-Because ClickHouse from v22.10 is a little incompatible with Zookeeper, and we provide 2 installation packages.
+Please note that if you want to use RaftKeeper in ClickHouse, choose the installation package whose name contains 'clickhouse'.
+Because ClickHouse from v22.10 is a little incompatible with Zookeeper, and here we provide 2 installation packages.
 
 2. Uncompress the file using the following command:
 ```
@@ -50,7 +50,7 @@ tar -xzvf RaftKeeper-xxx.tar.gz
 
 3. Update the `conf/config.xml` file for each node in the cluster:
 
-The difference than deploying a standalone node is that you should config the cluster for each node.
+The difference than deploying a standalone node is that you should configure the cluster for each node.
 The following demonstrates how to configure the nodes.
 
 Node 1:
