@@ -14,7 +14,7 @@ cd RaftKeeper/benchmark && sh build.sh
 3. Run benchmark test
 
 ```
-bin/benchmark.sh nodes thread_size payload_size run_duration(second) only_create
+cd target/raft-benchmark-1.0 && bin/benchmark.sh nodes thread_size payload_size run_duration(second) only_create
 
 Arguments:
 
