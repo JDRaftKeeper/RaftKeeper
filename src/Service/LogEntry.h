@@ -8,7 +8,6 @@
 #    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
 #    pragma clang diagnostic ignored "-Wheader-hygiene"
 #endif
-#include <Service/proto/Log.pb.h>
 #ifdef __clang__
 #    pragma clang diagnostic pop
 #endif
@@ -47,21 +46,10 @@ struct LogEntryHeader
 class LogEntry
 {
 public:
-    /// return entry count
-    [[maybe_unused]] static ptr<log_entry> setTermAndIndex(ptr<log_entry> & entry, ulong term, ulong index);
-
     /// serialize log to nuraft buffer
     static char * serializeEntry(ptr<log_entry> & entry, ptr<buffer> & entry_buf, size_t & buf_size);
     /// parse log from buffer
     static ptr<log_entry> parseEntry(const char * entry_str, const UInt64 & term, size_t buf_size);
-
-    /// serialize protobuf to nuraft buffer
-    static ptr<buffer> serializePB(ptr<LogEntryPB> msg_pb);
-    static ptr<buffer> serializePB(LogEntryPB & msg_pb);
-
-    /// parse nuraft buffer to protobuf
-    static ptr<LogEntryPB> parsePB(ptr<buffer> msg_buf);
-    static ptr<LogEntryPB> parsePB(buffer & msg_buf);
 };
 
 }

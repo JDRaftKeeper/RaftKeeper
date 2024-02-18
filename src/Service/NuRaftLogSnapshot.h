@@ -9,7 +9,6 @@
 #include <Service/KeeperStore.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
-#include <Service/proto/Log.pb.h>
 #include <ZooKeeper/IKeeper.h>
 
 

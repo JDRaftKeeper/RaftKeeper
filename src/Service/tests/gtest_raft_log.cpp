@@ -1,135 +1,17 @@
 #include <Poco/File.h>
 
-#include <boost/program_options.hpp>
-#include <common/argsToConfig.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
 
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
-#include <Service/proto/Log.pb.h>
 #include <Service/tests/raft_test_common.h>
 
 
 using namespace nuraft;
 using namespace RK;
 
-namespace RK
-{
-TestServer::TestServer() = default;
-TestServer::~TestServer() = default;
-
-void TestServer::init(int argc, char ** argv)
-{
-    /// Don't parse options with Poco library, we prefer neat boost::program_options
-    stopOptionsProcessing();
-    /// Save received data into the internal config.
-    config().setBool("stacktrace", true);
-    config().setBool("logger.console", true);
-    config().setString("logger.log", "./test.logs");
-    const char * tag = argv[1];
-    const char * loglevel = "information";
-    if (argc >= 2)
-    {
-        if (strcmp(tag, "debug"))
-        {
-            loglevel = "debug";
-        }
-    }
-    config().setString("logger.level", loglevel);
-
-    config().setString("logger.level", "information");
-
-    config().setBool("ignore-error", false);
-
-    std::vector<String> arguments;
-    for (int arg_num = 1; arg_num < argc; ++arg_num)
-        arguments.emplace_back(argv[arg_num]);
-    argsToConfig(arguments, config(), 100);
-
-    if (config().has("logger.console") || config().has("logger.level") || config().has("logger.log"))
-    {
-        // force enable logging
-        config().setString("logger", "logger");
-        // sensitive data rules are not used here
-        buildLoggers(config(), logger(), "clickhouse-local");
-    }
-}
-
-void cleanDirectory(const String & log_dir, bool remove_dir)
-{
-    Poco::File dir_obj(log_dir);
-    if (dir_obj.exists())
-    {
-        std::vector<String> files;
-        dir_obj.list(files);
-        for (auto & file : files)
-        {
-            Poco::File(log_dir + "/" + file).remove();
-        }
-        if (remove_dir)
-        {
-            dir_obj.remove();
-        }
-    }
-}
-
-ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data)
-{
-    ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
-    entry_pb->set_entry_type(ENTRY_TYPE_DATA);
-    entry_pb->mutable_log_index()->set_term(term);
-    entry_pb->mutable_log_index()->set_index(index);
-    LogDataPB * data_pb = entry_pb->add_data();
-    data_pb->set_op_type(op);
-    data_pb->set_key(key);
-    data_pb->set_data(data);
-    return entry_pb;
-}
-
-ptr<LogEntryPB> createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, const String & key, const String & data)
-{
-    ptr<LogEntryPB> entry_pb = cs_new<LogEntryPB>();
-    entry_pb->set_entry_type(ENTRY_TYPE_DATA);
-    entry_pb->mutable_log_index()->set_term(term);
-    entry_pb->mutable_log_index()->set_index(index);
-    LogDataPB * data_pb = entry_pb->add_data();
-    data_pb->set_op_type(op);
-    data_pb->set_key(key);
-    data_pb->set_data(data);
-    return entry_pb;
-}
-
-void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data, ptr<LogEntryPB> & entry_pb)
-{
-    entry_pb = cs_new<LogEntryPB>();
-    entry_pb->set_entry_type(ENTRY_TYPE_DATA);
-    entry_pb->mutable_log_index()->set_term(term);
-    entry_pb->mutable_log_index()->set_index(index);
-    LogDataPB * data_pb = entry_pb->add_data();
-    data_pb->set_op_type(op);
-    data_pb->set_key(key);
-    data_pb->set_data(data);
-}
-
-void createEntry(UInt64 term, LogOpTypePB op, String & key, String & data, std::vector<ptr<log_entry>> & entry_vec)
-{
-    auto entry_pb = createEntryPB(term, 0, op, key, data);
-    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-    ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
-    entry_vec.push_back(entry_log);
-}
-
-}
-
-UInt64 appendEntry(ptr<LogSegmentStore> store, UInt64 term, LogOpTypePB op, String & key, String & data)
-{
-    auto entry_pb = createEntryPB(term, 0, op, key, data);
-    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-    ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
-    return store->appendEntry(entry_log);
-}
 
 TEST(RaftLog, writeAndReadUInt32)
 {
@@ -158,10 +40,10 @@ TEST(RaftLog, serializeStr)
 {
     String str("a string buffer");
     size_t size = str.size();
-    ptr<buffer> msg_buf = buffer::alloc(sizeof(uint32_t) + size);
-    msg_buf->put(str);
-    msg_buf->pos(0);
-    String str2(msg_buf->get_str());
+    ptr<buffer> log_buf = buffer::alloc(sizeof(uint32_t) + size);
+    log_buf->put(str);
+    log_buf->pos(0);
+    String str2(log_buf->get_str());
     ASSERT_EQ(str, str2);
 }
 
@@ -169,84 +51,31 @@ TEST(RaftLog, serializeRaw)
 {
     const char * str = "a string buffer";
     size_t size = sizeof(uint64_t) + strlen(str);
-    ptr<buffer> msg_buf = buffer::alloc(size);
-    msg_buf->put(static_cast<ulong>(strlen(str)));
-    msg_buf->put_raw(reinterpret_cast<const byte *>(str), strlen(str));
-    msg_buf->pos(0);
-    uint64_t len = msg_buf->get_ulong();
-    const char * save_buf = reinterpret_cast<const char *>(msg_buf->get_raw(len));
+    ptr<buffer> log_buf = buffer::alloc(size);
+    log_buf->put(static_cast<ulong>(strlen(str)));
+    log_buf->put_raw(reinterpret_cast<const byte *>(str), strlen(str));
+    log_buf->pos(0);
+    uint64_t len = log_buf->get_ulong();
+    const char * save_buf = reinterpret_cast<const char *>(log_buf->get_raw(len));
     ASSERT_EQ(std::memcmp(save_buf, str, strlen(str)), 0);
-}
-
-TEST(RaftLog, serializeProto)
-{
-    UInt64 term = 1, index = 1;
-    String key("/ck/table/table1");
-    String data("CREATE TABLE table1;");
-    LogOpTypePB op = OP_TYPE_CREATE;
-    auto entry_pb = createEntryPB(term, index, op, key, data);
-
-    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-    ptr<LogEntryPB> entry_pb_1 = LogEntry::parsePB(msg_buf);
-
-    //test proto buf serialize
-    ASSERT_EQ(entry_pb_1->log_index().term(), term);
-    ASSERT_EQ(entry_pb_1->log_index().index(), index);
-    ASSERT_EQ(entry_pb_1->data_size(), 1);
-    ASSERT_EQ(entry_pb_1->data(0).op_type(), op);
-    ASSERT_EQ(entry_pb_1->data(0).key(), key);
-    ASSERT_EQ(entry_pb_1->data(0).data(), data);
-}
-
-TEST(RaftLog, serializeStr2Raw)
-{
-    //Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    String str("a string buffer");
-    ulong term = 1;
-    size_t size = sizeof(uint32_t) + str.size();
-    ptr<buffer> msg_buf_1 = buffer::alloc(size);
-    msg_buf_1->put(str);
-    msg_buf_1->pos(0);
-
-    ptr<buffer> entry_buf_1 = buffer::alloc(sizeof(ulong) + msg_buf_1->size());
-    entry_buf_1->put(term);
-    entry_buf_1->put(*msg_buf_1);
-    entry_buf_1->pos(0);
-
-    const char * save_buf = reinterpret_cast<const char *>(entry_buf_1->get_raw(entry_buf_1->size()));
-
-    ptr<buffer> entry_buf_2 = buffer::alloc(entry_buf_1->size());
-    entry_buf_2->put_raw(reinterpret_cast<const byte *>(save_buf), entry_buf_1->size());
-    entry_buf_2->pos(0);
-    ASSERT_EQ(entry_buf_2->get_ulong(), term);
 }
 
 TEST(RaftLog, serializeEntry)
 {
-    UInt64 term = 1, index = 1;
+    UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
-    LogOpTypePB op = OP_TYPE_CREATE;
 
-    auto entry_pb_1 = createEntryPB(term, index, op, key, data);
+    auto log = createLogEntry(term, key, data);
 
-    ptr<buffer> msg_buf_1 = LogEntry::serializePB(entry_pb_1);
+    ptr<buffer> log_buf = log->serialize();
+    ptr<log_entry> deserialized_log = log_entry::deserialize(*log_buf);
 
-    ptr<log_entry> entry_log_1 = cs_new<log_entry>(term, msg_buf_1);
+    ASSERT_EQ(deserialized_log->get_term(), term);
+    auto zk_create_request = getRequest(deserialized_log);
 
-    ptr<buffer> entry_buf;
-    size_t buf_size;
-    const char * entry_str = LogEntry::serializeEntry(entry_log_1, entry_buf, buf_size);
-    ptr<log_entry> entry_log_2 = LogEntry::parseEntry(entry_str, term, buf_size);
-    ASSERT_EQ(entry_log_1->get_term(), entry_log_2->get_term());
-
-    ptr<LogEntryPB> entry_pb_2 = LogEntry::parsePB(entry_log_2->get_buf());
-    ASSERT_EQ(entry_pb_1->log_index().term(), term);
-    ASSERT_EQ(entry_pb_1->log_index().index(), index);
-    ASSERT_EQ(entry_pb_1->data_size(), 1);
-    ASSERT_EQ(entry_pb_1->data(0).op_type(), op);
-    ASSERT_STREQ(entry_pb_1->data(0).key().c_str(), key.c_str());
-    ASSERT_STREQ(entry_pb_1->data(0).data().c_str(), data.c_str());
+    ASSERT_EQ(zk_create_request->path, key);
+    ASSERT_EQ(zk_create_request->data, data);
 }
 
 TEST(RaftLog, appendEntry)
@@ -259,9 +88,8 @@ TEST(RaftLog, appendEntry)
     UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
-    LogOpTypePB op = OP_TYPE_CREATE;
 
-    ASSERT_EQ(appendEntry(log_store, term, op, key, data), 1);
+    ASSERT_EQ(appendEntry(log_store, term, key, data), 1);
     cleanDirectory(log_dir);
 }
 
@@ -277,8 +105,7 @@ TEST(RaftLog, appendSomeEntry)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     log_store->close();
     cleanDirectory(log_dir);
@@ -295,8 +122,7 @@ TEST(RaftLog, loadLog)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     ASSERT_EQ(log_store->close(), 0);
     //Load prev log segment from disk when log_store init.
@@ -306,8 +132,7 @@ TEST(RaftLog, loadLog)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 4);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 4);
     }
     cleanDirectory(log_dir);
 }
@@ -324,8 +149,7 @@ TEST(RaftLog, splitSegment)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     ASSERT_EQ(log_store->getClosedSegments().size(), 3);
     ASSERT_EQ(log_store->close(), 0);
@@ -344,8 +168,7 @@ TEST(RaftLog, removeSegment)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
 
     //[1,2],[3,4],[5,6],[7，8],[9,open]
@@ -374,8 +197,7 @@ TEST(RaftLog, truncateLog)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     ASSERT_EQ(log_store->getClosedSegments().size(), 7);
     ASSERT_EQ(log_store->lastLogIndex(), 16);
@@ -386,11 +208,9 @@ TEST(RaftLog, truncateLog)
     ptr<log_entry> log = log_store->getEntry(15);
     ASSERT_EQ(log->get_term(), 1);
     ASSERT_EQ(log->get_val_type(), app_log);
-    ptr<LogEntryPB> pb = LogEntry::parsePB(log->get_buf());
-    ASSERT_EQ(pb->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb->data_size(), 1);
-    ASSERT_EQ("/ck/table/table1", pb->data(0).key());
-    ASSERT_EQ("CREATE TABLE table1;", pb->data(0).data());
+    auto zk_create_request = getRequest(log);
+    ASSERT_EQ("/ck/table/table1", zk_create_request->path);
+    ASSERT_EQ("CREATE TABLE table1;", zk_create_request->data);
 
     ASSERT_EQ(log_store->getClosedSegments().size(), 7);
     ASSERT_EQ(log_store->truncateLog(13), 0); //truncate close and open segment
@@ -402,22 +222,18 @@ TEST(RaftLog, truncateLog)
     ptr<log_entry> log2 = log_store->getEntry(2);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
-    ASSERT_EQ(pb2->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb2->data_size(), 1);
-    ASSERT_EQ("/ck/table/table1", pb2->data(0).key());
-    ASSERT_EQ("CREATE TABLE table1;", pb2->data(0).data());
+    auto zk_create_request2 = getRequest(log2);
+    ASSERT_EQ("/ck/table/table1", zk_create_request2->path);
+    ASSERT_EQ("CREATE TABLE table1;", zk_create_request2->data);
 
     ASSERT_EQ(log_store->truncateLog(1), 0); //truncate close and open segment
 
     ptr<log_entry> log3 = log_store->getEntry(1);
     ASSERT_EQ(log3->get_term(), 1);
     ASSERT_EQ(log3->get_val_type(), app_log);
-    ptr<LogEntryPB> pb3 = LogEntry::parsePB(log3->get_buf());
-    ASSERT_EQ(pb3->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb3->data_size(), 1);
-    ASSERT_EQ("/ck/table/table1", pb3->data(0).key());
-    ASSERT_EQ("CREATE TABLE table1;", pb3->data(0).data());
+    auto zk_create_request3 = getRequest(log3);
+    ASSERT_EQ("/ck/table/table1", zk_create_request3->path);
+    ASSERT_EQ("CREATE TABLE table1;", zk_create_request3->data);
 
     ASSERT_EQ(log_store->close(), 0);
     cleanDirectory(log_dir);
@@ -432,14 +248,11 @@ TEST(RaftLog, writeAt)
     UInt64 term = 1;
     String key("/ck");
     String data("CRE;");
-    LogOpTypePB op = OP_TYPE_CREATE;
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
-        auto entry_pb = createEntryPB(term, 0, op, key, data);
-        ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-        ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
-        ASSERT_EQ(file_store->append(entry_log), i + 1);
+        ptr<log_entry> log = createLogEntry(term, key, data);
+        ASSERT_EQ(file_store->append(log), i + 1);
     }
 
     ptr<cluster_config> new_conf = cs_new<cluster_config>(454570345, 454569083, false);
@@ -466,40 +279,30 @@ TEST(RaftLog, writeAt)
     ASSERT_EQ(log->get_term(), 2);
     ASSERT_EQ(log->get_val_type(), conf);
 
-    auto entry_pb = createEntryPB(term, 0, op, "/ck/table/table2", "CREATE TABLE table2;");
-    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-    ptr<log_entry> entry_log = cs_new<log_entry>(2, msg_buf);
+    auto entry_log = createLogEntry(term, "/ck/table/table2", "CREATE TABLE table2;");
     file_store->write_at(9, entry_log);
 
-    auto entry_pb1 = createEntryPB(term, 0, op, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
-    ptr<buffer> msg_buf1 = LogEntry::serializePB(entry_pb1);
-    ptr<log_entry> entry_log1 = cs_new<log_entry>(2, msg_buf1);
+    auto entry_log1 = createLogEntry(term, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
     file_store->write_at(10, entry_log1);
 
     ptr<log_entry> log1 = file_store->entry_at(10);
     ASSERT_EQ(log1->get_term(), 2);
     ASSERT_EQ(log1->get_val_type(), app_log);
-    ptr<LogEntryPB> pb1 = LogEntry::parsePB(log1->get_buf());
-    ASSERT_EQ(pb1->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb1->data_size(), 1);
-    ASSERT_EQ("/ck/table/table2222222222222222222221", pb1->data(0).key());
-    ASSERT_EQ("CREATE TABLE table222222222222222222222333;", pb1->data(0).data());
+    auto zk_request1 = getRequest(log1);
+    ASSERT_EQ("/ck/table/table2222222222222222222221", zk_request1->path);
+    ASSERT_EQ("CREATE TABLE table222222222222222222222333;", zk_request1->data);
 
     key = "/ck/table/table22222222222233312222221";
     data = "CREATE TABLE table22222222221111123222222222333;";
-    auto entry_pb2 = createEntryPB(term, 0, op, key, data);
-    ptr<buffer> msg_buf2 = LogEntry::serializePB(entry_pb2);
-    ptr<log_entry> entry_log2 = cs_new<log_entry>(term, msg_buf2);
+    ptr<log_entry> entry_log2 = createLogEntry(term, key, data);
     ASSERT_EQ(file_store->append(entry_log2), 11);
 
     ptr<log_entry> log2 = file_store->entry_at(11);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
-    ASSERT_EQ(pb2->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb2->data_size(), 1);
-    ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
-    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
+    auto zk_request2 = getRequest(log2);
+    ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
+    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->data);
 
     //    ASSERT_EQ(file_store->close(), 0);
     //cleanDirectory(log_dir);
@@ -516,13 +319,10 @@ TEST(RaftLog, compact)
     UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
-    LogOpTypePB op = OP_TYPE_CREATE;
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
-        auto entry_pb = createEntryPB(term, 0, op, key, data);
-        ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-        ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
+        ptr<log_entry> entry_log = createLogEntry(term, key, data);
         ASSERT_EQ(file_store->append(entry_log), i + 1);
     }
 
@@ -537,28 +337,22 @@ TEST(RaftLog, compact)
     ptr<log_entry> log1 = file_store->entry_at(3);
     ASSERT_EQ(log1->get_term(), 1);
     ASSERT_EQ(log1->get_val_type(), app_log);
-    ptr<LogEntryPB> pb1 = LogEntry::parsePB(log1->get_buf());
-    ASSERT_EQ(pb1->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb1->data_size(), 1);
-    ASSERT_EQ(key, pb1->data(0).key());
-    ASSERT_EQ(data, pb1->data(0).data());
+    auto zk_request1 = getRequest(log1);
+    ASSERT_EQ("/ck/table/table1", zk_request1->path);
+    ASSERT_EQ("CREATE TABLE table1;", zk_request1->data);
 
     key = "/ck/table/table22222222222233312222221";
     data = "CREATE TABLE table22222222221111123222222222333;";
-    auto entry_pb2 = createEntryPB(term, 0, op, key, data);
-    ptr<buffer> msg_buf2 = LogEntry::serializePB(entry_pb2);
-    ptr<log_entry> entry_log2 = cs_new<log_entry>(term, msg_buf2);
+    ptr<log_entry> entry_log2 = createLogEntry(term, key, data);
     ASSERT_EQ(file_store->append(entry_log2), 17);
 
     ASSERT_EQ(file_store->segmentStore()->lastLogIndex(), 17);
     ptr<log_entry> log2 = file_store->entry_at(17);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    ptr<LogEntryPB> pb2 = LogEntry::parsePB(log2->get_buf());
-    ASSERT_EQ(pb2->entry_type(), OP_TYPE_CREATE);
-    ASSERT_EQ(pb2->data_size(), 1);
-    ASSERT_EQ("/ck/table/table22222222222233312222221", pb2->data(0).key());
-    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", pb2->data(0).data());
+    auto zk_request2 = getRequest(log2);
+    ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
+    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->path);
 
     //    ASSERT_EQ(file_store->close(), 0);
     //cleanDirectory(log_dir);
@@ -575,8 +369,7 @@ TEST(RaftLog, getEntry)
     String data("CREATE TABLE table1;");
     for (int i = 0; i < 6; i++)
     {
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
 
     for (int i = 0; i < 6; i++)
@@ -585,15 +378,11 @@ TEST(RaftLog, getEntry)
         ASSERT_EQ(log->get_term(), term);
         ASSERT_EQ(log->get_val_type(), app_log);
 
-        ptr<LogEntryPB> pb = LogEntry::parsePB(log->get_buf());
-        //ASSERT_EQ(pb->log_index().term(), term);
-        //ASSERT_EQ(pb->log_index().index(), i + 1);
-        ASSERT_EQ(pb->entry_type(), OP_TYPE_CREATE);
-        ASSERT_EQ(pb->data_size(), 1);
-        ASSERT_EQ(key, pb->data(0).key());
-        ASSERT_EQ(data, pb->data(0).data());
-        //Poco::Logger * LOG = &(Poco::Logger::get("LogTest"));
-        //LOG_INFO(LOG, "PB:{},{},{}", pb->log_index().term(), pb->log_index().index(), pb->entry_type());
+        ASSERT_EQ(log->get_term(), 1);
+        ASSERT_EQ(log->get_val_type(), app_log);
+        auto zk_request = getRequest(log);
+        ASSERT_EQ("/ck/table/table1", zk_request->path);
+        ASSERT_EQ("CREATE TABLE table1;", zk_request->data);
     }
     log_store->close();
     cleanDirectory(log_dir);
@@ -610,8 +399,7 @@ TEST(RaftLog, getEntries)
         UInt64 term = 1;
         String key("/ck/table/table1");
         String data("CREATE TABLE table1;");
-        LogOpTypePB op = OP_TYPE_CREATE;
-        ASSERT_EQ(appendEntry(log_store, term, op, key, data), i + 1);
+        ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
     log_store->getEntries(1, 3, ret);
@@ -622,127 +410,6 @@ TEST(RaftLog, getEntries)
     log_store->close();
     cleanDirectory(log_dir);
 }
-
-//#define ASSERT_EQ_LOG(log, v1, v2) \ -
-//    { \ -
-//        if (v1 != v2) \ -
-//            LOG_WARNING(log, "v1 {}, v2 {} not equal.", v1, v2); \-
-//    }
-
-/*
-TEST(RaftLog, logSegmentThread)
-{
-    Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
-    String log_dir(LOG_DIR + "/10");
-    cleanDirectory(log_dir);
-
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    //10M
-    UInt32 max_seg_count = 10;
-    ASSERT_EQ(log_store->init(10000000, max_seg_count), 0);
-
-    int key_bytes = 256;
-    int value_bytes = 1024;
-    //256 byte
-    String key;
-    for (int i = 0; i < key_bytes; i++)
-    {
-        key.append("k");
-    }
-    //1024 byte
-    String data;
-    for (int i = 0; i < value_bytes; i++)
-    {
-        data.append("v");
-    }
-
-    //std::mutex index_mutex;
-    std::vector<int> thread_vec = {8};
-    std::atomic<int> log_index = 0;
-    int log_count = 100000;
-    for (auto thread_count : thread_vec)
-    {
-        //int end_index = log_index + log_count;
-        int thread_log_count = log_count / thread_count;
-        FreeThreadPool thread_pool(thread_count);
-        Stopwatch watch;
-        watch.start();
-        for (int thread_idx = 0; thread_idx < thread_count; thread_idx++)
-        {
-            thread_pool.trySchedule(
-                [&log_store, &log_index, thread_count, thread_idx, thread_log_count, log_count, max_seg_count, &key, &data] {
-                    UInt64 log_idx(0);
-                    UInt64 term = 1;
-                    LogOpTypePB op = OP_TYPE_CREATE;
-
-                    auto * thread_log = &Poco::Logger::get("client_thread");
-                    LOG_INFO(
-                        thread_log,
-                        "Begin run thread size {}/{}, append count {}/{}",
-                        thread_idx,
-                        thread_count,
-                        thread_log_count,
-                        log_count);
-                    try
-                    {
-                        for (auto idx = 0; idx < thread_log_count; idx++)
-                        {
-                            ptr<LogEntryPB> entry_pb;
-                            createEntryPB(term, 0, op, key, data, entry_pb);
-                            ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-                            ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
-
-                            log_idx = log_store->appendEntry(entry_log);
-
-                            if (log_idx % 1 == 0)
-                            {
-                                ptr<log_entry> new_log = log_store->getEntry(log_idx);
-                                ASSERT_EQ_LOG(thread_log, new_log->get_term(), term);
-                                //ASSERT_EQ_LOG(thread_log, new_log->get_val_type(), app_log);
-                                ptr<LogEntryPB> pb = LogEntry::parsePB(new_log->get_buf());
-                                //ASSERT_EQ_LOG(thread_log, pb->entry_type(), OP_TYPE_CREATE);
-                                ASSERT_EQ_LOG(thread_log, pb->data_size(), 1);
-                                ASSERT_EQ_LOG(thread_log, key, pb->data(0).key());
-                                ASSERT_EQ_LOG(thread_log, data, pb->data(0).data());
-                            }
-
-                            log_index.store(log_idx, std::memory_order_relaxed);
-                            if (log_store->getSegments().size() + 1 >= max_seg_count)
-                            {
-                                //remove segment
-                                log_store->removeSegment();
-                            }
-                        }
-                    }
-                    catch (std::exception & ex)
-                    {
-                        LOG_ERROR(thread_log, "thread exception : {}", ex.what());
-                    }
-                });
-        }
-        //LOG_INFO(log, "Max thread count {}, running {}", thread_pool.getMaxThreads(), thread_pool.active());
-        thread_pool.wait();
-        watch.stop();
-        int mill_second = watch.elapsedMilliseconds();
-        int log_size = ((key_bytes + value_bytes) + sizeof(UInt32) * 4 + sizeof(UInt32) * 6);
-        double total_size = 1.0 * log_size * log_count / 1000 / 1000; //M
-        double byte_rate = 1.0 * total_size / mill_second * 1000;
-        double count_rate = 1.0 * log_count / mill_second * 1000;
-        LOG_INFO(
-            log,
-            "Append performance : thread_count {}, size {} Byte/One Log, count {}, total_size {} M, milli second {}, byte rate {} M/S, TPS "
-            "{}",
-            thread_pool.getMaxThreads(),
-            log_size,
-            log_count,
-            total_size,
-            mill_second,
-            byte_rate,
-            count_rate);
-    }
-    //cleanDirectory(log_dir);
-}
-*/
 
 int main(int argc, char ** argv)
 {

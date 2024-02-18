@@ -15,15 +15,6 @@ using namespace Coordination;
 
 namespace RK
 {
-void cleanAll()
-{
-    Poco::File log(LOG_DIR);
-    Poco::File snap(LOG_DIR);
-    if (log.exists())
-        log.remove(true);
-    if (snap.exists())
-        snap.remove(true);
-}
 
 uint64_t createSession(NuRaftStateMachine & machine)
 {
