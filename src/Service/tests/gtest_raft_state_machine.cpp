@@ -1,6 +1,5 @@
 #include <Service/KeeperStore.h>
 #include <Service/NuRaftFileLogStore.h>
-#include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/KeeperCommon.h>
 #include <Service/tests/raft_test_common.h>
