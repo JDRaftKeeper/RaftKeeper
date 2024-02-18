@@ -1,6 +1,6 @@
 add_executable(raft_tcp_client raft_tcp_client.cpp)
 add_executable(raft_service_client raft_service_client.cpp)
-add_executable(raft_unit_benchmark raft_unit_benchmark.cpp)
+add_executable(raft_unit_benchmark raft_unit_benchmark.cpp raft_test_common.cpp)
 
 target_link_libraries(raft_tcp_client PRIVATE raftkeeper_common_zookeeper)
 target_link_libraries(raft_service_client PRIVATE raftkeeper_common_zookeeper loggers)

@@ -9,7 +9,15 @@
 #include <Service/KeeperStore.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
+#ifdef __clang__
+#    pragma clang diagnostic push
+#    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
+#    pragma clang diagnostic ignored "-Wheader-hygiene"
+#endif
 #include <Service/proto/Log.pb.h>
+#ifdef __clang__
+#    pragma clang diagnostic pop
+#endif
 #include <ZooKeeper/IKeeper.h>
 
 
