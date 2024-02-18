@@ -17,28 +17,6 @@ using namespace Coordination;
 
 namespace RK
 {
-void setNode(KeeperStore & storage, const String key, const String value, bool is_ephemeral, int64_t session_id)
-{
-    ACLs default_acls;
-    ACL acl;
-    acl.permissions = ACL::All;
-    acl.scheme = "world";
-    acl.id = "anyone";
-    default_acls.emplace_back(std::move(acl));
-
-    storage.addSessionID(session_id, 30000);
-
-    auto request = cs_new<ZooKeeperCreateRequest>();
-    request->path = "/" + key;
-    request->data = value;
-    request->is_ephemeral = is_ephemeral;
-    request->is_sequential = false;
-    request->acls = default_acls;
-    request->xid = 1;
-    KeeperStore::KeeperResponsesQueue responses_queue;
-    int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-    storage.processRequest(responses_queue, {request, session_id, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
-}
 
 ptr<buffer> createSessionLog(int64_t session_timeout_ms)
 {

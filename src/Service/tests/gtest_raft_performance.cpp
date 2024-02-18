@@ -9,7 +9,6 @@
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
-#include <Service/proto/Log.pb.h>
 #include <Service/tests/raft_test_common.h>
 
 using namespace nuraft;
