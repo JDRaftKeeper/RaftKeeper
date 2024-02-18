@@ -1,8 +1,12 @@
-#include <Service/tests/raft_test_common.h>
-#include <Service/NuRaftLogSegment.h>
+#include <Poco/File.h>
+
 #include <boost/program_options.hpp>
 #include <common/argsToConfig.h>
-#include <Poco/File.h>
+#include <ZooKeeper/ZooKeeperIO.h>
+
+#include <Service/NuRaftFileLogStore.h>
+#include <Service/NuRaftLogSegment.h>
+#include <Service/tests/raft_test_common.h>
 
 
 namespace RK
@@ -91,15 +95,21 @@ UInt64 appendEntry(ptr<LogSegmentStore> store, UInt64 term, String & key, String
 }
 
 
-ptr<Coordination::ZooKeeperCreateRequest> getRequest(ptr<log_entry> log)
+ptr<Coordination::ZooKeeperCreateRequest> getZookeeperCreateRequest(ptr<log_entry> log)
 {
-    auto zk_create_request = std::make_shared<Coordination::ZooKeeperCreateRequest>();
     ReadBufferFromMemory buf(log->get_buf().data_begin(), log->get_buf().size());
-    zk_create_request->read(buf);
-    return zk_create_request;
+    int64_t session_id;
+    readIntBinary(session_id, buf);
+    int32_t req_body_len;
+    Coordination::read(req_body_len, buf);
+    auto request = Coordination::ZooKeeperRequest::read(buf);
+    int64_t time;
+    readIntBinary(time, buf);
+    ptr<Coordination::ZooKeeperCreateRequest> zk_create_request;
+    return std::static_pointer_cast<Coordination::ZooKeeperCreateRequest>(request);
 }
 
-void setNode(KeeperStore & storage, const String key, const String value, bool is_ephemeral, int64_t session_id)
+void setNode(KeeperStore & storage, const String & key, const String & value, bool is_ephemeral, int64_t session_id)
 {
     Coordination::ACLs default_acls;
     Coordination::ACL acl;
@@ -120,6 +130,103 @@ void setNode(KeeperStore & storage, const String key, const String value, bool i
     KeeperStore::KeeperResponsesQueue responses_queue;
     int64_t time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
     storage.processRequest(responses_queue, {request, session_id, time}, {}, /* check_acl = */ true, /*ignore_response*/ true);
+}
+
+uint64_t createSession(NuRaftStateMachine & machine)
+{
+    return machine.getStore().getSessionID(30000);
+}
+
+void createZNodeLog(NuRaftStateMachine & machine, const String & key, const String & data, ptr<NuRaftFileLogStore> store, UInt64 term)
+{
+    Coordination::ACLs default_acls;
+    Coordination::ACL acl;
+    acl.permissions = Coordination::ACL::All;
+    acl.scheme = "world";
+    acl.id = "anyone";
+    default_acls.emplace_back(std::move(acl));
+
+    UInt64 index = machine.last_commit_index() + 1;
+    RequestForSession session_request;
+    session_request.session_id = createSession(machine);
+    auto request = cs_new<Coordination::ZooKeeperCreateRequest>();
+    session_request.request = request;
+    request->path = key;
+    request->data = data;
+    request->is_ephemeral = false;
+    request->is_sequential = false;
+    request->acls = default_acls;
+    request->xid = 1;
+
+    using namespace std::chrono;
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    //LOG_INFO(log, "index {}", index);
+    if (store != nullptr)
+    {
+        //auto entry_pb = createEntryPB(term, 0, op, key, data);
+        //ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
+        ptr<log_entry> entry_log = cs_new<log_entry>(term, buf);
+        store->append(entry_log);
+    }
+
+    machine.commit(index, *(buf.get()), true);
+}
+
+void createZNode(NuRaftStateMachine & machine, const String & key, const String & data)
+{
+    createZNodeLog(machine, key, data, nullptr, 0);
+}
+
+void setZNode(NuRaftStateMachine & machine, const String & key, const String & data)
+{
+    Coordination::ACLs default_acls;
+    Coordination::ACL acl;
+    acl.permissions = Coordination::ACL::All;
+    acl.scheme = "world";
+    acl.id = "anyone";
+    default_acls.emplace_back(std::move(acl));
+
+    UInt64 index = machine.last_commit_index() + 1;
+    RequestForSession session_request;
+    session_request.session_id = createSession(machine);
+    auto request = cs_new<Coordination::ZooKeeperSetRequest>();
+    session_request.request = request;
+    request->path = key;
+    request->data = data;
+    //request->is_ephemeral = false;
+    //request->is_sequential = false;
+    //request->acls = default_acls;
+
+    using namespace std::chrono;
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    machine.commit(index, *(buf.get()));
+}
+
+void removeZNode(NuRaftStateMachine & machine, const String & key)
+{
+    Coordination::ACLs default_acls;
+    Coordination::ACL acl;
+    acl.permissions = Coordination::ACL::All;
+    acl.scheme = "world";
+    acl.id = "anyone";
+    default_acls.emplace_back(std::move(acl));
+
+    UInt64 index = machine.last_commit_index() + 1;
+    RequestForSession session_request;
+    session_request.session_id = createSession(machine);
+    auto request = cs_new<Coordination::ZooKeeperRemoveRequest>();
+    session_request.request = request;
+    request->path = key;
+
+    using namespace std::chrono;
+    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    machine.commit(index, *(buf.get()));
 }
 
 }

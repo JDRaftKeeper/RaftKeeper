@@ -7,7 +7,6 @@
 
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftFileLogStore.h>
-#include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/tests/raft_test_common.h>
 
@@ -41,8 +40,7 @@ TEST(RaftPerformance, appendLogPerformance)
     for (int i = 0; i < log_count; i++)
     {
         UInt64 term = 1;
-        LogOpTypePB op = OP_TYPE_CREATE;
-        createEntry(term, op, key, data, entry_vec);
+        entry_vec.emplace_back(createLogEntry(term, key, data));
     }
     Stopwatch watch;
     watch.start();
@@ -111,14 +109,10 @@ TEST(RaftPerformance, appendLogThread)
             thread_pool.trySchedule([&file_store, &log_index, thread_log_count, &key, &data] {
                 UInt64 log_idx;
                 UInt64 term = 1;
-                LogOpTypePB op = OP_TYPE_CREATE;
 
                 for (auto idx = 0; idx < thread_log_count; idx++)
                 {
-                    ptr<LogEntryPB> entry_pb;
-                    createEntryPB(term, 0, op, key, data, entry_pb);
-                    ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-                    ptr<log_entry> entry_log = cs_new<log_entry>(term, msg_buf);
+                    auto entry_log = createLogEntry(term, key, data);
                     log_idx = file_store->append(entry_log);
                     log_index.store(log_idx, std::memory_order_relaxed);
                 }

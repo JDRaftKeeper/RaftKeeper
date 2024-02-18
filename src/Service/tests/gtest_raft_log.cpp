@@ -72,7 +72,7 @@ TEST(RaftLog, serializeEntry)
     ptr<log_entry> deserialized_log = log_entry::deserialize(*log_buf);
 
     ASSERT_EQ(deserialized_log->get_term(), term);
-    auto zk_create_request = getRequest(deserialized_log);
+    auto zk_create_request = getZookeeperCreateRequest(deserialized_log);
 
     ASSERT_EQ(zk_create_request->path, key);
     ASSERT_EQ(zk_create_request->data, data);
@@ -143,7 +143,7 @@ TEST(RaftLog, splitSegment)
     String log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(200, 10), 0); //75 byte / log
+    ASSERT_EQ(log_store->init(200, 10), 0); //81 byte / log
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
@@ -151,7 +151,7 @@ TEST(RaftLog, splitSegment)
         String data("CREATE TABLE table1;");
         ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
-    ASSERT_EQ(log_store->getClosedSegments().size(), 3);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 5);
     ASSERT_EQ(log_store->close(), 0);
     cleanDirectory(log_dir);
 }
@@ -161,7 +161,7 @@ TEST(RaftLog, removeSegment)
     String log_dir(LOG_DIR + "/5");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(100, 3), 0);
+    ASSERT_EQ(log_store->init(200, 3), 0);
     //5 segment
     for (int i = 0; i < 10; i++)
     {
@@ -190,7 +190,7 @@ TEST(RaftLog, truncateLog)
     String log_dir(LOG_DIR + "/6");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(100, 3), 0);
+    ASSERT_EQ(log_store->init(200, 3), 0);
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
@@ -208,7 +208,7 @@ TEST(RaftLog, truncateLog)
     ptr<log_entry> log = log_store->getEntry(15);
     ASSERT_EQ(log->get_term(), 1);
     ASSERT_EQ(log->get_val_type(), app_log);
-    auto zk_create_request = getRequest(log);
+    auto zk_create_request = getZookeeperCreateRequest(log);
     ASSERT_EQ("/ck/table/table1", zk_create_request->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request->data);
 
@@ -222,7 +222,7 @@ TEST(RaftLog, truncateLog)
     ptr<log_entry> log2 = log_store->getEntry(2);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    auto zk_create_request2 = getRequest(log2);
+    auto zk_create_request2 = getZookeeperCreateRequest(log2);
     ASSERT_EQ("/ck/table/table1", zk_create_request2->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request2->data);
 
@@ -231,7 +231,7 @@ TEST(RaftLog, truncateLog)
     ptr<log_entry> log3 = log_store->getEntry(1);
     ASSERT_EQ(log3->get_term(), 1);
     ASSERT_EQ(log3->get_val_type(), app_log);
-    auto zk_create_request3 = getRequest(log3);
+    auto zk_create_request3 = getZookeeperCreateRequest(log3);
     ASSERT_EQ("/ck/table/table1", zk_create_request3->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request3->data);
 
@@ -282,30 +282,29 @@ TEST(RaftLog, writeAt)
     auto entry_log = createLogEntry(term, "/ck/table/table2", "CREATE TABLE table2;");
     file_store->write_at(9, entry_log);
 
+    term = 2;
     auto entry_log1 = createLogEntry(term, "/ck/table/table2222222222222222222221", "CREATE TABLE table222222222222222222222333;");
     file_store->write_at(10, entry_log1);
 
     ptr<log_entry> log1 = file_store->entry_at(10);
     ASSERT_EQ(log1->get_term(), 2);
     ASSERT_EQ(log1->get_val_type(), app_log);
-    auto zk_request1 = getRequest(log1);
+    auto zk_request1 = getZookeeperCreateRequest(log1);
     ASSERT_EQ("/ck/table/table2222222222222222222221", zk_request1->path);
     ASSERT_EQ("CREATE TABLE table222222222222222222222333;", zk_request1->data);
 
     key = "/ck/table/table22222222222233312222221";
     data = "CREATE TABLE table22222222221111123222222222333;";
+    term = 3;
     ptr<log_entry> entry_log2 = createLogEntry(term, key, data);
     ASSERT_EQ(file_store->append(entry_log2), 11);
 
     ptr<log_entry> log2 = file_store->entry_at(11);
-    ASSERT_EQ(log2->get_term(), 1);
+    ASSERT_EQ(log2->get_term(), 3);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    auto zk_request2 = getRequest(log2);
+    auto zk_request2 = getZookeeperCreateRequest(log2);
     ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->data);
-
-    //    ASSERT_EQ(file_store->close(), 0);
-    //cleanDirectory(log_dir);
 }
 
 
@@ -314,7 +313,7 @@ TEST(RaftLog, compact)
     String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store
-        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC_PARALLEL, 1000, static_cast<UInt32>(100), static_cast<UInt32>(3));
+        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC_PARALLEL, 1000, static_cast<UInt32>(200), static_cast<UInt32>(3));
 
     UInt64 term = 1;
     String key("/ck/table/table1");
@@ -337,7 +336,7 @@ TEST(RaftLog, compact)
     ptr<log_entry> log1 = file_store->entry_at(3);
     ASSERT_EQ(log1->get_term(), 1);
     ASSERT_EQ(log1->get_val_type(), app_log);
-    auto zk_request1 = getRequest(log1);
+    auto zk_request1 = getZookeeperCreateRequest(log1);
     ASSERT_EQ("/ck/table/table1", zk_request1->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_request1->data);
 
@@ -350,12 +349,9 @@ TEST(RaftLog, compact)
     ptr<log_entry> log2 = file_store->entry_at(17);
     ASSERT_EQ(log2->get_term(), 1);
     ASSERT_EQ(log2->get_val_type(), app_log);
-    auto zk_request2 = getRequest(log2);
+    auto zk_request2 = getZookeeperCreateRequest(log2);
     ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
-    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->path);
-
-    //    ASSERT_EQ(file_store->close(), 0);
-    //cleanDirectory(log_dir);
+    ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->data);
 }
 
 TEST(RaftLog, getEntry)
@@ -380,7 +376,7 @@ TEST(RaftLog, getEntry)
 
         ASSERT_EQ(log->get_term(), 1);
         ASSERT_EQ(log->get_val_type(), app_log);
-        auto zk_request = getRequest(log);
+        auto zk_request = getZookeeperCreateRequest(log);
         ASSERT_EQ("/ck/table/table1", zk_request->path);
         ASSERT_EQ("CREATE TABLE table1;", zk_request->data);
     }

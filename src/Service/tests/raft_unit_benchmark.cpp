@@ -19,6 +19,7 @@
 #include <Service/NuRaftLogSegment.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/Settings.h>
+#include <Service/tests/raft_test_common.h>
 #include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperImpl.h>
 
@@ -28,28 +29,6 @@ using namespace nuraft;
 
 namespace RK
 {
-static const String LOG_DIR = "./test_raft_log";
-static const String SNAP_DIR = "./test_raft_snapshot";
-
-void setNode(KeeperStore & storage, const String key, const String value, bool is_ephemeral = false, int64_t session_id = 0)
-{
-    ACLs default_acls;
-    ACL acl;
-    acl.permissions = ACL::All;
-    acl.scheme = "world";
-    acl.id = "anyone";
-    default_acls.emplace_back(std::move(acl));
-
-    auto request = cs_new<ZooKeeperCreateRequest>();
-    request->path = "/" + key;
-    request->data = value;
-    request->is_ephemeral = is_ephemeral;
-    request->is_sequential = false;
-    request->acls = default_acls;
-    request->xid = 1;
-    KeeperStore::KeeperResponsesQueue responses_queue;
-    storage.processRequest(responses_queue, {request, session_id, {}}, {}, /* check_acl = */ false, /*ignore_response*/ true);
-}
 
 int parseLine(char * line)
 {
@@ -93,69 +72,6 @@ ProcessMem getProcessMem()
     return process_mem;
 }
 
-class TestServer : public Poco::Util::Application, public Loggers
-{
-public:
-    TestServer() = default;
-    ~TestServer() override = default;
-    void init(int argc, char ** argv)
-    {
-        char * log_level = argv[2];
-
-        /// Don't parse options with Poco library, we prefer neat boost::program_options
-        stopOptionsProcessing();
-        /// Save received data into the internal config.
-        config().setBool("stacktrace", true);
-        config().setBool("logger.console", true);
-        config().setString("logger.log", "./benchmark_test.logs");
-        config().setString("logger.level", log_level);
-        config().setBool("ignore-error", false);
-
-        std::vector<String> arguments;
-        for (int arg_num = 1; arg_num < argc; ++arg_num)
-            arguments.emplace_back(argv[arg_num]);
-        argsToConfig(arguments, config(), 100);
-
-        if (config().has("logger.console") || config().has("logger.level") || config().has("logger.log"))
-        {
-            // force enable logging
-            config().setString("logger", "logger");
-            // sensitive data rules are not used here
-            buildLoggers(config(), logger(), "clickhouse-local");
-        }
-    }
-};
-
-}
-
-void cleanDirectory(const String & log_dir, bool remove_dir = true)
-{
-    Poco::File dir_obj(log_dir);
-    if (dir_obj.exists())
-    {
-        std::vector<String> files;
-        dir_obj.list(files);
-        for (const auto& file : files)
-        {
-            Poco::File(log_dir + "/" + file).remove();
-        }
-        if (remove_dir)
-        {
-            dir_obj.remove();
-        }
-    }
-}
-
-void createEntryPB(UInt64 term, UInt64 index, LogOpTypePB op, String & key, String & data, std::shared_ptr<LogEntryPB> & entry_pb)
-{
-    entry_pb = std::make_shared<LogEntryPB>();
-    entry_pb->set_entry_type(ENTRY_TYPE_DATA);
-    entry_pb->mutable_log_index()->set_term(term);
-    entry_pb->mutable_log_index()->set_index(index);
-    LogDataPB * data_pb = entry_pb->add_data();
-    data_pb->set_op_type(op);
-    data_pb->set_key(key);
-    data_pb->set_data(data);
 }
 
 void getCurrentTime(String & date_str)
@@ -214,10 +130,10 @@ void logSegmentThread()
         for (int thread_idx = 0; thread_idx < thread_count; thread_idx++)
         {
             thread_pool.trySchedule(
-                [&log_store, &log_index, thread_count, thread_idx, thread_log_count, log_count, max_seg_count, &key, &data] {
+                [&log_store, &log_index, thread_count, thread_idx, thread_log_count, log_count, max_seg_count, &key, &data]
+                {
                     UInt64 log_idx;
                     UInt64 term = 1;
-                    LogOpTypePB op = OP_TYPE_CREATE;
 
                     auto * thread_log = &Poco::Logger::get("client_thread");
                     LOG_INFO(
@@ -230,10 +146,7 @@ void logSegmentThread()
 
                     for (auto idx = 0; idx < thread_log_count; idx++)
                     {
-                        std::shared_ptr<LogEntryPB> entry_pb;
-                        createEntryPB(term, 0, op, key, data, entry_pb);
-                        std::shared_ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
-                        std::shared_ptr<log_entry> entry_log = std::make_shared<log_entry>(term, msg_buf);
+                        auto entry_log = createLogEntry(term, key, data);
                         try
                         {
                             log_idx = log_store->appendEntry(entry_log);
@@ -259,12 +172,9 @@ void logSegmentThread()
                             continue;
                         }
                         ASSERT_EQ_LOG(thread_log, new_log->get_term(), term)
-                        //ASSERT_EQ_LOG(thread_log, new_log->get_val_type(), app_log);
-                        ptr<LogEntryPB> pb = LogEntry::parsePB(new_log->get_buf());
-                        //ASSERT_EQ_LOG(thread_log, pb->entry_type(), OP_TYPE_CREATE);
-                        ASSERT_EQ_LOG(thread_log, pb->data_size(), 1)
-                        ASSERT_EQ_LOG(thread_log, key, pb->data(0).key())
-                        ASSERT_EQ_LOG(thread_log, data, pb->data(0).data())
+                        auto deserialized_log = getZookeeperCreateRequest(new_log);
+                        ASSERT_EQ_LOG(thread_log, key, deserialized_log->path)
+                        ASSERT_EQ_LOG(thread_log, data, deserialized_log->data)
 
                         log_index.store(log_idx, std::memory_order_release);
                         if (log_store->getClosedSegments().size() + 1 >= max_seg_count)
@@ -333,19 +243,22 @@ void snapshotVolume(int last_index)
     int send_count = last_index;
     for (int thread_idx = 0; thread_idx < thread_size; thread_idx++)
     {
-        thread_pool.scheduleOrThrowOnError([&storage, thread_idx, thread_size, send_count, &data] {
-            Poco::Logger * thread_log = &(Poco::Logger::get("RaftSnapshot"));
-            int log_count = send_count / thread_size;
-            int begin = thread_idx * log_count;
-            int end = (thread_idx + 1) * log_count;
-            LOG_INFO(thread_log, "Begin run thread {}/{}, send_count {}, range[{} - {}) ", thread_idx, thread_size, send_count, begin, end);
-            while (begin < end)
+        thread_pool.scheduleOrThrowOnError(
+            [&storage, thread_idx, thread_size, send_count, &data]
             {
-                String key = std::to_string(begin + 1);
-                setNode(storage, key, data);
-                begin++;
-            }
-        });
+                Poco::Logger * thread_log = &(Poco::Logger::get("RaftSnapshot"));
+                int log_count = send_count / thread_size;
+                int begin = thread_idx * log_count;
+                int end = (thread_idx + 1) * log_count;
+                LOG_INFO(
+                    thread_log, "Begin run thread {}/{}, send_count {}, range[{} - {}) ", thread_idx, thread_size, send_count, begin, end);
+                while (begin < end)
+                {
+                    String key = std::to_string(begin + 1);
+                    setNode(storage, key, data);
+                    begin++;
+                }
+            });
     }
     thread_pool.wait();
     /*
