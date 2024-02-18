@@ -414,7 +414,9 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
         if (!entry || !is_open)
             return -1;
 
-        entry_str = LogEntry::serializeEntry(entry, entry_buf, buf_size);
+        entry_buf = LogEntryBody::serialize(entry);
+        buf_size = entry_buf->size();
+        entry_str = reinterpret_cast<char *>(entry_buf->data_begin());
 
         if (entry_str == nullptr || buf_size == 0)
         {
@@ -570,7 +572,7 @@ int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, 
         return -1;
     }
 
-    entry = LogEntry::parseEntry(entry_str, head->term, head->data_length);
+    entry = LogEntryBody::parse(entry_str, head->term, head->data_length);
 
     delete[] entry_str;
     return 0;

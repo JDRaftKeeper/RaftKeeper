@@ -20,7 +20,7 @@ struct LogEntryHeader
     /// The length of the batch data (uncompressed)
     UInt32 data_length;
 
-    /// The CRC32C of the batch data.
+    /// The CRC32C of the log.
     /// If compression is enabled, this is the checksum of the compressed data.
     UInt32 data_crc;
 
@@ -34,13 +34,11 @@ struct LogEntryHeader
     static constexpr size_t HEADER_SIZE = 24;
 };
 
-class LogEntry
+class LogEntryBody
 {
 public:
-    /// serialize log to nuraft buffer
-    static char * serializeEntry(ptr<log_entry> & entry, ptr<buffer> & entry_buf, size_t & buf_size);
-    /// parse log from buffer
-    static ptr<log_entry> parseEntry(const char * entry_str, const UInt64 & term, size_t buf_size);
+    static ptr<buffer> serialize(ptr<log_entry> & entry);
+    static ptr<log_entry> parse(const char * entry_str, const UInt64 & term, size_t buf_size);
 };
 
 }
