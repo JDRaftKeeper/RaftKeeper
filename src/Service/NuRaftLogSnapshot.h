@@ -29,11 +29,13 @@ using nuraft::ulong;
 enum SnapshotVersion : uint8_t
 {
     V0 = 0,
-    V1 = 1, /// with ACL map, and last_log_term for file name
+    V1 = 1, /// Add ACL map
+    V2 = 2, /// Replace protobuf
+    V3 = 3, /// Add last_log_term to file name
     None = 255,
 };
 
-static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V1;
+static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V2;
 
 struct SnapshotBatchHeader
 {
@@ -73,8 +75,10 @@ public:
         const String & snap_dir_,
         snapshot & meta,
         UInt32 max_object_node_size_ = MAX_OBJECT_NODE_SIZE,
-        UInt32 save_batch_size_ = SAVE_BATCH_SIZE)
-        : snap_dir(snap_dir_)
+        UInt32 save_batch_size_ = SAVE_BATCH_SIZE,
+        SnapshotVersion version_ = CURRENT_SNAPSHOT_VERSION)
+        : version(version_)
+        , snap_dir(snap_dir_)
         , max_object_node_size(max_object_node_size_)
         , save_batch_size(save_batch_size_)
         , log(&(Poco::Logger::get("KeeperSnapshotStore")))
@@ -143,7 +147,7 @@ public:
     static const int SNAPSHOT_THREAD_NUM = 8;
     static const int IO_BUFFER_SIZE = 16384; /// 16K
 
-    SnapshotVersion version = CURRENT_SNAPSHOT_VERSION;
+    SnapshotVersion version;
 
 private:
     /// get path of an object
@@ -153,7 +157,7 @@ private:
     bool parseObject(String obj_path, KeeperStore & store);
 
     /// load batch header in an object
-    /// TODO use inter nal buffer
+    /// TODO use internal buffer
     bool loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
     /// serialize whole data tree
