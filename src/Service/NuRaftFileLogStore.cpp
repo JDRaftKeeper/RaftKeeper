@@ -191,7 +191,8 @@ void NuRaftFileLogStore::end_of_append_batch(ulong start, ulong cnt)
     }
     else if (log_fsync_mode == FsyncMode::FSYNC_BATCH)
     {
-        if (to_flush_count % log_fsync_interval == 0)
+        to_flush_count += cnt;
+        if (to_flush_count >= log_fsync_interval)
         {
             to_flush_count = 0;
             flush();
