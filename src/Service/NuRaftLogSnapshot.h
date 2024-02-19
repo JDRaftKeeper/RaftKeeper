@@ -1,56 +1,12 @@
 #pragma once
 
-#include <map>
-#include <string>
-
-#include <Common/IO/WriteBufferFromFile.h>
-#include <libnuraft/nuraft.hxx>
-
-#include <Service/KeeperStore.h>
-#include <Service/KeeperUtils.h>
-#include <Service/LogEntry.h>
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
-#    pragma clang diagnostic ignored "-Wheader-hygiene"
-#endif
-#include <Service/proto/Log.pb.h>
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
-#include <ZooKeeper/IKeeper.h>
+#include <Service/SnapshotCommon.h>
 
 
 namespace RK
 {
 using nuraft::snapshot;
 using nuraft::ulong;
-
-enum SnapshotVersion : uint8_t
-{
-    V0 = 0,
-    V1 = 1, /// Add ACL map
-    V2 = 2, /// Replace protobuf
-    V3 = 3, /// Add last_log_term to file name
-    None = 255,
-};
-
-static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V2;
-
-struct SnapshotBatchHeader
-{
-    /// The length of the batch data (uncompressed)
-    UInt32 data_length;
-    /// The CRC32C of the batch data.
-    /// If compression is enabled, this is the checksum of the compressed data.
-    UInt32 data_crc;
-    void reset()
-    {
-        data_length = 0;
-        data_crc = 0;
-    }
-    static const size_t HEADER_SIZE = 8;
-};
 
 /**
  * Operate a snapshot, when the current snapshot is down, we should renew a store.
@@ -68,9 +24,6 @@ struct SnapshotBatchHeader
 class KeeperSnapshotStore
 {
 public:
-    using StringMap = std::unordered_map<String, String>;
-    using IntMap = std::unordered_map<String, int64_t>;
-
     KeeperSnapshotStore(
         const String & snap_dir_,
         snapshot & meta,
@@ -105,7 +58,7 @@ public:
     void init(String create_time);
 
     /// parse the latest snapshot
-    void loadLatestSnapshot(KeeperStore & store);
+    void loadLatestSnapshot(KeeperStore & store, SnapshotVersion used_version = SnapshotVersion::None);
 
     /// load on object of the latest snapshot
     void loadObject(ulong obj_id, ptr<buffer> & buffer);
@@ -136,36 +89,39 @@ public:
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
 #endif
 
-    static const String MAGIC_SNAPSHOT_TAIL;
-    static const String MAGIC_SNAPSHOT_HEAD;
-
-    /// 0.3KB / Node * 100M Count =  300MB
-    static const UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
-    /// 100M Count / 10K = 10K
-    static const UInt32 SAVE_BATCH_SIZE = 10000;
-
-    static const int SNAPSHOT_THREAD_NUM = 8;
-    static const int IO_BUFFER_SIZE = 16384; /// 16K
+    static constexpr int SNAPSHOT_THREAD_NUM = 8;
+    static constexpr int IO_BUFFER_SIZE = 16384; /// 16K
 
     SnapshotVersion version;
 
 private:
+    /// For snapshot version v1
+    size_t createObjectsV1(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
+    /// For snapshot version v3
+    size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
+
     /// get path of an object
     void getObjectPath(ulong object_id, String & path);
 
     /// parse object
-    bool parseObject(String obj_path, KeeperStore & store);
+    bool parseObject(KeeperStore & store, String obj_path, SnapshotVersion used_version);
 
     /// load batch header in an object
     /// TODO use internal buffer
-    bool loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
+    bool parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
+
+    /// parse a batch
+    bool parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_);
+    /// parse a batch
+    bool parseBatchBodyV2(KeeperStore & store, char * buf, size_t length, SnapshotVersion version_);
 
     /// serialize whole data tree
     size_t serializeDataTree(KeeperStore & storage);
 
-    /**
-     * Serialize data tree by deep traversal.
-     */
+    /// for snapshot version v3
+    size_t serializeDataTreeV2(KeeperStore & storage);
+
+    /// Serialize data tree by deep traversal.
     void serializeNode(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchPB> & batch,
@@ -174,8 +130,19 @@ private:
         uint64_t & processed,
         uint32_t & checksum);
 
+    /// for snapshot version v3
+    void serializeNodeV2(
+        ptr<WriteBufferFromFile> & out,
+        ptr<SnapshotBatchBody> & batch,
+        KeeperStore & store,
+        const String & path,
+        uint64_t & processed,
+        uint32_t & checksum);
+
     /// append node to batch
     inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
+    /// for snapshot version v3
+    inline static void appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
     /// snapshot directory, note than the directory may contain more than one snapshot.
     String snap_dir;
@@ -225,7 +192,7 @@ public:
 
     ~KeeperSnapshotManager() = default;
 
-    size_t createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
+    size_t createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0, SnapshotVersion version = CURRENT_SNAPSHOT_VERSION);
 
     /// save snapshot meta, invoked when we receive an snapshot from leader.
     bool receiveSnapshotMeta(snapshot & meta);
@@ -243,7 +210,7 @@ public:
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
 
     /// parse snapshot object, invoked when follower apply received snapshot to state machine.
-    bool parseSnapshot(const snapshot & meta, KeeperStore & storage);
+    bool parseSnapshot(const snapshot & meta, KeeperStore & storage, SnapshotVersion used_version = CURRENT_SNAPSHOT_VERSION);
 
     /// latest snapshot meta
     ptr<snapshot> lastSnapshot();
@@ -255,7 +222,6 @@ public:
     size_t removeSnapshots();
 
 private:
-
     /// snapshot directory
     String snap_dir;
 

@@ -395,6 +395,57 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     cleanDirectory(snap_save_dir);
 }
 
+TEST(RaftSnapshot, compitablilityWithV3)
+{
+    String snap_read_dir(SNAP_DIR + "/13");
+    String snap_save_dir(SNAP_DIR + "/14");
+    cleanDirectory(snap_read_dir);
+    cleanDirectory(snap_save_dir);
+
+    UInt32 last_index = 1024;
+    UInt32 term = 1;
+    KeeperSnapshotManager snap_mgr_read(snap_read_dir, 3, 100);
+    KeeperSnapshotManager snap_mgr_save(snap_save_dir, 3, 100);
+
+    ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
+
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore store(raft_settings->dead_session_check_period_ms);
+
+    for (int i = 0; i < last_index; i++)
+    {
+        String key = std::to_string(i + 1);
+        String value = "table_" + key;
+        setNode(store, key, value);
+    }
+    snapshot meta(last_index, term, config);
+    size_t object_size = snap_mgr_read.createSnapshot(meta, store, SnapshotVersion::V1);
+    ASSERT_EQ(object_size, 11 + 1 + 1 + 1);
+
+    ulong obj_id = 0;
+    snap_mgr_save.receiveSnapshotMeta(meta);
+    while (true)
+    {
+        obj_id++;
+        if (!snap_mgr_read.existSnapshotObject(meta, obj_id))
+        {
+            break;
+        }
+        ptr<buffer> buffer;
+        snap_mgr_read.loadSnapshotObject(meta, obj_id, buffer);
+        if (buffer != nullptr)
+        {
+            snap_mgr_save.saveSnapshotObject(meta, obj_id, *(buffer.get()));
+        }
+    }
+    for (auto i = 1; i < obj_id; i++)
+    {
+        ASSERT_TRUE(snap_mgr_save.existSnapshotObject(meta, i));
+    }
+    cleanDirectory(snap_read_dir);
+    cleanDirectory(snap_save_dir);
+}
+
 void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion parse_version)
 {
     String snap_dir(SNAP_DIR + "/5");
@@ -478,7 +529,7 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
     ASSERT_EQ(store.container.size(), 2050); /// Include "/" node
 
     snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter);
+    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter, create_version);
 
     /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 21 + 3);

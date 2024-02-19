@@ -38,7 +38,7 @@ public:
         std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback_,
         ptr<nuraft::log_store> log_store_ = nullptr,
         String super_digest = "",
-        UInt32 object_node_size = KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
+        UInt32 object_node_size = MAX_OBJECT_NODE_SIZE,
         std::shared_ptr<RequestProcessor> request_processor_ = nullptr);
 
     ~NuRaftStateMachine() override = default;
