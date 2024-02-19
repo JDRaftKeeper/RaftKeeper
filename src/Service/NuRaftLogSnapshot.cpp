@@ -2,8 +2,6 @@
 #include <fcntl.h>
 #include <filesystem>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/uio.h>
 #include <unistd.h>
 
 #include <Poco/DateTime.h>
@@ -12,7 +10,6 @@
 #include <Poco/NumberFormatter.h>
 
 #include <Common/Exception.h>
-#include <Common/IO/WriteHelpers.h>
 #include <Common/Stopwatch.h>
 
 #include <Service/KeeperUtils.h>
@@ -40,341 +37,6 @@ namespace ErrorCodes
 using nuraft::cs_new;
 using Poco::NumberFormatter;
 
-const UInt32 KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE;
-
-const String MAGIC_SNAPSHOT_TAIL = "SnapTail";
-const String MAGIC_SNAPSHOT_HEAD = "SnapHead";
-
-int openFileForWrite(const String & obj_path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    errno = 0;
-    int snap_fd = ::open(obj_path.c_str(), O_RDWR | O_CREAT, 0644);
-    if (snap_fd < 0)
-    {
-        LOG_ERROR(log, "Created new snapshot object {} failed, fd {}, error:{}", obj_path, snap_fd, strerror(errno));
-        return -1;
-    }
-    return snap_fd;
-}
-
-/// snapshot object file header
-bool isFileHeader(UInt64 magic)
-{
-    union
-    {
-        uint64_t magic_num;
-        uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'H', 'e', 'a', 'd'};
-    };
-    return magic == magic_num;
-}
-
-/// snapshot object file tail
-bool isFileTail(UInt64 magic)
-{
-    union
-    {
-        uint64_t magic_num;
-        uint8_t magic_array[8] = {'S', 'n', 'a', 'p', 'T', 'a', 'i', 'l'};
-    };
-    return magic == magic_num;
-}
-
-std::shared_ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, const SnapshotVersion version)
-{
-    auto out = std::make_shared<WriteBufferFromFile>(path);
-    out->write(MAGIC_SNAPSHOT_HEAD.data(), MAGIC_SNAPSHOT_HEAD.size());
-    writeIntBinary(static_cast<uint8_t>(version), *out);
-    return out;
-}
-
-void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checksum)
-{
-    out->write(MAGIC_SNAPSHOT_TAIL.data(), MAGIC_SNAPSHOT_TAIL.size());
-    writeIntBinary(checksum, *out);
-    out->close();
-}
-
-int openFileForRead(String & obj_path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    errno = 0;
-    int snap_fd = ::open(obj_path.c_str(), O_RDWR);
-    if (snap_fd < 0)
-    {
-        LOG_ERROR(log, "Open snapshot object {} failed, fd {}, error:{}", obj_path, snap_fd, strerror(errno));
-        return -1;
-    }
-    return snap_fd;
-}
-
-/// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
-{
-    if (!batch)
-        batch = cs_new<SnapshotBatchPB>();
-
-    String str_buf;
-    batch->SerializeToString(&str_buf);
-
-    SnapshotBatchHeader header;
-    header.data_length = str_buf.size();
-    header.data_crc = RK::getCRC32(str_buf.c_str(), str_buf.size());
-
-    writeIntBinary(header.data_length, *out);
-    writeIntBinary(header.data_crc, *out);
-
-    out->write(str_buf.c_str(), header.data_length);
-    out->next();
-
-    return {SnapshotBatchHeader::HEADER_SIZE + header.data_length, header.data_crc};
-}
-
-UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
-{
-    union
-    {
-        UInt64 data;
-        UInt32 crc[2];
-    };
-    crc[0] = checksum;
-    crc[1] = data_crc;
-    return RK::getCRC32(reinterpret_cast<const char *>(&data), 8);
-}
-
-std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSum(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum)
-{
-    auto [save_size, data_crc] = saveBatch(out, batch);
-    /// rebuild batch
-    batch = cs_new<SnapshotBatchPB>();
-    return {save_size, updateCheckSum(checksum, data_crc)};
-}
-
-void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-
-    const auto & acl_map = acls.getMapping();
-    LOG_INFO(log, "Begin create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
-
-    auto out = openFileAndWriteHeader(path, version);
-    ptr<SnapshotBatchPB> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (const auto & acl_it : acl_map)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-                checksum = new_checksum;
-            }
-            batch = cs_new<SnapshotBatchPB>();
-            batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP);
-        }
-
-        /// append to batch
-        SnapshotItemPB * entry = batch->add_data();
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(acl_it.first, buf);
-        Coordination::write(acl_it.second, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last acl batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-    checksum = new_checksum;
-
-    writeTailAndClose(out, checksum);
-}
-
-[[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    LOG_INFO(log, "Begin create snapshot ephemeral object, node size {}, path {}", ephemerals.size(), path);
-
-    ptr<SnapshotBatchPB> batch;
-
-    std::lock_guard lock(mutex);
-
-    if (ephemerals.empty())
-    {
-        LOG_INFO(log, "Create snapshot ephemeral nodes size is 0");
-        return 0;
-    }
-
-    auto out = cs_new<WriteBufferFromFile>(path);
-    uint64_t index = 0;
-    for (auto & ephemeral_it : ephemerals)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                saveBatch(out, batch);
-            }
-            batch = cs_new<SnapshotBatchPB>();
-            batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_DATA_EPHEMERAL);
-        }
-
-        /// append to batch
-        SnapshotItemPB * entry = batch->add_data();
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(ephemeral_it.first, buf);
-        Coordination::write(ephemeral_it.second.size(), buf);
-
-        for (const auto & node_path : ephemeral_it.second)
-        {
-            Coordination::write(node_path, buf);
-        }
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    saveBatch(out, batch);
-    out->close();
-    return 1;
-}
-
-/**
- * Serialize sessions and return the next_session_id before serialize
- */
-int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, String & path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-
-    auto out = openFileAndWriteHeader(path, version);
-
-
-    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", store.session_and_timeout.size(), path);
-
-    std::lock_guard lock(store.session_mutex);
-    std::lock_guard acl_lock(store.auth_mutex);
-
-    int64_t next_session_id = store.session_id_counter;
-    ptr<SnapshotBatchPB> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (auto & session_it : store.session_and_timeout)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-                checksum = new_checksum;
-            }
-            batch = cs_new<SnapshotBatchPB>();
-            batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_SESSION);
-        }
-
-        /// append to batch
-        SnapshotItemPB * entry = batch->add_data();
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(session_it.first, buf); //NewSession
-        Coordination::write(session_it.second, buf); //Timeout_ms
-
-        Coordination::AuthIDs ids;
-        if (store.session_and_auth.count(session_it.first))
-            ids = store.session_and_auth.at(session_it.first);
-        Coordination::write(ids, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-    checksum = new_checksum;
-    writeTailAndClose(out, checksum);
-
-    return next_session_id;
-}
-
-/**
- * Save map<string, string> or map<string, uint64>
- */
-template <typename T>
-void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    LOG_INFO(log, "Begin create snapshot map object, map size {}, path {}", snap_map.size(), path);
-
-    auto out = openFileAndWriteHeader(path, version);
-    ptr<SnapshotBatchPB> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (auto & it : snap_map)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-                checksum = new_checksum;
-            }
-
-            batch = cs_new<SnapshotBatchPB>();
-            if constexpr (std::is_same_v<T, KeeperSnapshotStore::StringMap>)
-                batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_STRINGMAP);
-            else if constexpr (std::is_same_v<T, KeeperSnapshotStore::IntMap>)
-                batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
-            else
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Only support string and int map.");
-        }
-
-        /// append to batch
-        SnapshotItemPB * entry = batch->add_data();
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(it.first, buf);
-        Coordination::write(it.second, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-    checksum = new_checksum;
-    writeTailAndClose(out, checksum);
-}
-
 void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path)
 {
     char path_buf[1024];
@@ -399,6 +61,24 @@ size_t KeeperSnapshotStore::serializeDataTree(KeeperStore & storage)
 
     serializeNode(out, batch, storage, "/", processed, checksum);
     auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
+    checksum = new_checksum;
+
+    writeTailAndClose(out, checksum);
+    LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
+
+    return getObjectIdx(out->getFileName());
+}
+
+size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
+{
+    std::shared_ptr<WriteBufferFromFile> out;
+    ptr<SnapshotBatchBody> batch;
+
+    uint64_t processed = 0;
+    uint32_t checksum = 0;
+
+    serializeNodeV2(out, batch, storage, "/", processed, checksum);
+    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum);
     checksum = new_checksum;
 
     writeTailAndClose(out, checksum);
@@ -480,6 +160,79 @@ void KeeperSnapshotStore::serializeNode(
         serializeNode(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
+void KeeperSnapshotStore::serializeNodeV2(
+    ptr<WriteBufferFromFile> & out,
+    ptr<SnapshotBatchBody> & batch,
+    KeeperStore & store,
+    const String & path,
+    uint64_t & processed,
+    uint32_t & checksum)
+{
+    auto node = store.container.get(path);
+
+    /// In case of node is deleted
+    if (!node)
+        return;
+
+    std::shared_ptr<KeeperNode> node_copy;
+    {
+        std::shared_lock lock(node->mutex);
+        node_copy = node->clone();
+    }
+
+    if (processed % max_object_node_size == 0)
+    {
+        /// time to create new snapshot object
+        uint64_t obj_id = processed / max_object_node_size;
+
+        if (obj_id != 0)
+        {
+            /// flush last batch data
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum);
+            checksum = new_checksum;
+
+            /// close current object file
+            writeTailAndClose(out, checksum);
+            /// reset checksum
+            checksum = 0;
+        }
+        String new_obj_path;
+        /// for there are 4 objects before data objects
+        getObjectPath(obj_id + 4, new_obj_path);
+
+        LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 4, new_obj_path);
+        out = openFileAndWriteHeader(new_obj_path, version);
+    }
+
+    /// flush and rebuild batch
+    if (processed % save_batch_size == 0)
+    {
+        /// skip flush the first batch
+        if (processed != 0)
+        {
+            /// flush data in batch to file
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum);
+            checksum = new_checksum;
+        }
+        else
+        {
+            if (!batch)
+                batch = cs_new<SnapshotBatchBody>();
+        }
+    }
+
+    LOG_TRACE(log, "Append node path {}", path);
+    appendNodeToBatchV2(batch, path, node_copy);
+    processed++;
+
+    String path_with_slash = path;
+    if (path != "/")
+        path_with_slash += '/';
+
+    for (const auto & child : node->children)
+        serializeNodeV2(out, batch, store, path_with_slash + child, processed, checksum);
+}
+
 void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node)
 {
     SnapshotItemPB * entry = batch->add_data();
@@ -497,7 +250,29 @@ void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const St
     entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 }
 
+void KeeperSnapshotStore::appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node)
+{
+    WriteBufferFromNuraftBuffer buf;
+
+    Coordination::write(path, buf);
+    Coordination::write(node->data, buf);
+    Coordination::write(node->acl_id, buf);
+    Coordination::write(node->is_ephemeral, buf);
+    Coordination::write(node->is_sequential, buf);
+    Coordination::write(node->stat, buf);
+
+    ptr<buffer> data = buf.getBuffer();
+    data->pos(0);
+    batch->add(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
+}
+
 size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
+{
+    return version < SnapshotVersion::V2 ? createObjectsV1(store, next_zxid, next_session_id)
+                                          : createObjectsV2(store, next_zxid, next_session_id);
+}
+
+size_t KeeperSnapshotStore::createObjectsV1(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
     if (snap_meta->size() == 0)
     {
@@ -568,6 +343,77 @@ size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid
     return total_obj_count;
 }
 
+size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
+{
+    if (snap_meta->size() == 0)
+    {
+        return 0;
+    }
+
+    Poco::File(snap_dir).createDirectories();
+
+    size_t data_object_count = store.container.size() / max_object_node_size;
+    if (store.container.size() % max_object_node_size)
+    {
+        data_object_count += 1;
+    }
+
+    //uint map、Sessions、acls、Normal node objects
+    size_t total_obj_count = data_object_count + 3;
+
+    LOG_INFO(
+        log,
+        "Creating snapshot v3 with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
+        data_object_count,
+        total_obj_count,
+        next_zxid,
+        next_session_id);
+
+    /// 1. Save uint map before nodes
+    IntMap int_map;
+    /// Next transaction id
+    int_map["ZXID"] = next_zxid;
+    /// Next session id
+    int_map["SESSIONID"] = next_session_id;
+
+    String map_path;
+    getObjectPath(1, map_path);
+    serializeMapV2(int_map, save_batch_size, version, map_path);
+
+    /// 2. Save sessions
+    String session_path;
+    /// object index should start from 1
+    getObjectPath(2, session_path);
+    int64_t serialized_next_session_id = serializeSessionsV2(store, save_batch_size, version, session_path);
+    LOG_INFO(
+        log,
+        "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
+        toHexString(next_session_id),
+        toHexString(serialized_next_session_id));
+
+    /// 3. Save acls
+    String acl_path;
+    /// object index should start from 1
+    getObjectPath(3, acl_path);
+    serializeAclsV2(store.acl_map, acl_path, save_batch_size, version);
+
+    /// 4. Save data tree
+    size_t last_id = serializeDataTreeV2(store);
+
+    total_obj_count = last_id;
+    LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
+
+    /// add all path to objects_path
+    for (size_t i = 1; i < total_obj_count + 1; i++)
+    {
+        String path;
+        getObjectPath(i, path);
+        addObjectPath(i, path);
+    }
+
+    return total_obj_count;
+}
+
 void KeeperSnapshotStore::init(String create_time = "")
 {
     if (create_time.empty())
@@ -581,7 +427,7 @@ void KeeperSnapshotStore::init(String create_time = "")
     }
 }
 
-bool KeeperSnapshotStore::loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
+bool KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
 {
     head.reset();
     errno = 0;
@@ -606,7 +452,7 @@ bool KeeperSnapshotStore::loadBatchHeader(ptr<std::fstream> fs, SnapshotBatchHea
     return true;
 }
 
-bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
+bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, SnapshotVersion used_version)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -624,7 +470,8 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
     size_t read_size = 0;
     SnapshotBatchHeader header;
     UInt32 checksum = 0;
-    SnapshotVersion version_ = SnapshotVersion::None;
+    SnapshotVersion version_from_obj = SnapshotVersion::None;
+
     while (!snap_fs->eof())
     {
         size_t cur_read_size = read_size;
@@ -634,21 +481,21 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
         // Just log it, and break;
         if (readUInt64(snap_fs, magic) != 0)
         {
-            if (snap_fs->eof() && version_ == SnapshotVersion::V0)
+            if (snap_fs->eof() && version_from_obj == SnapshotVersion::V0)
             {
-                LOG_INFO(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_));
+                LOG_INFO(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_from_obj));
                 break;
             }
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load magic error, version {}", obj_path, uint8_t(version_));
+            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load magic error, version {}", obj_path, toString(version_from_obj));
         }
 
         read_size += 8;
         if (isFileHeader(magic))
         {
-            char * buf = reinterpret_cast<char *>(&version_);
+            char * buf = reinterpret_cast<char *>(&version_from_obj);
             snap_fs->read(buf, sizeof(uint8_t));
             read_size += 1;
-            LOG_INFO(log, "obj_path {}, read file header, version {}", obj_path, uint8_t(version_));
+            LOG_INFO(log, "Got snapshot file header with version {}", toString(version_from_obj));
         }
         else if (isFileTail(magic))
         {
@@ -663,17 +510,18 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
         }
         else
         {
-            if (version_ == SnapshotVersion::None)
+            if (version_from_obj == SnapshotVersion::None)
             {
-                version_ = SnapshotVersion::V0;
-                LOG_INFO(log, "obj_path {}, didn't read version, set to V0", obj_path);
+                version_from_obj = SnapshotVersion::V0;
+                LOG_INFO(log, "snapshot has no version, set to V0", obj_path);
             }
 
             LOG_INFO(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
             snap_fs->seekg(cur_read_size);
             read_size = cur_read_size;
         }
-        if (!loadBatchHeader(snap_fs, header))
+
+        if (!parseBatchHeader(snap_fs, header))
         {
             throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load header error", obj_path);
         }
@@ -696,39 +544,55 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
             delete[] body_buf;
             return false;
         }
-        SnapshotBatchPB batch_pb;
-        batch_pb.ParseFromString(String(body_buf, header.data_length));
-        switch (batch_pb.batch_type())
-        {
-            case SnapshotTypePB::SNAPSHOT_TYPE_DATA: {
-                LOG_INFO(log, "Load batch size {}, end point {}", batch_pb.data_size(), read_size);
-                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+
+        /// parse batch body by used_version
+        if (used_version == SnapshotVersion::None)
+            used_version = version_from_obj;
+
+        if (used_version < SnapshotVersion::V2)
+            parseBatchBody(store, body_buf, header.data_length, used_version);
+        else
+            parseBatchBodyV2(store, body_buf, header.data_length, used_version);
+        delete[] body_buf;
+    }
+    return true;
+}
+
+bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+{
+    SnapshotBatchPB batch_pb;
+    batch_pb.ParseFromString(String(batch_buf, length));
+    switch (batch_pb.batch_type())
+    {
+        case SnapshotTypePB::SNAPSHOT_TYPE_DATA: {
+            LOG_INFO(log, "Load batch size {}", batch_pb.data_size());
+            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+            {
+                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                const String & data = item_pb.data();
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                //buf->put(data.data(), data.size());
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                ptr<KeeperNode> node = cs_new<KeeperNode>();
+                String key;
+                try
                 {
-                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const String & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                    //buf->put(data.data(), data.size());
-                    buf->put(data);
-                    buf->pos(0);
-                    ReadBufferFromNuRaftBuffer in(buf);
-                    ptr<KeeperNode> node = cs_new<KeeperNode>();
-                    String key;
-                    try
+                    Coordination::read(key, in);
+                    Coordination::read(node->data, in);
+                    if (version_ >= SnapshotVersion::V1)
                     {
-                        Coordination::read(key, in);
-                        Coordination::read(node->data, in);
-                        if (version_ >= SnapshotVersion::V1)
-                        {
-                            Coordination::read(node->acl_id, in);
-                        }
-                        else if (version_ == SnapshotVersion::V0)
-                        {
-                            /// Deserialize ACL
-                            Coordination::ACLs acls;
-                            Coordination::read(acls, in);
-                            node->acl_id = store.acl_map.convertACLs(acls);
-                            LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
-                        }
+                        Coordination::read(node->acl_id, in);
+                    }
+                    else if (version_ == SnapshotVersion::V0)
+                    {
+                        /// Deserialize ACL
+                        Coordination::ACLs acls;
+                        Coordination::read(acls, in);
+                        node->acl_id = store.acl_map.convertACLs(acls);
+                        LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
+                    }
 
                         /// Some strange ACLID during deserialization from ZooKeeper
                         if (node->acl_id == std::numeric_limits<uint64_t>::max())
@@ -744,33 +608,76 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                         LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
                         store.container.emplace(key, std::move(node));
 
-                        if (ephemeral_owner != 0)
-                        {
-                            LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
-                            std::lock_guard l(store.ephemerals_mutex);
-                            auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
-                            ephemeral_nodes.emplace(key);
-                        }
-                    }
-                    catch (Coordination::Exception & e)
+                    if (ephemeral_owner != 0)
                     {
-                        LOG_WARNING(
-                            log,
-                            "Can't read snapshot data {}, data index {}, key {}, excepiton {}",
-                            obj_path,
-                            data_idx,
-                            key,
-                            e.displayText());
-                        break;
+                        LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                        std::lock_guard l(store.ephemerals_mutex);
+                        auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
+                        ephemeral_nodes.emplace(key);
                     }
                 }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read snapshot data, data index {}, key {}, excepiton {}",
+                        data_idx,
+                        key,
+                        e.displayText());
+                    break;
+                }
             }
+        }
+        break;
+        case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
             break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
-                break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
-                break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
+        case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
+            break;
+        case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
+            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+            {
+                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                const String & data = item_pb.data();
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                int64_t session_id;
+                int64_t timeout;
+                try
+                {
+                    Coordination::read(session_id, in);
+                    Coordination::read(timeout, in);
+                    if (version_ >= SnapshotVersion::V1)
+                    {
+                        Coordination::AuthIDs ids;
+                        Coordination::read(ids, in);
+                        {
+                            if (!ids.empty())
+                            {
+                                std::lock_guard lock(store.auth_mutex);
+                                store.session_and_auth[session_id] = ids;
+                            }
+                        }
+                    }
+                }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read snapshot, data index {}, key {}, excepiton {}",
+                        data_idx,
+                        e.displayText());
+                    break;
+                }
+                LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
+                store.addSessionID(session_id, timeout);
+            }
+        }
+        break;
+        case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
+            if (version_ >= SnapshotVersion::V1)
+            {
                 for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
                 {
                     const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
@@ -778,52 +685,7 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
-                    ReadBufferFromNuRaftBuffer in(buf);
-                    int64_t session_id;
-                    int64_t timeout;
-                    try
-                    {
-                        Coordination::read(session_id, in);
-                        Coordination::read(timeout, in);
-                        if (version_ >= SnapshotVersion::V1)
-                        {
-                            Coordination::AuthIDs ids;
-                            Coordination::read(ids, in);
-                            {
-                                if (!ids.empty())
-                                {
-                                    std::lock_guard lock(store.auth_mutex);
-                                    store.session_and_auth[session_id] = ids;
-                                }
-                            }
-                        }
-                    }
-                    catch (Coordination::Exception & e)
-                    {
-                        LOG_WARNING(
-                            log,
-                            "Can't read type_ephemeral snapshot {}, data index {}, key {}, excepiton {}",
-                            obj_path,
-                            data_idx,
-                            e.displayText());
-                        break;
-                    }
-                    LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
-                    store.addSessionID(session_id, timeout);
-                }
-            }
-            break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
-                if (version_ >= SnapshotVersion::V1)
-                {
-                    for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-                    {
-                        const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                        const String & data = item_pb.data();
-                        ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                        buf->put(data);
-                        buf->pos(0);
-                        ReadBufferFromNuRaftBuffer in(buf);
+                    ReadBufferFromNuraftBuffer in(buf);
 
                         uint64_t acl_id;
                         Coordination::ACLs acls;
@@ -831,54 +693,230 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                         Coordination::read(acl_id, in);
                         Coordination::read(acls, in);
 
-                        LOG_TRACE(log, "parseObject acl_id {}", acl_id);
-                        store.acl_map.addMapping(acl_id, acls);
-                    }
-                }
-                break;
-            case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
-                IntMap int_map;
-                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-                {
-                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const String & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                    buf->put(data);
-                    buf->pos(0);
-                    ReadBufferFromNuRaftBuffer in(buf);
-                    String key;
-                    int64_t value;
-                    try
-                    {
-                        Coordination::read(key, in);
-                        Coordination::read(value, in);
-                    }
-                    catch (Coordination::Exception & e)
-                    {
-                        LOG_WARNING(
-                            log,
-                            "Can't read uint map snapshot {}, data index {}, key {}, exception {}",
-                            obj_path,
-                            data_idx,
-                            e.displayText());
-                        break;
-                    }
-                    int_map[key] = value;
-                }
-                if (int_map.find("ZXID") != int_map.end())
-                {
-                    store.zxid = int_map["ZXID"];
-                }
-                if (int_map.find("SESSIONID") != int_map.end())
-                {
-                    store.session_id_counter = int_map["SESSIONID"];
+                    LOG_TRACE(log, "parseObject acl_id {}", acl_id);
+                    store.acl_map.addMapping(acl_id, acls);
                 }
             }
             break;
-            default:
-                break;
+        case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
+            IntMap int_map;
+            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
+            {
+                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
+                const String & data = item_pb.data();
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                String key;
+                int64_t value;
+                try
+                {
+                    Coordination::read(key, in);
+                    Coordination::read(value, in);
+                }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read uint map snapshot, data index {}, key {}, exception {}",
+                        data_idx,
+                        e.displayText());
+                    break;
+                }
+                int_map[key] = value;
+            }
+            if (int_map.find("ZXID") != int_map.end())
+            {
+                store.zxid = int_map["ZXID"];
+            }
+            if (int_map.find("SESSIONID") != int_map.end())
+            {
+                store.session_id_counter = int_map["SESSIONID"];
+            }
         }
-        delete[] body_buf;
+        break;
+        default:
+            break;
+    }
+    return true;
+}
+
+bool KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+{
+    SnapshotBatchBody batch;
+    batch.parse(String(batch_buf, length));
+    switch (batch.type)
+    {
+        case SnapshotBatchType::SNAPSHOT_TYPE_DATA: {
+            LOG_INFO(log, "Load batch size {}", batch.size());
+            for (size_t data_idx = 0; data_idx < batch.size(); data_idx++)
+            {
+                const String & data = batch[data_idx];
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                ptr<KeeperNode> node = cs_new<KeeperNode>();
+                String key;
+                try
+                {
+                    Coordination::read(key, in);
+                    Coordination::read(node->data, in);
+                    if (version_ >= SnapshotVersion::V1)
+                    {
+                        Coordination::read(node->acl_id, in);
+                    }
+                    else if (version_ == SnapshotVersion::V0)
+                    {
+                        /// Deserialize ACL
+                        Coordination::ACLs acls;
+                        Coordination::read(acls, in);
+                        node->acl_id = store.acl_map.convertACLs(acls);
+                        LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
+                    }
+
+                    /// Some strange ACLID during deserialization from ZooKeeper
+                    if (node->acl_id == std::numeric_limits<uint64_t>::max())
+                        node->acl_id = 0;
+
+                    store.acl_map.addUsage(node->acl_id);
+                    LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
+
+                    Coordination::read(node->is_ephemeral, in);
+                    Coordination::read(node->is_sequential, in);
+                    Coordination::read(node->stat, in);
+                    auto ephemeral_owner = node->stat.ephemeralOwner;
+                    LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
+                    store.container.emplace(key, std::move(node));
+
+                    if (ephemeral_owner != 0)
+                    {
+                        LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                        std::lock_guard l(store.ephemerals_mutex);
+                        auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
+                        ephemeral_nodes.emplace(key);
+                    }
+                }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read snapshot data, data index {}, key {}, excepiton {}",
+                        data_idx,
+                        key,
+                        e.displayText());
+                    break;
+                }
+            }
+        }
+        break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
+            break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
+            break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_SESSION: {
+            for (size_t data_idx = 0; data_idx < batch.size(); data_idx++)
+            {
+                const String & data = batch[data_idx];
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                int64_t session_id;
+                int64_t timeout;
+                try
+                {
+                    Coordination::read(session_id, in);
+                    Coordination::read(timeout, in);
+                    if (version_ >= SnapshotVersion::V1)
+                    {
+                        Coordination::AuthIDs ids;
+                        Coordination::read(ids, in);
+                        {
+                            if (!ids.empty())
+                            {
+                                std::lock_guard lock(store.auth_mutex);
+                                store.session_and_auth[session_id] = ids;
+                            }
+                        }
+                    }
+                }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read snapshot, data index {}, key {}, excepiton {}",
+                        data_idx,
+                        e.displayText());
+                    break;
+                }
+                LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
+                store.addSessionID(session_id, timeout);
+            }
+        }
+        break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP:
+            if (version_ >= SnapshotVersion::V1)
+            {
+                for (size_t data_idx = 0; data_idx < batch.size(); data_idx++)
+                {
+                    const String & data = batch[data_idx];
+                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                    buf->put(data);
+                    buf->pos(0);
+                    ReadBufferFromNuraftBuffer in(buf);
+
+                    uint64_t acl_id;
+                    Coordination::ACLs acls;
+
+                    Coordination::read(acl_id, in);
+                    Coordination::read(acls, in);
+
+                    LOG_TRACE(log, "parseObject acl_id {}", acl_id);
+                    store.acl_map.addMapping(acl_id, acls);
+                }
+            }
+            break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP: {
+            IntMap int_map;
+            for (size_t data_idx = 0; data_idx < batch.size(); data_idx++)
+            {
+                const String & data = batch[data_idx];
+                ptr<buffer> buf = buffer::alloc(data.size() + 1);
+                buf->put(data);
+                buf->pos(0);
+                ReadBufferFromNuraftBuffer in(buf);
+                String key;
+                int64_t value;
+                try
+                {
+                    Coordination::read(key, in);
+                    Coordination::read(value, in);
+                }
+                catch (Coordination::Exception & e)
+                {
+                    LOG_WARNING(
+                        log,
+                        "Can't read uint map snapshot, data index {}, key {}, exception {}",
+                        data_idx,
+                        e.displayText());
+                    break;
+                }
+                int_map[key] = value;
+            }
+            if (int_map.find("ZXID") != int_map.end())
+            {
+                store.zxid = int_map["ZXID"];
+            }
+            if (int_map.find("SESSIONID") != int_map.end())
+            {
+                store.session_id_counter = int_map["SESSIONID"];
+            }
+        }
+        break;
+        default:
+            break;
     }
     return true;
 }

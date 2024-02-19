@@ -44,7 +44,7 @@ KeeperServer::KeeperServer(
         new_session_id_callback,
         state_manager->load_log_store(),
         checkAndGetSuperdigest(settings->super_digest),
-        KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE,
+        MAX_OBJECT_NODE_SIZE,
         request_processor_);
 }
 namespace

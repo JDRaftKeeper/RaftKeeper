@@ -65,7 +65,7 @@ int mainEntryRaftKeeperConverter(int argc, char ** argv)
             store.getZxid());
         nuraft::ptr<snapshot> new_snapshot(nuraft::cs_new<snapshot>(store.getZxid(), 1, std::make_shared<nuraft::cluster_config>()));
         nuraft::ptr<KeeperSnapshotManager> snap_mgr = nuraft::cs_new<KeeperSnapshotManager>(
-            options["output-dir"].as<std::string>(), 3600 * 1, KeeperSnapshotStore::MAX_OBJECT_NODE_SIZE);
+            options["output-dir"].as<std::string>(), 3600 * 1, MAX_OBJECT_NODE_SIZE);
         snap_mgr->createSnapshot(*new_snapshot, store, store.getZxid(), store.getSessionIDCounter());
         std::cout << "Snapshot serialized to path:" << options["output-dir"].as<std::string>() << std::endl;
     }
