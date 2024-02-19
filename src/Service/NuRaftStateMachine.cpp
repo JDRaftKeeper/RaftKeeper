@@ -9,7 +9,7 @@
 
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftStateMachine.h>
-#include <Service/ReadBufferFromNuraftBuffer.h>
+#include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
@@ -104,7 +104,7 @@ ptr<RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> &
     if (entry->get_val_type() != nuraft::log_val_type::app_log)
         return nullptr;
 
-    ReadBufferFromNuraftBuffer buffer(entry->get_buf());
+    ReadBufferFromNuRaftBuffer buffer(entry->get_buf());
     ptr<RequestForSession> request_for_session = cs_new<RequestForSession>();
 
     readIntBinary(request_for_session->session_id, buffer);
@@ -178,7 +178,7 @@ void NuRaftStateMachine::snapThread()
 
 RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
 {
-    ReadBufferFromNuraftBuffer buffer(data);
+    ReadBufferFromNuRaftBuffer buffer(data);
     RequestForSession request_for_session;
     /// TODO unify digital encoding mode
     readIntBinary(request_for_session.session_id, buffer);

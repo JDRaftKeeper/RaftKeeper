@@ -17,7 +17,7 @@
 
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftLogSnapshot.h>
-#include <Service/ReadBufferFromNuraftBuffer.h>
+#include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 
@@ -710,7 +710,7 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                     //buf->put(data.data(), data.size());
                     buf->put(data);
                     buf->pos(0);
-                    ReadBufferFromNuraftBuffer in(buf);
+                    ReadBufferFromNuRaftBuffer in(buf);
                     ptr<KeeperNode> node = cs_new<KeeperNode>();
                     String key;
                     try
@@ -778,7 +778,7 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
-                    ReadBufferFromNuraftBuffer in(buf);
+                    ReadBufferFromNuRaftBuffer in(buf);
                     int64_t session_id;
                     int64_t timeout;
                     try
@@ -823,7 +823,7 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                         ptr<buffer> buf = buffer::alloc(data.size() + 1);
                         buf->put(data);
                         buf->pos(0);
-                        ReadBufferFromNuraftBuffer in(buf);
+                        ReadBufferFromNuRaftBuffer in(buf);
 
                         uint64_t acl_id;
                         Coordination::ACLs acls;
@@ -845,7 +845,7 @@ bool KeeperSnapshotStore::parseObject(String obj_path, KeeperStore & store)
                     ptr<buffer> buf = buffer::alloc(data.size() + 1);
                     buf->put(data);
                     buf->pos(0);
-                    ReadBufferFromNuraftBuffer in(buf);
+                    ReadBufferFromNuRaftBuffer in(buf);
                     String key;
                     int64_t value;
                     try
