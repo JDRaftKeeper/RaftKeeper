@@ -1,14 +1,17 @@
 #include <chrono>
 #include <string>
+
+#include <Poco/NumberFormatter.h>
+
+#include <Common/Stopwatch.h>
+#include <libnuraft/async.hxx>
+
 #include <Service/KeeperServer.h>
 #include <Service/LoggerWrapper.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/NuRaftStateManager.h>
-#include <Service/ReadBufferFromNuraftBuffer.h>
+#include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
-#include <libnuraft/async.hxx>
-#include <Poco/NumberFormatter.h>
-#include <Common/Stopwatch.h>
 
 namespace RK
 {
@@ -205,7 +208,7 @@ bool KeeperServer::updateSessionTimeout(int64_t session_id, int64_t session_time
     if (!result->get())
         throw Exception(ErrorCodes::RAFT_ERROR, "Received nullptr when updating session timeout");
 
-    auto buffer = ReadBufferFromNuraftBuffer(*result->get());
+    auto buffer = ReadBufferFromNuRaftBuffer(*result->get());
     int8_t is_success;
     Coordination::read(is_success, buffer);
 
