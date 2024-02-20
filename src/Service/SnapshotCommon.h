@@ -79,8 +79,6 @@ enum class SnapshotBatchType : int
 struct SnapshotBatchBody
 {
     SnapshotBatchType type;
-    /// element count
-    int32_t count;
     std::vector<String> elements;
 
     void add(const String & element);

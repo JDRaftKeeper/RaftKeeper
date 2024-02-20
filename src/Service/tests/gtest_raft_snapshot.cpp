@@ -395,73 +395,123 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
     cleanDirectory(snap_save_dir);
 }
 
-TEST(RaftSnapshot, compitablilityWithV3)
+
+void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compare_acl)
 {
-    String snap_read_dir(SNAP_DIR + "/13");
-    String snap_save_dir(SNAP_DIR + "/14");
-    cleanDirectory(snap_read_dir);
-    cleanDirectory(snap_save_dir);
-
-    UInt32 last_index = 1024;
-    UInt32 term = 1;
-    KeeperSnapshotManager snap_mgr_read(snap_read_dir, 3, 100);
-    KeeperSnapshotManager snap_mgr_save(snap_save_dir, 3, 100);
-
-    ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
-
-    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
-    KeeperStore store(raft_settings->dead_session_check_period_ms);
-
-    for (int i = 0; i < last_index; i++)
+    ASSERT_EQ(new_store.container.size(), store.container.size());
+    for (UInt32 i = 0; i < store.container.getBlockNum(); i++)
     {
-        String key = std::to_string(i + 1);
-        String value = "table_" + key;
-        setNode(store, key, value);
-    }
-    snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr_read.createSnapshot(meta, store, SnapshotVersion::V1);
-    ASSERT_EQ(object_size, 11 + 1 + 1 + 1);
+        auto & inner_map = store.container.getMap(i);
+        for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
+        {
+            auto new_node = new_store.container.get(it->first);
+            ASSERT_TRUE(new_node != nullptr);
+            ASSERT_EQ(new_node->data, it->second->data);
+            if (compare_acl)
+            {
+                ASSERT_EQ(new_node->acl_id, it->second->acl_id);
+            }
 
-    ulong obj_id = 0;
-    snap_mgr_save.receiveSnapshotMeta(meta);
-    while (true)
-    {
-        obj_id++;
-        if (!snap_mgr_read.existSnapshotObject(meta, obj_id))
-        {
-            break;
-        }
-        ptr<buffer> buffer;
-        snap_mgr_read.loadSnapshotObject(meta, obj_id, buffer);
-        if (buffer != nullptr)
-        {
-            snap_mgr_save.saveSnapshotObject(meta, obj_id, *(buffer.get()));
+            ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
+            ASSERT_EQ(new_node->is_sequential, it->second->is_sequential);
+            ASSERT_EQ(new_node->stat, it->second->stat);
+            ASSERT_EQ(new_node->children, it->second->children);
         }
     }
-    for (auto i = 1; i < obj_id; i++)
+    ASSERT_EQ(new_store.container.get("/1020/test112")->data, "test211");
+
+    ASSERT_TRUE(true) << "compare container.";
+
+    /// compare ephemeral
+    ASSERT_EQ(new_store.ephemerals.size(), store.ephemerals.size());
+    ASSERT_EQ(store.ephemerals.size(), 1);
+    for (const auto & [session_id, paths] : store.ephemerals)
     {
-        ASSERT_TRUE(snap_mgr_save.existSnapshotObject(meta, i));
+        ASSERT_FALSE(new_store.ephemerals.find(session_id) == new_store.ephemerals.end());
+        ASSERT_EQ(paths, new_store.ephemerals.find(session_id)->second);
     }
-    cleanDirectory(snap_read_dir);
-    cleanDirectory(snap_save_dir);
+
+    ASSERT_TRUE(true) << "compare ephemeral.";
+
+    /// compare sessions
+    ASSERT_EQ(store.session_and_timeout.size(), 10003);
+    ASSERT_EQ(store.session_and_timeout.size(), new_store.session_and_timeout.size());
+    ASSERT_EQ(store.session_and_timeout, new_store.session_and_timeout);
+
+    ASSERT_TRUE(true) << "compare sessions.";
+
+    /// compare Others(int_map)
+    ASSERT_EQ(store.session_id_counter, 10004);
+    ASSERT_EQ(store.session_id_counter, new_store.session_id_counter);
+    ASSERT_EQ(store.zxid, new_store.zxid);
+
+    ASSERT_TRUE(true) << "compare Others(int_map).";
+
+
+    /// compare session_and_auth
+    if (compare_acl)
+    {
+        ASSERT_EQ(store.session_and_auth, new_store.session_and_auth);
+    }
+
+    ASSERT_TRUE(true) << "compare session_and_auth.";
+
+    /// compare ACLs
+    if (compare_acl)
+    {
+        /// include : vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
+        ASSERT_EQ(new_store.acl_map.getMapping().size(), 4);
+        ASSERT_EQ(store.acl_map.getMapping(), new_store.acl_map.getMapping());
+
+        const auto & acls = new_store.acl_map.convertNumber(store.container.get("/1020")->acl_id);
+        ASSERT_EQ(acls.size(), 2);
+        ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+
+        for (const auto & acl : new_store.acl_map.convertNumber(store.container.get("/1022")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::Read);
+        }
+
+        for (const auto & acl : new_store.acl_map.convertNumber(store.container.get("/1024")->acl_id))
+        {
+            ASSERT_EQ(acl.permissions, ACL::All);
+            ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        }
+
+        const auto & const_acl_usage_counter = store.acl_map.getUsageCounter();
+        auto & acl_usage_counter = const_cast<decltype(store.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
+        const auto & const_new_acl_usage_counter = new_store.acl_map.getUsageCounter();
+        auto & new_acl_usage_counter = const_cast<decltype(new_store.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
+
+        ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
+
+        const auto & acls_1020 = getACL(new_store, "/1020");
+        ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        ASSERT_EQ(acls_1020[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        // end of compare
+    }
+
+    ASSERT_TRUE(true) << "compare ACLs.";
 }
 
-void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion parse_version)
+void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version2)
 {
     String snap_dir(SNAP_DIR + "/5");
     cleanDirectory(snap_dir);
+
     KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
 
     RaftSettingsPtr raft_settings(RaftSettings::getDefault());
     KeeperStore store(raft_settings->dead_session_check_period_ms);
 
+    /// 1. build keeper store
+
     /// session 1
     store.getSessionID(3000);
 
     addAuth(store, 1, "digest", "user1:password1"); /// set acl to session
-    UInt32 last_index = 2048;
-    UInt32 term = 1;
     for (int i = 1; i <= 1024; i++)
     {
         String key = std::to_string(i);
@@ -528,140 +578,54 @@ void parseSnapshot(const SnapshotVersion create_version, const SnapshotVersion p
 
     ASSERT_EQ(store.container.size(), 2050); /// Include "/" node
 
-    snapshot meta(last_index, term, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter, create_version);
+    /// 2. create snapshot with version1
+
+    snapshot meta(1, 1, config);
+    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter, version1);
 
     /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 21 + 3);
 
-    KeeperStore new_storage(raft_settings->dead_session_check_period_ms);
+    /// 3. load the snapshot into new_store
+    KeeperStore new_store(raft_settings->dead_session_check_period_ms);
+    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_store));
 
-    ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_storage));
+    /// 4. compare store and new_store
+    bool compare_acl = version1 >= V1 && version2 >= V1;
+    compareKeeperStore(store, new_store, compare_acl);
 
-    /// compare container
-    ASSERT_EQ(new_storage.container.size(), 2050); /// Include "/" node, "/1020/test112"
-    ASSERT_EQ(new_storage.container.size(), store.container.size());
-    for (UInt32 i = 0; i < store.container.getBlockNum(); i++)
-    {
-        auto & inner_map = store.container.getMap(i);
-        for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
-        {
-            auto new_node = new_storage.container.get(it->first);
-            ASSERT_TRUE(new_node != nullptr);
-            ASSERT_EQ(new_node->data, it->second->data);
-            if (create_version >= V1 && parse_version >= V1)
-            {
-                ASSERT_EQ(new_node->acl_id, it->second->acl_id);
-            }
+    /// 5. create snapshot with version2
+    snapshot new_meta(2, 1, config); /// We should use different last_log_index
+    size_t new_object_size = snap_mgr.createSnapshot(new_meta, new_store, new_store.zxid, new_store.session_id_counter, version2);
+    ASSERT_EQ(new_object_size, 21 + 3);
 
-            ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
-            ASSERT_EQ(new_node->is_sequential, it->second->is_sequential);
-            ASSERT_EQ(new_node->stat, it->second->stat);
-            ASSERT_EQ(new_node->children, it->second->children);
-        }
-    }
-    ASSERT_EQ(new_storage.container.get("/1020/test112")->data, "test211");
+    /// 6. load the snapshot into new_store1
+    KeeperStore new_store1(raft_settings->dead_session_check_period_ms);
+    ASSERT_TRUE(snap_mgr.parseSnapshot(new_meta, new_store1));
 
-    ASSERT_TRUE(true) << "compare container.";
-
-    /// compare ephemeral
-    ASSERT_EQ(new_storage.ephemerals.size(), store.ephemerals.size());
-    ASSERT_EQ(store.ephemerals.size(), 1);
-    for (const auto & [session_id, paths] : store.ephemerals)
-    {
-        ASSERT_FALSE(new_storage.ephemerals.find(session_id) == new_storage.ephemerals.end());
-        ASSERT_EQ(paths, new_storage.ephemerals.find(session_id)->second);
-    }
-
-    ASSERT_TRUE(true) << "compare ephemeral.";
-
-    /// compare sessions
-    ASSERT_EQ(store.session_and_timeout.size(), 10003);
-    ASSERT_EQ(store.session_and_timeout.size(), new_storage.session_and_timeout.size());
-    ASSERT_EQ(store.session_and_timeout, new_storage.session_and_timeout);
-
-    ASSERT_TRUE(true) << "compare sessions.";
-
-    /// compare Others(int_map)
-    ASSERT_EQ(store.session_id_counter, 10004);
-    ASSERT_EQ(store.session_id_counter, new_storage.session_id_counter);
-    ASSERT_EQ(store.zxid, new_storage.zxid);
-
-    ASSERT_TRUE(true) << "compare Others(int_map).";
-
-
-    /// compare session_and_auth
-    if (create_version >= V1 && parse_version >= V1)
-    {
-        ASSERT_EQ(store.session_and_auth, new_storage.session_and_auth);
-    }
-
-    ASSERT_TRUE(true) << "compare session_and_auth.";
-
-    /// compare ACLs
-    if (create_version >= V1 && parse_version >= V1)
-    {
-        /// include : vector acl, (ACL::All, "digest", "user1:password1"), (ACL::Read, "digest", "user1:password1"), (ACL::All, "digest", "user1:password")
-        ASSERT_EQ(new_storage.acl_map.getMapping().size(), 4);
-        ASSERT_EQ(store.acl_map.getMapping(), new_storage.acl_map.getMapping());
-
-        const auto & acls = new_storage.acl_map.convertNumber(store.container.get("/1020")->acl_id);
-        ASSERT_EQ(acls.size(), 2);
-        ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
-        ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-
-        for (const auto & acl : new_storage.acl_map.convertNumber(store.container.get("/1022")->acl_id))
-        {
-            ASSERT_EQ(acl.permissions, ACL::Read);
-        }
-
-        for (const auto & acl : new_storage.acl_map.convertNumber(store.container.get("/1024")->acl_id))
-        {
-            ASSERT_EQ(acl.permissions, ACL::All);
-            ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-        }
-
-        const auto & const_acl_usage_counter = store.acl_map.getUsageCounter();
-        auto & acl_usage_counter = const_cast<decltype(store.acl_map.getUsageCounter()) &>(const_acl_usage_counter);
-        const auto & const_new_acl_usage_counter = new_storage.acl_map.getUsageCounter();
-        auto & new_acl_usage_counter = const_cast<decltype(new_storage.acl_map.getUsageCounter()) &>(const_new_acl_usage_counter);
-
-        ASSERT_EQ(acl_usage_counter, new_acl_usage_counter);
-
-        const auto & acls_1020 = getACL(new_storage, "/1020");
-        ASSERT_EQ(acls_1020[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
-        ASSERT_EQ(acls_1020[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
-        // end of compare
-    }
-
-    ASSERT_TRUE(true) << "compare ACLs.";
-
-    for (int i = last_index; i < 2 * last_index; i++)
-    {
-        String key = std::to_string(i + 1);
-        String value = "table_" + key;
-        setNode(store, key, value);
-    }
-
-    ASSERT_EQ(store.container.size(), 4098);
-    sleep(1); /// snapshot_create_interval minest is 1
-    snapshot meta2(2 * last_index, term, config);
-    object_size = snap_mgr.createSnapshot(meta2, store);
-
-    KeeperSnapshotManager new_snap_mgr(snap_dir, 1, 100);
-    ASSERT_EQ(new_snap_mgr.loadSnapshotMetas(), 2);
-    ASSERT_EQ(new_snap_mgr.lastSnapshot()->get_last_log_idx(), 4096);
-
-    ASSERT_EQ(new_snap_mgr.removeSnapshots(), 1);
-
-    cleanDirectory(snap_dir);
+    /// 7. compare new_store and new_store1
+    compareKeeperStore(new_store, new_store1, compare_acl);
 }
 
 TEST(RaftSnapshot, parseSnapshot)
 {
     parseSnapshot(V0, V0);
-    sleep(1); /// snapshot_create_interval minest is 1
+    sleep(1); /// snapshot_create_interval is 1
+
     parseSnapshot(V1, V1);
+    sleep(1);
+
+    parseSnapshot(V0, V1);
+    sleep(1);
+
+    parseSnapshot(V0, V2);
+    sleep(1);
+
+    parseSnapshot(V1, V2);
+    sleep(1);
+
+    parseSnapshot(V2, V1);
+    sleep(1);
 }
 
 TEST(RaftSnapshot, createSnapshotWithFuzzyLog)

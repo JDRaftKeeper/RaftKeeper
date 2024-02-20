@@ -4,7 +4,7 @@
 #include <Common/IO/WriteHelpers.h>
 
 #include <Service/KeeperUtils.h>
-#include <Service/ReadBufferFromNuraftBuffer.h>
+#include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <Service/SnapshotCommon.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
@@ -654,7 +654,9 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
 {
     ptr<SnapshotBatchBody> batch_body = std::make_shared<SnapshotBatchBody>();
     ReadBufferFromMemory in(data.c_str(), data.size());
-    readIntBinary(batch_body->type, in);
+    int32_t type;
+    readIntBinary(type, in);
+    batch_body->type = static_cast<SnapshotBatchType>(type);
     int32_t element_count;
     readIntBinary(element_count, in);
     batch_body->elements.reserve(element_count);
