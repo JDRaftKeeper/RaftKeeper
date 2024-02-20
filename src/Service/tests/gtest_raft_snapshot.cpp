@@ -412,7 +412,7 @@ void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compa
                 ASSERT_EQ(new_node->acl_id, it->second->acl_id);
             }
 
-            ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral);
+            ASSERT_EQ(new_node->is_ephemeral, it->second->is_ephemeral) << "Ephemeral not equals for path " << it->first;
             ASSERT_EQ(new_node->is_sequential, it->second->is_sequential);
             ASSERT_EQ(new_node->stat, it->second->stat);
             ASSERT_EQ(new_node->children, it->second->children);
@@ -552,7 +552,6 @@ void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version
     }
 
     for (int i = 0; i < 1024; i++)
-
     {
         String key = std::to_string(i);
         String value = "table_" + key;

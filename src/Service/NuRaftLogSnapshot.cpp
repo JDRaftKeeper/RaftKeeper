@@ -149,7 +149,7 @@ void KeeperSnapshotStore::serializeNode(
     }
 
     LOG_TRACE(log, "Append node path {}", path);
-    appendNodeToBatch(batch, path, node_copy);
+    appendNodeToBatch(batch, path, node_copy, version);
     processed++;
 
     String path_with_slash = path;
@@ -222,7 +222,7 @@ void KeeperSnapshotStore::serializeNodeV2(
     }
 
     LOG_TRACE(log, "Append node path {}", path);
-    appendNodeToBatchV2(batch, path, node_copy);
+    appendNodeToBatchV2(batch, path, node_copy, version);
     processed++;
 
     String path_with_slash = path;
@@ -233,14 +233,21 @@ void KeeperSnapshotStore::serializeNodeV2(
         serializeNodeV2(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
-void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node)
+void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
 {
     SnapshotItemPB * entry = batch->add_data();
     WriteBufferFromNuraftBuffer buf;
 
     Coordination::write(path, buf);
     Coordination::write(node->data, buf);
-    Coordination::write(node->acl_id, buf);
+    if (version == SnapshotVersion::V0)
+    {
+        /// Just ignore acls for snapshot V0 /// TODO delete
+        Coordination::ACLs acls;
+        Coordination::write(acls, buf);
+    }
+    else
+        Coordination::write(node->acl_id, buf);
     Coordination::write(node->is_ephemeral, buf);
     Coordination::write(node->is_sequential, buf);
     Coordination::write(node->stat, buf);
@@ -250,13 +257,20 @@ void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const St
     entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 }
 
-void KeeperSnapshotStore::appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node)
+void KeeperSnapshotStore::appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
 {
     WriteBufferFromNuraftBuffer buf;
 
     Coordination::write(path, buf);
     Coordination::write(node->data, buf);
-    Coordination::write(node->acl_id, buf);
+    if (version == SnapshotVersion::V0)
+    {
+        /// Just ignore acls for snapshot V0 /// TODO delete
+        Coordination::ACLs acls;
+        Coordination::write(acls, buf);
+    }
+    else
+        Coordination::write(node->acl_id, buf);
     Coordination::write(node->is_ephemeral, buf);
     Coordination::write(node->is_sequential, buf);
     Coordination::write(node->stat, buf);
@@ -608,7 +622,7 @@ bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, 
 
                     if (ephemeral_owner != 0)
                     {
-                        LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
+                        LOG_TRACE(log, "Load snapshot find ephemeral node {} owner {}", key, ephemeral_owner);
                         std::lock_guard l(store.ephemerals_mutex);
                         auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
                         ephemeral_nodes.emplace(key);
