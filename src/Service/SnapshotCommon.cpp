@@ -19,7 +19,6 @@ namespace RK
 
 namespace ErrorCodes
 {
-    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
     extern const int CORRUPTED_SNAPSHOT;
 }
 
@@ -42,20 +41,8 @@ String toString(SnapshotVersion version)
     }
 }
 
-int openFileForWrite(const String & obj_path)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    errno = 0;
-    int snap_fd = ::open(obj_path.c_str(), O_RDWR | O_CREAT, 0644);
-    if (snap_fd < 0)
-    {
-        LOG_ERROR(log, "Created new snapshot object {} failed, fd {}, error:{}", obj_path, snap_fd, strerror(errno));
-        return -1;
-    }
-    return snap_fd;
-}
 
-bool isFileHeader(UInt64 magic)
+bool isSnapshotFileHeader(UInt64 magic)
 {
     union
     {
@@ -65,7 +52,7 @@ bool isFileHeader(UInt64 magic)
     return magic == magic_num;
 }
 
-bool isFileTail(UInt64 magic)
+bool isSnapshotFileTail(UInt64 magic)
 {
     union
     {
@@ -75,7 +62,15 @@ bool isFileTail(UInt64 magic)
     return magic == magic_num;
 }
 
-std::shared_ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, const SnapshotVersion version)
+int openFileForWrite(const String & path)
+{
+    int snap_fd = ::open(path.c_str(), O_RDWR | O_CREAT, 0644);
+    if (snap_fd < 0)
+        throwFromErrno("Opening snapshot object " + path + " failed", ErrorCodes::CORRUPTED_SNAPSHOT);
+    return snap_fd;
+}
+
+ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotVersion version)
 {
     auto out = std::make_shared<WriteBufferFromFile>(path);
     out->write(MAGIC_SNAPSHOT_HEAD.data(), MAGIC_SNAPSHOT_HEAD.size());
@@ -83,23 +78,19 @@ std::shared_ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path,
     return out;
 }
 
-int openFileForRead(String & obj_path)
+int openFileForRead(String & path)
 {
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    errno = 0;
-    int snap_fd = ::open(obj_path.c_str(), O_RDWR);
+    int snap_fd = ::open(path.c_str(), O_RDWR);
     if (snap_fd < 0)
-    {
-        LOG_ERROR(log, "Open snapshot object {} failed, fd {}, error:{}", obj_path, snap_fd, strerror(errno));
-        return -1;
-    }
+        throwFromErrno("Opening snapshot object " + path + " failed", ErrorCodes::CORRUPTED_SNAPSHOT);
     return snap_fd;
 }
 
-void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checksum)
+void writeTailAndClose(ptr<WriteBufferFromFile> & out, UInt32 checksum)
 {
     out->write(MAGIC_SNAPSHOT_TAIL.data(), MAGIC_SNAPSHOT_TAIL.size());
     writeIntBinary(checksum, *out);
+    out->next();
     out->close();
 }
 
@@ -166,7 +157,7 @@ std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const Str
 }
 
 /// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
+std::pair<size_t, UInt32> saveBatch(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
 {
     if (!batch)
         batch = cs_new<SnapshotBatchPB>();
@@ -188,7 +179,7 @@ std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, 
 }
 
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSum(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum)
+saveBatchAndUpdateCheckSum(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum)
 {
     auto [save_size, data_crc] = saveBatch(out, batch);
     /// rebuild batch
@@ -398,7 +389,7 @@ void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version,
             else if constexpr (std::is_same_v<T, IntMap>)
                 batch->set_batch_type(SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP);
             else
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Only support string and int map.");
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Only support string and int map.");
         }
 
         /// append to batch
@@ -441,13 +432,12 @@ void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, Snapshot
             path = std::move(parse_res.first->path);
             node = std::move(parse_res.first->node);
             acls = std::move(parse_res.second);
+            assert(node);
         }
         catch (...)
         {
             throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th node in batch", i + 1);
         }
-
-        assert(!node);
 
         if (version == SnapshotVersion::V0)
             node->acl_id = store.acl_map.convertACLs(acls);
@@ -476,16 +466,16 @@ void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch, Snaps
     {
         const auto & item = batch.data(i);
         const String & data = item.data();
-        
+
         ReadBufferFromMemory in(data.data(), data.size());
         int64_t session_id;
         int64_t timeout;
-        
+
         try
         {
             Coordination::read(session_id, in);
             Coordination::read(timeout, in);
-            
+
             if (version >= SnapshotVersion::V1)
             {
                 Coordination::AuthIDs ids;
@@ -514,7 +504,7 @@ void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch, Snapsh
             const SnapshotItemPB & item_pb = batch.data(i);
             const String & data = item_pb.data();
             ReadBufferFromMemory in(data.data(), data.size());
-            
+
             uint64_t acl_id;
             Coordination::ACLs acls;
 
@@ -541,7 +531,7 @@ void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, Snapsh
         const auto & item = batch.data(i);
         const String & data = item.data();
         ReadBufferFromMemory in(data.data(), data.size());
-        
+
         String key;
         int64_t value;
         try
@@ -551,7 +541,8 @@ void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, Snapsh
         }
         catch (...)
         {
-            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
+            throw Exception(
+                ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
         }
         int_map[key] = value;
     }
@@ -565,7 +556,7 @@ void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, Snapsh
     }
 }
 
-std::pair<size_t, UInt32> saveBatchV2(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch)
+std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch)
 {
     if (!batch)
         batch = cs_new<SnapshotBatchBody>();
@@ -586,7 +577,7 @@ std::pair<size_t, UInt32> saveBatchV2(std::shared_ptr<WriteBufferFromFile> & out
 }
 
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSumV2(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum)
+saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum)
 {
     auto [save_size, data_crc] = saveBatchV2(out, batch);
     /// rebuild batch
@@ -787,7 +778,7 @@ void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion versio
             else if constexpr (std::is_same_v<T, IntMap>)
                 batch->type = SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP;
             else
-                throw Exception(ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT, "Only support string and int map.");
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Only support string and int map.");
         }
 
         /// append to batch
@@ -877,13 +868,12 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVe
             path = std::move(parse_res.first->path);
             node = std::move(parse_res.first->node);
             acls = std::move(parse_res.second);
+            assert(node);
         }
         catch (...)
         {
             throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th node in batch", i + 1);
         }
-
-        assert(!node);
 
         if (version == SnapshotVersion::V0)
             node->acl_id = store.acl_map.convertACLs(acls);
@@ -915,12 +905,12 @@ void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, Snapsho
 
         int64_t session_id;
         int64_t timeout;
-        
+
         try
         {
             Coordination::read(session_id, in);
             Coordination::read(timeout, in);
-            
+
             if (version >= SnapshotVersion::V1)
             {
                 Coordination::AuthIDs ids;
@@ -948,7 +938,7 @@ void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
         {
             const String & data = batch[i];
             ReadBufferFromMemory in(data.data(), data.size());
-            
+
             uint64_t acl_id;
             Coordination::ACLs acls;
 
@@ -974,7 +964,7 @@ void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
     {
         const String & data = batch[i];
         ReadBufferFromMemory in(data.data(), data.size());
-        
+
         String key;
         int64_t value;
         try
@@ -984,7 +974,8 @@ void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
         }
         catch (...)
         {
-            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
+            throw Exception(
+                ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
         }
         int_map[key] = value;
     }

@@ -95,7 +95,7 @@ public:
     SnapshotVersion version;
 
 private:
-    /// For snapshot version v1
+    /// For snapshot version v1 /// TODO delete
     size_t createObjectsV1(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
     /// For snapshot version v3
     size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
@@ -104,24 +104,24 @@ private:
     void getObjectPath(ulong object_id, String & path);
 
     /// Parse an snapshot object. We should take the version from snapshot in general.
-    bool parseObject(KeeperStore & store, String obj_path);
+    void parseObject(KeeperStore & store, String obj_path);
 
     /// Parse batch header in an object
     /// TODO use internal buffer
-    bool parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
+    void parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
+    /// Parse a batch /// TODO delete
+    void parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_);
     /// Parse a batch
-    bool parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_);
-    /// Parse a batch
-    bool parseBatchBodyV2(KeeperStore & store, char * buf, size_t length, SnapshotVersion version_);
+    void parseBatchBodyV2(KeeperStore & store, char * buf, size_t length, SnapshotVersion version_);
 
-    /// Serialize whole data tree
+    /// Serialize whole data tree /// TODO delete
     size_t serializeDataTree(KeeperStore & storage);
 
-    /// For snapshot version v3
+    /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
 
-    /// Serialize data tree by deep traversal.
+    /// Serialize data tree by deep traversal. /// TODO delete
     void serializeNode(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchPB> & batch,
@@ -139,10 +139,10 @@ private:
         uint64_t & processed,
         uint32_t & checksum);
 
-    /// Append node to batch
+    /// Append node to batch /// TODO delete
     inline static void
     appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version);
-    /// For snapshot version v3
+    /// For snapshot version v2
     inline static void
     appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version);
 

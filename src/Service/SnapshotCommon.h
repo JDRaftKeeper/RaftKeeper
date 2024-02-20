@@ -89,17 +89,17 @@ struct SnapshotBatchBody
     static ptr<SnapshotBatchBody> parse(const String & data);
 };
 
-int openFileForWrite(const String & obj_path);
-int openFileForRead(String & obj_path);
+int openFileForWrite(const String & path);
+int openFileForRead(String & path);
 
 /// snapshot object file header
-bool isFileHeader(UInt64 magic);
+bool isSnapshotFileHeader(UInt64 magic);
 
 /// snapshot object file tail
-bool isFileTail(UInt64 magic);
+bool isSnapshotFileTail(UInt64 magic);
 
-std::shared_ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, const SnapshotVersion version);
-void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checksum);
+ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotVersion version);
+void writeTailAndClose(ptr<WriteBufferFromFile> & out, UInt32 checksum);
 
 UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
 
@@ -110,9 +110,9 @@ std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const Str
 /// ----- For snapshot version 1 ----- // TODO delete
 
 /// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch);
+std::pair<size_t, UInt32> saveBatch(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch);
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSum(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum);
+saveBatchAndUpdateCheckSum(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum);
 
 void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
 [[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size);
@@ -124,18 +124,19 @@ int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, SnapshotV
 template <typename T>
 void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
-/// parse snapshot batch
-void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
-void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
-void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
-void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
+/// Parse snapshot batch without protobuf
+void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
+void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
+void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
+void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
+
 
 /// ----- For snapshot version 2 -----
 
 /// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatchV2(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch);
+std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch);
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSumV2(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum);
+saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum);
 
 void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
 [[maybe_unused]] size_t
