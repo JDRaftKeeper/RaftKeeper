@@ -140,9 +140,11 @@ private:
         uint32_t & checksum);
 
     /// Append node to batch
-    inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
+    inline static void
+    appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version);
     /// For snapshot version v3
-    inline static void appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node);
+    inline static void
+    appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version);
 
     /// Snapshot directory, note than the directory may contain more than one snapshot.
     String snap_dir;
@@ -192,7 +194,12 @@ public:
 
     ~KeeperSnapshotManager() = default;
 
-    size_t createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0, SnapshotVersion version = CURRENT_SNAPSHOT_VERSION);
+    size_t createSnapshot(
+        snapshot & meta,
+        KeeperStore & store,
+        int64_t next_zxid = 0,
+        int64_t next_session_id = 0,
+        SnapshotVersion version = CURRENT_SNAPSHOT_VERSION);
 
     /// save snapshot meta, invoked when we receive an snapshot from leader.
     bool receiveSnapshotMeta(snapshot & meta);
