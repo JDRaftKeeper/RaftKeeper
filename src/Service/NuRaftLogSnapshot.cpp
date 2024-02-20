@@ -575,178 +575,27 @@ bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, 
     batch_pb.ParseFromString(String(batch_buf, length));
     switch (batch_pb.batch_type())
     {
-        case SnapshotTypePB::SNAPSHOT_TYPE_DATA: {
-            LOG_INFO(log, "Load batch size {}", batch_pb.data_size());
-            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-            {
-                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                const String & data = item_pb.data();
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                //buf->put(data.data(), data.size());
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                ptr<KeeperNode> node = cs_new<KeeperNode>();
-                String key;
-                try
-                {
-                    Coordination::read(key, in);
-                    Coordination::read(node->data, in);
-                    if (version_ >= SnapshotVersion::V1)
-                    {
-                        Coordination::read(node->acl_id, in);
-                    }
-                    else if (version_ == SnapshotVersion::V0)
-                    {
-                        /// Deserialize ACL
-                        Coordination::ACLs acls;
-                        Coordination::read(acls, in);
-                        node->acl_id = store.acl_map.convertACLs(acls);
-                        LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
-                    }
-
-                    /// Some strange ACLID during deserialization from ZooKeeper
-                    if (node->acl_id == std::numeric_limits<uint64_t>::max())
-                        node->acl_id = 0;
-
-                    store.acl_map.addUsage(node->acl_id);
-                    LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
-
-                    Coordination::read(node->is_ephemeral, in);
-                    Coordination::read(node->is_sequential, in);
-                    Coordination::read(node->stat, in);
-                    auto ephemeral_owner = node->stat.ephemeralOwner;
-                    LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
-                    store.container.emplace(key, std::move(node));
-
-                    if (ephemeral_owner != 0)
-                    {
-                        LOG_TRACE(log, "Load snapshot find ephemeral node {} owner {}", key, ephemeral_owner);
-                        std::lock_guard l(store.ephemerals_mutex);
-                        auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
-                        ephemeral_nodes.emplace(key);
-                    }
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read snapshot data, data index {}, key {}, excepiton {}",
-                        data_idx,
-                        key,
-                        e.displayText());
-                    break;
-                }
-            }
-        }
+        case SnapshotTypePB::SNAPSHOT_TYPE_DATA:
+            LOG_INFO(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
+            parseBatchData(store, batch_pb, version_);
         break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
-            break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
-            break;
         case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
-            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-            {
-                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                const String & data = item_pb.data();
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                int64_t session_id;
-                int64_t timeout;
-                try
-                {
-                    Coordination::read(session_id, in);
-                    Coordination::read(timeout, in);
-                    if (version_ >= SnapshotVersion::V1)
-                    {
-                        Coordination::AuthIDs ids;
-                        Coordination::read(ids, in);
-                        {
-                            if (!ids.empty())
-                            {
-                                std::lock_guard lock(store.auth_mutex);
-                                store.session_and_auth[session_id] = ids;
-                            }
-                        }
-                    }
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read snapshot, data index {}, key {}, excepiton {}",
-                        data_idx,
-                        e.displayText());
-                    break;
-                }
-                LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
-                store.addSessionID(session_id, timeout);
-            }
+            LOG_INFO(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
+            parseBatchSession(store, batch_pb, version_);
         }
         break;
         case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
-            if (version_ >= SnapshotVersion::V1)
-            {
-                for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-                {
-                    const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                    const String & data = item_pb.data();
-                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                    buf->put(data);
-                    buf->pos(0);
-                    ReadBufferFromNuRaftBuffer in(buf);
-
-                    uint64_t acl_id;
-                    Coordination::ACLs acls;
-
-                    Coordination::read(acl_id, in);
-                    Coordination::read(acls, in);
-
-                    LOG_TRACE(log, "parseObject acl_id {}", acl_id);
-                    store.acl_map.addMapping(acl_id, acls);
-                }
-            }
+            LOG_INFO(log, "Parsing batch acl from snapshot, acl count {}", batch_pb.data_size());
+            parseBatchAclMap(store, batch_pb, version_);
             break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP: {
-            IntMap int_map;
-            for (int data_idx = 0; data_idx < batch_pb.data_size(); data_idx++)
-            {
-                const SnapshotItemPB & item_pb = batch_pb.data(data_idx);
-                const String & data = item_pb.data();
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                String key;
-                int64_t value;
-                try
-                {
-                    Coordination::read(key, in);
-                    Coordination::read(value, in);
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read uint map snapshot, data index {}, key {}, exception {}",
-                        data_idx,
-                        e.displayText());
-                    break;
-                }
-                int_map[key] = value;
-            }
-            if (int_map.find("ZXID") != int_map.end())
-            {
-                store.zxid = int_map["ZXID"];
-            }
-            if (int_map.find("SESSIONID") != int_map.end())
-            {
-                store.session_id_counter = int_map["SESSIONID"];
-            }
-        }
+        case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP:
+            LOG_INFO(log, "Parsing batch int_map from snapshot, element count {}", batch_pb.data_size());
+            parseBatchIntMap(store, batch_pb, version_);
+            LOG_INFO(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
         break;
+        case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
+        case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
+            break;
         default:
             break;
     }
@@ -759,176 +608,27 @@ bool KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf
     batch = SnapshotBatchBody::parse(String(batch_buf, length));
     switch (batch->type)
     {
-        case SnapshotBatchType::SNAPSHOT_TYPE_DATA: {
-            LOG_INFO(log, "Loading snapshot data batch with element count {}", batch->size());
-            for (size_t data_idx = 0; data_idx < batch->size(); data_idx++)
-            {
-                const String & data = (*batch)[data_idx];
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                ptr<KeeperNode> node = cs_new<KeeperNode>();
-                String key;
-                try
-                {
-                    Coordination::read(key, in);
-                    Coordination::read(node->data, in);
-                    if (version_ >= SnapshotVersion::V1)
-                    {
-                        Coordination::read(node->acl_id, in);
-                    }
-                    else if (version_ == SnapshotVersion::V0)
-                    {
-                        /// Deserialize ACL
-                        Coordination::ACLs acls;
-                        Coordination::read(acls, in);
-                        node->acl_id = store.acl_map.convertACLs(acls);
-                        LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
-                    }
-
-                    /// Some strange ACLID during deserialization from ZooKeeper
-                    if (node->acl_id == std::numeric_limits<uint64_t>::max())
-                        node->acl_id = 0;
-
-                    store.acl_map.addUsage(node->acl_id);
-                    LOG_TRACE(log, "parseObject path {}, acl_id {}", key, node->acl_id);
-
-                    Coordination::read(node->is_ephemeral, in);
-                    Coordination::read(node->is_sequential, in);
-                    Coordination::read(node->stat, in);
-                    auto ephemeral_owner = node->stat.ephemeralOwner;
-                    LOG_TRACE(log, "Load snapshot read key {}, node stat {}", key, node->stat.toString());
-                    store.container.emplace(key, std::move(node));
-
-                    if (ephemeral_owner != 0)
-                    {
-                        LOG_TRACE(log, "Load snapshot find ephemeral node {} - {}", ephemeral_owner, key);
-                        std::lock_guard l(store.ephemerals_mutex);
-                        auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
-                        ephemeral_nodes.emplace(key);
-                    }
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read snapshot data, data index {}, key {}, excepiton {}",
-                        data_idx,
-                        key,
-                        e.displayText());
-                    break;
-                }
-            }
-        }
-        break;
-        case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
-            break;
-        case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
+        case SnapshotBatchType::SNAPSHOT_TYPE_DATA:
+            LOG_INFO(log, "Parsing batch data from snapshot, data count {}", batch->size());
+            parseBatchDataV2(store, *batch, version_);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_SESSION: {
-            LOG_INFO(log, "Loading snapshot session batch with element count {}", batch->size());
-            for (size_t data_idx = 0; data_idx < batch->size(); data_idx++)
-            {
-                const String & data = (*batch)[data_idx];
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                int64_t session_id;
-                int64_t timeout;
-                try
-                {
-                    Coordination::read(session_id, in);
-                    Coordination::read(timeout, in);
-                    if (version_ >= SnapshotVersion::V1)
-                    {
-                        Coordination::AuthIDs ids;
-                        Coordination::read(ids, in);
-                        {
-                            if (!ids.empty())
-                            {
-                                std::lock_guard lock(store.auth_mutex);
-                                store.session_and_auth[session_id] = ids;
-                            }
-                        }
-                    }
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read snapshot, data index {}, key {}, excepiton {}",
-                        data_idx,
-                        e.displayText());
-                    break;
-                }
-                LOG_TRACE(log, "Read session id {}, timeout {}", session_id, timeout);
-                store.addSessionID(session_id, timeout);
-            }
+            LOG_INFO(log, "Parsing batch session from snapshot, session count {}", batch->size());
+            parseBatchSessionV2(store, *batch, version_);
         }
         break;
         case SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP:
-            LOG_INFO(log, "Loading snapshot acl batch with element count {}", batch->size());
-            if (version_ >= SnapshotVersion::V1)
-            {
-                for (size_t data_idx = 0; data_idx < batch->size(); data_idx++)
-                {
-                    const String & data = (*batch)[data_idx];
-                    ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                    buf->put(data);
-                    buf->pos(0);
-                    ReadBufferFromNuRaftBuffer in(buf);
-
-                    uint64_t acl_id;
-                    Coordination::ACLs acls;
-
-                    Coordination::read(acl_id, in);
-                    Coordination::read(acls, in);
-
-                    LOG_TRACE(log, "parseObject acl_id {}", acl_id);
-                    store.acl_map.addMapping(acl_id, acls);
-                }
-            }
+            LOG_INFO(log, "Parsing batch acl from snapshot, acl count {}", batch->size());
+            parseBatchAclMapV2(store, *batch, version_);
             break;
-        case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP: {
-            LOG_INFO(log, "Loading snapshot int_map batch with element count {}", batch->size());
-            IntMap int_map;
-            for (size_t data_idx = 0; data_idx < batch->size(); data_idx++)
-            {
-                const String & data = (*batch)[data_idx];
-                ptr<buffer> buf = buffer::alloc(data.size() + 1);
-                buf->put(data);
-                buf->pos(0);
-                ReadBufferFromNuRaftBuffer in(buf);
-                String key;
-                int64_t value;
-                try
-                {
-                    Coordination::read(key, in);
-                    Coordination::read(value, in);
-                }
-                catch (Coordination::Exception & e)
-                {
-                    LOG_WARNING(
-                        log,
-                        "Can't read uint map snapshot, data index {}, key {}, exception {}",
-                        data_idx,
-                        e.displayText());
-                    break;
-                }
-                int_map[key] = value;
-            }
-            if (int_map.find("ZXID") != int_map.end())
-            {
-                store.zxid = int_map["ZXID"];
-            }
-            if (int_map.find("SESSIONID") != int_map.end())
-            {
-                store.session_id_counter = int_map["SESSIONID"];
-            }
-        }
-        break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
+            LOG_INFO(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
+            parseBatchIntMapV2(store, *batch, version_);
+            LOG_INFO(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
+            break;
+        case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
+        case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
+            break;
         default:
             break;
     }
