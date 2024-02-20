@@ -73,6 +73,12 @@ struct KeeperNode
     bool operator!=(const KeeperNode & rhs) const { return !(rhs == *this); }
 };
 
+struct KeeperNodeWithPath
+{
+    String path;
+    std::shared_ptr<KeeperNode> node;
+};
+
 /// Map for data tree, it is thread safe with read write lock.
 /// ConcurrentMap is a two-level unordered_map which is designed
 /// to reduce latency for unordered_map scales.

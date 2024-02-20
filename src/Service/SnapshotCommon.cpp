@@ -20,6 +20,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+    extern const int CORRUPTED_SNAPSHOT;
 }
 
 using nuraft::cs_new;
@@ -82,13 +83,6 @@ std::shared_ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path,
     return out;
 }
 
-void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checksum)
-{
-    out->write(MAGIC_SNAPSHOT_TAIL.data(), MAGIC_SNAPSHOT_TAIL.size());
-    writeIntBinary(checksum, *out);
-    out->close();
-}
-
 int openFileForRead(String & obj_path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
@@ -102,6 +96,74 @@ int openFileForRead(String & obj_path)
     return snap_fd;
 }
 
+void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checksum)
+{
+    out->write(MAGIC_SNAPSHOT_TAIL.data(), MAGIC_SNAPSHOT_TAIL.size());
+    writeIntBinary(checksum, *out);
+    out->close();
+}
+
+UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
+{
+    union
+    {
+        UInt64 data;
+        UInt32 crc[2];
+    };
+    crc[0] = checksum;
+    crc[1] = data_crc;
+    return RK::getCRC32(reinterpret_cast<const char *>(&data), 8);
+}
+
+String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, SnapshotVersion version)
+{
+    WriteBufferFromOwnString buf;
+
+    Coordination::write(path, buf);
+    Coordination::write(node->data, buf);
+
+    if (version == SnapshotVersion::V0)
+    {
+        /// Just ignore acls for snapshot V0 which is only used in JD /// TODO delete the compatibility code
+        Coordination::ACLs acls;
+        Coordination::write(acls, buf);
+    }
+    else
+        Coordination::write(node->acl_id, buf);
+
+    Coordination::write(node->is_ephemeral, buf);
+    Coordination::write(node->is_sequential, buf);
+    Coordination::write(node->stat, buf);
+
+    return std::move(buf.str());
+}
+
+std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const String & buf, SnapshotVersion version)
+{
+    ReadBufferFromMemory in(buf.data(), buf.size());
+
+    ptr<KeeperNodeWithPath> node_with_path = cs_new<KeeperNodeWithPath>();
+    auto & node = node_with_path->node;
+    node = std::make_shared<KeeperNode>();
+    Coordination::ACLs acls;
+
+    Coordination::read(node_with_path->path, in);
+    Coordination::read(node->data, in);
+    if (version >= SnapshotVersion::V1)
+    {
+        Coordination::read(node->acl_id, in);
+    }
+    else if (version == SnapshotVersion::V0)
+    {
+        Coordination::read(acls, in);
+    }
+
+    Coordination::read(node->is_ephemeral, in);
+    Coordination::read(node->is_sequential, in);
+    Coordination::read(node->stat, in);
+
+    return {node_with_path, acls};
+}
 
 /// save batch data in snapshot object
 std::pair<size_t, UInt32> saveBatch(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch)
@@ -361,6 +423,148 @@ void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version,
 template void serializeMap<StringMap>(StringMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 template void serializeMap<IntMap>(IntMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
+
+void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version)
+{
+    for (int i = 0; i < batch.data_size(); i++)
+    {
+        const auto & item = batch.data(i);
+        const String & data = item.data();
+
+        String path;
+        ptr<KeeperNode> node;
+        Coordination::ACLs acls;
+
+        try
+        {
+            auto parse_res = parseKeeperNode(data, version);
+            path = std::move(parse_res.first->path);
+            node = std::move(parse_res.first->node);
+            acls = std::move(parse_res.second);
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th node in batch", i + 1);
+        }
+
+        assert(!node);
+
+        if (version == SnapshotVersion::V0)
+            node->acl_id = store.acl_map.convertACLs(acls);
+
+        /// Some strange ACLID during deserialization from ZooKeeper
+        if (node->acl_id == std::numeric_limits<uint64_t>::max())
+            node->acl_id = 0;
+
+        store.acl_map.addUsage(node->acl_id);
+
+        auto ephemeral_owner = node->stat.ephemeralOwner;
+        store.container.emplace(path, std::move(node));
+
+        if (ephemeral_owner != 0)
+        {
+            std::lock_guard l(store.ephemerals_mutex);
+            auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
+            ephemeral_nodes.emplace(path);
+        }
+    }
+}
+
+void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version)
+{
+    for (int i = 0; i < batch.data_size(); i++)
+    {
+        const auto & item = batch.data(i);
+        const String & data = item.data();
+        
+        ReadBufferFromMemory in(data.data(), data.size());
+        int64_t session_id;
+        int64_t timeout;
+        
+        try
+        {
+            Coordination::read(session_id, in);
+            Coordination::read(timeout, in);
+            
+            if (version >= SnapshotVersion::V1)
+            {
+                Coordination::AuthIDs ids;
+                Coordination::read(ids, in);
+                if (!ids.empty())
+                {
+                    std::lock_guard lock(store.auth_mutex);
+                    store.session_and_auth[session_id] = ids;
+                }
+            }
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th session in batch", i + 1);
+        }
+        store.addSessionID(session_id, timeout);
+    }
+}
+
+void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version)
+{
+    if (version >= SnapshotVersion::V1)
+    {
+        for (int i = 0; i < batch.data_size(); i++)
+        {
+            const SnapshotItemPB & item_pb = batch.data(i);
+            const String & data = item_pb.data();
+            ReadBufferFromMemory in(data.data(), data.size());
+            
+            uint64_t acl_id;
+            Coordination::ACLs acls;
+
+            try
+            {
+                Coordination::read(acl_id, in);
+                Coordination::read(acls, in);
+            }
+            catch (...)
+            {
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th acl in batch", i + 1);
+            }
+
+            store.acl_map.addMapping(acl_id, acls);
+        }
+    }
+}
+
+void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion /*version*/)
+{
+    IntMap int_map;
+    for (int i = 0; i < batch.data_size(); i++)
+    {
+        const auto & item = batch.data(i);
+        const String & data = item.data();
+        ReadBufferFromMemory in(data.data(), data.size());
+        
+        String key;
+        int64_t value;
+        try
+        {
+            Coordination::read(key, in);
+            Coordination::read(value, in);
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
+        }
+        int_map[key] = value;
+    }
+    if (int_map.find("ZXID") != int_map.end())
+    {
+        store.zxid = int_map["ZXID"];
+    }
+    if (int_map.find("SESSIONID") != int_map.end())
+    {
+        store.session_id_counter = int_map["SESSIONID"];
+    }
+}
+
 std::pair<size_t, UInt32> saveBatchV2(std::shared_ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch)
 {
     if (!batch)
@@ -379,18 +583,6 @@ std::pair<size_t, UInt32> saveBatchV2(std::shared_ptr<WriteBufferFromFile> & out
     out->next();
 
     return {SnapshotBatchHeader::HEADER_SIZE + header.data_length, header.data_crc};
-}
-
-UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc)
-{
-    union
-    {
-        UInt64 data;
-        UInt32 crc[2];
-    };
-    crc[0] = checksum;
-    crc[1] = data_crc;
-    return RK::getCRC32(reinterpret_cast<const char *>(&data), 8);
 }
 
 std::pair<size_t, UInt32>
@@ -667,6 +859,143 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
         batch_body->elements.emplace_back(std::move(element));
     }
     return batch_body;
+}
+
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version)
+{
+    for (size_t i = 0; i < batch.size(); i++)
+    {
+        const auto & data = batch[i];
+
+        String path;
+        ptr<KeeperNode> node;
+        Coordination::ACLs acls;
+
+        try
+        {
+            auto parse_res = parseKeeperNode(data, version);
+            path = std::move(parse_res.first->path);
+            node = std::move(parse_res.first->node);
+            acls = std::move(parse_res.second);
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th node in batch", i + 1);
+        }
+
+        assert(!node);
+
+        if (version == SnapshotVersion::V0)
+            node->acl_id = store.acl_map.convertACLs(acls);
+
+        /// Some strange ACLID during deserialization from ZooKeeper
+        if (node->acl_id == std::numeric_limits<uint64_t>::max())
+            node->acl_id = 0;
+
+        store.acl_map.addUsage(node->acl_id);
+
+        auto ephemeral_owner = node->stat.ephemeralOwner;
+        store.container.emplace(path, std::move(node));
+
+        if (ephemeral_owner != 0)
+        {
+            std::lock_guard l(store.ephemerals_mutex);
+            auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
+            ephemeral_nodes.emplace(path);
+        }
+    }
+}
+
+void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version)
+{
+    for (size_t i = 0; i < batch.size(); i++)
+    {
+        const String & data = batch[i];
+        ReadBufferFromMemory in(data.data(), data.size());
+
+        int64_t session_id;
+        int64_t timeout;
+        
+        try
+        {
+            Coordination::read(session_id, in);
+            Coordination::read(timeout, in);
+            
+            if (version >= SnapshotVersion::V1)
+            {
+                Coordination::AuthIDs ids;
+                Coordination::read(ids, in);
+                if (!ids.empty())
+                {
+                    std::lock_guard lock(store.auth_mutex);
+                    store.session_and_auth[session_id] = ids;
+                }
+            }
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th session in batch", i + 1);
+        }
+        store.addSessionID(session_id, timeout);
+    }
+}
+
+void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version)
+{
+    if (version >= SnapshotVersion::V1)
+    {
+        for (size_t i = 0; i < batch.size(); i++)
+        {
+            const String & data = batch[i];
+            ReadBufferFromMemory in(data.data(), data.size());
+            
+            uint64_t acl_id;
+            Coordination::ACLs acls;
+
+            try
+            {
+                Coordination::read(acl_id, in);
+                Coordination::read(acls, in);
+            }
+            catch (...)
+            {
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th acl in batch", i + 1);
+            }
+
+            store.acl_map.addMapping(acl_id, acls);
+        }
+    }
+}
+
+void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion /*version*/)
+{
+    IntMap int_map;
+    for (size_t i = 0; i < batch.size(); i++)
+    {
+        const String & data = batch[i];
+        ReadBufferFromMemory in(data.data(), data.size());
+        
+        String key;
+        int64_t value;
+        try
+        {
+            Coordination::read(key, in);
+            Coordination::read(value, in);
+        }
+        catch (...)
+        {
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th element of int_map in batch", i + 1);
+        }
+        int_map[key] = value;
+    }
+    if (int_map.find("ZXID") != int_map.end())
+    {
+        store.zxid = int_map["ZXID"];
+    }
+    if (int_map.find("SESSIONID") != int_map.end())
+    {
+        store.session_id_counter = int_map["SESSIONID"];
+    }
 }
 
 }

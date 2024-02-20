@@ -103,6 +103,10 @@ void writeTailAndClose(std::shared_ptr<WriteBufferFromFile> & out, UInt32 checks
 
 UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
 
+/// serialize and parse keeper node
+String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, SnapshotVersion version);
+std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const String & buf, SnapshotVersion version);
+
 /// ----- For snapshot version 1 ----- // TODO delete
 
 /// save batch data in snapshot object
@@ -120,6 +124,11 @@ int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, SnapshotV
 template <typename T>
 void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
+/// parse snapshot batch
+void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
+void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
+void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
+void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch_pb, SnapshotVersion version);
 
 /// ----- For snapshot version 2 -----
 
@@ -139,4 +148,9 @@ int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, Snapsho
 template <typename T>
 void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
+/// parse snapshot batch
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
+void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
+void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
+void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
 }

@@ -100,9 +100,9 @@ void ACLMap::addMapping(uint64_t acls_id, const Coordination::ACLs & acls)
 
 void ACLMap::addUsage(uint64_t acl_id, uint64_t count)
 {
-    std::lock_guard lock(acl_mutex);
     if (acl_id == 0)
         return;
+    std::lock_guard lock(acl_mutex);
     usage_counter[acl_id] += count;
 }
 
