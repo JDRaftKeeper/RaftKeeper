@@ -17,6 +17,11 @@
 namespace RK
 {
 
+namespace ErrorCodes
+{
+    extern const int ILLEGAL_TYPE_OF_ARGUMENT;
+}
+
 using nuraft::cs_new;
 
 String toString(SnapshotVersion version)
