@@ -57,8 +57,8 @@ public:
     /// initialize a snapshot store
     void init(String create_time);
 
-    /// parse the latest snapshot
-    void loadLatestSnapshot(KeeperStore & store, SnapshotVersion used_version = SnapshotVersion::None);
+    /// Load the latest snapshot object.
+    void loadLatestSnapshot(KeeperStore & store);
 
     /// load on object of the latest snapshot
     void loadObject(ulong obj_id, ptr<buffer> & buffer);
@@ -103,22 +103,22 @@ private:
     /// get path of an object
     void getObjectPath(ulong object_id, String & path);
 
-    /// parse object
-    bool parseObject(KeeperStore & store, String obj_path, SnapshotVersion used_version);
+    /// Parse an snapshot object. We should take the version from snapshot in general.
+    bool parseObject(KeeperStore & store, String obj_path);
 
-    /// load batch header in an object
+    /// Parse batch header in an object
     /// TODO use internal buffer
     bool parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
-    /// parse a batch
+    /// Parse a batch
     bool parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_);
-    /// parse a batch
+    /// Parse a batch
     bool parseBatchBodyV2(KeeperStore & store, char * buf, size_t length, SnapshotVersion version_);
 
-    /// serialize whole data tree
+    /// Serialize whole data tree
     size_t serializeDataTree(KeeperStore & storage);
 
-    /// for snapshot version v3
+    /// For snapshot version v3
     size_t serializeDataTreeV2(KeeperStore & storage);
 
     /// Serialize data tree by deep traversal.
@@ -130,7 +130,7 @@ private:
         uint64_t & processed,
         uint32_t & checksum);
 
-    /// for snapshot version v3
+    /// For snapshot version v3
     void serializeNodeV2(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchBody> & batch,
@@ -139,18 +139,18 @@ private:
         uint64_t & processed,
         uint32_t & checksum);
 
-    /// append node to batch
+    /// Append node to batch
     inline static void appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node);
-    /// for snapshot version v3
+    /// For snapshot version v3
     inline static void appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node);
 
-    /// snapshot directory, note than the directory may contain more than one snapshot.
+    /// Snapshot directory, note than the directory may contain more than one snapshot.
     String snap_dir;
 
-    /// an object can contain how many items
+    /// How many items an object can contain
     UInt32 max_object_node_size;
 
-    /// a batch can contain how many items
+    /// How many items a batch can contain
     UInt32 save_batch_size;
 
     Poco::Logger * log;
@@ -158,10 +158,10 @@ private:
     /// metadata of a snapshot
     ptr<snapshot> snap_meta;
 
-    /// last log index in the snapshot
+    /// Last log index in the snapshot
     UInt64 last_log_index;
 
-    /// lost log index term in the snapshot
+    /// Lost log index term in the snapshot
     UInt64 last_log_term;
 
     std::map<ulong, String> objects_path;
@@ -169,7 +169,7 @@ private:
     /// Appended to snapshot file name
     String curr_time;
 
-    /// used to create snapshot asynchronously,
+    /// Used to create snapshot asynchronously,
     /// but now creating snapshot is synchronous
     std::shared_ptr<ThreadPool> snapshot_thread;
 };
@@ -177,7 +177,7 @@ private:
 using KeeperSnapshotStoreMap = std::map<uint64_t, ptr<KeeperSnapshotStore>>;
 
 /**
- * Snapshots manager who may create, remove snapshot.
+ * Snapshots manager who may create, remove snapshots.
  */
 class KeeperSnapshotManager
 {
@@ -210,7 +210,7 @@ public:
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);
 
     /// parse snapshot object, invoked when follower apply received snapshot to state machine.
-    bool parseSnapshot(const snapshot & meta, KeeperStore & storage, SnapshotVersion used_version = CURRENT_SNAPSHOT_VERSION);
+    bool parseSnapshot(const snapshot & meta, KeeperStore & storage);
 
     /// latest snapshot meta
     ptr<snapshot> lastSnapshot();
