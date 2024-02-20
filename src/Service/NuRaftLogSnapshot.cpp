@@ -29,8 +29,10 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int CHECKSUM_DOESNT_MATCH;
-    extern const int CORRUPTED_DATA;
+    extern const int CORRUPTED_SNAPSHOT;
     extern const int UNKNOWN_FORMAT_VERSION;
+    extern const int SNAPSHOT_OBJECT_NOT_EXISTS;
+    extern const int SNAPSHOT_NOT_EXISTS;
 }
 
 using nuraft::cs_new;
@@ -46,8 +48,8 @@ void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path)
 
 size_t KeeperSnapshotStore::getObjectIdx(const String & file_name)
 {
-    auto it1 = file_name.find_last_of('_');
-    return std::stoi(file_name.substr(it1 + 1, file_name.size() - it1));
+    auto it = file_name.find_last_of('_');
+    return std::stoi(file_name.substr(it + 1, file_name.size() - it));
 }
 
 size_t KeeperSnapshotStore::serializeDataTree(KeeperStore & storage)
@@ -232,7 +234,8 @@ void KeeperSnapshotStore::serializeNodeV2(
         serializeNodeV2(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
-void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
+void KeeperSnapshotStore::appendNodeToBatch(
+    ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
 {
     SnapshotItemPB * entry = batch->add_data();
     WriteBufferFromNuraftBuffer buf;
@@ -256,7 +259,8 @@ void KeeperSnapshotStore::appendNodeToBatch(ptr<SnapshotBatchPB> batch, const St
     entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
 }
 
-void KeeperSnapshotStore::appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
+void KeeperSnapshotStore::appendNodeToBatchV2(
+    ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
 {
     WriteBufferFromNuraftBuffer buf;
 
@@ -282,7 +286,7 @@ void KeeperSnapshotStore::appendNodeToBatchV2(ptr<SnapshotBatchBody> batch, cons
 size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
     return version < SnapshotVersion::V2 ? createObjectsV1(store, next_zxid, next_session_id)
-                                          : createObjectsV2(store, next_zxid, next_session_id);
+                                         : createObjectsV2(store, next_zxid, next_session_id);
 }
 
 size_t KeeperSnapshotStore::createObjectsV1(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
@@ -440,45 +444,36 @@ void KeeperSnapshotStore::init(String create_time = "")
     }
 }
 
-bool KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
+void KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
 {
     head.reset();
     errno = 0;
     if (readUInt32(fs, head.data_length) != 0)
     {
         if (!fs->eof())
-        {
-            LOG_ERROR(log, "Can't read header data_length from snapshot file, error:{}.", strerror(errno));
-        }
-        return false;
+            throwFromErrno("Can't read header data_length from snapshot file", ErrorCodes::CORRUPTED_SNAPSHOT);
     }
 
     if (readUInt32(fs, head.data_crc) != 0)
     {
         if (!fs->eof())
-        {
-            LOG_ERROR(log, "Can't read header data_crc from snapshot file, error:{}.", strerror(errno));
-        }
-        return false;
+            throwFromErrno("Can't read header data_crc from snapshot file", ErrorCodes::CORRUPTED_SNAPSHOT);
     }
-
-    return true;
 }
 
-bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
+void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
+
     if (snap_fs->fail())
-    {
-        LOG_ERROR(log, "Open snapshot object {} for read failed, error:{}", obj_path, strerror(errno));
-        return false;
-    }
+        throwFromErrno("Open snapshot object " + obj_path + " for read failed", ErrorCodes::CORRUPTED_SNAPSHOT);
+
     snap_fs->seekg(0, snap_fs->end);
     size_t file_size = snap_fs->tellg();
     snap_fs->seekg(0, snap_fs->beg);
 
-    LOG_INFO(log, "Open snapshot object {} for read,file size {}", obj_path, file_size);
+    LOG_INFO(log, "Open snapshot object {} for read, file size {}", obj_path, file_size);
 
     size_t read_size = 0;
     SnapshotBatchHeader header;
@@ -499,11 +494,12 @@ bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
                 LOG_INFO(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_from_obj));
                 break;
             }
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load magic error, version {}", obj_path, toString(version_from_obj));
+            throw Exception(
+                ErrorCodes::CORRUPTED_SNAPSHOT, "snapshot {} load magic error, version {}", obj_path, toString(version_from_obj));
         }
 
         read_size += 8;
-        if (isFileHeader(magic))
+        if (isSnapshotFileHeader(magic))
         {
             char * buf = reinterpret_cast<char *>(&version_from_obj);
             snap_fs->read(buf, sizeof(uint8_t));
@@ -512,7 +508,7 @@ bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
             if (version_from_obj > CURRENT_SNAPSHOT_VERSION)
                 throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", version_from_obj);
         }
-        else if (isFileTail(magic))
+        else if (isSnapshotFileTail(magic))
         {
             UInt32 file_checksum;
             char * buf = reinterpret_cast<char *>(&file_checksum);
@@ -536,10 +532,7 @@ bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
             read_size = cur_read_size;
         }
 
-        if (!parseBatchHeader(snap_fs, header))
-        {
-            throw Exception(ErrorCodes::CORRUPTED_DATA, "snapshot {} load header error", obj_path);
-        }
+        parseBatchHeader(snap_fs, header);
 
         checksum = updateCheckSum(checksum, header.data_crc);
         char * body_buf = new char[header.data_length];
@@ -547,17 +540,17 @@ bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
 
         if (!snap_fs->read(body_buf, header.data_length))
         {
-            LOG_ERROR(
-                log, "Can't read snapshot object file {} size {}, only {} could be read", obj_path, header.data_length, snap_fs->gcount());
             delete[] body_buf;
-            return false;
+            throwFromErrno(
+                "Can't read snapshot object file " + obj_path + ", batch size " + std::to_string(header.data_length) + ", only "
+                    + std::to_string(snap_fs->gcount()) + " could be read",
+                ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
         if (!verifyCRC32(body_buf, header.data_length, header.data_crc))
         {
-            LOG_ERROR(log, "Found corrupted data, file {}", obj_path);
             delete[] body_buf;
-            return false;
+            throwFromErrno("Can't read snapshot object file " + obj_path + ", batch crc not match.", ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
         if (version_from_obj < SnapshotVersion::V2)
@@ -566,10 +559,9 @@ bool KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
             parseBatchBodyV2(store, body_buf, header.data_length, version_from_obj);
         delete[] body_buf;
     }
-    return true;
 }
 
-bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
 {
     SnapshotBatchPB batch_pb;
     batch_pb.ParseFromString(String(batch_buf, length));
@@ -578,7 +570,7 @@ bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, 
         case SnapshotTypePB::SNAPSHOT_TYPE_DATA:
             LOG_INFO(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
             parseBatchData(store, batch_pb, version_);
-        break;
+            break;
         case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
             LOG_INFO(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
             parseBatchSession(store, batch_pb, version_);
@@ -592,17 +584,16 @@ bool KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, 
             LOG_INFO(log, "Parsing batch int_map from snapshot, element count {}", batch_pb.data_size());
             parseBatchIntMap(store, batch_pb, version_);
             LOG_INFO(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
-        break;
+            break;
         case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
         case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
             break;
         default:
             break;
     }
-    return true;
 }
 
-bool KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
 {
     ptr<SnapshotBatchBody> batch;
     batch = SnapshotBatchBody::parse(String(batch_buf, length));
@@ -632,7 +623,6 @@ bool KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf
         default:
             break;
     }
-    return true;
 }
 
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
@@ -692,10 +682,7 @@ bool KeeperSnapshotStore::existObject(ulong obj_id)
 void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
 {
     if (!existObject(obj_id))
-    {
-        LOG_WARNING(log, "Not exist object {}", obj_id);
-        return;
-    }
+        throw Exception(ErrorCodes::SNAPSHOT_OBJECT_NOT_EXISTS, "Snapshot object {} does not exist", obj_id);
 
     String obj_path = objects_path.at(obj_id);
 
@@ -754,10 +741,6 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
     getObjectPath(obj_id, obj_path);
 
     int snap_fd = openFileForWrite(obj_path);
-    if (snap_fd < 0)
-    {
-        return;
-    }
 
     buffer.pos(0);
     size_t offset = 0;
@@ -858,11 +841,15 @@ bool KeeperSnapshotManager::existSnapshotObject(const snapshot & meta, ulong obj
 bool KeeperSnapshotManager::loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer)
 {
     auto it = snapshots.find(meta.get_last_log_idx());
+
     if (it == snapshots.end())
-    {
-        LOG_WARNING(log, "Can't find snapshot, last log index {}", meta.get_last_log_idx());
-        return false;
-    }
+        throw Exception(
+            ErrorCodes::SNAPSHOT_NOT_EXISTS,
+            "Error when loading snapshot object {}, for snapshot {} does not exist",
+            obj_id,
+            meta.get_last_log_idx());
+
+
     ptr<KeeperSnapshotStore> store = it->second;
     store->loadObject(obj_id, buffer);
     return true;
@@ -892,8 +879,7 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & s
     auto it = snapshots.find(meta.get_last_log_idx());
     if (it == snapshots.end())
     {
-        LOG_WARNING(log, "Can't find snapshot, last log index {}", meta.get_last_log_idx());
-        return false;
+        throw Exception(ErrorCodes::SNAPSHOT_NOT_EXISTS, "Error when parsing snapshot {}, for it does not exist", meta.get_last_log_idx());
     }
     ptr<KeeperSnapshotStore> store = it->second;
     store->loadLatestSnapshot(storage);
@@ -930,7 +916,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
             snap_store->init(time_str);
             snapshots[meta.get_last_log_idx()] = snap_store;
-            LOG_INFO(log, "load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
+            LOG_INFO(log, "Load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
         }
         String full_path = snap_dir + "/" + file;
         snapshots[log_last_index]->addObjectPath(object_id, full_path);
