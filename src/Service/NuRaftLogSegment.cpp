@@ -572,7 +572,8 @@ int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, 
         return -1;
     }
 
-    entry = LogEntryBody::parse(entry_str, head->term, head->data_length);
+    entry = LogEntryBody::parse(entry_str, head->data_length);
+    entry->set_term(head->term);
 
     delete[] entry_str;
     return 0;
