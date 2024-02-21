@@ -49,6 +49,7 @@ String toString(SnapshotVersion version);
 
 static constexpr auto CURRENT_SNAPSHOT_VERSION = SnapshotVersion::V2;
 
+/// Batch data header in an snapshot object file.
 struct SnapshotBatchHeader
 {
     /// The length of the batch data (uncompressed)
@@ -64,6 +65,7 @@ struct SnapshotBatchHeader
     static const size_t HEADER_SIZE = 8;
 };
 
+/// Batch data header in an snapshot object file.
 enum class SnapshotBatchType : int
 {
     SNAPSHOT_TYPE_DATA = 0,
