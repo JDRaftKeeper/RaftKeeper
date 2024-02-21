@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
 
+#include <Service/LogEntry.h>
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftLogSegment.h>
@@ -76,6 +77,22 @@ TEST(RaftLog, serializeEntry)
 
     ASSERT_EQ(zk_create_request->path, key);
     ASSERT_EQ(zk_create_request->data, data);
+}
+
+TEST(RaftLog, parseLogEntrybody)
+{
+    ptr<buffer> data = buffer::alloc(2);
+    data->pos(0);
+    data->put(static_cast<byte>('1'));
+    data->put(static_cast<byte>('2'));
+    data->pos(0);
+    ptr<log_entry> log = cs_new<log_entry>(0, data, nuraft::log_val_type::app_log);
+
+    ptr<buffer> serialized_log = LogEntryBody::serialize(log);
+    ptr<log_entry> parsed_log = LogEntryBody::parse(reinterpret_cast<const char *>(serialized_log->data_begin()), serialized_log->size());
+
+    ASSERT_EQ(parsed_log->get_val_type(), log->get_val_type());
+    ASSERT_EQ(parsed_log->get_buf().get_str(), log->get_buf().get_str());
 }
 
 TEST(RaftLog, appendEntry)

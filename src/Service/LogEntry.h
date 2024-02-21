@@ -38,7 +38,7 @@ class LogEntryBody
 {
 public:
     static ptr<buffer> serialize(ptr<log_entry> & entry);
-    static ptr<log_entry> parse(const char * entry_str, const UInt64 & term, size_t buf_size);
+    static ptr<log_entry> parse(const char * entry_str, size_t buf_size);
 };
 
 }
