@@ -301,6 +301,41 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
 
 }
 
+TEST(RaftSnapshot, parseAndSerializeKeeperNode)
+{
+    String path = "/parseAndSerializeKeeperNode";
+    ptr<KeeperNode> node = cs_new<KeeperNode>();
+    node->data = "some_data";
+    node->acl_id = 0;
+    node->is_ephemeral = true;
+    node->children = {"1", "2"};
+    node->is_sequential = false;
+    node->stat.czxid = 1;
+    node->stat.mzxid = 1;
+    node->stat.ctime = 1;
+    node->stat.mtime = 1;
+    node->stat.version = 1;
+    node->stat.cversion = 1;
+    node->stat.aversion = 1;
+    node->stat.ephemeralOwner = 1;
+    node->stat.dataLength = 9;
+    node->stat.numChildren = 2;
+    node->stat.pzxid = 1;
+
+    auto test = [&path, &node](SnapshotVersion version)
+    {
+        String buf = serializeKeeperNode(path, node, version);
+        auto parsed = parseKeeperNode(buf, version);
+        /// when serialize keeper node children is ignored.
+        parsed->node->children = {"1", "2"};
+        ASSERT_EQ(parsed->path, path);
+        ASSERT_EQ(*parsed->node, *node);
+    };
+
+    test(V0);
+    test(V1);
+    test(V2);
+}
 
 TEST(RaftSnapshot, createSnapshot_1)
 {
