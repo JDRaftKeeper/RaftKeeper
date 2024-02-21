@@ -103,9 +103,9 @@ void writeTailAndClose(ptr<WriteBufferFromFile> & out, UInt32 checksum);
 
 UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
 
-/// serialize and parse keeper node
+/// Serialize and parse keeper node. Please note that children is ignored for we build parent relationship after load all data.
 String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, SnapshotVersion version);
-std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const String & buf, SnapshotVersion version);
+ptr<KeeperNodeWithPath> parseKeeperNode(const String & buf, SnapshotVersion version);
 
 /// ----- For snapshot version 1 ----- // TODO delete
 
@@ -115,7 +115,7 @@ std::pair<size_t, UInt32>
 saveBatchAndUpdateCheckSum(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum);
 
 void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
-[[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size);
+[[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size); /// TODO delete
 
 /// Serialize sessions and return the next_session_id before serialize
 int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, SnapshotVersion version, String & path);
@@ -150,8 +150,8 @@ template <typename T>
 void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
 /// parse snapshot batch
-void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
-void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
-void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
-void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch_pb, SnapshotVersion version);
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
+void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
+void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
+void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
 }

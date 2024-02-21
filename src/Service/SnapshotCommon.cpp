@@ -129,31 +129,31 @@ String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, Sn
     return std::move(buf.str());
 }
 
-std::pair<ptr<KeeperNodeWithPath>, Coordination::ACLs> parseKeeperNode(const String & buf, SnapshotVersion version)
+ptr<KeeperNodeWithPath>parseKeeperNode(const String & buf, SnapshotVersion version)
 {
     ReadBufferFromMemory in(buf.data(), buf.size());
 
     ptr<KeeperNodeWithPath> node_with_path = cs_new<KeeperNodeWithPath>();
     auto & node = node_with_path->node;
     node = std::make_shared<KeeperNode>();
-    Coordination::ACLs acls;
 
     Coordination::read(node_with_path->path, in);
     Coordination::read(node->data, in);
-    if (version >= SnapshotVersion::V1)
+
+    if (version == SnapshotVersion::V0)
     {
-        Coordination::read(node->acl_id, in);
-    }
-    else if (version == SnapshotVersion::V0)
-    {
+        /// Just ignore acls for snapshot V0 which is only used in JD /// TODO delete the compatibility code
+        Coordination::ACLs acls;
         Coordination::read(acls, in);
     }
+    else
+        Coordination::read(node->acl_id, in);
 
     Coordination::read(node->is_ephemeral, in);
     Coordination::read(node->is_sequential, in);
     Coordination::read(node->stat, in);
 
-    return {node_with_path, acls};
+    return node_with_path;
 }
 
 /// save batch data in snapshot object
@@ -298,10 +298,7 @@ void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotV
 int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-
     auto out = openFileAndWriteHeader(path, version);
-
-
     LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", store.session_and_timeout.size(), path);
 
     std::lock_guard lock(store.session_mutex);
@@ -424,14 +421,12 @@ void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, Snapshot
 
         String path;
         ptr<KeeperNode> node;
-        Coordination::ACLs acls;
 
         try
         {
-            auto parse_res = parseKeeperNode(data, version);
-            path = std::move(parse_res.first->path);
-            node = std::move(parse_res.first->node);
-            acls = std::move(parse_res.second);
+            auto node_with_path = parseKeeperNode(data, version);
+            path = std::move(node_with_path->path);
+            node = std::move(node_with_path->node);
             assert(node);
         }
         catch (...)
@@ -440,7 +435,7 @@ void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, Snapshot
         }
 
         if (version == SnapshotVersion::V0)
-            node->acl_id = store.acl_map.convertACLs(acls);
+            node->acl_id = 0;
 
         /// Some strange ACLID during deserialization from ZooKeeper
         if (node->acl_id == std::numeric_limits<uint64_t>::max())
@@ -691,10 +686,7 @@ void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, Snapsho
 int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-
     auto out = openFileAndWriteHeader(path, version);
-
-
     LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", store.session_and_timeout.size(), path);
 
     std::lock_guard lock(store.session_mutex);
@@ -860,14 +852,12 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVe
 
         String path;
         ptr<KeeperNode> node;
-        Coordination::ACLs acls;
 
         try
         {
-            auto parse_res = parseKeeperNode(data, version);
-            path = std::move(parse_res.first->path);
-            node = std::move(parse_res.first->node);
-            acls = std::move(parse_res.second);
+            auto node_with_path = parseKeeperNode(data, version);
+            path = std::move(node_with_path->path);
+            node = std::move(node_with_path->node);
             assert(node);
         }
         catch (...)
@@ -876,7 +866,7 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVe
         }
 
         if (version == SnapshotVersion::V0)
-            node->acl_id = store.acl_map.convertACLs(acls);
+            node->acl_id = 0;
 
         /// Some strange ACLID during deserialization from ZooKeeper
         if (node->acl_id == std::numeric_limits<uint64_t>::max())
