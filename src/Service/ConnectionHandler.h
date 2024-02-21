@@ -37,7 +37,7 @@ using Poco::Thread;
  * User connection handler with TCP protocol. It is a core class who process
  * Zookeeper network protocol and send it to dispatcher.
  *
- * We utilize a getWorkerReactor network programming model. We allocate a handler for
+ * We utilize reactor network programming model. We allocate a handler for
  * every connection and ensure that every handler run in the same network thread.
  *
  * So there is no multi-thread issues.

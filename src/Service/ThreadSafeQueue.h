@@ -6,7 +6,7 @@
 namespace RK
 {
 
-/// Queue with mutex and condvar. As simple as possible.
+/// Queue with mutex and condition_variable. As simple as possible.
 template <typename T, typename Queue = std::deque<T>>
 class ThreadSafeQueue
 {
