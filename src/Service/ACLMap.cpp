@@ -77,12 +77,12 @@ uint64_t ACLMap::convertACLs(const Coordination::ACLs & acls)
 
 Coordination::ACLs ACLMap::convertNumber(uint64_t acls_id) const
 {
-    std::lock_guard lock(acl_mutex);
-
     if (acls_id == 0) /// default acl is 'world,'anyone : cdrwa
     {
         return Coordination::ACLs{Coordination::ACL{Coordination::ACL::All, "world", "anyone"}};
     }
+
+    std::lock_guard lock(acl_mutex);
 
     if (!num_to_acl.count(acls_id))
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Unknown ACL id {}. It's a bug", acls_id);
