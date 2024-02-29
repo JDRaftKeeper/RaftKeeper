@@ -1,14 +1,17 @@
 #pragma once
 
 #include <fstream>
-#include <Service/NuRaftFileLogStore.h>
-#include <Service/Settings.h>
-#include <Service/Types.h>
+
+#include <Poco/Util/LayeredConfiguration.h>
+
+#include <Common/StringUtils.h>
+#include <common/logger_useful.h>
 #include <libnuraft/buffer.hxx>
 #include <libnuraft/nuraft.hxx>
-#include <Poco/Util/LayeredConfiguration.h>
-#include "Common/StringUtils.h"
-#include <common/logger_useful.h>
+
+#include <Service/KeeperCommon.h>
+#include <Service/NuRaftFileLogStore.h>
+#include <Service/Settings.h>
 
 namespace RK
 {
@@ -65,7 +68,7 @@ public:
     //ptr<srv_config> get_srv_config() const { return curr_srv_config; }
 
     ptr<cluster_config> getClusterConfig() const;
-    void setClusterConfig(const ptr<cluster_config>& new_config);
+    void setClusterConfig(const ptr<cluster_config> & new_config);
 
     /// Get configuration diff between proposed XML and current state in RAFT
     ConfigUpdateActions getConfigurationDiff(const Poco::Util::AbstractConfiguration & config);

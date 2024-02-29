@@ -1,9 +1,8 @@
 #pragma once
 
-#include "ZooKeeper/ZooKeeperConstants.h"
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
-#include <Service/Types.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
 
 namespace RK
@@ -41,7 +40,7 @@ public:
 private:
     void run();
     /// Exist system for fatal error.
-    [[noreturn]] static void systemExist() ;
+    [[noreturn]] static void systemExist();
 
     void moveRequestToPendingQueue(RunnerId runner_id);
 

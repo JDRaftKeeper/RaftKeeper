@@ -1,9 +1,9 @@
 #pragma once
 
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
-#include <Service/Types.h>
 
 namespace RK
 {
