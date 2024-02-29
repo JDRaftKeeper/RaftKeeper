@@ -1,11 +1,16 @@
 #pragma once
 
-#include <ZooKeeper/ZooKeeperCommon.h>
+#include <Common/ThreadPool.h>
 #include <libnuraft/nuraft.hxx>
+
+#include <ZooKeeper/ZooKeeperCommon.h>
 
 
 namespace RK
 {
+
+using RunnerId = size_t;
+using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
 struct RequestId;
 
@@ -22,8 +27,8 @@ struct RequestForSession
     int32_t server_id{-1};
     int32_t client_id{-1};
 
-//    /// RaftKeeper can generate request, for example: sessionCleanerTask
-//    bool is_internal{false};
+    //    /// RaftKeeper can generate request, for example: sessionCleanerTask
+    //    bool is_internal{false};
 
     explicit RequestForSession() = default;
 
@@ -37,7 +42,6 @@ struct RequestForSession
 
     String toString() const;
     String toSimpleString() const;
-
 };
 
 /// Attached session id to response

@@ -1,14 +1,16 @@
 #pragma once
 
 #include <unordered_map>
+
+#include <libnuraft/nuraft.hxx>
+
 #include <Service/Keeper4LWInfo.h>
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperStore.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/NuRaftStateMachine.h>
 #include <Service/NuRaftStateManager.h>
 #include <Service/Settings.h>
-#include <Service/Types.h>
-#include <libnuraft/nuraft.hxx>
 
 namespace RK
 {
@@ -146,15 +148,9 @@ public:
 
     void registerForWardListener(UpdateForwardListener forward_listener);
 
-    int32_t myId() const
-    {
-        return my_id;
-    }
+    int32_t myId() const { return my_id; }
 
-    size_t getClusterNodeCount() const
-    {
-        return state_manager->getClusterNodeCount();
-    }
+    size_t getClusterNodeCount() const { return state_manager->getClusterNodeCount(); }
 };
 
 }

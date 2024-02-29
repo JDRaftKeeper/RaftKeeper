@@ -7,10 +7,10 @@
 #include <Service/ForwardConnection.h>
 #include <Service/ForwardRequest.h>
 #include <Service/ForwardResponse.h>
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
-#include <Service/Types.h>
 
 
 namespace RK
