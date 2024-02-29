@@ -702,10 +702,10 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
         {
             std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
-            if (elapsed > 1000)
+            if (unlikely(elapsed > 10000))
                 LOG_WARNING(
                     log,
-                    "The processing time for request #{}#{}#{} is {}ms, which is a little long.",
+                    "The processing time for request #{}#{}#{} is {}ms, which is a little long, please take care.",
                     toHexString(session_id.load()),
                     response->xid,
                     Coordination::toString(response->getOpNum()),
