@@ -446,7 +446,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         Stopwatch stopwatch;
         in_snapshot = true;
 
-        LOG_WARNING(log, "Create snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
+        LOG_WARNING(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
 
         create_snapshot(s, store.zxid, store.session_id_counter);
         ptr<std::exception> except(nullptr);
@@ -461,7 +461,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 
         last_snapshot_time = Poco::Timestamp().epochMicroseconds();
 
-        LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
+        LOG_INFO(log, "Created snapshot, time cost {} ms", stopwatch.elapsedMilliseconds());
     }
     else
     {

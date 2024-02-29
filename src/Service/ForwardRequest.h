@@ -50,7 +50,7 @@ struct ForwardHandshakeRequest : public ForwardRequest
 
     String toString() const override
     {
-        return "ForwardType: " + RK::toString(forwardType()) + ", server_id: " + std::to_string(server_id) + ", client_id: " + std::to_string(client_id);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), server_id, client_id);
     }
 };
 
@@ -76,7 +76,7 @@ struct ForwardSyncSessionsRequest : public ForwardRequest
 
     String toString() const override
     {
-        return "ForwardType: " + RK::toString(forwardType()) + ", session count " + std::to_string(session_expiration_time.size());
+        return fmt::format("#{}#{}", RK::toString(forwardType()), session_expiration_time.size());
     }
 
 };
@@ -97,7 +97,7 @@ struct ForwardNewSessionRequest : public ForwardRequest
     String toString() const override
     {
         auto * request_ptr = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get());
-        return "ForwardType: " + RK::toString(forwardType()) + ", internal_id " + std::to_string(request_ptr->internal_id) + " session_timeout_ms " + std::to_string(request_ptr->session_timeout_ms);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request_ptr->internal_id, request_ptr->session_timeout_ms);
     }
 };
 
@@ -117,7 +117,7 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
     String toString() const override
     {
         auto * request_ptr = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get());
-        return "ForwardType: " + RK::toString(forwardType()) + ", session " + toHexString(request_ptr->session_id) + " xid " + std::to_string(request_ptr->xid);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request_ptr->session_id, request_ptr->session_timeout_ms);
     }
 };
 
@@ -136,7 +136,7 @@ struct ForwardUserRequest : public ForwardRequest
 
     String toString() const override
     {
-        return "ForwardType: " + RK::toString(forwardType()) + ", session " + toHexString(request.session_id) + ", xid " + std::to_string(request.request->xid);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request.session_id, request.request->xid);
     }
 };
 
