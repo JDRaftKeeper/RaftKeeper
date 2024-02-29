@@ -243,7 +243,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
 {
     LOG_TRACE(log, "Begin commit log index {}", log_idx);
 
-    if (isNewSessionRequest(data))
+    if (isNewSessionRequest(data)) /// TODO remove in future
     {
         nuraft::buffer_serializer timeout_data(data);
         int64_t session_timeout_ms = timeout_data.get_i64();
@@ -273,7 +273,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
 
         return response;
     }
-    else if (isUpdateSessionRequest(data))
+    else if (isUpdateSessionRequest(data)) /// TODO remove in future
     {
         nuraft::buffer_serializer data_serializer(data);
         int64_t session_id = data_serializer.get_i64();
@@ -312,10 +312,10 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         if (request_for_session.create_time > 0)
         {
             Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.create_time;
-            if (elapsed > 1000)
+            if (unlikely(elapsed > 10000))
                 LOG_WARNING(
                     log,
-                    "When committing log {} for request {}, the time has passed {}ms, it is a little long.",
+                    "When committing log {} for request {}, the time has passed {}ms, which is a little long, please take care.",
                     log_idx,
                     request_for_session.toSimpleString(),
                     elapsed);
