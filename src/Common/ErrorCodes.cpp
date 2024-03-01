@@ -89,6 +89,7 @@
     M(78, EPOLL_CTL)          \
     M(79, EPOLL_CREATE)          \
     M(80, EPOLL_WAIT)          \
+    M(81, POLL_EVENT)          \
                                  \
     M(102, KEEPER_EXCEPTION) \
     M(103, POCO_EXCEPTION) \
