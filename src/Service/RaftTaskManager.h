@@ -1,76 +1,57 @@
 #pragma once
 
-#include <fstream>
-#include <Service/ThreadSafeQueue.h>
-#include <libnuraft/nuraft.hxx>
-#include <Poco/Util/LayeredConfiguration.h>
-#include "Common/StringUtils.h"
-#include <Common/ThreadPool.h>
+#include <Common/ThreadFromGlobalPool.h>
 #include <common/logger_useful.h>
+
 
 namespace RK
 {
 
-/// Only support backend async task
-enum TaskType
-{
-    TYPE_IDLE [[maybe_unused]] = -1,
-    TYPE_COMMITTED = 0,
-    TYPE_ERROR [[maybe_unused]] = 99
-};
-
-class BaseTask
-{
-public:
-    explicit BaseTask(TaskType type) : task_type(type) { }
-    TaskType task_type;
-};
-
-class CommittedTask : public BaseTask
-{
-public:
-    CommittedTask() : BaseTask(TaskType::TYPE_COMMITTED), size(sizeof(nuraft::ulong)) { }
-    nuraft::ulong last_committed_index;
-    int write(int & fd);
-    int read(int & fd);
-
-private:
-    int size;
-};
-
 /**
- * Asynchronously persist committed log index into disk.
- * When startup state machine apply log to this log index.
+ * Asynchronously persist committed log index into disk. When startup state machine will
+ * apply log to this log index, then RaftKeeper provide service to client.
+ *
+ * This is designed to avoid client read stale data when restarting.
+ *
+ * Note:
+ *  1. CommittedLogIndexManager will not persist every index, it will batch persist.
+ *  2. CommittedLogIndexManager work asynchronously, it will not block log committing.
  */
-class RaftTaskManager
+class CommittedLogIndexManager
 {
 public:
-    explicit RaftTaskManager(const String & snapshot_dir);
-    ~RaftTaskManager();
+    explicit CommittedLogIndexManager(const String & log_dir);
+    ~CommittedLogIndexManager();
 
-    /// save last index after commit log to state machine
-    void afterCommitted(nuraft::ulong last_committed_index);
+    /// Push last_committed_index into queue
+    void push(nuraft::ulong last_committed_index);
 
-    /// get last committed index
-    void getLastCommitted(nuraft::ulong & last_committed_index);
+    /// Get last committed log index.
+    /// Used when replaying logs after restart.
+    void get(nuraft::ulong & last_committed_index);
 
-    ///server shut down
+    void persist();
+
+    /// Shutdown background thread
     void shutDown();
 
 private:
-    ThreadPool thread_pool;
+    UInt32 static constexpr BATCH_COUNT = 1000;
+    std::string_view static constexpr FILE_NAME = "committed.task";
 
-    ThreadSafeQueue<std::shared_ptr<BaseTask>> task_queue;
-    std::mutex write_file;
-
+    ThreadFromGlobalPool persist_thread;
     std::atomic<bool> is_shut_down{false};
-    std::vector<String> task_file_names;
 
-    std::vector<int> task_files;
+    String persist_file_name;
+    int persist_file_fd = -1;
+
+    std::atomic_uint64_t to_persist_index{0};
+    std::atomic_uint64_t previous_persist_index = 0;
+
+    std::mutex mutex;
+    std::condition_variable cv;
+
     Poco::Logger * log;
-
-    UInt32 get_task_timeout_ms = 100;
-    UInt32 batch_size = 1000;
 };
 
 }
