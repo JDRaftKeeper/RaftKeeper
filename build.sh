@@ -67,7 +67,7 @@ function package()
   else
     file_name=RaftKeeper-`version`-linux-x86_64.tar.gz
   fi
-  tar -czvf $file_name.tar.gz RaftKeeper
+  tar -czvf $file_name RaftKeeper
 
   rm -rf RaftKeeper
 
