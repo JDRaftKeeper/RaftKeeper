@@ -44,6 +44,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     KeeperResponsesQueue & responses_queue_,
     const RaftSettingsPtr & raft_settings_,
     String & snap_dir,
+    String & log_dir,
     UInt32 internal,
     UInt32 keep_max_snapshot_count,
     std::mutex & new_session_id_callback_mutex_,
@@ -75,9 +76,9 @@ NuRaftStateMachine::NuRaftStateMachine(
     if (last_snapshot != nullptr)
         applySnapshotImpl(*last_snapshot);
 
-    task_manager = cs_new<RaftTaskManager>(snapshot_dir);
+    committed_log_manager = cs_new<LastCommittedIndexManager>(log_dir);
     uint64_t previous_last_commit_id = 0; /// Last committed idx of the previous startup, we should apply log to here.
-    task_manager->getLastCommitted(previous_last_commit_id);
+    committed_log_manager->get(previous_last_commit_id);
 
     LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
     replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
@@ -260,7 +261,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             LOG_DEBUG(log, "Commit session id {} with timeout {}", toHexString(session_id), session_timeout_ms);
 
             last_committed_idx = log_idx;
-            task_manager->afterCommitted(last_committed_idx);
+            committed_log_manager->push(last_committed_idx);
 
             if (new_session_id_callback.contains(session_id))
                 new_session_id_callback.find(session_id)->second->notify_all();
@@ -289,7 +290,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
 
             LOG_DEBUG(log, "Update session id {} with timeout {}, response {}", toHexString(session_id), session_timeout_ms, is_success);
             last_committed_idx = log_idx;
-            task_manager->afterCommitted(last_committed_idx);
+            committed_log_manager->push(last_committed_idx);
 
             if (new_session_id_callback.contains(session_id))
                 new_session_id_callback.find(session_id)->second->notify_all();
@@ -327,7 +328,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
             store.processRequest(responses_queue, request_for_session, {}, true, ignore_response);
 
         last_committed_idx = log_idx;
-        task_manager->afterCommitted(last_committed_idx);
+        committed_log_manager->push(last_committed_idx);
 
         return nullptr;
     }
@@ -417,7 +418,7 @@ void NuRaftStateMachine::shutdown()
     LOG_INFO(log, "Shutting down state machine");
 
     store.finalize();
-    task_manager->shutDown();
+    committed_log_manager->shutDown();
     snap_thread.join();
     LOG_INFO(log, "State machine shut down done!");
 }

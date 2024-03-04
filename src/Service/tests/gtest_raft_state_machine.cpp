@@ -57,7 +57,10 @@ TEST(RaftStateMachine, serializeAndParse)
 TEST(RaftStateMachine, appendEntry)
 {
     String snap_dir(SNAP_DIR + "/1");
+    String log_dir(LOG_DIR + "/1");
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
@@ -65,7 +68,7 @@ TEST(RaftStateMachine, appendEntry)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     String key("/table1");
     String data("CREATE TABLE table1;");
     createZNode(machine, key, data);
@@ -73,13 +76,18 @@ TEST(RaftStateMachine, appendEntry)
     ASSERT_EQ(node.data, data);
 
     machine.shutdown();
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 }
 
 TEST(RaftStateMachine, modifyEntry)
 {
     String snap_dir(SNAP_DIR + "/2");
+    String log_dir(LOG_DIR + "/2");
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
@@ -87,7 +95,7 @@ TEST(RaftStateMachine, modifyEntry)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     String key("/table1");
     String data1("CREATE TABLE table1;");
     //LogOpTypePB op = OP_TYPE_CREATE;
@@ -110,6 +118,7 @@ TEST(RaftStateMachine, modifyEntry)
 
     machine.shutdown();
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 }
 
 
@@ -117,7 +126,10 @@ TEST(RaftStateMachine, createSnapshot)
 {
     auto *log = &(Poco::Logger::get("Test_RaftStateMachine"));
     String snap_dir(SNAP_DIR + "/3");
+    String log_dir(LOG_DIR + "/3");
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
@@ -125,7 +137,7 @@ TEST(RaftStateMachine, createSnapshot)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
@@ -140,7 +152,6 @@ TEST(RaftStateMachine, createSnapshot)
     sleep(1);
 
     LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
-
     ASSERT_EQ(machine.last_commit_index(), machine.getLastCommittedIndex());
 
     UInt64 term = 1;
@@ -148,7 +159,9 @@ TEST(RaftStateMachine, createSnapshot)
     machine.create_snapshot(meta);
     ASSERT_EQ(machine.getStore().container.size(), 36);
     machine.shutdown();
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 }
 
 TEST(RaftStateMachine, syncSnapshot)
@@ -158,6 +171,11 @@ TEST(RaftStateMachine, syncSnapshot)
     cleanDirectory(snap_dir_1);
     cleanDirectory(snap_dir_2);
 
+    String log_dir_1(LOG_DIR + "/4");
+    String log_dir_2(LOG_DIR + "/5");
+    cleanDirectory(log_dir_1);
+    cleanDirectory(log_dir_2);
+
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
@@ -165,9 +183,9 @@ TEST(RaftStateMachine, syncSnapshot)
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
     NuRaftStateMachine machine_source(
-        queue, setting_ptr, snap_dir_1, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+        queue, setting_ptr, snap_dir_1, log_dir_1, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     NuRaftStateMachine machine_target(
-        queue, setting_ptr, snap_dir_2, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+        queue, setting_ptr, snap_dir_2, log_dir_2, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
@@ -202,8 +220,11 @@ TEST(RaftStateMachine, syncSnapshot)
 
     machine_source.shutdown();
     machine_target.shutdown();
+
     cleanDirectory(snap_dir_1);
     cleanDirectory(snap_dir_2);
+    cleanDirectory(log_dir_1);
+    cleanDirectory(log_dir_2);
 }
 
 TEST(RaftStateMachine, initStateMachine)
@@ -227,7 +248,7 @@ TEST(RaftStateMachine, initStateMachine)
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
         NuRaftStateMachine machine(
-            queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+            queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
 
         ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
         UInt32 last_index = 128;
@@ -271,7 +292,7 @@ TEST(RaftStateMachine, initStateMachine)
         std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
         NuRaftStateMachine machine(
-            queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
+            queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, log_store);
         LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
         ASSERT_EQ(machine.last_commit_index(), 256);
         machine.shutdown();

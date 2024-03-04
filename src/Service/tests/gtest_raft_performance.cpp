@@ -13,16 +13,19 @@
 using namespace nuraft;
 using namespace RK;
 
-static const UInt32 LOG_COUNT = 100000;
+static const UInt32 LOG_COUNT = 10000;
 
 TEST(RaftPerformance, appendLogPerformance)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftLog"));
+
     String log_dir(LOG_DIR + "/50");
     cleanDirectory(log_dir);
+
     ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
     int key_bytes = 256;
     int value_bytes = 1024;
+
     //256 byte
     String key;
     for (int i = 0; i < key_bytes; i++)
@@ -146,15 +149,19 @@ TEST(RaftPerformance, appendLogThread)
 TEST(RaftPerformance, machineCreateThread)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
-    String snap_dir(LOG_DIR + "/51");
+    String snap_dir(SNAP_DIR + "/51");
+    String log_dir(LOG_DIR + "/51");
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
+
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     int key_bytes = 256;
     int value_bytes = 1024;
     //256 byte
@@ -218,5 +225,7 @@ TEST(RaftPerformance, machineCreateThread)
             count_rate);
     }
     machine.shutdown();
+
     cleanDirectory(snap_dir);
+    cleanDirectory(log_dir);
 }
