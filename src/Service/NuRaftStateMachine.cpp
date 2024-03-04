@@ -81,6 +81,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     committed_log_manager->get(previous_last_commit_id);
 
     LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
+    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
     replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
 
     /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
