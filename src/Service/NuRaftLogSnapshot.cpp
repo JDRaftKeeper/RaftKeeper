@@ -904,7 +904,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     {
         if (file.find("snapshot_") == file.npos)
         {
-            LOG_INFO(log, "Skip no snapshot file {}", file);
+            LOG_INFO(log, "Skip non-snapshot file {}", file);
             continue;
         }
         sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);

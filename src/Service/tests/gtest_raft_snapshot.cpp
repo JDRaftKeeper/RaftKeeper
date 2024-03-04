@@ -678,7 +678,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
 
-    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, store);
+    NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, store);
 
     int64_t last_log_term = store->term_at(store->next_slot() - 1);
     int64_t term = last_log_term == 0 ? 1 : last_log_term;
@@ -767,7 +767,7 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
 
     NuRaftStateMachine ano_machine(
-        ano_queue, setting_ptr, snap_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
+        ano_queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);
 
     assertStateMachineEquals(machine.getStore(), ano_machine.getStore());
 

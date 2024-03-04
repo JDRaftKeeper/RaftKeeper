@@ -38,6 +38,7 @@ KeeperServer::KeeperServer(
         responses_queue_,
         settings->raft_settings,
         settings->snapshot_dir,
+        settings->log_dir,
         settings->snapshot_create_interval,
         settings->raft_settings->max_stored_snapshots,
         new_session_id_callback_mutex,

@@ -3,16 +3,18 @@
 #include <atomic>
 #include <cassert>
 #include <mutex>
-#include <unordered_map>
 #include <string.h>
 #include <time.h>
+#include <unordered_map>
+
+#include <common/types.h>
+#include <libnuraft/nuraft.hxx>
+
 #include <Service/KeeperStore.h>
+#include <Service/LastCommittedIndexManager.h>
 #include <Service/NuRaftLogSnapshot.h>
-#include <Service/RaftTaskManager.h>
 #include <Service/Settings.h>
 #include <Service/ThreadSafeQueue.h>
-#include <libnuraft/nuraft.hxx>
-#include <common/types.h>
 
 
 namespace RK
@@ -32,6 +34,7 @@ public:
         KeeperResponsesQueue & responses_queue_,
         const RaftSettingsPtr & raft_settings_,
         String & snap_dir,
+        String & log_dir,
         UInt32 internal,
         UInt32 keep_max_snapshot_count,
         std::mutex & new_session_id_callback_mutex_,
@@ -212,11 +215,11 @@ public:
 
     ulong last_commit_index() override { return last_committed_idx; }
 
-    /// persisted last committed index
+    /// get persisted last committed index
     ulong getLastCommittedIndex()
     {
         ulong index;
-        task_manager->getLastCommitted(index);
+        committed_log_manager->get(index);
         return index;
     }
 
@@ -323,7 +326,7 @@ private:
     std::atomic<uint64_t> last_committed_idx;
 
     /// Keep the last committed index
-    ptr<RaftTaskManager> task_manager;
+    ptr<LastCommittedIndexManager> committed_log_manager;
 
     std::mutex snapshot_mutex;
     String snapshot_dir;
