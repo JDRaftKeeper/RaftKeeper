@@ -37,14 +37,14 @@ LastCommittedIndexManager::~LastCommittedIndexManager()
     shutDown();
 }
 
-void LastCommittedIndexManager::push(ulong index)
+void LastCommittedIndexManager::push(UInt64 index)
 {
     last_committed_index = index;
     std::unique_lock lock(mutex);
     cv.notify_all();
 }
 
-void LastCommittedIndexManager::get(ulong & index)
+void LastCommittedIndexManager::get(UInt64 & index)
 {
     off_t file_size = lseek(persist_file_fd, 0, SEEK_END);
     if (-1 == file_size)
