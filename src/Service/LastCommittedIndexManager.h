@@ -24,11 +24,11 @@ public:
     ~LastCommittedIndexManager();
 
     /// Push last_committed_index into queue
-    void push(ulong index);
+    void push(UInt64 index);
 
     /// Get last committed log index.
     /// Used when replaying logs after restart.
-    void get(ulong & index);
+    void get(UInt64 & index);
 
     void persistThread();
 
