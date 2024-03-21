@@ -705,7 +705,7 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
             if (unlikely(elapsed > 10000))
                 LOG_WARNING(
                     log,
-                    "The processing time for request #{}#{}#{} is {}ms, which is a little long, please take care.",
+                    "Slow request detected #{}#{}#{}, time costs {}ms, please take care.",
                     toHexString(session_id.load()),
                     response->xid,
                     Coordination::toString(response->getOpNum()),

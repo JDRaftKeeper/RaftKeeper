@@ -311,18 +311,6 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
 
         LOG_TRACE(log, "Commit log index {} fore request {}", log_idx, request_for_session.toSimpleString());
 
-        if (request_for_session.create_time > 0)
-        {
-            Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - request_for_session.create_time;
-            if (unlikely(elapsed > 10000))
-                LOG_WARNING(
-                    log,
-                    "When committing log {} for request {}, the time has passed {}ms, which is a little long, please take care.",
-                    log_idx,
-                    request_for_session.toSimpleString(),
-                    elapsed);
-        }
-
         if (request_processor)
             request_processor->commit(request_for_session);
         else
