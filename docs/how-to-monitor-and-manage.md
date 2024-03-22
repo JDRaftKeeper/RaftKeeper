@@ -46,6 +46,7 @@ zk_packets_sent	60406965
 zk_num_alive_connections	0
 zk_outstanding_requests	0
 zk_server_state	leader
+zk_is_leader 1
 zk_znode_count	2899570
 zk_watch_count	0
 zk_ephemerals_count	41933

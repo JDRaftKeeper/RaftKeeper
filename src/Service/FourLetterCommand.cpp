@@ -251,6 +251,7 @@ String MonitorCommand::run()
     print(ret, "outstanding_requests", keeper_info.outstanding_requests_count);
 
     print(ret, "server_state", keeper_info.getRole());
+    print(ret, "is_leader", keeper_info.is_leader);
 
     print(ret, "znode_count", state_machine.getNodesCount());
     print(ret, "watch_count", state_machine.getTotalWatchesCount());
