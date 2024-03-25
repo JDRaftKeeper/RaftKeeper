@@ -461,7 +461,7 @@ void KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHe
     }
 }
 
-void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
+void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, BlocksEdges & blocks_edges)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -491,7 +491,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
         {
             if (snap_fs->eof() && version_from_obj == SnapshotVersion::V0)
             {
-                LOG_INFO(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_from_obj));
+                LOG_DEBUG(log, "obj_path {}, read file tail, version {}", obj_path, uint8_t(version_from_obj));
                 break;
             }
             throw Exception(
@@ -504,7 +504,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
             char * buf = reinterpret_cast<char *>(&version_from_obj);
             snap_fs->read(buf, sizeof(uint8_t));
             read_size += 1;
-            LOG_INFO(log, "Got snapshot file header with version {}", toString(version_from_obj));
+            LOG_DEBUG(log, "Got snapshot file header with version {}", toString(version_from_obj));
             if (version_from_obj > CURRENT_SNAPSHOT_VERSION)
                 throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", version_from_obj);
         }
@@ -514,7 +514,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
             char * buf = reinterpret_cast<char *>(&file_checksum);
             snap_fs->read(buf, sizeof(UInt32));
             read_size += 4;
-            LOG_INFO(log, "obj_path {}, file_checksum {}, checksum {}.", obj_path, file_checksum, checksum);
+            LOG_DEBUG(log, "obj_path {}, file_checksum {}, checksum {}.", obj_path, file_checksum, checksum);
             if (file_checksum != checksum)
                 throw Exception(ErrorCodes::CHECKSUM_DOESNT_MATCH, "snapshot {} checksum doesn't match", obj_path);
             break;
@@ -527,7 +527,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
                 LOG_INFO(log, "snapshot has no version, set to V0", obj_path);
             }
 
-            LOG_INFO(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
+            LOG_DEBUG(log, "obj_path {}, didn't read the header and tail of the file", obj_path);
             snap_fs->seekg(cur_read_size);
             read_size = cur_read_size;
         }
@@ -535,12 +535,12 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
         parseBatchHeader(snap_fs, header);
 
         checksum = updateCheckSum(checksum, header.data_crc);
-        char * body_buf = new char[header.data_length];
+        String body_string(header.data_length, '0');
+        char * body_buf = body_string.data();
         read_size += (SnapshotBatchHeader::HEADER_SIZE + header.data_length);
 
         if (!snap_fs->read(body_buf, header.data_length))
         {
-            delete[] body_buf;
             throwFromErrno(
                 "Can't read snapshot object file " + obj_path + ", batch size " + std::to_string(header.data_length) + ", only "
                     + std::to_string(snap_fs->gcount()) + " could be read",
@@ -549,41 +549,39 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path)
 
         if (!verifyCRC32(body_buf, header.data_length, header.data_crc))
         {
-            delete[] body_buf;
             throwFromErrno("Can't read snapshot object file " + obj_path + ", batch crc not match.", ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
         if (version_from_obj < SnapshotVersion::V2)
-            parseBatchBody(store, body_buf, header.data_length, version_from_obj);
+            parseBatchBody(store, body_string, blocks_edges, version_from_obj);
         else
-            parseBatchBodyV2(store, body_buf, header.data_length, version_from_obj);
-        delete[] body_buf;
+            parseBatchBodyV2(store, body_string, blocks_edges, version_from_obj);
     }
 }
 
-void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & body_string, BlocksEdges & blocks_edges, SnapshotVersion version_)
 {
     SnapshotBatchPB batch_pb;
-    batch_pb.ParseFromString(String(batch_buf, length));
+    batch_pb.ParseFromString(body_string);
     switch (batch_pb.batch_type())
     {
         case SnapshotTypePB::SNAPSHOT_TYPE_DATA:
-            LOG_INFO(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
-            parseBatchData(store, batch_pb, version_);
+            LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
+            parseBatchData(store, batch_pb, blocks_edges, version_);
             break;
         case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
-            LOG_INFO(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
+            LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
             parseBatchSession(store, batch_pb, version_);
         }
         break;
         case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
-            LOG_INFO(log, "Parsing batch acl from snapshot, acl count {}", batch_pb.data_size());
+            LOG_DEBUG(log, "Parsing batch acl from snapshot, acl count {}", batch_pb.data_size());
             parseBatchAclMap(store, batch_pb, version_);
             break;
         case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP:
-            LOG_INFO(log, "Parsing batch int_map from snapshot, element count {}", batch_pb.data_size());
+            LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch_pb.data_size());
             parseBatchIntMap(store, batch_pb, version_);
-            LOG_INFO(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
+            LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
             break;
         case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
         case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
@@ -593,29 +591,29 @@ void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, char * batch_buf, 
     }
 }
 
-void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf, size_t length, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BlocksEdges & blocks_edges, SnapshotVersion version_)
 {
     ptr<SnapshotBatchBody> batch;
-    batch = SnapshotBatchBody::parse(String(batch_buf, length));
+    batch = SnapshotBatchBody::parse(body_string);
     switch (batch->type)
     {
         case SnapshotBatchType::SNAPSHOT_TYPE_DATA:
-            LOG_INFO(log, "Parsing batch data from snapshot, data count {}", batch->size());
-            parseBatchDataV2(store, *batch, version_);
+            LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch->size());
+            parseBatchDataV2(store, *batch, blocks_edges, version_);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_SESSION: {
-            LOG_INFO(log, "Parsing batch session from snapshot, session count {}", batch->size());
+            LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch->size());
             parseBatchSessionV2(store, *batch, version_);
         }
         break;
         case SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP:
-            LOG_INFO(log, "Parsing batch acl from snapshot, acl count {}", batch->size());
+            LOG_DEBUG(log, "Parsing batch acl from snapshot, acl count {}", batch->size());
             parseBatchAclMapV2(store, *batch, version_);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
-            LOG_INFO(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
+            LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
             parseBatchIntMapV2(store, *batch, version_);
-            LOG_INFO(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
+            LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
         case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
@@ -628,6 +626,10 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, char * batch_buf
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 {
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
+    all_objects_edges = std::vector<BlocksEdges>(objects_path.size());
+
+    LOG_INFO(log, "Parse object from disk");
+
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
     {
         object_thread_pool.trySchedule(
@@ -648,11 +650,12 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
                             this->objects_path.size());
                         try
                         {
-                            this->parseObject(store, it->second);
+                            this->parseObject(store, it->second, all_objects_edges[obj_idx]);
                         }
                         catch (Exception & e)
                         {
                             LOG_ERROR(log, "parseObject error {}, {}", it->second, getExceptionMessage(e, true));
+                            throw;
                         }
                     }
                     obj_idx++;
@@ -661,8 +664,27 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     }
     object_thread_pool.wait();
 
+    LOG_INFO(log, "Build ChildrenSet for nodes");
+
     /// Build node tree relationship
-    store.buildPathChildren();
+    for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
+    {
+        object_thread_pool.trySchedule(
+            [this, thread_idx, &store]
+            {
+                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildChildren"));
+                for (UInt32 block_idx = 0; block_idx < store.container.getBlockNum(); block_idx++)
+                {
+                    if (block_idx % SNAPSHOT_THREAD_NUM == thread_idx)
+                    {
+                        LOG_INFO(thread_log, "Build ChildrenSet for nodes in block {}, thread_idx {}", block_idx, thread_idx);
+                        store.buildBlockChildren(this->all_objects_edges, block_idx);
+                    }
+                }
+            });
+    }
+
+    object_thread_pool.wait();
 
     LOG_INFO(
         log,

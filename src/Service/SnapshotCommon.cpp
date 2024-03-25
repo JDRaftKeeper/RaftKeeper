@@ -153,6 +153,8 @@ ptr<KeeperNodeWithPath>parseKeeperNode(const String & buf, SnapshotVersion versi
     Coordination::read(node->is_sequential, in);
     Coordination::read(node->stat, in);
 
+    node->children.reserve(node->stat.numChildren);
+
     return node_with_path;
 }
 
@@ -412,7 +414,7 @@ template void serializeMap<StringMap>(StringMap & snap_map, UInt32 save_batch_si
 template void serializeMap<IntMap>(IntMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
 
-void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version)
+void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, BlocksEdges & blocks_edges, SnapshotVersion version)
 {
     for (int i = 0; i < batch.data_size(); i++)
     {
@@ -444,14 +446,29 @@ void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, Snapshot
         store.acl_map.addUsage(node->acl_id);
 
         auto ephemeral_owner = node->stat.ephemeralOwner;
-        store.container.emplace(path, std::move(node));
-
         if (ephemeral_owner != 0)
         {
             std::lock_guard l(store.ephemerals_mutex);
             auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
             ephemeral_nodes.emplace(path);
         }
+
+        store.container.emplace(path, std::move(node));
+
+        if (unlikely(path == "/"))
+            continue;
+
+        auto rslash_pos = path.rfind('/');
+
+        if (unlikely(rslash_pos < 0))
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
+
+        auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
+        auto idx = store.container.getBlockIndex(parent_path);
+
+        //  Storage edges in different bucket, according to the block index of parent node.
+        //  Which allow us to insert child paths for all nodes in parallel.
+        blocks_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
     }
 }
 
@@ -844,7 +861,7 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
     return batch_body;
 }
 
-void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version)
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BlocksEdges & blocks_edges, SnapshotVersion version)
 {
     for (size_t i = 0; i < batch.size(); i++)
     {
@@ -875,14 +892,30 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVe
         store.acl_map.addUsage(node->acl_id);
 
         auto ephemeral_owner = node->stat.ephemeralOwner;
-        store.container.emplace(path, std::move(node));
-
         if (ephemeral_owner != 0)
         {
             std::lock_guard l(store.ephemerals_mutex);
             auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
             ephemeral_nodes.emplace(path);
         }
+
+        store.container.emplace(path, std::move(node));
+
+        if (unlikely(path == "/"))
+            continue;
+
+        auto rslash_pos = path.rfind('/');
+
+        if (unlikely(rslash_pos < 0))
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
+
+        auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
+        auto idx = store.container.getBlockIndex(parent_path);
+
+        //  Storage edges in different bucket, according to the block index of parent node.
+        //  Which allow us to insert child paths for all nodes in parallel.
+        blocks_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
+
     }
 }
 

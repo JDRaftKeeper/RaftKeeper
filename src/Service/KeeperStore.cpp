@@ -1659,6 +1659,24 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
     }
 }
 
+void KeeperStore::buildBlockChildren(const std::vector<BlocksEdges> & all_objects_edges, UInt32 block_idx)
+{
+    for (auto & object_edges : all_objects_edges)
+    {
+        for (auto & [parent_path, path] : object_edges[block_idx])
+        {
+            auto parent = container.get(parent_path);
+
+            if (unlikely(parent == nullptr))
+            {
+                throw RK::Exception("Logical error: Build : can not find parent for node " + path, ErrorCodes::LOGICAL_ERROR);
+            }
+
+            parent->children.emplace(std::move(path));
+        }
+    }
+}
+
 void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response)
 {
     LOG_DEBUG(log, "Clean ephemeral nodes for session {}", toHexString(session_id));

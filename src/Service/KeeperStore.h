@@ -25,6 +25,8 @@ namespace RK
 struct StoreRequest;
 using StoreRequestPtr = std::shared_ptr<StoreRequest>;
 using ChildrenSet = std::unordered_set<String>;
+using Edge = std::pair<String, String>;
+using Edges = std::vector<Edge>;
 
 /**
  * Represent an entry in data tree.
@@ -160,6 +162,7 @@ public:
     bool erase(String const & key) { return mapFor(key).erase(key); }
 
     InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBlocks]; }
+    UInt32 getBlockIndex(String const & key) { return hash_(key) % NumBlocks; }
     UInt32 getBlockNum() const { return NumBlocks; }
     InnerMap & getMap(const UInt32 & index) { return maps_[index]; }
 
@@ -200,6 +203,7 @@ public:
     using SessionIDs = std::vector<int64_t>;
 
     using Watches = std::unordered_map<String /* path, relative of root_path */, SessionIDs>;
+    using BlocksEdges = std::array<Edges, MAP_BLOCK_NUM>;
 
     /// global session id counter, used to allocate new session id.
     /// It should be same across all nodes.
@@ -296,6 +300,9 @@ public:
 
     /// Build path children after load data from snapshot
     void buildPathChildren(bool from_zk_snapshot = false);
+
+    // Build childrenset for the node in specified block after load data from snapshot.
+    void buildBlockChildren(const std::vector<BlocksEdges> & all_objects_edges, UInt32 block_idx);
 
     void finalize();
 
