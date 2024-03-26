@@ -461,7 +461,7 @@ void KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHe
     }
 }
 
-void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, BlocksEdges & blocks_edges)
+void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, BucketEdges & buckets_edges)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -553,13 +553,13 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Bloc
         }
 
         if (version_from_obj < SnapshotVersion::V2)
-            parseBatchBody(store, body_string, blocks_edges, version_from_obj);
+            parseBatchBody(store, body_string, buckets_edges, version_from_obj);
         else
-            parseBatchBodyV2(store, body_string, blocks_edges, version_from_obj);
+            parseBatchBodyV2(store, body_string, buckets_edges, version_from_obj);
     }
 }
 
-void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & body_string, BlocksEdges & blocks_edges, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, SnapshotVersion version_)
 {
     SnapshotBatchPB batch_pb;
     batch_pb.ParseFromString(body_string);
@@ -567,7 +567,7 @@ void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & bod
     {
         case SnapshotTypePB::SNAPSHOT_TYPE_DATA:
             LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
-            parseBatchData(store, batch_pb, blocks_edges, version_);
+            parseBatchData(store, batch_pb, buckets_edges, version_);
             break;
         case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
             LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
@@ -591,7 +591,7 @@ void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & bod
     }
 }
 
-void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BlocksEdges & blocks_edges, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, SnapshotVersion version_)
 {
     ptr<SnapshotBatchBody> batch;
     batch = SnapshotBatchBody::parse(body_string);
@@ -599,7 +599,7 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
     {
         case SnapshotBatchType::SNAPSHOT_TYPE_DATA:
             LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch->size());
-            parseBatchDataV2(store, *batch, blocks_edges, version_);
+            parseBatchDataV2(store, *batch, buckets_edges, version_);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_SESSION: {
             LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch->size());
@@ -626,7 +626,7 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 {
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
-    all_objects_edges = std::vector<BlocksEdges>(objects_path.size());
+    all_objects_edges = std::vector<BucketEdges>(objects_path.size());
 
     LOG_INFO(log, "Parse object from disk");
 
@@ -673,12 +673,12 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
             [this, thread_idx, &store]
             {
                 Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildChildren"));
-                for (UInt32 block_idx = 0; block_idx < store.container.getBlockNum(); block_idx++)
+                for (UInt32 bucket_idx = 0; bucket_idx < store.container.getBucketNum(); bucket_idx++)
                 {
-                    if (block_idx % SNAPSHOT_THREAD_NUM == thread_idx)
+                    if (bucket_idx % SNAPSHOT_THREAD_NUM == thread_idx)
                     {
-                        LOG_INFO(thread_log, "Build ChildrenSet for nodes in block {}, thread_idx {}", block_idx, thread_idx);
-                        store.buildBlockChildren(this->all_objects_edges, block_idx);
+                        LOG_INFO(thread_log, "Build ChildrenSet for nodes in bucket {}, thread_idx {}", bucket_idx, thread_idx);
+                        store.buildBucketChildren(this->all_objects_edges, bucket_idx);
                     }
                 }
             });

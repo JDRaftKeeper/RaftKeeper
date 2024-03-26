@@ -414,7 +414,7 @@ template void serializeMap<StringMap>(StringMap & snap_map, UInt32 save_batch_si
 template void serializeMap<IntMap>(IntMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
 
-void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, BlocksEdges & blocks_edges, SnapshotVersion version)
+void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, BucketEdges & buckets_edges, SnapshotVersion version)
 {
     for (int i = 0; i < batch.data_size(); i++)
     {
@@ -464,11 +464,11 @@ void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, BlocksEd
             throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
 
         auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
-        auto idx = store.container.getBlockIndex(parent_path);
+        auto idx = store.container.getBucketIndex(parent_path);
 
-        //  Storage edges in different bucket, according to the block index of parent node.
+        //  Storage edges in different bucket, according to the bucket index of parent node.
         //  Which allow us to insert child paths for all nodes in parallel.
-        blocks_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
+        buckets_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
     }
 }
 
@@ -861,7 +861,7 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
     return batch_body;
 }
 
-void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BlocksEdges & blocks_edges, SnapshotVersion version)
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, SnapshotVersion version)
 {
     for (size_t i = 0; i < batch.size(); i++)
     {
@@ -910,11 +910,11 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BlocksEdge
             throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
 
         auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
-        auto idx = store.container.getBlockIndex(parent_path);
+        auto idx = store.container.getBucketIndex(parent_path);
 
-        //  Storage edges in different bucket, according to the block index of parent node.
+        //  Storage edges in different bucket, according to the bucket index of parent node.
         //  Which allow us to insert child paths for all nodes in parallel.
-        blocks_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
+        buckets_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
 
     }
 }
