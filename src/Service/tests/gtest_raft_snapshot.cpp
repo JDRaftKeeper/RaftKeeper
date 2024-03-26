@@ -244,7 +244,7 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
 
 
     /// assert container
-    for (uint32_t i = 0; i < KeeperStore::MAP_BLOCK_NUM; i++)
+    for (uint32_t i = 0; i < KeeperStore::MAP_BUCKET_NUM; i++)
     {
         auto & map = storage.container.getMap(i);
         auto & ano_map = ano_storage.container.getMap(i);
@@ -434,7 +434,7 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compare_acl)
 {
     ASSERT_EQ(new_store.container.size(), store.container.size());
-    for (UInt32 i = 0; i < store.container.getBlockNum(); i++)
+    for (UInt32 i = 0; i < store.container.getBucketNum(); i++)
     {
         auto & inner_map = store.container.getMap(i);
         for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
