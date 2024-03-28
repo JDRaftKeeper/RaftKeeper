@@ -1635,9 +1635,9 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
 {
     LOG_INFO(log, "build path children in keeper storage {}", container.size());
     /// build children
-    for (UInt32 block_idx = 0; block_idx < container.getBlockNum(); block_idx++)
+    for (UInt32 bucket_idx = 0; bucket_idx < container.getBucketNum(); bucket_idx++)
     {
-        for (const auto & it : container.getMap(block_idx).getMap())
+        for (const auto & it : container.getMap(bucket_idx).getMap())
         {
             if (it.first == "/")
                 continue;
@@ -1655,6 +1655,24 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
                 if (from_zk_snapshot)
                     parent->stat.numChildren++;
             }
+        }
+    }
+}
+
+void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx)
+{
+    for (auto & object_edges : all_objects_edges)
+    {
+        for (auto & [parent_path, path] : object_edges[bucket_idx])
+        {
+            auto parent = container.get(parent_path);
+
+            if (unlikely(parent == nullptr))
+            {
+                throw RK::Exception("Logical error: Build : can not find parent for node " + path, ErrorCodes::LOGICAL_ERROR);
+            }
+
+            parent->children.emplace(std::move(path));
         }
     }
 }

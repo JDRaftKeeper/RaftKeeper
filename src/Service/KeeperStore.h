@@ -25,6 +25,8 @@ namespace RK
 struct StoreRequest;
 using StoreRequestPtr = std::shared_ptr<StoreRequest>;
 using ChildrenSet = std::unordered_set<String>;
+using Edge = std::pair<String, String>;
+using Edges = std::vector<Edge>;
 
 /**
  * Represent an entry in data tree.
@@ -82,7 +84,7 @@ struct KeeperNodeWithPath
 /// Map for data tree, it is thread safe with read write lock.
 /// ConcurrentMap is a two-level unordered_map which is designed
 /// to reduce latency for unordered_map scales.
-template <typename Element, unsigned NumBlocks>
+template <typename Element, unsigned NumBuckets>
 class ConcurrentMap
 {
 public:
@@ -147,7 +149,7 @@ public:
     };
 
 private:
-    std::array<InnerMap, NumBlocks> maps_;
+    std::array<InnerMap, NumBuckets> maps_;
     std::hash<String> hash_;
 
 public:
@@ -159,8 +161,9 @@ public:
     size_t count(const String & key) { return get(key) != nullptr ? 1 : 0; }
     bool erase(String const & key) { return mapFor(key).erase(key); }
 
-    InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBlocks]; }
-    UInt32 getBlockNum() const { return NumBlocks; }
+    InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBuckets]; }
+    UInt32 getBucketIndex(String const & key) { return hash_(key) % NumBuckets; }
+    UInt32 getBucketNum() const { return NumBuckets; }
     InnerMap & getMap(const UInt32 & index) { return maps_[index]; }
 
     void clear()
@@ -182,9 +185,9 @@ public:
 class KeeperStore
 {
 public:
-    /// block num for ConcurrentMap
-    static constexpr int MAP_BLOCK_NUM = 16;
-    using Container = ConcurrentMap<KeeperNode, MAP_BLOCK_NUM>;
+    /// bucket num for ConcurrentMap
+    static constexpr int MAP_BUCKET_NUM = 16;
+    using Container = ConcurrentMap<KeeperNode, MAP_BUCKET_NUM>;
 
     using ResponsesForSessions = std::vector<ResponseForSession>;
     using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
@@ -200,6 +203,10 @@ public:
     using SessionIDs = std::vector<int64_t>;
 
     using Watches = std::unordered_map<String /* path, relative of root_path */, SessionIDs>;
+
+    /// Hold Edges in different Buckets based on the parent node's bucket number.
+    /// It should be used when load snapshot to built node's childrenSet in parallel without lock.
+    using BucketEdges = std::array<Edges, MAP_BUCKET_NUM>;
 
     /// global session id counter, used to allocate new session id.
     /// It should be same across all nodes.
@@ -297,6 +304,9 @@ public:
     /// Build path children after load data from snapshot
     void buildPathChildren(bool from_zk_snapshot = false);
 
+    // Build childrenSet for the node in specified bucket after load data from snapshot.
+    void buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx);
+
     void finalize();
 
     /// Add session id. Used when restoring KeeperStorage from snapshot.
@@ -335,7 +345,7 @@ public:
     uint64_t getApproximateDataSize() const
     {
         UInt64 node_count = container.size();
-        UInt64 size_bytes = container.getBlockNum() * sizeof(Container::InnerMap) /* Inner map size */
+        UInt64 size_bytes = container.getBucketNum() * sizeof(Container::InnerMap) /* Inner map size */
             + node_count * 8 / 0.75 /*hash map array size*/
             + node_count * sizeof(KeeperNode) /*node size*/
             + node_count * 100; /*path and child of node size*/
