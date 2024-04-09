@@ -79,7 +79,7 @@ private:
     Coordination::OpNum receiveHandshake(int32_t handshake_length);
     static bool isHandShake(Int32 & handshake_length);
 
-    bool tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
+    void tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
 
     /// After handshake, we receive requests.
     std::pair<Coordination::OpNum, Coordination::XID> receiveRequest(int32_t length);

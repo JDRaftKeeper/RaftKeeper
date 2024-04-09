@@ -145,9 +145,10 @@ void ConnectionHandler::onSocketReadable(const Notification &)
                 {
                     int32_t four_letter_cmd = header;
                     tryExecuteFourLetterWordCmd(four_letter_cmd);
-                    /// Handler need to delete self
-                    /// As to four letter command just close connection.
-                    delete this;
+
+                    /// Handler no need delete self
+                    /// As to four letter command just wait client close connection.
+                    req_header_buf.drain(req_header_buf.used());
                     return;
                 }
 
@@ -513,17 +514,15 @@ bool ConnectionHandler::isHandShake(Int32 & handshake_length)
         || handshake_length == Coordination::CLIENT_HANDSHAKE_LENGTH_WITH_READONLY;
 }
 
-bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
+void ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
 {
     if (!FourLetterCommandFactory::instance().isKnown(command))
     {
         LOG_WARNING(log, "Invalid four letter command {}", IFourLetterCommand::toName(command));
-        return false;
     }
     else if (!FourLetterCommandFactory::instance().isEnabled(command))
     {
         LOG_WARNING(log, "Not enabled four letter command {}", IFourLetterCommand::toName(command));
-        return false;
     }
     else
     {
@@ -544,8 +543,10 @@ bool ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
         {
             tryLogCurrentException(log, "Error when executing four letter command " + command_ptr->name());
         }
-        return true;
     }
+
+    /// Send TCP FIN to client
+    sock.shutdownSend();
 }
 
 std::pair<Coordination::OpNum, Coordination::XID> ConnectionHandler::receiveRequest(int32_t)
