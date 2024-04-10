@@ -441,7 +441,7 @@ def test_cmd_crst(started_cluster):
         print(data)
 
         # 2 connections, 1 for 'cons' command, 1 for zk
-        # but if there is reconnection len(cons) may large than 2
+        # but len(cons) may be large than 2, if the connection of `crst` is not destroied
         cons = [n for n in data.split('\n') if len(n) > 0]
         assert len(cons) >= 2
 
