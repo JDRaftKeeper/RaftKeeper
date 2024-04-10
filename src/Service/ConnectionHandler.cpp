@@ -545,7 +545,10 @@ void ConnectionHandler::tryExecuteFourLetterWordCmd(int32_t command)
         }
     }
 
-    /// Send TCP FIN to client
+    /// Implements a graceful shutdown protocol.
+    /// Closes the sending channel and sends a FIN (finish) signal to the client.
+    /// After the client receives all pending data and the FIN from the server, it sends a FIN packet back to the server.
+    /// Once the server acknowledges this with an ACK (acknowledgment), the connection is fully closed.
     sock.shutdownSend();
 }
 
