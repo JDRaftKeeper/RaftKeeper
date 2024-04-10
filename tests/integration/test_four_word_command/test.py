@@ -441,8 +441,9 @@ def test_cmd_crst(started_cluster):
         print(data)
 
         # 2 connections, 1 for 'cons' command, 1 for zk
+        # but if there is reconnection len(cons) may large than 2
         cons = [n for n in data.split('\n') if len(n) > 0]
-        assert len(cons) == 2
+        assert len(cons) >= 2
 
         zk_con = None
         if 'sid' in cons[0]:
