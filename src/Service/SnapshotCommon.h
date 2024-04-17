@@ -14,7 +14,6 @@
 #    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
 #    pragma clang diagnostic ignored "-Wheader-hygiene"
 #endif
-#include <Service/proto/Log.pb.h>
 #ifdef __clang__
 #    pragma clang diagnostic pop
 #endif
@@ -109,29 +108,6 @@ UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
 /// Serialize and parse keeper node. Please note that children is ignored for we build parent relationship after load all data.
 String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, SnapshotVersion version);
 ptr<KeeperNodeWithPath> parseKeeperNode(const String & buf, SnapshotVersion version);
-
-/// ----- For snapshot version 1 ----- // TODO delete
-
-/// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatch(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch);
-std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSum(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchPB> & batch, UInt32 checksum);
-
-void serializeAcls(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
-[[maybe_unused]] size_t serializeEphemerals(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size); /// TODO delete
-
-/// Serialize sessions and return the next_session_id before serialize
-int64_t serializeSessions(KeeperStore & store, UInt32 save_batch_size, SnapshotVersion version, String & path);
-
-/// Save map<string, string> or map<string, uint64>
-template <typename T>
-void serializeMap(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
-
-/// Parse snapshot batch without protobuf
-void parseBatchData(KeeperStore & store, const SnapshotBatchPB & batch, BucketEdges & buckets_edges, SnapshotVersion version);
-void parseBatchSession(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
-void parseBatchAclMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
-void parseBatchIntMap(KeeperStore & store, const SnapshotBatchPB & batch, SnapshotVersion version);
 
 
 /// ----- For snapshot version 2 -----

@@ -52,24 +52,6 @@ size_t KeeperSnapshotStore::getObjectIdx(const String & file_name)
     return std::stoi(file_name.substr(it + 1, file_name.size() - it));
 }
 
-size_t KeeperSnapshotStore::serializeDataTree(KeeperStore & storage)
-{
-    std::shared_ptr<WriteBufferFromFile> out;
-    ptr<SnapshotBatchPB> batch;
-
-    uint64_t processed = 0;
-    uint32_t checksum = 0;
-
-    serializeNode(out, batch, storage, "/", processed, checksum);
-    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-    checksum = new_checksum;
-
-    writeTailAndClose(out, checksum);
-    LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
-
-    return getObjectIdx(out->getFileName());
-}
-
 size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
 {
     std::shared_ptr<WriteBufferFromFile> out;
@@ -86,79 +68,6 @@ size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
     LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
 
     return getObjectIdx(out->getFileName());
-}
-
-void KeeperSnapshotStore::serializeNode(
-    ptr<WriteBufferFromFile> & out,
-    ptr<SnapshotBatchPB> & batch,
-    KeeperStore & store,
-    const String & path,
-    uint64_t & processed,
-    uint32_t & checksum)
-{
-    auto node = store.container.get(path);
-
-    /// In case of node is deleted
-    if (!node)
-        return;
-
-    std::shared_ptr<KeeperNode> node_copy;
-    {
-        std::shared_lock lock(node->mutex);
-        node_copy = node->clone();
-    }
-
-    if (processed % max_object_node_size == 0)
-    {
-        /// time to create new snapshot object
-        uint64_t obj_id = processed / max_object_node_size;
-
-        if (obj_id != 0)
-        {
-            /// flush last batch data
-            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-            checksum = new_checksum;
-
-            /// close current object file
-            writeTailAndClose(out, checksum);
-            /// reset checksum
-            checksum = 0;
-        }
-        String new_obj_path;
-        /// for there are 4 objects before data objects
-        getObjectPath(obj_id + 4, new_obj_path);
-
-        LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 4, new_obj_path);
-        out = openFileAndWriteHeader(new_obj_path, version);
-    }
-
-    /// flush and rebuild batch
-    if (processed % save_batch_size == 0)
-    {
-        /// skip flush the first batch
-        if (processed != 0)
-        {
-            /// flush data in batch to file
-            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSum(out, batch, checksum);
-            checksum = new_checksum;
-        }
-        else
-        {
-            if (!batch)
-                batch = cs_new<SnapshotBatchPB>();
-        }
-    }
-
-    LOG_TRACE(log, "Append node path {}", path);
-    appendNodeToBatch(batch, path, node_copy, version);
-    processed++;
-
-    String path_with_slash = path;
-    if (path != "/")
-        path_with_slash += '/';
-
-    for (const auto & child : node->children)
-        serializeNode(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
 void KeeperSnapshotStore::serializeNodeV2(
@@ -234,31 +143,6 @@ void KeeperSnapshotStore::serializeNodeV2(
         serializeNodeV2(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
-void KeeperSnapshotStore::appendNodeToBatch(
-    ptr<SnapshotBatchPB> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
-{
-    SnapshotItemPB * entry = batch->add_data();
-    WriteBufferFromNuraftBuffer buf;
-
-    Coordination::write(path, buf);
-    Coordination::write(node->data, buf);
-    if (version == SnapshotVersion::V0)
-    {
-        /// Just ignore acls for snapshot V0 /// TODO delete
-        Coordination::ACLs acls;
-        Coordination::write(acls, buf);
-    }
-    else
-        Coordination::write(node->acl_id, buf);
-    Coordination::write(node->is_ephemeral, buf);
-    Coordination::write(node->is_sequential, buf);
-    Coordination::write(node->stat, buf);
-
-    ptr<buffer> data = buf.getBuffer();
-    data->pos(0);
-    entry->set_data(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-}
-
 void KeeperSnapshotStore::appendNodeToBatchV2(
     ptr<SnapshotBatchBody> batch, const String & path, std::shared_ptr<KeeperNode> node, SnapshotVersion version)
 {
@@ -285,79 +169,7 @@ void KeeperSnapshotStore::appendNodeToBatchV2(
 
 size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
 {
-    return version < SnapshotVersion::V2 ? createObjectsV1(store, next_zxid, next_session_id)
-                                         : createObjectsV2(store, next_zxid, next_session_id);
-}
-
-size_t KeeperSnapshotStore::createObjectsV1(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
-{
-    if (snap_meta->size() == 0)
-    {
-        return 0;
-    }
-
-    Poco::File(snap_dir).createDirectories();
-
-    size_t data_object_count = store.container.size() / max_object_node_size;
-    if (store.container.size() % max_object_node_size)
-    {
-        data_object_count += 1;
-    }
-
-    //uint map、Sessions、acls、Normal node objects
-    size_t total_obj_count = data_object_count + 3;
-
-    LOG_INFO(
-        log,
-        "Creating snapshot with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
-        data_object_count,
-        total_obj_count,
-        next_zxid,
-        next_session_id);
-
-    /// 1. Save uint map before nodes
-    IntMap int_map;
-    /// Next transaction id
-    int_map["ZXID"] = next_zxid;
-    /// Next session id
-    int_map["SESSIONID"] = next_session_id;
-
-    String map_path;
-    getObjectPath(1, map_path);
-    serializeMap(int_map, save_batch_size, version, map_path);
-
-    /// 2. Save sessions
-    String session_path;
-    /// object index should start from 1
-    getObjectPath(2, session_path);
-    int64_t serialized_next_session_id = serializeSessions(store, save_batch_size, version, session_path);
-    LOG_INFO(
-        log,
-        "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-        toHexString(next_session_id),
-        toHexString(serialized_next_session_id));
-
-    /// 3. Save acls
-    String acl_path;
-    /// object index should start from 1
-    getObjectPath(3, acl_path);
-    serializeAcls(store.acl_map, acl_path, save_batch_size, version);
-
-    /// 4. Save data tree
-    size_t last_id = serializeDataTree(store);
-
-    total_obj_count = last_id;
-    LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
-
-    /// add all path to objects_path
-    for (size_t i = 1; i < total_obj_count + 1; i++)
-    {
-        String path;
-        getObjectPath(i, path);
-        addObjectPath(i, path);
-    }
-
-    return total_obj_count;
+    return createObjectsV2(store, next_zxid, next_session_id);
 }
 
 size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zxid, int64_t next_session_id)
@@ -552,42 +364,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
             throwFromErrno("Can't read snapshot object file " + obj_path + ", batch crc not match.", ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
-        if (version_from_obj < SnapshotVersion::V2)
-            parseBatchBody(store, body_string, buckets_edges, version_from_obj);
-        else
-            parseBatchBodyV2(store, body_string, buckets_edges, version_from_obj);
-    }
-}
-
-void KeeperSnapshotStore::parseBatchBody(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, SnapshotVersion version_)
-{
-    SnapshotBatchPB batch_pb;
-    batch_pb.ParseFromString(body_string);
-    switch (batch_pb.batch_type())
-    {
-        case SnapshotTypePB::SNAPSHOT_TYPE_DATA:
-            LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch_pb.data_size());
-            parseBatchData(store, batch_pb, buckets_edges, version_);
-            break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_SESSION: {
-            LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch_pb.data_size());
-            parseBatchSession(store, batch_pb, version_);
-        }
-        break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_ACLMAP:
-            LOG_DEBUG(log, "Parsing batch acl from snapshot, acl count {}", batch_pb.data_size());
-            parseBatchAclMap(store, batch_pb, version_);
-            break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_UINTMAP:
-            LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch_pb.data_size());
-            parseBatchIntMap(store, batch_pb, version_);
-            LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
-            break;
-        case SnapshotTypePB::SNAPSHOT_TYPE_CONFIG:
-        case SnapshotTypePB::SNAPSHOT_TYPE_SERVER:
-            break;
-        default:
-            break;
+        parseBatchBodyV2(store, body_string, buckets_edges, version_from_obj);
     }
 }
 
