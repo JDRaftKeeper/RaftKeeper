@@ -93,10 +93,6 @@ nbproject/*
 
 config-preprocessed.xml
 
-# Protobuf
-*.pb.cpp
-*.pb.h
-
 # Ignore symlink to private repository
 /private
 
