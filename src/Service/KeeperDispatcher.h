@@ -208,6 +208,13 @@ public:
         keeper_stats.reset();
     }
 
+    void incrementPushRequest()
+    {
+        std::lock_guard lock(keeper_stats_mutex);
+        keeper_stats.incrementPacketsReceived();
+    }
+
+
     uint64_t createSnapshot() { return server->createSnapshot(); }
 
     KeeperLogInfo getKeeperLogInfo() { return server->getKeeperLogInfo(); }

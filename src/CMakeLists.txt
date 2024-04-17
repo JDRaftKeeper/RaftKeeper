@@ -66,7 +66,9 @@ if ((NOT USE_LIBCXX) AND COMPILER_CLANG AND OS_LINUX)
 endif()
 
 set(dbms_headers)
-set(dbms_sources)
+set(dbms_sources
+        Service/Metrics.cpp
+        Service/Metrics.h)
 set (all_modules)
 
 macro(add_object_library name common_path)
