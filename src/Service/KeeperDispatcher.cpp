@@ -6,6 +6,7 @@
 #include <Service/KeeperDispatcher.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/formatHex.h>
+#include <Service/Metrics.h>
 
 namespace RK
 {
@@ -190,8 +191,8 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
     request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
     LOG_TRACE(log, "Push user request #{}#{}#{}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
-
     /// Put close requests without timeouts
+    Stopwatch watch;
     if (request->getOpNum() == Coordination::OpNum::Close)
     {
         if (!requests_queue->push(std::move(request_info)))
@@ -199,6 +200,7 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
+    Metrics::getMetrics().PUSH_REQUESTS_QUEUE_TIME->add(watch.elapsedMilliseconds());
     return true;
 }
 

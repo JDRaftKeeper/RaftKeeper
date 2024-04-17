@@ -36,28 +36,62 @@ Process uptime in seconds.
 `mntr` provide rich metrics and is the main monitoring command. The following is the output
 
 ```
-zk_version	RaftKeeper v2.0.4-e80e94979318adc94e81664053d782d0c9d7e60f, built on 2024-01-11 10:59:45 CST
+zk_version	RaftKeeper v2.0.5-96935adae174aaa430db0af14f823b0bf892f38e, built on 2024-04-15 17:19:43 CST
 zk_compatible_mode	zookeeper
 zk_avg_latency	1
-zk_max_latency	14598
+zk_max_latency	546
 zk_min_latency	0
-zk_packets_received	59695194
-zk_packets_sent	60406965
+zk_packets_received	25596328
+zk_packets_sent	25595940
 zk_num_alive_connections	0
 zk_outstanding_requests	0
 zk_server_state	leader
-zk_is_leader 1
-zk_znode_count	2899570
+zk_znode_count	2
 zk_watch_count	0
-zk_ephemerals_count	41933
-zk_approximate_data_size	1179161410
-zk_snap_count	619
-zk_snap_time_ms	9058483
+zk_ephemerals_count	0
+zk_approximate_data_size	3757
+zk_snap_count	2
+zk_snap_time_ms	1039
 zk_in_snapshot	0
 zk_open_file_descriptor_count	126
 zk_max_file_descriptor_count	60480000
 zk_followers	2
 zk_synced_followers	2
+zk_p50_apply_read_request_time_ms	0.000000
+zk_p90_apply_read_request_time_ms	0.000000
+zk_p99_apply_read_request_time_ms	0.000000
+zk_p999_apply_read_request_time_ms	0.000000
+zk_cnt_apply_read_request_time_ms	151225987
+zk_sum_apply_read_request_time_ms	19
+zk_p50_apply_write_request_time_ms	0.000000
+zk_p90_apply_write_request_time_ms	0.000000
+zk_p99_apply_write_request_time_ms	0.000000
+zk_p999_apply_write_request_time_ms	0.000000
+zk_cnt_apply_write_request_time_ms	151225987
+zk_sum_apply_write_request_time_ms	856
+zk_avg_batch_size	119.000000
+zk_min_batch_size	1.000000
+zk_max_batch_size	200
+zk_cnt_batch_size	383096
+zk_sum_batch_size	45654000
+zk_p50_push_request_queue_time_ms	0.000000
+zk_p90_push_request_queue_time_ms	0.000000
+zk_p99_push_request_queue_time_ms	0.000000
+zk_p999_push_request_queue_time_ms	0.000000
+zk_cnt_push_request_queue_time_ms	25595940
+zk_sum_push_request_queue_time_ms	76
+zk_p50_readlatency	0.000000
+zk_p90_readlatency	1.000000
+zk_p99_readlatency	1.000000
+zk_p999_readlatency	1.000000
+zk_cnt_readlatency	10237988
+zk_sum_readlatency	1992231
+zk_p50_updatelatency	3.000000
+zk_p90_updatelatency	3.000000
+zk_p99_updatelatency	4.000000
+zk_p999_updatelatency	5.903000
+zk_cnt_updatelatency	15357952
+zk_sum_updatelatency	39688173
 ```
 The explanation of the metrics is as follows:
 ```
@@ -82,6 +116,12 @@ zk_open_file_descriptor_count: current opening fd count
 zk_max_file_descriptor_count: max opening fd count
 zk_followers: follower count, only present on the leader
 zk_synced_followers: synced follower count, only present on the leader
+apply_read_request_time_ms: The time for request processor to process read request
+apply_write_request_time_ms: The time for request processor to process write request
+batch_size: Records the batch size of each batch accumulation for replication
+push_request_queue_time_ms: The time for push request from handler to dispatcher's request queue
+readlatency: Latency for read request. The timing start from when the server see the request until it leave final request processor
+updatelatency: Latency for write request. The timing start from when the server see the request until it leave final request processor
 ```
 Please note that the metrics `zk_followers` and `zk_synced_followers` are only present on the leader.
 

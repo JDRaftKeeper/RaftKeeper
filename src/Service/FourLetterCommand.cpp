@@ -12,6 +12,7 @@
 #include <Common/config_version.h>
 #include <Common/getCurrentProcessFDCount.h>
 #include <Common/getMaxFileDescriptorCount.h>
+#include <Service/Metrics.h>
 
 #include <unistd.h>
 
@@ -272,12 +273,22 @@ String MonitorCommand::run()
         print(ret, "synced_followers", keeper_info.synced_follower_count);
     }
 
+    for (auto && [_, values] : Metrics::getMetrics().dumpMetricsValues())
+    {
+        for (auto && line : values)
+        {
+            writeText(line, ret);
+            writeText("\n", ret);
+        }
+    }
+
     return ret.str();
 }
 
 String StatResetCommand::run()
 {
     keeper_dispatcher.resetConnectionStats();
+    Metrics::getMetrics().reset();
     return "Server stats reset.\n";
 }
 

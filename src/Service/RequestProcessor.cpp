@@ -3,6 +3,7 @@
 #include <Service/KeeperCommon.h>
 #include <Service/KeeperDispatcher.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
+#include <Service/Metrics.h>
 
 namespace RK
 {
@@ -27,6 +28,7 @@ void RequestProcessor::systemExist()
 void RequestProcessor::run()
 {
     setThreadName("ReqProcessor");
+    Stopwatch watch;
 
     while (!shutdown_called)
     {
@@ -75,6 +77,7 @@ void RequestProcessor::run()
             }
 
             /// 1. process read request, multi thread
+            watch.restart();
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
             {
                 request_thread->trySchedule(
@@ -85,9 +88,12 @@ void RequestProcessor::run()
                     });
             }
             request_thread->wait();
+            Metrics::getMetrics().APPLY_READ_REQUEST->add(watch.elapsedMilliseconds());
 
             /// 2. process committed request, single thread
+            watch.restart();
             processCommittedRequest(committed_request_size);
+            Metrics::getMetrics().APPLY_WRITE_REQUEST->add(watch.elapsedMilliseconds());
 
             /// 3. process error requests
             processErrorRequest(error_request_size);
@@ -246,6 +252,8 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 /// apply request
                 applyRequest(committed_request);
                 committed_queue.pop();
+                auto current_time = getCurrentTimeMilliseconds();
+                Metrics::getMetrics().UPDATE_LATENCY->add(current_time - committed_request.create_time);
 
                 /// remove request from pending queue
                 auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
@@ -425,6 +433,8 @@ void RequestProcessor::processReadRequests(RunnerId runner_id)
             if (session_request->request->isReadRequest())
             {
                 applyRequest(*session_request);
+                auto current_time = getCurrentTimeMilliseconds();
+                Metrics::getMetrics().READ_LATENCY->add(current_time - session_request->create_time);
                 session_request = session_requests.erase(session_request);
             }
             else

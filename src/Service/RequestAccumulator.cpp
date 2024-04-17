@@ -2,6 +2,7 @@
 
 #include <Service/KeeperDispatcher.h>
 #include <Service/RequestAccumulator.h>
+#include <Service/Metrics.h>
 
 namespace RK
 {
@@ -34,6 +35,7 @@ void RequestAccumulator::run()
         {
             if (!requests_queue->tryPop(request_for_session))
             {
+                Metrics::getMetrics().BATCH_SIZE->add(to_append_batch.size());
                 result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();
@@ -49,6 +51,7 @@ void RequestAccumulator::run()
 
             if (to_append_batch.size() >= max_batch_size)
             {
+                Metrics::getMetrics().BATCH_SIZE->add(to_append_batch.size());
                 result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();

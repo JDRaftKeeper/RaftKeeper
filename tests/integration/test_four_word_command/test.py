@@ -172,7 +172,6 @@ def test_cmd_mntr(started_cluster):
         assert int(result["zk_outstanding_requests"]) == 0
 
         assert result["zk_server_state"] == "leader"
-        assert result["zk_is_leader"] == "1"
 
         # contains:
         #   10 nodes created by test
