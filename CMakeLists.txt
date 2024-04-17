@@ -448,7 +448,7 @@ include (cmake/contrib_finder.cmake)
 find_contrib_lib(double-conversion) # Must be before parquet
 include (cmake/find/zlib.cmake)
 include (cmake/find/re2.cmake)
-include (cmake/find/protobuf.cmake)
+#include (cmake/find/protobuf.cmake)
 include (cmake/find/poco.cmake)
 include (cmake/find/fast_float.cmake)
 include (cmake/find/nuraft.cmake)

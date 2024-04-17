@@ -98,7 +98,6 @@ TEST(RaftStateMachine, modifyEntry)
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     String key("/table1");
     String data1("CREATE TABLE table1;");
-    //LogOpTypePB op = OP_TYPE_CREATE;
     createZNode(machine, key, data1);
     KeeperNode & node1 = machine.getNode(key);
     ASSERT_EQ(node1.data, data1);
@@ -194,7 +193,6 @@ TEST(RaftStateMachine, syncSnapshot)
     {
         String key = "/" + std::to_string(i + 1);
         String data = "table_" + key;
-        //LogOpTypePB op = OP_TYPE_CREATE;
         createZNode(machine_source, key, data);
     }
     snapshot meta(last_index, term, config);

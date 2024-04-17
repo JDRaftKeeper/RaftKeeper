@@ -165,11 +165,6 @@ endif ()
 
 dbms_target_include_directories (SYSTEM BEFORE PRIVATE ${SPARSEHASH_INCLUDE_DIR})
 
-if (USE_PROTOBUF)
-    dbms_target_link_libraries (PRIVATE ${Protobuf_LIBRARY})
-    dbms_target_include_directories (SYSTEM BEFORE PRIVATE ${Protobuf_INCLUDE_DIR})
-endif ()
-
 target_include_directories (raftkeeper_common_io SYSTEM BEFORE PUBLIC ${DOUBLE_CONVERSION_INCLUDE_DIR})
 
 target_link_libraries (raftkeeper_common_io PUBLIC ${FAST_FLOAT_LIBRARY})
@@ -201,7 +196,6 @@ if (ENABLE_TESTS AND USE_GTEST)
     target_link_libraries(unit_tests_dbms PRIVATE ${GTEST_BOTH_LIBRARIES}
         dbms
         raftkeeper_common_zookeeper
-        raftkeeper_service_protos
         loggers)
     add_check(unit_tests_dbms)
 endif ()

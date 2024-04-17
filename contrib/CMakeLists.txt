@@ -76,12 +76,11 @@ add_subdirectory (boringssl-cmake)
 add_library(OpenSSL::Crypto ALIAS crypto)
 add_library(OpenSSL::SSL ALIAS ssl)
 
-set(GOOGLETEST_VERSION 1.10.0) # master
+set(GOOGLETEST_VERSION 1.14.0) # master
 add_subdirectory(${RaftKeeper_SOURCE_DIR}/contrib/googletest/googletest ${CMAKE_CURRENT_BINARY_DIR}/googletest)
 target_compile_definitions (gtest INTERFACE GTEST_HAS_POSIX_RE=0)
 
 add_subdirectory(libxml2-cmake)
-add_subdirectory(protobuf-cmake)
 add_subdirectory (fmtlib-cmake)
 add_subdirectory(nuraft-cmake)
 add_subdirectory(fast_float)

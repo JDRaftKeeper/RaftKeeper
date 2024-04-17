@@ -165,8 +165,6 @@ void createZNodeLog(NuRaftStateMachine & machine, const String & key, const Stri
     //LOG_INFO(log, "index {}", index);
     if (store != nullptr)
     {
-        //auto entry_pb = createEntryPB(term, 0, op, key, data);
-        //ptr<buffer> msg_buf = LogEntry::serializePB(entry_pb);
         ptr<log_entry> entry_log = cs_new<log_entry>(term, buf);
         store->append(entry_log);
     }
