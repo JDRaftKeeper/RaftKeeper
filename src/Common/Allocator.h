@@ -28,7 +28,6 @@
 #include <common/mremap.h>
 #include <common/getPageSize.h>
 
-#include <Common/CurrentMemoryTracker.h>
 #include <Common/Exception.h>
 #include <Common/formatReadable.h>
 
@@ -92,7 +91,6 @@ public:
     void * alloc(size_t size, size_t alignment = 0)
     {
         checkSize(size);
-        CurrentMemoryTracker::alloc(size);
         return allocNoTrack(size, alignment);
     }
 
@@ -101,7 +99,6 @@ public:
     {
         checkSize(size);
         freeNoTrack(buf, size);
-        CurrentMemoryTracker::free(size);
     }
 
     /** Enlarge memory range.
@@ -120,9 +117,6 @@ public:
         else if (old_size < MMAP_THRESHOLD && new_size < MMAP_THRESHOLD
                  && alignment <= MALLOC_MIN_ALIGNMENT)
         {
-            /// Resize malloc'd memory region with no special alignment requirement.
-            CurrentMemoryTracker::realloc(old_size, new_size);
-
             void * new_buf = ::realloc(buf, new_size);
             if (nullptr == new_buf)
                 RK::throwFromErrno(fmt::format("Allocator: Cannot realloc from {} to {}.", ReadableSize(old_size), ReadableSize(new_size)), RK::ErrorCodes::CANNOT_ALLOCATE_MEMORY);
@@ -134,9 +128,6 @@ public:
         }
         else if (old_size >= MMAP_THRESHOLD && new_size >= MMAP_THRESHOLD)
         {
-            /// Resize mmap'd memory region.
-            CurrentMemoryTracker::realloc(old_size, new_size);
-
             // On apple and freebsd self-implemented mremap used (common/mremap.h)
             buf = clickhouse_mremap(buf, old_size, new_size, MREMAP_MAYMOVE,
                                     PROT_READ | PROT_WRITE, mmap_flags, -1, 0);
@@ -148,9 +139,6 @@ public:
         }
         else if (new_size < MMAP_THRESHOLD)
         {
-            /// Small allocs that requires a copy. Assume there's enough memory in system. Call CurrentMemoryTracker once.
-            CurrentMemoryTracker::realloc(old_size, new_size);
-
             void * new_buf = allocNoTrack(new_size, alignment);
             memcpy(new_buf, buf, std::min(old_size, new_size));
             freeNoTrack(buf, old_size);

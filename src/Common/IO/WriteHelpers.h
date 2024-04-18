@@ -14,7 +14,6 @@
 #include "common/wide_integer_to_string.h"
 
 #include <common/types.h>
-#include "Common/UUID.h"
 
 #include "Common/Exception.h"
 #include "Common/StringUtils.h"
@@ -589,16 +588,6 @@ inline void writeXMLStringForTextElement(const StringRef & s, WriteBuffer & buf)
 
 template <typename IteratorSrc, typename IteratorDst>
 void formatHex(IteratorSrc src, IteratorDst dst, const size_t num_bytes);
-void formatUUID(const UInt8 * src16, UInt8 * dst36);
-void formatUUID(std::reverse_iterator<const UInt8 *> src16, UInt8 * dst36);
-
-inline void writeUUIDText(const UUID & uuid, WriteBuffer & buf)
-{
-    char s[36];
-
-    formatUUID(std::reverse_iterator<const UInt8 *>(reinterpret_cast<const UInt8 *>(&uuid) + 16), reinterpret_cast<UInt8 *>(s));
-    buf.write(s, sizeof(s));
-}
 
 static const char digits100[201] =
     "00010203040506070809"
@@ -717,7 +706,6 @@ inline void writeBinary(const StringRef & x, WriteBuffer & buf) { writeStringBin
 inline void writeBinary(const std::string_view & x, WriteBuffer & buf) { writeStringBinary(x, buf); }
 inline void writeBinary(const Int128 & x, WriteBuffer & buf) { writePODBinary(x, buf); }
 inline void writeBinary(const UInt128 & x, WriteBuffer & buf) { writePODBinary(x, buf); }
-inline void writeBinary(const UUID & x, WriteBuffer & buf) { writePODBinary(x, buf); }
 inline void writeBinary(const DummyUInt256 & x, WriteBuffer & buf) { writePODBinary(x, buf); }
 inline void writeBinary(const Decimal32 & x, WriteBuffer & buf) { writePODBinary(x, buf); }
 inline void writeBinary(const Decimal64 & x, WriteBuffer & buf) { writePODBinary(x, buf); }
@@ -751,8 +739,6 @@ inline void writeText(const char * x, size_t size, WriteBuffer & buf) { writeStr
 inline void writeText(const DayNum & x, WriteBuffer & buf) { writeDateText(LocalDate(x), buf); }
 inline void writeText(const LocalDate & x, WriteBuffer & buf) { writeDateText(x, buf); }
 inline void writeText(const LocalDateTime & x, WriteBuffer & buf) { writeDateTimeText(x, buf); }
-inline void writeText(const UUID & x, WriteBuffer & buf) { writeUUIDText(x, buf); }
-inline void writeText(const UInt128 & x, WriteBuffer & buf) { writeText(UUID(x), buf); }
 inline void writeText(const UInt256 & x, WriteBuffer & buf) { writeText(bigintToString(x), buf); }
 inline void writeText(const Int256 & x, WriteBuffer & buf) { writeText(bigintToString(x), buf); }
 
@@ -810,13 +796,6 @@ inline void writeQuoted(const LocalDateTime & x, WriteBuffer & buf)
     writeChar('\'', buf);
 }
 
-inline void writeQuoted(const UUID & x, WriteBuffer & buf)
-{
-    writeChar('\'', buf);
-    writeText(x, buf);
-    writeChar('\'', buf);
-}
-
 inline void writeQuoted(const UInt256 & x, WriteBuffer & buf)
 {
     writeChar('\'', buf);
@@ -856,13 +835,6 @@ inline void writeDoubleQuoted(const LocalDateTime & x, WriteBuffer & buf)
     writeChar('"', buf);
 }
 
-inline void writeDoubleQuoted(const UUID & x, WriteBuffer & buf)
-{
-    writeChar('"', buf);
-    writeText(x, buf);
-    writeChar('"', buf);
-}
-
 
 /// String - in double quotes and with CSV-escaping; date, datetime - in double quotes. Numbers - without.
 template <typename T>
@@ -872,7 +844,6 @@ writeCSV(const T & x, WriteBuffer & buf) { writeText(x, buf); }
 inline void writeCSV(const String & x, WriteBuffer & buf) { writeCSVString<>(x, buf); }
 inline void writeCSV(const LocalDate & x, WriteBuffer & buf) { writeDoubleQuoted(x, buf); }
 inline void writeCSV(const LocalDateTime & x, WriteBuffer & buf) { writeDoubleQuoted(x, buf); }
-inline void writeCSV(const UUID & x, WriteBuffer & buf) { writeDoubleQuoted(x, buf); }
 [[noreturn]] inline void writeCSV(const UInt128, WriteBuffer &)
 {
     /** Because UInt128 isn't a natural type, without arithmetic operator and only use as an intermediary type -for UUID-
@@ -956,17 +927,6 @@ writeBinaryBigEndian(T x, WriteBuffer & buf)    /// Assuming little endian archi
     writePODBinary(x, buf);
 }
 
-struct PcgSerializer
-{
-    static void serializePcg32(const pcg32_fast & rng, WriteBuffer & buf)
-    {
-        writeText(rng.multiplier(), buf);
-        writeChar(' ', buf);
-        writeText(rng.increment(), buf);
-        writeChar(' ', buf);
-        writeText(rng.state_, buf);
-    }
-};
 
 void writePointerHex(const void * ptr, WriteBuffer & buf);
 

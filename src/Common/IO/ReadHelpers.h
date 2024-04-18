@@ -15,12 +15,10 @@
 #include "common/arithmeticOverflow.h"
 
 #include <common/types.h>
-#include "Common/UUID.h"
 
 #include "Common/Exception.h"
 #include "Common/StringUtils.h"
 #include "Common/UInt128.h"
-#include "Common/intExp.h"
 
 #include "BufferWithOwnMemory.h"
 #include "ReadBuffer.h"
@@ -39,7 +37,6 @@ namespace ErrorCodes
 {
     extern const int CANNOT_PARSE_DATE;
     extern const int CANNOT_PARSE_DATETIME;
-    extern const int CANNOT_PARSE_UUID;
     extern const int CANNOT_READ_ARRAY_FROM_TEXT;
     extern const int CANNOT_PARSE_NUMBER;
     extern const int ILLEGAL_TYPE_OF_ARGUMENT;
@@ -492,11 +489,6 @@ struct NullOutput
     void push_back(char) {}
 };
 
-void parseUUID(const UInt8 * src36, UInt8 * dst16);
-void parseUUIDWithoutSeparator(const UInt8 * src36, UInt8 * dst16);
-void parseUUID(const UInt8 * src36, std::reverse_iterator<UInt8 *> dst16);
-void parseUUIDWithoutSeparator(const UInt8 * src36, std::reverse_iterator<UInt8 *> dst16);
-
 template <typename IteratorSrc, typename IteratorDst>
 void formatHex(IteratorSrc src, IteratorDst dst, size_t num_bytes);
 
@@ -578,66 +570,6 @@ inline bool tryReadDateText(DayNum & date, ReadBuffer & buf)
     return readDateTextImpl<bool>(date, buf);
 }
 
-template <typename ReturnType = void>
-inline ReturnType readUUIDTextImpl(UUID & uuid, ReadBuffer & buf)
-{
-    static constexpr bool throw_exception = std::is_same_v<ReturnType, void>;
-
-    char s[36];
-    size_t size = buf.read(s, 32);
-
-    if (size == 32)
-    {
-        if (s[8] == '-')
-        {
-            size += buf.read(&s[32], 4);
-
-            if (size != 36)
-            {
-                s[size] = 0;
-
-                if constexpr (throw_exception)
-                {
-                    throw ParsingException(std::string("Cannot parse uuid ") + s, ErrorCodes::CANNOT_PARSE_UUID);
-                }
-                else
-                {
-                    return ReturnType(false);
-                }
-            }
-
-            parseUUID(reinterpret_cast<const UInt8 *>(s), std::reverse_iterator<UInt8 *>(reinterpret_cast<UInt8 *>(&uuid) + 16));
-        }
-        else
-            parseUUIDWithoutSeparator(reinterpret_cast<const UInt8 *>(s), std::reverse_iterator<UInt8 *>(reinterpret_cast<UInt8 *>(&uuid) + 16));
-
-        return ReturnType(true);
-    }
-    else
-    {
-        s[size] = 0;
-
-        if constexpr (throw_exception)
-        {
-            throw ParsingException(std::string("Cannot parse uuid ") + s, ErrorCodes::CANNOT_PARSE_UUID);
-        }
-        else
-        {
-            return ReturnType(false);
-        }
-    }
-}
-
-inline void readUUIDText(UUID & uuid, ReadBuffer & buf)
-{
-    return readUUIDTextImpl<void>(uuid, buf);
-}
-
-inline bool tryReadUUIDText(UUID & uuid, ReadBuffer & buf)
-{
-    return readUUIDTextImpl<bool>(uuid, buf);
-}
-
 
 template <typename T>
 inline T parse(const char * data, size_t size);
@@ -647,14 +579,6 @@ inline T parseFromString(const std::string_view & str)
 {
     return parse<T>(str.data(), str.size());
 }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
-// Just dont mess with it. If the redundant redeclaration is removed then ReaderHelpers.h should be included.
-// This leads to Arena.h inclusion which has a problem with ASAN stuff included properly and messing macro definition
-// which intefrers with... You dont want to know, really.
-UInt128 stringToUUID(const String & str);
-#pragma GCC diagnostic pop
 
 template <typename ReturnType = void>
 ReturnType readDateTimeTextFallback(time_t & datetime, ReadBuffer & buf, const DateLUTImpl & date_lut);
@@ -776,7 +700,6 @@ inline void readText(bool & x, ReadBuffer & buf) { readBoolText(x, buf); }
 inline void readText(String & x, ReadBuffer & buf) { readEscapedString(x, buf); }
 inline void readText(LocalDate & x, ReadBuffer & buf) { readDateText(x, buf); }
 inline void readText(LocalDateTime & x, ReadBuffer & buf) { readDateTimeText(x, buf); }
-inline void readText(UUID & x, ReadBuffer & buf) { readUUIDText(x, buf); }
 [[noreturn]] inline void readText(UInt128 &, ReadBuffer &)
 {
     /** Because UInt128 isn't a natural type, without arithmetic operator and only use as an intermediary type -for UUID-
@@ -799,21 +722,6 @@ inline void readQuoted(LocalDate & x, ReadBuffer & buf)
     readDateText(x, buf);
     assertChar('\'', buf);
 }
-
-inline void readQuoted(LocalDateTime & x, ReadBuffer & buf)
-{
-    assertChar('\'', buf);
-    readDateTimeText(x, buf);
-    assertChar('\'', buf);
-}
-
-inline void readQuoted(UUID & x, ReadBuffer & buf)
-{
-    assertChar('\'', buf);
-    readUUIDText(x, buf);
-    assertChar('\'', buf);
-}
-
 
 /// Same as above, but in double quotes.
 template <typename T>

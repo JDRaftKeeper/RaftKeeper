@@ -48,7 +48,6 @@ template <> inline        WriteBuffer & operator<< (WriteBuffer & buf, const Str
 template <> inline        WriteBuffer & operator<< (WriteBuffer & buf, const std::string_view & x)   { writeString(StringRef(x), buf);   return buf; }
 template <> inline WriteBuffer & operator<< (WriteBuffer & buf, const StringRef & x) { writeString(x, buf); return buf; }
 template <> inline        WriteBuffer & operator<< (WriteBuffer & buf, const char & x)     { writeChar(x, buf);     return buf; }
-template <> inline        WriteBuffer & operator<< (WriteBuffer & buf, const pcg32_fast & x) { PcgSerializer::serializePcg32(x, buf); return buf; }
 
 inline WriteBuffer & operator<< (WriteBuffer & buf, const char * x)     { writeCString(x, buf); return buf; }
 

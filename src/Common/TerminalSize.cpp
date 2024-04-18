@@ -7,7 +7,7 @@
 
 namespace RK::ErrorCodes
 {
-    extern const int SYSTEM_ERROR;
+extern const int SYSTEM_ERROR;
 }
 
 uint16_t getTerminalWidth()

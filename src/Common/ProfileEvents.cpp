@@ -1,5 +1,4 @@
 #include <Common/ProfileEvents.h>
-#include <Common/CurrentThread.h>
 
 /// Available events. Add something here as you wish.
 #define APPLY_FOR_EVENTS(M) \
@@ -329,7 +328,7 @@ Event end() { return END; }
 
 void increment(Event event, Count amount)
 {
-    RK::CurrentThread::getProfileEvents().increment(event, amount);
+    ProfileEvents::global_counters.increment(event, amount);
 }
 
 }
