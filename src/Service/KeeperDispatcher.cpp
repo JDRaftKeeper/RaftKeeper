@@ -200,7 +200,7 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
     }
     else if (!requests_queue->tryPush(std::move(request_info), configuration_and_settings->raft_settings->operation_timeout_ms))
         throw Exception("Cannot push request to queue within operation timeout", ErrorCodes::TIMEOUT_EXCEEDED);
-    Metrics::getMetrics().PUSH_REQUESTS_QUEUE_TIME->add(watch.elapsedMilliseconds());
+    Metrics::getMetrics().push_request_queue_time_ms->add(watch.elapsedMilliseconds());
     return true;
 }
 
