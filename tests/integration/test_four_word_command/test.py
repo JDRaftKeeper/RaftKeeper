@@ -479,10 +479,10 @@ def test_cmd_crst(started_cluster):
         assert len(cons) >= 2
 
         zk_con = None
-        if 'sid' in cons[0]:
-            zk_con = cons[0]
-        else:
-            zk_con = cons[1]
+        for con in cons:
+            if 'sid' in con:
+                zk_con = con
+        assert zk_con is not None
 
         conn_stat = re.match(r'(.*?)[:].*[(](.*?)[)].*', zk_con.strip(), re.S).group(2)
         assert conn_stat is not None
