@@ -17,6 +17,8 @@ node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
 
+basic_metrics = ["log_replication_batch_size"]
+advance_metrics = ["apply_read_request_time_ms", "apply_write_request_time_ms", "push_request_queue_time_ms", "readlatency", "updatelatency", ]
 
 @pytest.fixture(scope="module")
 def started_cluster():
@@ -172,6 +174,7 @@ def test_cmd_mntr(started_cluster):
         assert int(result["zk_outstanding_requests"]) == 0
 
         assert result["zk_server_state"] == "leader"
+        assert result["zk_is_leader"] == "1"
 
         # contains:
         #   10 nodes created by test
@@ -190,6 +193,22 @@ def test_cmd_mntr(started_cluster):
         # contains 31 user request response and some responses for server startup
         assert int(result["zk_packets_sent"]) >= 31
         assert int(result["zk_packets_received"]) >= 31
+
+        for metric in basic_metrics:
+            assert (f'zk_avg_{metric}' in result)
+            assert (f'zk_min_{metric}' in result)
+            assert (f'zk_max_{metric}' in result)
+            assert (f'zk_cnt_{metric}' in result)
+            assert (f'zk_sum_{metric}' in result)
+
+        for metric in advance_metrics:
+            assert (f'zk_p50_{metric}' in result)
+            assert (f'zk_p90_{metric}' in result)
+            assert (f'zk_p99_{metric}' in result)
+            assert (f'zk_p999_{metric}' in result)
+            assert (f'zk_cnt_{metric}' in result)
+            assert (f'zk_sum_{metric}' in result)
+
     finally:
         close_zk_client(zk)
 
@@ -216,6 +235,21 @@ def test_cmd_srst(started_cluster):
 
         assert int(result["zk_packets_received"]) == 0
         assert int(result["zk_packets_sent"]) == 0
+
+        # check for basic metrics
+        assert result["zk_avg_log_replication_batch_size"] == '0.0'
+        assert result["zk_min_log_replication_batch_size"] == '0'
+        assert result["zk_max_log_replication_batch_size"] == '0'
+        assert result["zk_cnt_log_replication_batch_size"] == '0'
+        assert result["zk_sum_log_replication_batch_size"] == '0'
+
+        # check for advance metrics
+        assert result["zk_p50_readlatency"] == '0.0'
+        assert result["zk_p90_readlatency"] == '0.0'
+        assert result["zk_p99_readlatency"] == '0.0'
+        assert result["zk_p999_readlatency"] == '0.0'
+        assert result["zk_cnt_readlatency"] == '0'
+        assert result["zk_sum_readlatency"] == '0'
 
     finally:
         close_keeper_socket(client)
