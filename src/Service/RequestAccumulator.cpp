@@ -35,7 +35,7 @@ void RequestAccumulator::run()
         {
             if (!requests_queue->tryPop(request_for_session))
             {
-                Metrics::getMetrics().LOG_REPLICATION_BATCH_SIZE->add(to_append_batch.size());
+                Metrics::getMetrics().log_replication_batch_size->add(to_append_batch.size());
                 result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();
@@ -51,7 +51,7 @@ void RequestAccumulator::run()
 
             if (to_append_batch.size() >= max_batch_size)
             {
-                Metrics::getMetrics().LOG_REPLICATION_BATCH_SIZE->add(to_append_batch.size());
+                Metrics::getMetrics().log_replication_batch_size->add(to_append_batch.size());
                 result = server->pushRequestBatch(to_append_batch);
                 waitResultAndHandleError(result, to_append_batch);
                 result.reset();

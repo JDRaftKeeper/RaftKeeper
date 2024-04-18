@@ -88,12 +88,12 @@ void RequestProcessor::run()
                     });
             }
             request_thread->wait();
-            Metrics::getMetrics().APPLY_READ_REQUEST->add(watch.elapsedMilliseconds());
+            Metrics::getMetrics().apply_read_request_time_ms->add(watch.elapsedMilliseconds());
 
             /// 2. process committed request, single thread
             watch.restart();
             processCommittedRequest(committed_request_size);
-            Metrics::getMetrics().APPLY_WRITE_REQUEST->add(watch.elapsedMilliseconds());
+            Metrics::getMetrics().apply_write_request_time_ms->add(watch.elapsedMilliseconds());
 
             /// 3. process error requests
             processErrorRequest(error_request_size);
@@ -253,7 +253,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 applyRequest(committed_request);
                 committed_queue.pop();
                 auto current_time = getCurrentTimeMilliseconds();
-                Metrics::getMetrics().UPDATE_LATENCY->add(current_time - committed_request.create_time);
+                Metrics::getMetrics().update_latency->add(current_time - committed_request.create_time);
 
                 /// remove request from pending queue
                 auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
@@ -434,7 +434,7 @@ void RequestProcessor::processReadRequests(RunnerId runner_id)
             {
                 applyRequest(*session_request);
                 auto current_time = getCurrentTimeMilliseconds();
-                Metrics::getMetrics().READ_LATENCY->add(current_time - session_request->create_time);
+                Metrics::getMetrics().read_latency->add(current_time - session_request->create_time);
                 session_request = session_requests.erase(session_request);
             }
             else

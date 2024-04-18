@@ -47,7 +47,7 @@ double AdvanceSummary::getValue(const std::vector<UInt64>& numbers, double quant
         return 0.0;
     }
 
-    if (numbers.size() == 0)
+    if (numbers.empty())
         return 0.0;
 
     auto index = quantile * (numbers.size() + 1);
@@ -111,12 +111,12 @@ using SummaryPtr = std::shared_ptr<Summary>;
 
 Metrics::Metrics()
 {
-    PUSH_REQUESTS_QUEUE_TIME = getSummary("push_request_queue_time_ms", SummaryLevel::ADVANCED);
-    LOG_REPLICATION_BATCH_SIZE = getSummary("log_replication_batch_size", SummaryLevel::BASIC);
-    APPLY_WRITE_REQUEST = getSummary("apply_write_request_time_ms", SummaryLevel::ADVANCED);
-    APPLY_READ_REQUEST = getSummary("apply_read_request_time_ms", SummaryLevel::ADVANCED);
-    READ_LATENCY = getSummary("readlatency", SummaryLevel::ADVANCED);
-    UPDATE_LATENCY = getSummary("updatelatency", SummaryLevel::ADVANCED);
+    push_request_queue_time_ms = getSummary("push_request_queue_time_ms", SummaryLevel::ADVANCED);
+    log_replication_batch_size = getSummary("log_replication_batch_size", SummaryLevel::BASIC);
+    apply_write_request_time_ms = getSummary("apply_write_request_time_ms", SummaryLevel::ADVANCED);
+    apply_read_request_time_ms = getSummary("apply_read_request_time_ms", SummaryLevel::ADVANCED);
+    read_latency = getSummary("readlatency", SummaryLevel::ADVANCED);
+    update_latency = getSummary("updatelatency", SummaryLevel::ADVANCED);
 }
 
 SummaryPtr Metrics::getSummary(const RK::String & name, RK::SummaryLevel detailLevel)

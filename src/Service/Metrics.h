@@ -170,12 +170,12 @@ public:
             summary->reset();
     }
 
-    SummaryPtr PUSH_REQUESTS_QUEUE_TIME;
-    SummaryPtr LOG_REPLICATION_BATCH_SIZE;
-    SummaryPtr APPLY_READ_REQUEST;
-    SummaryPtr APPLY_WRITE_REQUEST;
-    SummaryPtr READ_LATENCY;
-    SummaryPtr UPDATE_LATENCY;
+    SummaryPtr push_request_queue_time_ms;
+    SummaryPtr log_replication_batch_size;
+    SummaryPtr apply_write_request_time_ms;
+    SummaryPtr apply_read_request_time_ms;
+    SummaryPtr read_latency;
+    SummaryPtr update_latency;
 
 private:
     Metrics();
