@@ -40,10 +40,6 @@ add_subdirectory (jemalloc-cmake)
 add_subdirectory (poco-cmake)
 add_subdirectory (double-conversion-cmake)
 
-set(RE2_BUILD_TESTING 0 CACHE INTERNAL "")
-add_subdirectory (re2)
-add_subdirectory (re2_st)
-
 add_subdirectory (cityhash102)
 
 set (ZLIB_ENABLE_TESTS 0 CACHE INTERNAL "")
