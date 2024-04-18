@@ -132,7 +132,7 @@ public:
         return current_count > 0 ? current_sum / current_count : 0;
     }
 
-    double getMin() const
+    UInt64 getMin() const
     {
         UInt64 current_min = min.load();
         return current_min == std::numeric_limits<UInt64>::max() ? 0 : current_min;
@@ -171,7 +171,7 @@ public:
     }
 
     SummaryPtr PUSH_REQUESTS_QUEUE_TIME;
-    SummaryPtr BATCH_SIZE;
+    SummaryPtr LOG_REPLICATION_BATCH_SIZE;
     SummaryPtr APPLY_READ_REQUEST;
     SummaryPtr APPLY_WRITE_REQUEST;
     SummaryPtr READ_LATENCY;

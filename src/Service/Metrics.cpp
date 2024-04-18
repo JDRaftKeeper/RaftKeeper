@@ -1,4 +1,4 @@
-#include "Metrics.h"
+#include <Service/Metrics.h>
 #include <algorithm>
 
 namespace RK
@@ -71,12 +71,12 @@ Strings AdvanceSummary::values() const
     std::sort(numbers.begin(), numbers.end());
 
     Strings results;
-    results.emplace_back("zk_p50_" + name + '\t' + std::to_string(getValue(numbers, 0.5)));
-    results.emplace_back("zk_p90_" + name + '\t' + std::to_string(getValue(numbers, 0.9)));
-    results.emplace_back("zk_p99_" + name + '\t' + std::to_string(getValue(numbers, 0.99)));
-    results.emplace_back("zk_p999_" + name + '\t' + std::to_string(getValue(numbers, 0.999)));
-    results.emplace_back("zk_cnt_" + name + '\t' + std::to_string(count.load()));
-    results.emplace_back("zk_sum_" + name + '\t' + std::to_string(sum.load()));
+    results.emplace_back(fmt::format("zk_p50_{}\t{:.1f}", name, getValue(numbers, 0.5)));
+    results.emplace_back(fmt::format("zk_p90_{}\t{:.1f}", name, getValue(numbers, 0.9)));
+    results.emplace_back(fmt::format("zk_p99_{}\t{:.1f}", name, getValue(numbers, 0.99)));
+    results.emplace_back(fmt::format("zk_p999_{}\t{:.1f}", name, getValue(numbers, 0.999)));
+    results.emplace_back(fmt::format("zk_cnt_{}\t{}", name, count.load()));
+    results.emplace_back(fmt::format("zk_sum_{}\t{}", name, sum.load()));
     return results;
 }
 
@@ -99,13 +99,11 @@ void BasicSummary::add(RK::UInt64 value)
 Strings BasicSummary::values() const
 {
     Strings results;
-
-    results.emplace_back("zk_avg_" + name + '\t' + std::to_string(getAvg()));
-    results.emplace_back("zk_min_" + name + '\t' + std::to_string(getMin()));
-    results.emplace_back("zk_max_" + name + '\t' + std::to_string(max.load()));
-    results.emplace_back("zk_cnt_" + name + '\t' + std::to_string(count.load()));
-    results.emplace_back("zk_sum_" + name + '\t' + std::to_string(sum.load()));
-
+    results.emplace_back(fmt::format("zk_avg_{}\t{:.1f}", name, getAvg()));
+    results.emplace_back(fmt::format("zk_min_{}\t{}", name, getMin()));
+    results.emplace_back(fmt::format("zk_max_{}\t{}", name, max.load()));
+    results.emplace_back(fmt::format("zk_cnt_{}\t{}", name, count.load()));
+    results.emplace_back(fmt::format("zk_sum_{}\t{}", name, sum.load()));
     return results;
 }
 
@@ -114,7 +112,7 @@ using SummaryPtr = std::shared_ptr<Summary>;
 Metrics::Metrics()
 {
     PUSH_REQUESTS_QUEUE_TIME = getSummary("push_request_queue_time_ms", SummaryLevel::ADVANCED);
-    BATCH_SIZE = getSummary("batch_size", SummaryLevel::BASIC);
+    LOG_REPLICATION_BATCH_SIZE = getSummary("log_replication_batch_size", SummaryLevel::BASIC);
     APPLY_WRITE_REQUEST = getSummary("apply_write_request_time_ms", SummaryLevel::ADVANCED);
     APPLY_READ_REQUEST = getSummary("apply_read_request_time_ms", SummaryLevel::ADVANCED);
     READ_LATENCY = getSummary("readlatency", SummaryLevel::ADVANCED);

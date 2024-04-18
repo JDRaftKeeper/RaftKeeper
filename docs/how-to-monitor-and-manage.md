@@ -57,39 +57,39 @@ zk_open_file_descriptor_count	126
 zk_max_file_descriptor_count	60480000
 zk_followers	2
 zk_synced_followers	2
-zk_p50_apply_read_request_time_ms	0.000000
-zk_p90_apply_read_request_time_ms	0.000000
-zk_p99_apply_read_request_time_ms	0.000000
-zk_p999_apply_read_request_time_ms	0.000000
+zk_p50_apply_read_request_time_ms	0.0
+zk_p90_apply_read_request_time_ms	0.0
+zk_p99_apply_read_request_time_ms	0.0
+zk_p999_apply_read_request_time_ms	0.0
 zk_cnt_apply_read_request_time_ms	151225987
 zk_sum_apply_read_request_time_ms	19
-zk_p50_apply_write_request_time_ms	0.000000
-zk_p90_apply_write_request_time_ms	0.000000
-zk_p99_apply_write_request_time_ms	0.000000
-zk_p999_apply_write_request_time_ms	0.000000
+zk_p50_apply_write_request_time_ms	0.0
+zk_p90_apply_write_request_time_ms	0.0
+zk_p99_apply_write_request_time_ms	0.0
+zk_p999_apply_write_request_time_ms	0.0
 zk_cnt_apply_write_request_time_ms	151225987
 zk_sum_apply_write_request_time_ms	856
-zk_avg_batch_size	119.000000
-zk_min_batch_size	1.000000
-zk_max_batch_size	200
-zk_cnt_batch_size	383096
-zk_sum_batch_size	45654000
-zk_p50_push_request_queue_time_ms	0.000000
-zk_p90_push_request_queue_time_ms	0.000000
-zk_p99_push_request_queue_time_ms	0.000000
-zk_p999_push_request_queue_time_ms	0.000000
+zk_avg_log_replication_batch_size	119.0
+zk_min_log_replication_batch_size	1.0
+zk_max_log_replication_batch_size	200
+zk_cnt_log_replication_batch_size	383096
+zk_sum_log_replication_batch_size	45654000
+zk_p50_push_request_queue_time_ms	0.0
+zk_p90_push_request_queue_time_ms	0.0
+zk_p99_push_request_queue_time_ms	0.0
+zk_p999_push_request_queue_time_ms	0.0
 zk_cnt_push_request_queue_time_ms	25595940
 zk_sum_push_request_queue_time_ms	76
-zk_p50_readlatency	0.000000
-zk_p90_readlatency	1.000000
-zk_p99_readlatency	1.000000
-zk_p999_readlatency	1.000000
+zk_p50_readlatency	0.0
+zk_p90_readlatency	1.0
+zk_p99_readlatency	1.0
+zk_p999_readlatency	1.0
 zk_cnt_readlatency	10237988
 zk_sum_readlatency	1992231
-zk_p50_updatelatency	3.000000
-zk_p90_updatelatency	3.000000
-zk_p99_updatelatency	4.000000
-zk_p999_updatelatency	5.903000
+zk_p50_updatelatency	3.0
+zk_p90_updatelatency	3.0
+zk_p99_updatelatency	4.0
+zk_p999_updatelatency	5.9
 zk_cnt_updatelatency	15357952
 zk_sum_updatelatency	39688173
 ```
@@ -116,12 +116,12 @@ zk_open_file_descriptor_count: current opening fd count
 zk_max_file_descriptor_count: max opening fd count
 zk_followers: follower count, only present on the leader
 zk_synced_followers: synced follower count, only present on the leader
-apply_read_request_time_ms: The time for request processor to process read request
-apply_write_request_time_ms: The time for request processor to process write request
-batch_size: Records the batch size of each batch accumulation for replication
-push_request_queue_time_ms: The time for push request from handler to dispatcher's request queue
-readlatency: Latency for read request. The timing start from when the server see the request until it leave final request processor
-updatelatency: Latency for write request. The timing start from when the server see the request until it leave final request processor
+zk_apply_read_request_time_ms: The time only for request processor to process read requests
+zk_apply_write_request_time_ms: The time only for request processor to process write requests, replication is not included for write requests
+zk_log_replication_batch_size: Records the batch size of each batch accumulation for replication
+zk_push_request_queue_time_ms: The time for push request from handler to dispatcher's request queue
+zk_readlatency: Latency for read request. The time start from when the server see the request until it leave final request processor
+zk_updatelatency: Latency for write request. The time start from when the server see the request until it leave final request processor
 ```
 Please note that the metrics `zk_followers` and `zk_synced_followers` are only present on the leader.
 
