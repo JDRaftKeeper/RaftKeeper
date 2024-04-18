@@ -1,9 +1,3 @@
-add_executable (read_buffer read_buffer.cpp)
-target_link_libraries (read_buffer PRIVATE raftkeeper_common_io)
-
-add_executable (read_buffer_perf read_buffer_perf.cpp)
-target_link_libraries (read_buffer_perf PRIVATE raftkeeper_common_io)
-
 add_executable (var_uint var_uint.cpp)
 target_link_libraries (var_uint PRIVATE raftkeeper_common_io)
 

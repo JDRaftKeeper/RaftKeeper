@@ -40,9 +40,6 @@
 [submodule "contrib/dragonbox"]
 	path = contrib/dragonbox
 	url = https://github.com/ClickHouse-Extras/dragonbox.git
-[submodule "contrib/fast_float"]
-	path = contrib/fast_float
-	url = https://github.com/fastfloat/fast_float
 [submodule "contrib/boringssl"]
 	path = contrib/boringssl
 	url = https://github.com/ClickHouse-Extras/boringssl.git

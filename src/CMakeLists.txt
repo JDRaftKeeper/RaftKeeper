@@ -167,9 +167,6 @@ dbms_target_include_directories (SYSTEM BEFORE PRIVATE ${SPARSEHASH_INCLUDE_DIR}
 
 target_include_directories (raftkeeper_common_io SYSTEM BEFORE PUBLIC ${DOUBLE_CONVERSION_INCLUDE_DIR})
 
-target_link_libraries (raftkeeper_common_io PUBLIC ${FAST_FLOAT_LIBRARY})
-target_include_directories (raftkeeper_common_io SYSTEM BEFORE PUBLIC ${FAST_FLOAT_INCLUDE_DIR})
-
 dbms_target_link_libraries(PRIVATE _boost_context)
 
 if (ENABLE_TESTS AND USE_GTEST)

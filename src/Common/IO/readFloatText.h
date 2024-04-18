@@ -1,19 +1,10 @@
 #pragma once
 #include <type_traits>
-#include <double-conversion/double-conversion.h>
 #include <common/defines.h>
 #include "Common/StringUtils.h"
 #include "common/shift10.h"
 #include "ReadHelpers.h"
 
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunneeded-internal-declaration"
-#endif
-#include <fast_float/fast_float.h>
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
 
 /** Methods for reading floating point numbers from text with decimal representation.
   * There are "precise", "fast" and "simple" implementations.
@@ -139,122 +130,6 @@ bool assertOrParseNaN(ReadBuffer & buf)
     else
         return parseNaN(buf);
 }
-
-
-template <typename T, typename ReturnType>
-ReturnType readFloatTextPreciseImpl(T & x, ReadBuffer & buf)
-{
-    static_assert(std::is_same_v<T, double> || std::is_same_v<T, float>, "Argument for readFloatTextFastFloatImpl must be float or double");
-    static_assert('a' > '.' && 'A' > '.' && '\n' < '.' && '\t' < '.' && '\'' < '.' && '"' < '.', "Layout of char is not like ASCII"); //-V590
-
-    static constexpr bool throw_exception = std::is_same_v<ReturnType, void>;
-
-    /// Fast path (avoid copying) if the buffer have at least MAX_LENGTH bytes.
-    static constexpr int MAX_LENGTH = 316;
-
-    if (likely(!buf.eof() && buf.position() + MAX_LENGTH <= buf.buffer().end()))
-    {
-        auto initial_position = buf.position();
-        auto res = fast_float::from_chars(initial_position, buf.buffer().end(), x);
-
-        if (unlikely(res.ec != std::errc()))
-        {
-            if constexpr (throw_exception)
-                throw ParsingException("Cannot read floating point value", ErrorCodes::CANNOT_PARSE_NUMBER);
-            else
-                return ReturnType(false);
-        }
-
-        buf.position() += res.ptr - initial_position;
-
-        return ReturnType(true);
-    }
-    else
-    {
-        /// Slow path. Copy characters that may be present in floating point number to temporary buffer.
-        bool negative = false;
-
-        /// We check eof here because we can parse +inf +nan
-        while (!buf.eof())
-        {
-            switch (*buf.position())
-            {
-                case '+':
-                    ++buf.position();
-                    continue;
-
-                case '-':
-                {
-                    negative = true;
-                    ++buf.position();
-                    continue;
-                }
-
-                case 'i': [[fallthrough]];
-                case 'I':
-                {
-                    if (assertOrParseInfinity<throw_exception>(buf))
-                    {
-                        x = std::numeric_limits<T>::infinity();
-                        if (negative)
-                            x = -x;
-                        return ReturnType(true);
-                    }
-                    return ReturnType(false);
-                }
-
-                case 'n': [[fallthrough]];
-                case 'N':
-                {
-                    if (assertOrParseNaN<throw_exception>(buf))
-                    {
-                        x = std::numeric_limits<T>::quiet_NaN();
-                        if (negative)
-                            x = -x;
-                        return ReturnType(true);
-                    }
-                    return ReturnType(false);
-                }
-
-                default:
-                    break;
-            }
-
-            break;
-        }
-
-
-        char tmp_buf[MAX_LENGTH];
-        int num_copied_chars = 0;
-
-        while (!buf.eof() && num_copied_chars < MAX_LENGTH)
-        {
-            char c = *buf.position();
-            if (!(isNumericASCII(c) || c == '-' || c == '+' || c == '.' || c == 'e' || c == 'E'))
-                break;
-
-            tmp_buf[num_copied_chars] = c;
-            ++buf.position();
-            ++num_copied_chars;
-        }
-
-        auto res = fast_float::from_chars(tmp_buf, tmp_buf + num_copied_chars, x);
-
-        if (unlikely(res.ec != std::errc()))
-        {
-            if constexpr (throw_exception)
-                throw ParsingException("Cannot read floating point value", ErrorCodes::CANNOT_PARSE_NUMBER);
-            else
-                return ReturnType(false);
-        }
-
-        if (negative)
-            x = -x;
-
-        return ReturnType(true);
-    }
-}
-
 
 // credit: https://johnnylee-sde.github.io/Fast-numeric-string-to-int/
 static inline bool is_made_of_eight_digits_fast(uint64_t val) noexcept
@@ -576,15 +451,8 @@ ReturnType readFloatTextSimpleImpl(T & x, ReadBuffer & buf)
     return ReturnType(true);
 }
 
-template <typename T> void readFloatTextPrecise(T & x, ReadBuffer & in) { readFloatTextPreciseImpl<T, void>(x, in); }
-template <typename T> bool tryReadFloatTextPrecise(T & x, ReadBuffer & in) { return readFloatTextPreciseImpl<T, bool>(x, in); }
-
 template <typename T> void readFloatTextFast(T & x, ReadBuffer & in) { readFloatTextFastImpl<T, void>(x, in); }
 template <typename T> bool tryReadFloatTextFast(T & x, ReadBuffer & in) { return readFloatTextFastImpl<T, bool>(x, in); }
-
-template <typename T> void readFloatTextSimple(T & x, ReadBuffer & in) { readFloatTextSimpleImpl<T, void>(x, in); }
-template <typename T> bool tryReadFloatTextSimple(T & x, ReadBuffer & in) { return readFloatTextSimpleImpl<T, bool>(x, in); }
-
 
 /// Implementation that is selected as default.
 
