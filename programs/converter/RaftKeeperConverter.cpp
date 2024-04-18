@@ -1,13 +1,12 @@
 #include <iostream>
 #include <optional>
 #include <boost/program_options.hpp>
-
+#include <Common/TerminalSize.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ZooKeeperDataReader.h>
 #include <Poco/AutoPtr.h>
 #include <Poco/ConsoleChannel.h>
 #include <Poco/Logger.h>
-#include <Common/TerminalSize.h>
 
 
 int mainEntryRaftKeeperConverter(int argc, char ** argv)

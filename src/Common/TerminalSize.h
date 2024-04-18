@@ -13,4 +13,3 @@ uint16_t getTerminalWidth();
  *  when program is called with option --help
  * */
 po::options_description createOptionsDescription(const std::string &caption, unsigned short terminal_width);
-
