@@ -82,8 +82,6 @@ private:
 
     size_t runner_count;
 
-    ThreadPoolPtr request_thread;
-
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
     mutable std::mutex mutex;
