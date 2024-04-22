@@ -42,8 +42,6 @@ struct KeeperNode
     Coordination::Stat stat{};
     ChildrenSet children{};
 
-    std::shared_mutex mutex;
-
     std::shared_ptr<KeeperNode> clone() const
     {
         auto node = std::make_shared<KeeperNode>();

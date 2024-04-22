@@ -373,8 +373,6 @@ struct StoreRequestCreate final : public StoreRequest
         int64_t pzxid;
 
         {
-            std::lock_guard parent_lock(parent->mutex);
-
             response.path_created = path_created;
 
             parent->children.insert(child_path);
@@ -413,7 +411,6 @@ struct StoreRequestCreate final : public StoreRequest
             }
             auto undo_parent = store.container.at(parent_path);
             {
-                std::lock_guard parent_lock(undo_parent->mutex);
                 --undo_parent->stat.cversion;
                 --undo_parent->stat.numChildren;
                 undo_parent->stat.pzxid = pzxid;
@@ -473,7 +470,6 @@ struct StoreRequestGet final : public StoreRequest
         else
         {
             {
-                std::shared_lock r_lock(node->mutex);
                 response.stat = node->statForResponse();
                 response.data = node->data;
             }
@@ -548,7 +544,6 @@ struct StoreRequestRemove final : public StoreRequest
 
             auto parent = store.container.at(getParentPath(request.path));
             {
-                std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
                 pzxid = parent->stat.pzxid;
                 parent->stat.pzxid = zxid;
@@ -578,7 +573,6 @@ struct StoreRequestRemove final : public StoreRequest
                 store.container.emplace(path, prev_node);
                 auto undo_parent = store.container.at(getParentPath(path));
                 {
-                    std::lock_guard parent_lock(undo_parent->mutex);
                     ++(undo_parent->stat.numChildren);
                     undo_parent->stat.pzxid = pzxid;
                     undo_parent->children.insert(child_basename);
@@ -610,7 +604,6 @@ struct StoreRequestExists final : public StoreRequest
         if (node != nullptr)
         {
             {
-                std::shared_lock r_lock(node->mutex);
                 response.stat = node->statForResponse();
             }
             response.error = Coordination::Error::ZOK;
@@ -671,7 +664,6 @@ struct StoreRequestSet final : public StoreRequest
         {
             auto prev_node = node->clone();
             {
-                std::lock_guard node_lock(node->mutex);
                 ++node->stat.version;
                 node->stat.mzxid = zxid;
                 node->stat.mtime = time;
@@ -756,7 +748,6 @@ struct StoreRequestList final : public StoreRequest
             }
 
             Coordination::ZooKeeperListResponse & response = dynamic_cast<Coordination::ZooKeeperListResponse &>(*response_ptr);
-            std::shared_lock r_lock(node->mutex);
 
             response.stat = node->statForResponse();
 
@@ -792,7 +783,6 @@ struct StoreRequestList final : public StoreRequest
         else
         {
             Coordination::ZooKeeperSimpleListResponse & response = dynamic_cast<Coordination::ZooKeeperSimpleListResponse &>(*response_ptr);
-            std::shared_lock r_lock(node->mutex);
             response.names.insert(response.names.end(), node->children.begin(), node->children.end());
         }
 
@@ -919,7 +909,6 @@ struct StoreRequestSetACL final : public StoreRequest
             uint64_t acl_id = store.acl_map.convertACLs(node_acls);
             store.acl_map.addUsage(acl_id);
 
-            std::lock_guard node_lock(node->mutex);
             node->acl_id = acl_id;
             ++node->stat.aversion;
 
@@ -976,7 +965,6 @@ struct StoreRequestGetACL final : public StoreRequest
         }
         else
         {
-            std::shared_lock r_lock(node->mutex);
             response.stat = node->stat;
             response.acl = store.acl_map.convertNumber(node->acl_id);
         }
@@ -1195,7 +1183,6 @@ void KeeperStore::finalize()
         {
             auto parent = container.at(getParentPath(ephemeral_path));
             {
-                std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
                 parent->children.erase(getBaseName(ephemeral_path));
             }
@@ -1700,7 +1687,6 @@ void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<Respon
             }
             else
             {
-                std::lock_guard parent_lock(parent->mutex);
                 --parent->stat.numChildren;
                 parent->children.erase(getBaseName(ephemeral_path));
             }
