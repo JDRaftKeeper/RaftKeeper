@@ -84,11 +84,7 @@ void KeeperSnapshotStore::serializeNodeV2(
     if (!node)
         return;
 
-    std::shared_ptr<KeeperNode> node_copy;
-    {
-        std::shared_lock lock(node->mutex);
-        node_copy = node->clone();
-    }
+    std::shared_ptr<KeeperNode> node_copy = node->clone();
 
     if (processed % max_object_node_size == 0)
     {
