@@ -76,18 +76,13 @@ void RequestProcessor::run()
                 error_request_size = error_request_ids.size();
             }
 
-            /// 1. process read request, multi thread
+            /// 1. process read request
             watch.restart();
             for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
             {
-                request_thread->trySchedule(
-                    [this, runner_id]
-                    {
-                        moveRequestToPendingQueue(runner_id);
-                        processReadRequests(runner_id);
-                    });
+                moveRequestToPendingQueue(runner_id);
+                processReadRequests(runner_id);
             }
-            request_thread->wait();
             Metrics::getMetrics().apply_read_request_time_ms->add(watch.elapsedMilliseconds());
 
             /// 2. process committed request, single thread
@@ -562,7 +557,6 @@ void RequestProcessor::initialize(
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
     requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
-    request_thread = std::make_shared<ThreadPool>(thread_count_);
     for (size_t i = 0; i < runner_count; i++)
     {
         pending_requests[i];
