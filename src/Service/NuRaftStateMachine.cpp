@@ -71,7 +71,8 @@ NuRaftStateMachine::NuRaftStateMachine(
     snap_mgr = cs_new<KeeperSnapshotManager>(snapshot_dir, keep_max_snapshot_count, object_node_size);
 
     /// Load snapshot meta from disk
-    LOG_INFO(log, "Found {} snapshots from disk, load the latest one", snap_mgr->loadSnapshotMetas());
+    auto snapshots_count = snap_mgr->loadSnapshotMetas();
+    LOG_INFO(log, "Found {} snapshots from disk, load the latest one", snapshots_count);
     auto last_snapshot = snap_mgr->lastSnapshot();
     if (last_snapshot != nullptr)
         applySnapshotImpl(*last_snapshot);
