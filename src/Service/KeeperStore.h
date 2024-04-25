@@ -79,7 +79,6 @@ struct KeeperNodeWithPath
     std::shared_ptr<KeeperNode> node;
 };
 
-/// Map for data tree, it is thread safe with read write lock.
 /// ConcurrentMap is a two-level unordered_map which is designed
 /// to reduce latency for unordered_map scales.
 template <typename Element, unsigned NumBuckets>
@@ -90,49 +89,38 @@ public:
     using ElementMap = std::unordered_map<String, SharedElement>;
     using Action = std::function<void(const String &, const SharedElement &)>;
 
-    /// Simple encapsulate unordered_map with lock.
     class InnerMap
     {
     public:
         SharedElement get(String const & key)
         {
-            std::shared_lock lock(mut_);
             auto i = map_.find(key);
             return (i != map_.end()) ? i->second : nullptr;
         }
-        bool emplace(String const & key, SharedElement && value)
+
+        template <typename T>
+        bool emplace(String const & key, T && value)
         {
-            std::unique_lock lock(mut_);
-            auto [_, created] = map_.insert_or_assign(key, std::move(value));
-            return created;
+            return map_.insert_or_assign(key, value).second;
         }
-        bool emplace(String const & key, const SharedElement & value)
-        {
-            std::unique_lock lock(mut_);
-            auto [_, created] = map_.insert_or_assign(key, value);
-            return created;
-        }
+
         bool erase(String const & key)
         {
-            std::unique_lock write_lock(mut_);
             return map_.erase(key);
         }
 
         size_t size() const
         {
-            std::shared_lock lock(mut_);
             return map_.size();
         }
 
         void clear()
         {
-            std::unique_lock lock(mut_);
             map_.clear();
         }
 
         void forEach(const Action & fn)
         {
-            std::shared_lock read_lock(mut_);
             for (const auto & [key, value] : map_)
                 fn(key, value);
         }
@@ -142,22 +130,41 @@ public:
         ElementMap & getMap() { return map_; }
 
     private:
-        mutable std::shared_mutex mut_;
         ElementMap map_;
     };
 
 private:
     std::array<InnerMap, NumBuckets> maps_;
     std::hash<String> hash_;
+    std::atomic<size_t> node_count;
 
 public:
     SharedElement get(const String & key) { return mapFor(key).get(key); }
     SharedElement at(const String & key) { return mapFor(key).get(key); }
 
-    bool emplace(const String & key, SharedElement && value) { return mapFor(key).emplace(key, std::move(value)); }
-    bool emplace(const String & key, const SharedElement & value) { return mapFor(key).emplace(key, value); }
+    template <typename T>
+    bool emplace(const String & key, T && value)
+    {
+        if (mapFor(key).emplace(key, std::forward<T>(value)))
+        {
+            node_count ++;
+            return true;
+        }
+        return false;
+    }
+
+    bool erase(String const & key)
+    {
+        if (mapFor(key).erase(key))
+        {
+            node_count --;
+            return true;
+        }
+        return false;
+    }
+
     size_t count(const String & key) { return get(key) != nullptr ? 1 : 0; }
-    bool erase(String const & key) { return mapFor(key).erase(key); }
+
 
     InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBuckets]; }
     UInt32 getBucketIndex(String const & key) { return hash_(key) % NumBuckets; }
@@ -168,14 +175,12 @@ public:
     {
         for (auto & map : maps_)
             map.clear();
+        node_count.store(0);
     }
 
     size_t size() const
     {
-        size_t s(0);
-        for (const auto & map : maps_)
-            s += map.size();
-        return s;
+        return node_count.load();
     }
 };
 
