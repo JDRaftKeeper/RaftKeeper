@@ -136,7 +136,7 @@ public:
 private:
     std::array<InnerMap, NumBuckets> maps_;
     std::hash<String> hash_;
-    std::atomic<size_t> node_count;
+    std::atomic<size_t> node_count{0};
 
 public:
     SharedElement get(const String & key) { return mapFor(key).get(key); }
