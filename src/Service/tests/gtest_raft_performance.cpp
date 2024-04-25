@@ -146,7 +146,7 @@ TEST(RaftPerformance, appendLogThread)
 #   endif
 #endif
 
-TEST(RaftPerformance, machineCreateThread)
+TEST(RaftPerformance, machineCreate)
 {
     Poco::Logger * log = &(Poco::Logger::get("RaftStateMachine"));
     String snap_dir(SNAP_DIR + "/51");
@@ -177,53 +177,40 @@ TEST(RaftPerformance, machineCreateThread)
         data.append("v");
     }
 
-    std::vector<int> thread_vec = {1, 2, 4, 8};
-    for (auto thread_size : thread_vec)
+    int send_count = LOG_COUNT;
+    Stopwatch watch;
+
     {
-        int send_count = LOG_COUNT;
-        //int thread_size = 10;
-        FreeThreadPool thread_pool(thread_size);
-        Stopwatch watch;
-        watch.start();
-        for (int thread_idx = 0; thread_idx < thread_size; thread_idx++)
+        char key_buf[257];
+        int begin = 0;
+        int end = send_count;
+
+        while (begin < end)
         {
-            thread_pool.scheduleOrThrowOnError([&machine, thread_idx, thread_size, send_count, &key, &data] {
-                char key_buf[257];
-                int log_count = send_count / thread_size;
-                int begin = thread_idx * log_count;
-                int end = (thread_idx + 1) * log_count;
-                //auto * thread_log = &Poco::Logger::get("client_thread");
-                //LOG_INFO(thread_log, "Begin run thread {}/{}, send_count {}, range[{} - {}) ", thread_idx, thread_size, send_count, begin, end);
-                while (begin < end)
-                {
-                    snprintf(key_buf, 257, "%s%02d%02d%010d", key.data(), thread_size, thread_idx, begin);
-                    String key_str(key_buf);
-                    //LOG_INFO(thread_log, "KEY:[{}] ", key_str);
-                    createZNode(machine, key_str, data);
-                    begin++;
-                }
-            });
+            snprintf(key_buf, 257, "%s%010d", key.data(), begin);
+            String key_str(key_buf);
+            createZNode(machine, key_str, data);
+            begin++;
         }
-        //LOG_INFO(log, "Max thread count {}, running {}", thread_pool.getMaxThreads(), thread_pool.active());
-        thread_pool.wait();
-        watch.stop();
-        int mill_second = watch.elapsedMilliseconds();
-        int log_size = ((key_bytes + value_bytes) + sizeof(UInt32) * 4 + sizeof(UInt32) * 6);
-        double total_size = 1.0 * log_size * send_count / 1000 / 1000;
-        double byte_rate = 1.0 * total_size / mill_second * 1000;
-        double count_rate = 1.0 * send_count / mill_second * 1000;
-        LOG_INFO(
-            log,
-            "Append performance : thread_count {}, size {} Byte/OneLog, count {}, total_size {} M, milli second {}, byte rate {} M/S, TPS "
-            "{}",
-            thread_size,
-            log_size,
-            send_count,
-            total_size,
-            mill_second,
-            byte_rate,
-            count_rate);
     }
+
+    watch.stop();
+    int mill_second = watch.elapsedMilliseconds();
+    int log_size = ((key_bytes + value_bytes) + sizeof(UInt32) * 4 + sizeof(UInt32) * 6);
+    double total_size = 1.0 * log_size * send_count / 1000 / 1000;
+    double byte_rate = 1.0 * total_size / mill_second * 1000;
+    double count_rate = 1.0 * send_count / mill_second * 1000;
+    LOG_INFO(
+        log,
+        "Append performance : size {} Byte/OneLog, count {}, total_size {} M, milli second {}, byte rate {} M/S, TPS "
+        "{}",
+        log_size,
+        send_count,
+        total_size,
+        mill_second,
+        byte_rate,
+        count_rate);
+
     machine.shutdown();
 
     cleanDirectory(snap_dir);

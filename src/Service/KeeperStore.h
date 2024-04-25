@@ -79,10 +79,10 @@ struct KeeperNodeWithPath
     std::shared_ptr<KeeperNode> node;
 };
 
-/// ConcurrentMap is a two-level unordered_map which is designed
+/// KeeperNodeMap is a two-level unordered_map which is designed
 /// to reduce latency for unordered_map scales.
 template <typename Element, unsigned NumBuckets>
-class ConcurrentMap
+class KeeperNodeMap
 {
 public:
     using SharedElement = std::shared_ptr<Element>;
@@ -188,9 +188,9 @@ public:
 class KeeperStore
 {
 public:
-    /// bucket num for ConcurrentMap
+    /// bucket num for KeeperNodeMap
     static constexpr int MAP_BUCKET_NUM = 16;
-    using Container = ConcurrentMap<KeeperNode, MAP_BUCKET_NUM>;
+    using Container = KeeperNodeMap<KeeperNode, MAP_BUCKET_NUM>;
 
     using ResponsesForSessions = std::vector<ResponseForSession>;
     using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
