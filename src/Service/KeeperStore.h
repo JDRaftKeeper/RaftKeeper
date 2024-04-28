@@ -153,6 +153,17 @@ public:
         return false;
     }
 
+    template <typename T>
+    bool emplace(const String & key, T && value, UInt32 bucket_idx)
+    {
+        if (maps_[bucket_idx].emplace(key, std::forward<T>(value)))
+        {
+            node_count ++;
+            return true;
+        }
+        return false;
+    }
+
     bool erase(String const & key)
     {
         if (mapFor(key).erase(key))
@@ -210,6 +221,7 @@ public:
     /// Hold Edges in different Buckets based on the parent node's bucket number.
     /// It should be used when load snapshot to built node's childrenSet in parallel without lock.
     using BucketEdges = std::array<Edges, MAP_BUCKET_NUM>;
+    using BucketNodes = std::array<std::vector<std::pair<String, std::shared_ptr<KeeperNode>>>, MAP_BUCKET_NUM>;
 
     /// global session id counter, used to allocate new session id.
     /// It should be same across all nodes.
@@ -309,6 +321,8 @@ public:
 
     // Build childrenSet for the node in specified bucket after load data from snapshot.
     void buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx);
+    void buildBucketNodes(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_idx);
+
 
     void finalize();
 

@@ -1646,6 +1646,21 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
     }
 }
 
+void KeeperStore::buildBucketNodes(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_idx)
+{
+    for (auto && object_nodes : all_objects_nodes)
+    {
+        for (auto && [path, node] : object_nodes[bucket_idx])
+        {
+//            container.emplace(path, std::move(node), bucket_idx);
+            if (!container.emplace(path, std::move(node), bucket_idx) && path != "/")
+            {
+                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Logical error: When loading data from a snapshot, duplicate node {} were found ", path);
+            }
+        }
+    }
+}
+
 void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx)
 {
     for (auto & object_edges : all_objects_edges)
@@ -1656,7 +1671,7 @@ void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objec
 
             if (unlikely(parent == nullptr))
             {
-                throw RK::Exception("Logical error: Build : can not find parent for node " + path, ErrorCodes::LOGICAL_ERROR);
+                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Logical error: Build : can not find parent {} for node ", path);
             }
 
             parent->children.emplace(std::move(path));

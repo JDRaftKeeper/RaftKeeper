@@ -269,7 +269,7 @@ void KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHe
     }
 }
 
-void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, BucketEdges & buckets_edges)
+void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, BucketEdges & buckets_edges, BucketNodes & bucket_nodes)
 {
     ptr<std::fstream> snap_fs = cs_new<std::fstream>();
     snap_fs->open(obj_path, std::ios::in | std::ios::binary);
@@ -360,11 +360,11 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
             throwFromErrno("Can't read snapshot object file " + obj_path + ", batch crc not match.", ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
-        parseBatchBodyV2(store, body_string, buckets_edges, version_from_obj);
+        parseBatchBodyV2(store, body_string, buckets_edges, bucket_nodes, version_from_obj);
     }
 }
 
-void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, BucketNodes & bucket_nodes, SnapshotVersion version_)
 {
     ptr<SnapshotBatchBody> batch;
     batch = SnapshotBatchBody::parse(body_string);
@@ -372,7 +372,7 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
     {
         case SnapshotBatchType::SNAPSHOT_TYPE_DATA:
             LOG_DEBUG(log, "Parsing batch data from snapshot, data count {}", batch->size());
-            parseBatchDataV2(store, *batch, buckets_edges, version_);
+            parseBatchDataV2(store, *batch, buckets_edges, bucket_nodes, version_);
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_SESSION: {
             LOG_DEBUG(log, "Parsing batch session from snapshot, session count {}", batch->size());
@@ -398,8 +398,10 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
 
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 {
+    auto objects_cnt = objects_path.size();
     ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
-    all_objects_edges = std::vector<BucketEdges>(objects_path.size());
+    all_objects_edges = std::vector<BucketEdges>(objects_cnt);
+    all_objects_nodes = std::vector<BucketNodes>(objects_cnt);
 
     LOG_INFO(log, "Parse object from disk");
 
@@ -423,7 +425,7 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
                             this->objects_path.size());
                         try
                         {
-                            this->parseObject(store, it->second, all_objects_edges[obj_idx]);
+                            this->parseObject(store, it->second, all_objects_edges[obj_idx], all_objects_nodes[obj_idx]);
                         }
                         catch (Exception & e)
                         {
@@ -437,7 +439,7 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     }
     object_thread_pool.wait();
 
-    LOG_INFO(log, "Build ChildrenSet for nodes");
+    LOG_INFO(log, "Build DataTree");
 
     /// Build node tree relationship
     for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
@@ -445,11 +447,13 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
         object_thread_pool.trySchedule(
             [this, thread_idx, &store]
             {
-                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildChildren"));
+                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildDataTreeThread"));
                 for (UInt32 bucket_idx = 0; bucket_idx < store.container.getBucketNum(); bucket_idx++)
                 {
                     if (bucket_idx % SNAPSHOT_THREAD_NUM == thread_idx)
                     {
+                        LOG_INFO(thread_log, "Build nodes in bucket {}, thread_idx {}", bucket_idx, thread_idx);
+                        store.buildBucketNodes(this->all_objects_nodes, bucket_idx);
                         LOG_INFO(thread_log, "Build ChildrenSet for nodes in bucket {}, thread_idx {}", bucket_idx, thread_idx);
                         store.buildBucketChildren(this->all_objects_edges, bucket_idx);
                     }
