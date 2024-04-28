@@ -102,14 +102,14 @@ private:
     void getObjectPath(ulong object_id, String & path);
 
     /// Parse an snapshot object. We should take the version from snapshot in general.
-    void parseObject(KeeperStore & store, String obj_path, BucketEdges &);
+    void parseObject(KeeperStore & store, String obj_path, BucketEdges &, BucketNodes &);
 
     /// Parse batch header in an object
     /// TODO use internal buffer
     void parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
     /// Parse a batch
-    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, SnapshotVersion version_);
+    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, BucketNodes &, SnapshotVersion version_);
 
     /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
@@ -150,6 +150,7 @@ private:
     std::map<ulong, String> objects_path;
 
     std::vector<BucketEdges> all_objects_edges;
+    std::vector<BucketNodes> all_objects_nodes;
 
     /// Appended to snapshot file name
     String curr_time;

@@ -452,7 +452,7 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
     return batch_body;
 }
 
-void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, SnapshotVersion version)
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, BucketNodes & bucket_nodes, SnapshotVersion version)
 {
     for (size_t i = 0; i < batch.size(); i++)
     {
@@ -490,23 +490,22 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdge
             ephemeral_nodes.emplace(path);
         }
 
-        store.container.emplace(path, std::move(node));
+        // store.container.emplace(path, std::move(node));
+        if (likely(path != "/"))
+        {
+            auto rslash_pos = path.rfind('/');
 
-        if (unlikely(path == "/"))
-            continue;
+            if (unlikely(rslash_pos < 0))
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
 
-        auto rslash_pos = path.rfind('/');
+            auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
 
-        if (unlikely(rslash_pos < 0))
-            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Can't find parent path for path {}", path);
+            // Storage edges in different bucket, according to the bucket index of parent node.
+            // Which allow us to insert child paths for all nodes in parallel.
+            buckets_edges[store.container.getBucketIndex(parent_path)].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
+        }
 
-        auto parent_path = rslash_pos == 0 ? "/" : path.substr(0, rslash_pos);
-        auto idx = store.container.getBucketIndex(parent_path);
-
-        //  Storage edges in different bucket, according to the bucket index of parent node.
-        //  Which allow us to insert child paths for all nodes in parallel.
-        buckets_edges[idx].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
-
+        bucket_nodes[store.container.getBucketIndex(path)].emplace_back(std::move(path), std::move(node));
     }
 }
 

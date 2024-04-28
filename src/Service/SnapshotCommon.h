@@ -34,6 +34,7 @@ static constexpr UInt32 SAVE_BATCH_SIZE = 10000;
 using StringMap = std::unordered_map<String, String>;
 using IntMap = std::unordered_map<String, int64_t>;
 using BucketEdges = KeeperStore::BucketEdges;
+using BucketNodes = KeeperStore::BucketNodes;
 
 enum SnapshotVersion : uint8_t
 {
@@ -129,7 +130,7 @@ template <typename T>
 void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
 
 /// parse snapshot batch
-void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, SnapshotVersion version);
+void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, BucketNodes & bucket_nodes, SnapshotVersion version);
 void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
 void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
 void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
