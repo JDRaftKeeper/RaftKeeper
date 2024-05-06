@@ -79,86 +79,89 @@ struct KeeperNodeWithPath
     std::shared_ptr<KeeperNode> node;
 };
 
-/// KeeperNodeMap is a two-level unordered_map which is designed
-/// to reduce latency for unordered_map scales.
-template <typename Element, unsigned NumBuckets>
+/// KeeperNodeMap is a two-level unordered_map which is designed to reduce latency for unordered_map scaling.
+/// It is not a thread-safe map. But it is accessed only in the request processor thread.
+template <typename Value, unsigned NumBuckets>
 class KeeperNodeMap
 {
 public:
-    using SharedElement = std::shared_ptr<Element>;
-    using ElementMap = std::unordered_map<String, SharedElement>;
-    using Action = std::function<void(const String &, const SharedElement &)>;
+    using Key = String;
+    using ValuePtr = std::shared_ptr<Value>;
+    using NestedMap = std::unordered_map<String, ValuePtr>;
+    using Action = std::function<void(const String &, const ValuePtr &)>;
 
     class InnerMap
     {
     public:
-        SharedElement get(String const & key)
+        ValuePtr get(const String & key)
         {
-            auto i = map_.find(key);
-            return (i != map_.end()) ? i->second : nullptr;
+            auto i = map.find(key);
+            return (i != map.end()) ? i->second : nullptr;
         }
 
         template <typename T>
-        bool emplace(String const & key, T && value)
+        bool emplace(const String & key, T && value)
         {
-            return map_.insert_or_assign(key, value).second;
+            return map.insert_or_assign(key, value).second;
         }
 
-        bool erase(String const & key)
+        bool erase(const String & key)
         {
-            return map_.erase(key);
+            return map.erase(key);
         }
 
         size_t size() const
         {
-            return map_.size();
+            return map.size();
         }
 
         void clear()
         {
-            map_.clear();
+            map.clear();
         }
 
         void forEach(const Action & fn)
         {
-            for (const auto & [key, value] : map_)
+            for (const auto & [key, value] : map)
                 fn(key, value);
         }
 
         /// This method will destroy InnerMap thread safety property.
-        /// deprecated use forEach instead.
-        ElementMap & getMap() { return map_; }
+        /// Deprecated, please use forEach instead.
+        NestedMap & getMap() { return map; }
 
     private:
-        ElementMap map_;
+        NestedMap map;
     };
 
 private:
-    std::array<InnerMap, NumBuckets> maps_;
-    std::hash<String> hash_;
+    inline InnerMap & mapFor(const String & key) { return buckets[hash(key) % NumBuckets]; }
+
+    std::array<InnerMap, NumBuckets> buckets;
+    std::hash<String> hash;
     std::atomic<size_t> node_count{0};
 
 public:
-    SharedElement get(const String & key) { return mapFor(key).get(key); }
-    SharedElement at(const String & key) { return mapFor(key).get(key); }
+    ValuePtr get(const String & key) { return mapFor(key).get(key); }
+    ValuePtr at(const String & key) { return mapFor(key).get(key); }
 
     template <typename T>
     bool emplace(const String & key, T && value)
     {
         if (mapFor(key).emplace(key, std::forward<T>(value)))
         {
-            node_count ++;
+            node_count++;
             return true;
         }
         return false;
     }
 
     template <typename T>
-    bool emplace(const String & key, T && value, UInt32 bucket_idx)
+    bool emplace(const String & key, T && value, UInt32 bucket_id)
     {
-        if (maps_[bucket_idx].emplace(key, std::forward<T>(value)))
+        if (buckets[bucket_id].emplace(key, std::forward<T>(value)))
         {
-            node_count ++;
+            node_count++;
             return true;
         }
         return false;
@@ -168,7 +171,7 @@ public:
     {
         if (mapFor(key).erase(key))
         {
-            node_count --;
+            node_count--;
             return true;
         }
         return false;
@@ -176,16 +179,15 @@ public:
 
     size_t count(const String & key) { return get(key) != nullptr ? 1 : 0; }
 
-
-    InnerMap & mapFor(String const & key) { return maps_[hash_(key) % NumBuckets]; }
-    UInt32 getBucketIndex(String const & key) { return hash_(key) % NumBuckets; }
+    UInt32 getBucketIndex(const String & key) { return hash(key) % NumBuckets; }
     UInt32 getBucketNum() const { return NumBuckets; }
-    InnerMap & getMap(const UInt32 & index) { return maps_[index]; }
+
+    InnerMap & getMap(const UInt32 & bucket_id) { return buckets[bucket_id]; }
 
     void clear()
     {
-        for (auto & map : maps_)
-            map.clear();
+        for (auto & bucket : buckets)
+            bucket.clear();
         node_count.store(0);
     }
 
