@@ -148,7 +148,7 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
             LOG_INFO(log, "Deserialized nodes from snapshot: {}", count);
     }
 
-    store.buildPathChildren(true);
+    store.buildChildrenSet(true);
     LOG_INFO(log, "Totally deserialized {} nodes from snapshot", count);
 
     return max_zxid;
