@@ -316,17 +316,17 @@ public:
         bool check_acl = true,
         bool ignore_response = false);
 
-    /// Build path children after load data from snapshot
-    void buildPathChildren(bool from_zk_snapshot = false);
+    /// Build children set after loading data from snapshot
+    void buildChildrenSet(bool from_zk_snapshot = false);
 
-    // Build childrenSet for the node in specified bucket after load data from snapshot.
-    void buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx);
-    void buildBucketNodes(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_idx);
+    // Build children set for the nodes in specified bucket after load data from snapshot.
+    void buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_id);
+    void fillDataTreeBucket(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_id);
 
 
     void finalize();
 
-    /// Add session id. Used when restoring KeeperStorage from snapshot.
+    /// Add session id. Used when restoring KeeperStore from snapshot.
     void addSessionID(int64_t session_id, int64_t session_timeout_ms)
     {
         std::lock_guard lock(session_mutex);

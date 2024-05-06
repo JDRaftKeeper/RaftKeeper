@@ -399,73 +399,65 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 {
     auto objects_cnt = objects_path.size();
-    ThreadPool object_thread_pool(SNAPSHOT_THREAD_NUM);
+    ThreadPool thread_pool(SNAPSHOT_THREAD_NUM);
+
     all_objects_edges = std::vector<BucketEdges>(objects_cnt);
     all_objects_nodes = std::vector<BucketNodes>(objects_cnt);
 
-    LOG_INFO(log, "Parse object from disk");
+    LOG_INFO(log, "Parsing snapshot objects from disk");
+    Stopwatch watch;
 
-    for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
+    for (UInt32 thread_id = 0; thread_id < SNAPSHOT_THREAD_NUM; thread_id++)
     {
-        object_thread_pool.trySchedule(
-            [this, thread_idx, &store]
+        thread_pool.trySchedule(
+            [this, thread_id, &store]
             {
-                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.parseObjectThread"));
+                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.parseObjectThread#" + std::to_string(thread_id)));
                 UInt32 obj_idx = 0;
                 for (auto it = this->objects_path.begin(); it != this->objects_path.end(); it++)
                 {
-                    if (obj_idx % SNAPSHOT_THREAD_NUM == thread_idx)
+                    if (obj_idx % SNAPSHOT_THREAD_NUM == thread_id)
                     {
-                        LOG_INFO(
-                            thread_log,
-                            "Parse snapshot object, thread_idx {}, obj_index {}, path {}, obj size {}",
-                            thread_idx,
-                            it->first,
-                            it->second,
-                            this->objects_path.size());
-                        try
-                        {
-                            this->parseObject(store, it->second, all_objects_edges[obj_idx], all_objects_nodes[obj_idx]);
-                        }
-                        catch (Exception & e)
-                        {
-                            LOG_ERROR(log, "parseObject error {}, {}", it->second, getExceptionMessage(e, true));
-                            throw;
-                        }
+                        LOG_INFO(thread_log, "Parsing snapshot object {}", it->second);
+                        parseObject(store, it->second, all_objects_edges[obj_idx], all_objects_nodes[obj_idx]);
                     }
                     obj_idx++;
                 }
             });
     }
-    object_thread_pool.wait();
 
-    LOG_INFO(log, "Build DataTree");
+    thread_pool.wait();
+    LOG_INFO(log, "Parsing snapshot objects costs {}ms", watch.elapsedMilliseconds());
 
-    /// Build node tree relationship
-    for (UInt32 thread_idx = 0; thread_idx < SNAPSHOT_THREAD_NUM; thread_idx++)
+    LOG_INFO(log, "Building data tree from snapshot objects");
+    watch.restart();
+
+    /// Build data tree relationship in parallel
+    for (UInt32 thread_id = 0; thread_id < SNAPSHOT_THREAD_NUM; thread_id++)
     {
-        object_thread_pool.trySchedule(
-            [this, thread_idx, &store]
+        thread_pool.trySchedule(
+            [this, thread_id, &store]
             {
-                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildDataTreeThread"));
-                for (UInt32 bucket_idx = 0; bucket_idx < store.container.getBucketNum(); bucket_idx++)
+                Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildDataTreeThread#" + std::to_string(thread_id)));
+                for (UInt32 bucket_id = 0; bucket_id < store.container.getBucketNum(); bucket_id++)
                 {
-                    if (bucket_idx % SNAPSHOT_THREAD_NUM == thread_idx)
+                    if (bucket_id % SNAPSHOT_THREAD_NUM == thread_id)
                     {
-                        LOG_INFO(thread_log, "Build nodes in bucket {}, thread_idx {}", bucket_idx, thread_idx);
-                        store.buildBucketNodes(this->all_objects_nodes, bucket_idx);
-                        LOG_INFO(thread_log, "Build ChildrenSet for nodes in bucket {}, thread_idx {}", bucket_idx, thread_idx);
-                        store.buildBucketChildren(this->all_objects_edges, bucket_idx);
+                        LOG_INFO(thread_log, "Filling bucket {} in data tree", bucket_id);
+                        store.fillDataTreeBucket(all_objects_nodes, bucket_id);
+                        LOG_INFO(thread_log, "Building children set for data tree bucket {}", bucket_id);
+                        store.buildBucketChildren(all_objects_edges, bucket_id);
                     }
                 }
             });
     }
 
-    object_thread_pool.wait();
+    thread_pool.wait();
+    LOG_INFO(log, "Building data tree costs {}ms", watch.elapsedMilliseconds());
 
     LOG_INFO(
         log,
-        "Load snapshot done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        "Loading snapshot done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
         store.getNodesCount(),
         store.getTotalEphemeralNodesCount(),
         store.getSessionCount(),
@@ -696,8 +688,8 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     file_dir.list(file_vec);
     char time_str[128];
 
-    unsigned long log_last_index;
-    unsigned long object_id;
+    uint64_t log_last_index;
+    uint64_t object_id;
 
     for (const auto & file : file_vec)
     {

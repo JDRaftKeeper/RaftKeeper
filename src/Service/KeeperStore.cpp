@@ -293,7 +293,7 @@ struct StoreRequestCreate final : public StoreRequest
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
     process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t time) const override
     {
-        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageCreateRequest"));
+        Poco::Logger * log = &(Poco::Logger::get("StoreRequestCreate"));
 
         Coordination::ZooKeeperResponsePtr response_ptr = zk_request->makeResponse();
         Undo undo;
@@ -429,7 +429,7 @@ struct StoreRequestGet final : public StoreRequest
 
     bool checkAuth(KeeperStore & store, int64_t session_id) const override
     {
-        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageGetRequest"));
+        Poco::Logger * log = &(Poco::Logger::get("StoreRequestGet"));
         auto & container = store.container;
         auto node = container.get(zk_request->getPath());
         if (node == nullptr)
@@ -519,7 +519,7 @@ struct StoreRequestRemove final : public StoreRequest
         Coordination::ZooKeeperRemoveRequest & request = dynamic_cast<Coordination::ZooKeeperRemoveRequest &>(*zk_request);
         Undo undo;
 
-        Poco::Logger * log = &(Poco::Logger::get("SvsKeeperStorageRemoveRequest"));
+        Poco::Logger * log = &(Poco::Logger::get("StoreRequestRemove"));
         KeeperStore::Container::SharedElement node = store.container.get(request.path);
         if (node == nullptr)
         {
@@ -736,7 +736,7 @@ struct StoreRequestList final : public StoreRequest
 
         auto path_prefix = request.path;
         if (path_prefix.empty())
-            throw RK::Exception("Logical error: path cannot be empty", ErrorCodes::LOGICAL_ERROR);
+            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Logical error: path cannot be empty");
 
         if (response_ptr->getOpNum() == Coordination::OpNum::List || response_ptr->getOpNum() == Coordination::OpNum::FilteredList)
         {
@@ -764,7 +764,7 @@ struct StoreRequestList final : public StoreRequest
                 if (node == nullptr)
                 {
                     LOG_ERROR(
-                        &Poco::Logger::get("SvsKeeperStorageListRequest"),
+                        &Poco::Logger::get("StoreRequestList"),
                         "Inconsistency found between uncommitted and committed data, can't get child {} for {} ."
                         "Keeper will terminate to avoid undefined behaviour.", child, request.path);
                     std::terminate();
@@ -1225,7 +1225,7 @@ public:
     {
         auto it = op_num_to_request.find(zk_request->getOpNum());
         if (it == op_num_to_request.end())
-            throw RK::Exception("Unknown operation type " + toString(zk_request->getOpNum()), ErrorCodes::LOGICAL_ERROR);
+            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Unknown operation type {}", toString(zk_request->getOpNum()));
 
         return it->second(zk_request);
     }
@@ -1618,13 +1618,11 @@ bool KeeperStore::updateSessionTimeout(int64_t session_id, int64_t /*session_tim
     return true;
 }
 
-void KeeperStore::buildPathChildren(bool from_zk_snapshot)
+void KeeperStore::buildChildrenSet(bool from_zk_snapshot)
 {
-    LOG_INFO(log, "build path children in keeper storage {}", container.size());
-    /// build children
-    for (UInt32 bucket_idx = 0; bucket_idx < container.getBucketNum(); bucket_idx++)
+    for (UInt32 bucket_id = 0; bucket_id < container.getBucketNum(); bucket_id++)
     {
-        for (const auto & it : container.getMap(bucket_idx).getMap())
+        for (const auto & it : container.getMap(bucket_id).getMap())
         {
             if (it.first == "/")
                 continue;
@@ -1632,47 +1630,39 @@ void KeeperStore::buildPathChildren(bool from_zk_snapshot)
             auto parent_path = getParentPath(it.first);
             auto child_path = getBaseName(it.first);
             auto parent = container.get(parent_path);
+
             if (parent == nullptr)
-            {
-                throw RK::Exception("Logical error: Build : can not find parent node " + it.first, ErrorCodes::LOGICAL_ERROR);
-            }
-            else
-            {
-                parent->children.insert(child_path);
-                if (from_zk_snapshot)
-                    parent->stat.numChildren++;
-            }
+                throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Error when building children set, can not find parent for node {}", it.first);
+
+            parent->children.insert(child_path);
+            if (from_zk_snapshot)
+                parent->stat.numChildren++;
         }
     }
 }
 
-void KeeperStore::buildBucketNodes(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_idx)
+void KeeperStore::fillDataTreeBucket(const std::vector<BucketNodes> & all_objects_nodes, UInt32 bucket_id)
 {
     for (auto && object_nodes : all_objects_nodes)
     {
-        for (auto && [path, node] : object_nodes[bucket_idx])
+        for (auto && [path, node] : object_nodes[bucket_id])
         {
-//            container.emplace(path, std::move(node), bucket_idx);
-            if (!container.emplace(path, std::move(node), bucket_idx) && path != "/")
-            {
-                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Logical error: When loading data from a snapshot, duplicate node {} were found ", path);
-            }
+            if (!container.emplace(path, std::move(node), bucket_id) && path != "/")
+                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Error when filling data tree bucket {}, duplicated node {}", bucket_id, path);
         }
     }
 }
 
-void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_idx)
+void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objects_edges, UInt32 bucket_id)
 {
-    for (auto & object_edges : all_objects_edges)
+    for (const auto & object_edges : all_objects_edges)
     {
-        for (auto & [parent_path, path] : object_edges[bucket_idx])
+        for (const auto & [parent_path, path] : object_edges[bucket_id])
         {
             auto parent = container.get(parent_path);
 
             if (unlikely(parent == nullptr))
-            {
-                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Logical error: Build : can not find parent {} for node ", path);
-            }
+                throw RK::Exception(RK::ErrorCodes::LOGICAL_ERROR, "Can not find parent for node {}", path);
 
             parent->children.emplace(std::move(path));
         }
