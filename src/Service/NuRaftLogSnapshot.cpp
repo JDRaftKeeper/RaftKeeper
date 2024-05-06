@@ -691,8 +691,8 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     file_dir.list(file_vec);
     char time_str[128];
 
-    uint64_t log_last_index;
-    uint64_t object_id;
+    unsigned long log_last_index;
+    unsigned long object_id;
 
     for (const auto & file : file_vec)
     {

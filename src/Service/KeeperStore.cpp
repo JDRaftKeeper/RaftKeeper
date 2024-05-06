@@ -520,7 +520,7 @@ struct StoreRequestRemove final : public StoreRequest
         Undo undo;
 
         Poco::Logger * log = &(Poco::Logger::get("StoreRequestRemove"));
-        KeeperStore::Container::SharedElement node = store.container.get(request.path);
+        auto node = store.container.get(request.path);
         if (node == nullptr)
         {
             response.error = Coordination::Error::ZNONODE;
