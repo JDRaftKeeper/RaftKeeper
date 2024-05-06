@@ -301,6 +301,8 @@ void RequestProcessor::processErrorRequest(size_t count)
 
             response->error = error_request.error_code == nuraft::cmd_result_code::TIMEOUT ? Coordination::Error::ZOPERATIONTIMEOUT
                                                                                            : Coordination::Error::ZCONNECTIONLOSS;
+            /// TODO use real request creating time.
+            response->request_created_time_ms = getCurrentTimeMilliseconds();
 
             responses_queue.push(ResponseForSession{session_id, response});
 
