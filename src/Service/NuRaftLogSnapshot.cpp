@@ -455,6 +455,9 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     thread_pool.wait();
     LOG_INFO(log, "Building data tree costs {}ms", watch.elapsedMilliseconds());
 
+    all_objects_edges.clear();
+    all_objects_nodes.clear();
+
     LOG_INFO(
         log,
         "Loading snapshot done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
