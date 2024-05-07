@@ -285,7 +285,7 @@ def test_cmd_conf(started_cluster):
         assert result["log_dir"] == "./data/log"
         assert result["snapshot_dir"] == "./data/snapshot"
 
-        assert result["client_req_timeout_ms"] == "3000"
+        assert result["client_req_timeout_ms"] == result["operation_timeout_ms"]
         assert result["min_session_timeout_ms"] == "1000"
         assert result["max_session_timeout_ms"] == "30000"
         assert result["operation_timeout_ms"] == "1000"

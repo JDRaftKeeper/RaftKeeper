@@ -182,6 +182,7 @@ min_session_timeout_ms=10000
 operation_timeout_ms=10000
 dead_session_check_period_ms=500
 heart_beat_interval_ms=500
+client_req_timeout_ms=10000
 election_timeout_lower_bound_ms=10000
 election_timeout_upper_bound_ms=20000
 reserved_log_items=1000000
