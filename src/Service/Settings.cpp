@@ -72,6 +72,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         }
         dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 500);
         heart_beat_interval_ms = config.getUInt(get_key("heart_beat_interval_ms"), 500);
+        client_req_timeout_ms = config.getUInt(get_key("client_req_timeout_ms"), 3000);
         election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), 10000);
         election_timeout_upper_bound_ms = config.getUInt(get_key("election_timeout_upper_bound_ms"), 20000);
         reserved_log_items = config.getUInt(get_key("reserved_log_items"), 1000000);
@@ -107,6 +108,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->operation_timeout_ms = Coordination::DEFAULT_OPERATION_TIMEOUT_MS;
     settings->dead_session_check_period_ms = 500;
     settings->heart_beat_interval_ms = 500;
+    settings->client_req_timeout_ms = 3000;
     settings->election_timeout_lower_bound_ms = 10000;
     settings->election_timeout_upper_bound_ms = 20000;
     settings->reserved_log_items = 10000000;
@@ -189,6 +191,8 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
 
     writeText("heart_beat_interval_ms=", buf);
     write_int(raft_settings->heart_beat_interval_ms);
+    writeText("client_req_timeout_ms=", buf);
+    write_int(raft_settings->client_req_timeout_ms);
     writeText("election_timeout_lower_bound_ms=", buf);
     write_int(raft_settings->election_timeout_lower_bound_ms);
     writeText("election_timeout_upper_bound_ms=", buf);

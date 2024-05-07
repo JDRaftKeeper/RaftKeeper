@@ -84,6 +84,8 @@ struct RaftSettings
     UInt64 election_timeout_lower_bound_ms;
     /// Lower bound of election timer (avoid too often leader elections)
     UInt64 election_timeout_upper_bound_ms;
+    /// Raft operation timeout (just for data replication)
+    UInt64 client_req_timeout_ms;
     /// How many log items to store (don't remove during compaction)
     UInt64 reserved_log_items;
     /// How many log items we have to collect to write new snapshot00

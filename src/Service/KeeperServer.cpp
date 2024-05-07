@@ -54,6 +54,7 @@ namespace
     {
         params.heart_beat_interval_ = raft_settings->heart_beat_interval_ms;
         params.election_timeout_lower_bound_ = raft_settings->election_timeout_lower_bound_ms;
+        params.client_req_timeout_ = raft_settings->client_req_timeout_ms;
         params.election_timeout_upper_bound_ = raft_settings->election_timeout_upper_bound_ms;
         params.reserved_log_items_ = raft_settings->reserved_log_items;
         params.snapshot_distance_ = raft_settings->snapshot_distance;

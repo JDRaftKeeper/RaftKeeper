@@ -77,6 +77,9 @@
             <!-- NuRaft heart beat interval in millisecond, default is 500. -->
             <!-- <heart_beat_interval_ms>500</heart_beat_interval_ms> -->
 
+            <!-- NuRaft request operation timeout in millisecond, default is 3000. -->
+            <!-- <client_req_timeout_ms>3000</client_req_timeout_ms> -->
+
             <!-- NuRaft election timeout lower bound, default is 10s. -->
             <!-- <election_timeout_lower_bound_ms>10000</election_timeout_lower_bound_ms> -->
 
