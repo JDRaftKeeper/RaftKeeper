@@ -665,10 +665,8 @@ TEST(RaftSnapshot, parseSnapshot)
 void createSnapshotWithFuzzyLog(bool async_snapshot)
 {
     auto * log = &(Poco::Logger::get("Test_RaftSnapshot"));
-    //    String snap_dir(SNAP_DIR + "/6");
-    //    String log_dir(LOG_DIR + "/6");
-    String snap_dir("/data1/home/lizhuoyu/data6/work/tmp_async_snap");
-    String log_dir("/data1/home/lizhuoyu/data6/work/tmp_async_log");
+    String snap_dir(SNAP_DIR + "/6");
+    String log_dir(LOG_DIR + "/6");
 
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
