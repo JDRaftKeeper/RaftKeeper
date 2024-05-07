@@ -430,9 +430,8 @@ public:
                 {
                     for (UInt32 bucket_idx = 0; bucket_idx < MAP_BUCKET_NUM; bucket_idx++)
                     {
-                        if (bucket_idx % MAP_BUCKET_NUM != thread_idx) {
+                        if (bucket_idx % MAP_BUCKET_NUM != thread_idx)
                             continue;
-                        }
                         LOG_WARNING(log, "Dump datatree index {}", bucket_idx);
                         auto bucket = this->container.getMap(bucket_idx).getMap();
                         result[bucket_idx].reserve(bucket.size());

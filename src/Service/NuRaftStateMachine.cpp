@@ -82,12 +82,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     committed_log_manager->get(previous_last_commit_id);
 
     LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
-
-//    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
-    if (previous_last_commit_id != 0 && previous_last_commit_id < last_committed_idx)
-    {
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Riccccco");
-    }
+    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
     replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
 
     /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
@@ -157,7 +152,7 @@ void NuRaftStateMachine::snapThread()
             Stopwatch stopwatch;
             in_snapshot = true;
 
-            LOG_WARNING(
+            LOG_INFO(
                 log,
                 "Create snapshot last_log_term {}, last_log_idx {}",
                 snap_task->s->get_last_log_term(),
@@ -440,7 +435,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
     Stopwatch stopwatch;
     in_snapshot = true;
 
-    LOG_WARNING(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
+    LOG_INFO(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
 
     if (!raft_settings->async_snapshot)
     {
