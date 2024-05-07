@@ -147,31 +147,31 @@ void NuRaftStateMachine::snapThread()
     setThreadName("snapThread");
     while (!shutdown_called)
     {
-        if (snap_task)
+        if (snap_task_ready)
         {
             Stopwatch stopwatch;
-            in_snapshot = true;
+            auto current_task = std::move(snap_task);
+            snap_task_ready = false;
 
             LOG_INFO(
                 log,
                 "Create snapshot last_log_term {}, last_log_idx {}",
-                snap_task->s->get_last_log_term(),
-                snap_task->s->get_last_log_idx());
+                current_task->s->get_last_log_term(),
+                current_task->s->get_last_log_idx());
 
-            create_snapshot_async(*snap_task);
+            create_snapshot_async(*current_task);
             ptr<std::exception> except(nullptr);
             bool ret = true;
 
-            snap_task->when_done(ret, except);
-            snap_task = nullptr;
+            current_task->when_done(ret, except);
 
             stopwatch.stop();
-            in_snapshot = false;
 
             snap_count.fetch_add(1);
             snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
 
             last_snapshot_time = Poco::Timestamp().epochMicroseconds();
+            in_snapshot = false;
 
             LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
         }
@@ -445,12 +445,12 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         when_done(ret, except);
 
         stopwatch.stop();
-        in_snapshot = false;
 
         snap_count.fetch_add(1);
         snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
 
         last_snapshot_time = Poco::Timestamp().epochMicroseconds();
+        in_snapshot = false;
 
         LOG_INFO(log, "Created snapshot, time cost {} ms", stopwatch.elapsedMilliseconds());
     }
@@ -464,6 +464,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         auto t3 = Poco::Timestamp().epochMicroseconds();
         snap_task = std::make_shared<SnapTask>(snap_copy, store, when_done);
         auto t4 = Poco::Timestamp().epochMicroseconds();
+        snap_task_ready = true;
         LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2 - t1), (t3 - t2), (t4 - t3));
     }
 }
