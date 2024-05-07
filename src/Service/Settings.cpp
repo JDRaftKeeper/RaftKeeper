@@ -202,6 +202,8 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     write_int(raft_settings->reserved_log_items);
     writeText("snapshot_distance=", buf);
     write_int(raft_settings->snapshot_distance);
+    writeText("async_snapshot=", buf);
+    write_int(raft_settings->async_snapshot);
     writeText("max_stored_snapshots=", buf);
     write_int(raft_settings->max_stored_snapshots);
 

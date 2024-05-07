@@ -297,6 +297,7 @@ def test_cmd_conf(started_cluster):
         assert result["reserved_log_items"] == "1000000"
         assert result["snapshot_distance"] == "3000000"
         assert result["max_stored_snapshots"] == "5"
+        assert result["async_snapshot"] == "0"
 
         assert result["shutdown_timeout"] == "5000"
         assert result["startup_timeout"] == "6000000"

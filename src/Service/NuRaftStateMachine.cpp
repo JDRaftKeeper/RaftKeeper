@@ -82,7 +82,12 @@ NuRaftStateMachine::NuRaftStateMachine(
     committed_log_manager->get(previous_last_commit_id);
 
     LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
-    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
+
+//    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
+    if (previous_last_commit_id != 0 && previous_last_commit_id < last_committed_idx)
+    {
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Riccccco");
+    }
     replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
 
     /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
@@ -158,7 +163,7 @@ void NuRaftStateMachine::snapThread()
                 snap_task->s->get_last_log_term(),
                 snap_task->s->get_last_log_idx());
 
-            create_snapshot(*snap_task->s, snap_task->next_zxid, snap_task->next_session_id);
+            create_snapshot_async(*snap_task);
             ptr<std::exception> except(nullptr);
             bool ret = true;
 
@@ -421,24 +426,24 @@ bool NuRaftStateMachine::chk_create_snapshot()
 
 void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handler_type & when_done)
 {
+    size_t wait_times = 0;
+    while (request_processor && request_processor->commitQueueSize() != 0)
+    {
+        /// wait commit queue empty
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (++wait_times % 1000 == 0)
+        {
+            LOG_WARNING(log, "Wait commit queue to empty");
+        }
+    }
+
+    Stopwatch stopwatch;
+    in_snapshot = true;
+
+    LOG_WARNING(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
+
     if (!raft_settings->async_snapshot)
     {
-        size_t wait_times = 0;
-        while (request_processor && request_processor->commitQueueSize() != 0)
-        {
-            /// wait commit queue empty
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            if (++wait_times % 1000 == 0)
-            {
-                LOG_WARNING(log, "Wait commit queue to empty");
-            }
-        }
-
-        Stopwatch stopwatch;
-        in_snapshot = true;
-
-        LOG_WARNING(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
-
         create_snapshot(s, store.zxid, store.session_id_counter);
         ptr<std::exception> except(nullptr);
         bool ret = true;
@@ -462,7 +467,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         auto t2 = Poco::Timestamp().epochMicroseconds();
         auto snap_copy = snapshot::deserialize(*snp_buf);
         auto t3 = Poco::Timestamp().epochMicroseconds();
-        snap_task = std::make_shared<SnapTask>(snap_copy, store.zxid, store.session_id_counter, when_done);
+        snap_task = std::make_shared<SnapTask>(snap_copy, store, when_done);
         auto t4 = Poco::Timestamp().epochMicroseconds();
         LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2 - t1), (t3 - t2), (t4 - t3));
     }
@@ -472,6 +477,13 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_
 {
     std::lock_guard<std::mutex> lock(snapshot_mutex);
     snap_mgr->createSnapshot(s, store, next_zxid, next_session_id);
+    snap_mgr->removeSnapshots();
+}
+
+void NuRaftStateMachine::create_snapshot_async(SnapTask & s)
+{
+    std::lock_guard<std::mutex> lock(snapshot_mutex);
+    snap_mgr->createSnapshotAsync(s);
     snap_mgr->removeSnapshots();
 }
 

@@ -3,6 +3,8 @@
         <my_id>2</my_id>
         <host>node2</host>
         <snapshot_create_interval>86400</snapshot_create_interval>
+        <log_dir>/var/lib/raftkeeper/data/raft_log</log_dir>
+        <snapshot_dir>/var/lib/raftkeeper/data/raft_snapshot</snapshot_dir>
         <forwarding_port>8102</forwarding_port>
         <port>8101</port>
         <internal_port>8103</internal_port>
@@ -14,6 +16,7 @@
             <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>10</snapshot_distance>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
+            <async_snapshot>false</async_snapshot>
         </raft_settings>
 
         <cluster>

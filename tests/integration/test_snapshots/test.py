@@ -8,8 +8,6 @@ from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients
 
 cluster = RaftKeeperCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True)
-
 
 def random_string(length):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
@@ -30,7 +28,14 @@ def started_cluster():
         cluster.shutdown()
 
 
-def test_state_after_restart(started_cluster):
+@pytest.mark.parametrize(
+    'node',
+    [
+        cluster.add_instance('node1', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node2', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+    ]
+)
+def test_state_after_restart(started_cluster, node):
     node_zk = node_zk2 = None
     try:
         node_zk = node.get_fake_zk()
@@ -67,8 +72,14 @@ def test_state_after_restart(started_cluster):
     finally:
         close_zk_clients([node_zk, node_zk2])
 
-
-def test_ephemeral_after_restart(started_cluster):
+@pytest.mark.parametrize(
+    'node',
+    [
+        cluster.add_instance('node3', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node4', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+    ]
+)
+def test_ephemeral_after_restart(started_cluster, node):
     node_zk = node_zk2 = None
     try:
         node_zk = node.get_fake_zk()

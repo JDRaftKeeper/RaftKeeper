@@ -3,11 +3,28 @@ import pytest
 
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients
+from multiprocessing.dummy import Pool
 
 cluster = RaftKeeperCluster(__file__)
 node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml'], stay_alive=True)
 node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'], stay_alive=True)
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'], stay_alive=True)
+
+
+def start_raftkeeper(node):
+    node.start_raftkeeper(60)
+    node.wait_for_join_cluster()
+
+def set_async_snapshot_true():
+    for index, node in [(1, node1), (2, node2), (3, node3)]:
+        node.stop_raftkeeper()
+        node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_keeper{index}.xml', '<async_snapshot>false', '<async_snapshot>true')
+        node.exec_in_container(
+            ['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
+
+    p = Pool(3)
+    result = p.map_async(start_raftkeeper, [node1, node2, node3])
+    result.wait()
 
 
 @pytest.fixture(scope="module")
@@ -19,9 +36,13 @@ def started_cluster():
         cluster.shutdown()
 
 
-def test_restart_multinode(started_cluster):
+@pytest.mark.parametrize('async_snapshot', [False, True])
+def test_restart_multinode(started_cluster, async_snapshot):
     node1_zk = node2_zk = node3_zk = None
     try:
+        if async_snapshot:
+            set_async_snapshot_true()
+
         node1_zk = node1.get_fake_zk()
         node2_zk = node2.get_fake_zk()
         node3_zk = node3.get_fake_zk()

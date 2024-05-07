@@ -31,6 +31,9 @@ static constexpr UInt32 MAX_OBJECT_NODE_SIZE = 1000000;
 /// 100M Count / 10K = 10K
 static constexpr UInt32 SAVE_BATCH_SIZE = 10000;
 
+using NumToACLMap = std::unordered_map<uint64_t, Coordination::ACLs>;
+using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
+using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
 using StringMap = std::unordered_map<String, String>;
 using IntMap = std::unordered_map<String, int64_t>;
 using BucketEdges = KeeperStore::BucketEdges;
@@ -118,12 +121,12 @@ std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<Snapsh
 std::pair<size_t, UInt32>
 saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum);
 
-void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
+void serializeAclsV2(const NumToACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
 [[maybe_unused]] size_t
 serializeEphemeralsV2(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size);
 
 /// Serialize sessions and return the next_session_id before serialize
-int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, SnapshotVersion version, String & path);
+void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, const SnapshotVersion version, String & path);
 
 /// Save map<string, string> or map<string, uint64>
 template <typename T>

@@ -662,17 +662,20 @@ TEST(RaftSnapshot, parseSnapshot)
     sleep(1);
 }
 
-TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
+void createSnapshotWithFuzzyLog(bool async_snapshot)
 {
     auto * log = &(Poco::Logger::get("Test_RaftSnapshot"));
-    String snap_dir(SNAP_DIR + "/6");
-    String log_dir(LOG_DIR + "/6");
+    //    String snap_dir(SNAP_DIR + "/6");
+    //    String log_dir(LOG_DIR + "/6");
+    String snap_dir("/data1/home/lizhuoyu/data6/work/tmp_async_snap");
+    String log_dir("/data1/home/lizhuoyu/data6/work/tmp_async_log");
 
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
 
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
+    setting_ptr->async_snapshot = async_snapshot;
     ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
 
     std::mutex new_session_id_callback_mutex;
@@ -776,4 +779,10 @@ TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
 
     cleanDirectory(snap_dir);
     cleanDirectory(log_dir);
+}
+
+TEST(RaftSnapshot, createSnapshotWithFuzzyLog)
+{
+    createSnapshotWithFuzzyLog(true);
+    createSnapshotWithFuzzyLog(false);
 }
