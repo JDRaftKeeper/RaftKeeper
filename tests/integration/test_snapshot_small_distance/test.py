@@ -93,7 +93,15 @@ def get_genuine_zk(node, timeout=30.0):
     return _genuine_zk_instance
 
 
-def test_snapshot_and_load(started_cluster):
+def set_async_snapshot_true():
+    for index, node in [(1, node1), (2, node2), (3, node3)]:
+        node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_keeper{index}.xml', '<async_snapshot>false', '<async_snapshot>true')
+
+
+@pytest.mark.parametrize('async_snapshot', [False, True])
+def test_snapshot_and_load(started_cluster, async_snapshot):
+    if async_snapshot:
+        set_async_snapshot_true()
     restart_and_clear_zookeeper(node1)
     genuine_connection = get_genuine_zk(node1)
     for node in [node1, node2, node3]:

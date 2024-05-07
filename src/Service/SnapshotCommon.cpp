@@ -188,11 +188,10 @@ saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBo
     return {save_size, updateCheckSum(checksum, data_crc)};
 }
 
-void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version)
+void serializeAclsV2(const NumToACLMap & acl_map, String path, UInt32 save_batch_size, SnapshotVersion version)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
 
-    const auto & acl_map = acls.getMapping();
     LOG_INFO(log, "Begin create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
 
     auto out = openFileAndWriteHeader(path, version);
@@ -234,6 +233,7 @@ void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, Snapsho
     checksum = new_checksum;
 
     writeTailAndClose(out, checksum);
+    LOG_INFO(log, "Finish create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
 }
 
 [[maybe_unused]] size_t serializeEphemeralsV2(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size)
@@ -291,22 +291,18 @@ void serializeAclsV2(ACLMap & acls, String path, UInt32 save_batch_size, Snapsho
     return 1;
 }
 
-int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, const SnapshotVersion version, String & path)
+void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, const SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     auto out = openFileAndWriteHeader(path, version);
-    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", store.session_and_timeout.size(), path);
+    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", session_and_timeout.size(), path);
 
-    std::lock_guard lock(store.session_mutex);
-    std::lock_guard acl_lock(store.auth_mutex);
-
-    int64_t next_session_id = store.session_id_counter;
     ptr<SnapshotBatchBody> batch;
 
     uint64_t index = 0;
     UInt32 checksum = 0;
 
-    for (auto & session_it : store.session_and_timeout)
+    for (auto && session_it : session_and_timeout)
     {
         /// flush and rebuild batch
         if (index % save_batch_size == 0)
@@ -328,8 +324,8 @@ int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, const S
         Coordination::write(session_it.second, buf); //Timeout_ms
 
         Coordination::AuthIDs ids;
-        if (store.session_and_auth.count(session_it.first))
-            ids = store.session_and_auth.at(session_it.first);
+        if (session_and_auth.count(session_it.first))
+            ids = session_and_auth.at(session_it.first);
         Coordination::write(ids, buf);
 
         ptr<buffer> data = buf.getBuffer();
@@ -343,8 +339,6 @@ int64_t serializeSessionsV2(KeeperStore & store, UInt32 save_batch_size, const S
     auto [_, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum);
     checksum = new_checksum;
     writeTailAndClose(out, checksum);
-
-    return next_session_id;
 }
 
 template <typename T>

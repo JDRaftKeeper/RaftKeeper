@@ -18,7 +18,7 @@
         <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
         <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         <min_session_timeout_ms>1000</min_session_timeout_ms>
-        <async_snapshot>false</async_snapshot>
+        <async_snapshot>true</async_snapshot>
     </raft_settings>
 
     <cluster>

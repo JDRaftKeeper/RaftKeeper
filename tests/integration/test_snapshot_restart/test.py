@@ -3,6 +3,7 @@ import random
 
 import pytest
 from kazoo.client import KazooClient
+from multiprocessing.dummy import Pool
 
 from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients
@@ -78,7 +79,27 @@ def dump_states(zk1, d, path="/"):
         dump_states(zk1, d, os.path.join(path, children))
 
 
-def test_restart(started_cluster):
+def start_raftkeeper(node):
+    node.start_raftkeeper(60)
+    node.wait_for_join_cluster()
+
+
+def set_async_snapshot_true():
+    for index, node in [(1, node1), (2, node2), (3, node3)]:
+        node.stop_raftkeeper()
+        node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_service_keeper{index}.xml', '<async_snapshot>false', '<async_snapshot>true')
+        node.exec_in_container(
+            ['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
+
+    p = Pool(3)
+    result = p.map_async(start_raftkeeper, [node1, node2, node3])
+    result.wait()
+
+
+@pytest.mark.parametrize('async_snapshot', [False, True])
+def test_restart(started_cluster, async_snapshot):
+    if async_snapshot:
+        set_async_snapshot_true()
     fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
     try:
         fake_zks[0].create("/test_restart_node", b"hello")

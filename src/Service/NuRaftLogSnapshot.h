@@ -8,6 +8,42 @@ namespace RK
 using nuraft::snapshot;
 using nuraft::ulong;
 
+/// Asynchronously snapshot creating task.
+struct SnapTask
+{
+    ptr<snapshot> s;
+    int64_t next_zxid;
+    int64_t next_session_id;
+    int64_t nodes_count;
+    int64_t ephemeral_nodes_count;
+    int64_t session_count;
+    KeeperStore::SessionAndTimeout session_and_timeout;
+    std::unordered_map<uint64_t, Coordination::ACLs> acl_map;
+    KeeperStore::SessionAndAuth session_and_auth;
+    KeeperStore::BucketNodes buckets_nodes;
+    nuraft::async_result<bool>::handler_type when_done;
+
+    SnapTask(const ptr<snapshot> & s_, KeeperStore & store, nuraft::async_result<bool>::handler_type & when_done_)
+        : s(s_), next_zxid(store.zxid), next_session_id(store.session_id_counter), when_done(when_done_)
+    {
+        session_and_timeout = store.getSessionTimeOut();
+        session_count = session_and_timeout.size();
+        session_and_auth = store.getSessionAuth();
+
+        acl_map = store.acl_map.getMapping();
+
+        buckets_nodes = store.dumpDataTree();
+
+        for (auto && bucket : buckets_nodes)
+        {
+            LOG_DEBUG(&Poco::Logger::get("SnapTask"), "Get bucket size {}", bucket.size());
+        }
+
+        nodes_count = store.getNodesCount();
+        ephemeral_nodes_count = store.getTotalEphemeralNodesCount();
+    }
+};
+
 /**
  * Operate a snapshot, when the current snapshot is down, we should renew a store.
  *
@@ -54,6 +90,8 @@ public:
     /// Create snapshot object, return the size of objects
     size_t createObjects(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
+    size_t createObjects(SnapTask & snap_task);
+
     /// initialize a snapshot store
     void init(String create_time);
 
@@ -98,6 +136,9 @@ private:
     /// For snapshot version v3
     size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
+    /// For create snapshot async
+    size_t createObjectsV2(SnapTask & snap_task);
+
     /// get path of an object
     void getObjectPath(ulong object_id, String & path);
 
@@ -114,6 +155,8 @@ private:
     /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
 
+    size_t serializeDataTreeV2(SnapTask & snap_task);
+
     /// For snapshot version v3
     void serializeNodeV2(
         ptr<WriteBufferFromFile> & out,
@@ -122,6 +165,12 @@ private:
         const String & path,
         uint64_t & processed,
         uint32_t & checksum);
+
+    /// For async snapshot version v3
+    uint32_t serializeNodeV2(
+        ptr<WriteBufferFromFile> & out,
+        ptr<SnapshotBatchBody> & batch,
+        BucketNodes & nodes);
 
     /// Append node to batch version v2
     inline static void
@@ -177,6 +226,10 @@ public:
     }
 
     ~KeeperSnapshotManager() = default;
+
+    size_t createSnapshotAsync(
+        SnapTask & snap_task,
+        SnapshotVersion version = CURRENT_SNAPSHOT_VERSION);
 
     size_t createSnapshot(
         snapshot & meta,

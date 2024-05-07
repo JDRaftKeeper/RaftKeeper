@@ -96,6 +96,9 @@ public:
     /// sync create snapshot
     void create_snapshot(snapshot & s, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
+    /// async create snapshot
+    void create_snapshot_async(SnapTask &);
+
     /**
      * (Deprecated)
      * Read the given snapshot chunk.
@@ -351,19 +354,6 @@ private:
     std::atomic_bool in_snapshot = false;
 
     ThreadFromGlobalPool snap_thread;
-
-    /// Asynchronously snapshot creating task.
-    struct SnapTask
-    {
-        ptr<snapshot> s;
-        int64_t next_zxid;
-        int64_t next_session_id;
-        async_result<bool>::handler_type when_done;
-        SnapTask(const ptr<snapshot> & s_, int64_t next_zxid_, int64_t next_session_id_, async_result<bool>::handler_type & when_done_)
-        : s(s_), next_zxid(next_zxid_), next_session_id(next_session_id_), when_done(when_done_)
-        {
-        }
-    };
 
     std::shared_ptr<SnapTask> snap_task;
     std::atomic<bool> shutdown_called{false};

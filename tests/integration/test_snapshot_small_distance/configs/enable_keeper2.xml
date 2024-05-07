@@ -16,6 +16,7 @@
             <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>75</snapshot_distance>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
+            <async_snapshot>false</async_snapshot>
         </raft_settings>
 
         <cluster>
