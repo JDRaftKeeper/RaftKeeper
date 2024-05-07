@@ -352,6 +352,7 @@ private:
 
     /// whether a snapshot creating is in progress.
     std::atomic_bool in_snapshot = false;
+    std::atomic_bool snap_task_ready{false};
 
     ThreadFromGlobalPool snap_thread;
 
