@@ -1903,7 +1903,7 @@ std::shared_ptr<KeeperStore::BucketNodes> KeeperStore::dumpDataTree()
                     if (bucket_idx % MAP_BUCKET_NUM != thread_idx)
                         continue;
                     LOG_INFO(log, "Dump datatree index {}", bucket_idx);
-                    auto bucket = this->container.getMap(bucket_idx).getMap();
+                    auto && bucket = this->container.getMap(bucket_idx).getMap();
                     (*result)[bucket_idx].reserve(bucket.size());
                     size_t key_size = 0;
                     for (auto && [path, node] : bucket)
