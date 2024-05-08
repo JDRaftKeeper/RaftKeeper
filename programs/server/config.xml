@@ -89,6 +89,9 @@
             <!-- Keeper will keep at least this log item, default 1_000_000. -->
             <!-- <reserved_log_items>1000000</reserved_log_items> -->
 
+            <!-- Create snapshot mode, default is async, disable it with set to false. -->
+            <!-- <async_snapshot>true</async_snapshot> -->
+
             <!-- Create snapshot in this log size, default is 3_000_000. -->
             <!-- <snapshot_distance>3000000</snapshot_distance> -->
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Service/SnapshotCommon.h>
+#include <Common/Stopwatch.h>
 
 
 namespace RK
@@ -20,23 +21,25 @@ struct SnapTask
     KeeperStore::SessionAndTimeout session_and_timeout;
     std::unordered_map<uint64_t, Coordination::ACLs> acl_map;
     KeeperStore::SessionAndAuth session_and_auth;
-    KeeperStore::BucketNodes buckets_nodes;
+    std::shared_ptr<KeeperStore::BucketNodes> buckets_nodes;
     nuraft::async_result<bool>::handler_type when_done;
 
     SnapTask(const ptr<snapshot> & s_, KeeperStore & store, nuraft::async_result<bool>::handler_type & when_done_)
         : s(s_), next_zxid(store.zxid), next_session_id(store.session_id_counter), when_done(when_done_)
     {
+        auto log = &Poco::Logger::get("SnapTask");
         session_and_timeout = store.getSessionTimeOut();
         session_count = session_and_timeout.size();
         session_and_auth = store.getSessionAuth();
 
         acl_map = store.acl_map.getMapping();
-
+        Stopwatch watch;
         buckets_nodes = store.dumpDataTree();
+        LOG_INFO(log, "Dump dataTree costs {}ms", watch.elapsedMilliseconds());
 
-        for (auto && bucket : buckets_nodes)
+        for (auto && bucket : *buckets_nodes)
         {
-            LOG_DEBUG(&Poco::Logger::get("SnapTask"), "Get bucket size {}", bucket.size());
+            LOG_DEBUG(log, "Get bucket size {}", bucket.size());
         }
 
         nodes_count = store.getNodesCount();
@@ -90,7 +93,8 @@ public:
     /// Create snapshot object, return the size of objects
     size_t createObjects(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
-    size_t createObjects(SnapTask & snap_task);
+    /// Create async snapshot object by snap_task, return the size of objects
+    size_t createObjectsAsync(SnapTask & snap_task);
 
     /// initialize a snapshot store
     void init(String create_time);
@@ -133,11 +137,11 @@ public:
     SnapshotVersion version;
 
 private:
-    /// For snapshot version v3
+    /// For snapshot version v2
     size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
     /// For create snapshot async
-    size_t createObjectsV2(SnapTask & snap_task);
+    size_t createObjectsAsyncImpl(SnapTask & snap_task);
 
     /// get path of an object
     void getObjectPath(ulong object_id, String & path);
@@ -155,9 +159,10 @@ private:
     /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
 
-    size_t serializeDataTreeV2(SnapTask & snap_task);
+    /// For async snapshot
+    size_t serializeDataTreeAsync(SnapTask & snap_task);
 
-    /// For snapshot version v3
+    /// For snapshot version v2
     void serializeNodeV2(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchBody> & batch,
@@ -166,8 +171,8 @@ private:
         uint64_t & processed,
         uint32_t & checksum);
 
-    /// For async snapshot version v3
-    uint32_t serializeNodeV2(
+    /// For async snapshot
+    uint32_t serializeNodeAsync(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchBody> & batch,
         BucketNodes & nodes);

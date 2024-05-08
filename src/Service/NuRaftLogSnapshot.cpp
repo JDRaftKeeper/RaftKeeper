@@ -70,12 +70,12 @@ size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
     return getObjectIdx(out->getFileName());
 }
 
-size_t KeeperSnapshotStore::serializeDataTreeV2(SnapTask & snap_task)
+size_t KeeperSnapshotStore::serializeDataTreeAsync(SnapTask & snap_task)
 {
     std::shared_ptr<WriteBufferFromFile> out;
     ptr<SnapshotBatchBody> batch;
 
-    auto checksum = serializeNodeV2(out, batch, snap_task.buckets_nodes);
+    auto checksum = serializeNodeAsync(out, batch, *snap_task.buckets_nodes);
     auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum);
     checksum = new_checksum;
 
@@ -154,7 +154,7 @@ void KeeperSnapshotStore::serializeNodeV2(
         serializeNodeV2(out, batch, store, path_with_slash + child, processed, checksum);
 }
 
-uint32_t KeeperSnapshotStore::serializeNodeV2(
+uint32_t KeeperSnapshotStore::serializeNodeAsync(
     ptr<WriteBufferFromFile> & out,
     ptr<SnapshotBatchBody> & batch,
     BucketNodes & bucket_nodes)
@@ -243,9 +243,9 @@ size_t KeeperSnapshotStore::createObjects(KeeperStore & store, int64_t next_zxid
     return createObjectsV2(store, next_zxid, next_session_id);
 }
 
-size_t KeeperSnapshotStore::createObjects(SnapTask & snap_task)
+size_t KeeperSnapshotStore::createObjectsAsync(SnapTask & snap_task)
 {
-    return createObjectsV2(snap_task);
+    return createObjectsAsyncImpl(snap_task);
 }
 
 
@@ -326,7 +326,7 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
 }
 
 
-size_t KeeperSnapshotStore::createObjectsV2(SnapTask & snap_task)
+size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
 {
     if (snap_meta->size() == 0)
     {
@@ -380,7 +380,7 @@ size_t KeeperSnapshotStore::createObjectsV2(SnapTask & snap_task)
     serializeAclsV2(snap_task.acl_map, acl_path, save_batch_size, version);
 
     /// 4. Save data tree
-    size_t last_id = serializeDataTreeV2(snap_task);
+    size_t last_id = serializeDataTreeAsync(snap_task);
 
     total_obj_count = last_id;
     LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
@@ -757,7 +757,7 @@ size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, Snapshot
         snap_task.session_count,
         snap_task.next_session_id,
         snap_task.next_zxid);
-    size_t obj_size = snap_store->createObjects(snap_task);
+    size_t obj_size = snap_store->createObjectsAsync(snap_task);
     snapshots[meta->get_last_log_idx()] = snap_store;
     return obj_size;
 }

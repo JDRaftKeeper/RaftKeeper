@@ -54,7 +54,7 @@ struct KeeperNode
         return node;
     }
 
-    std::shared_ptr<KeeperNode> cloneForSnapshot() const
+    std::shared_ptr<KeeperNode> cloneWithoutChildren() const
     {
         auto node = std::make_shared<KeeperNode>();
         node->data = data;
@@ -419,37 +419,7 @@ public:
     /// clear whole store and set to initial state.
     void reset();
 
-    BucketNodes dumpDataTree()
-    {
-        auto result = BucketNodes();
-        ThreadPool object_thread_pool(MAP_BUCKET_NUM);
-        for (UInt32 thread_idx = 0; thread_idx < MAP_BUCKET_NUM; thread_idx++)
-        {
-            object_thread_pool.trySchedule(
-                [thread_idx, this, &result]
-                {
-                    for (UInt32 bucket_idx = 0; bucket_idx < MAP_BUCKET_NUM; bucket_idx++)
-                    {
-                        if (bucket_idx % MAP_BUCKET_NUM != thread_idx)
-                            continue;
-                        LOG_WARNING(log, "Dump datatree index {}", bucket_idx);
-                        auto bucket = this->container.getMap(bucket_idx).getMap();
-                        result[bucket_idx].reserve(bucket.size());
-                        size_t key_size = 0;
-                        for (auto && [path, node] : bucket)
-                        {
-                            key_size += path.size();
-                            result[bucket_idx].emplace_back(path, node->cloneForSnapshot());
-                        }
-                        LOG_WARNING(log, "Dump datatree done index {}, key_size {}, result size {}", bucket_idx, key_size, result[bucket_idx].size());
-                    }
-                });
-        }
-
-
-        object_thread_pool.wait();
-        return result;
-    }
+    std::shared_ptr<BucketNodes> dumpDataTree();
 
 private:
     int64_t fetchAndGetZxid() { return zxid++; }

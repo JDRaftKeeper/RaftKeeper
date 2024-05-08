@@ -90,7 +90,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         max_batch_size = config.getUInt(get_key("max_batch_size"), 1000);
         log_fsync_mode = FsyncModeNS::parseFsyncMode(config.getString(get_key("log_fsync_mode"), "fsync_parallel"));
         log_fsync_interval = config.getUInt(get_key("log_fsync_interval"), 1000);
-        async_snapshot = config.getBool(get_key("async_snapshot"), false);
+        async_snapshot = config.getBool(get_key("async_snapshot"), true);
     }
     catch (Exception & e)
     {
@@ -125,7 +125,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->max_batch_size = 1000;
     settings->log_fsync_interval = 1000;
     settings->log_fsync_mode = FsyncMode::FSYNC_PARALLEL;
-    settings->async_snapshot = false;
+    settings->async_snapshot = true;
 
     return settings;
 }
