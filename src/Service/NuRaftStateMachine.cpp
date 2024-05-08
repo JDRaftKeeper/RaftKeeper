@@ -452,20 +452,17 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         last_snapshot_time = Poco::Timestamp().epochMicroseconds();
         in_snapshot = false;
 
-        LOG_INFO(log, "Created snapshot, time cost {} ms", stopwatch.elapsedMilliseconds());
+        LOG_INFO(log, "Created snapshot, time cost {} us", stopwatch.elapsedMicroseconds());
     }
     else
     {
         /// Need make a copy of s
-        auto t1 = Poco::Timestamp().epochMicroseconds();
         ptr<buffer> snp_buf = s.serialize();
-        auto t2 = Poco::Timestamp().epochMicroseconds();
         auto snap_copy = snapshot::deserialize(*snp_buf);
-        auto t3 = Poco::Timestamp().epochMicroseconds();
         snap_task = std::make_shared<SnapTask>(snap_copy, store, when_done);
-        auto t4 = Poco::Timestamp().epochMicroseconds();
         snap_task_ready = true;
-        LOG_INFO(log, "Async create snapshot time cost {}us, {}us, {}us", (t2 - t1), (t3 - t2), (t4 - t3));
+
+        LOG_INFO(log, "Scheduling asynchronous creating snapshot task, time cost {} us", stopwatch.elapsedMicroseconds());
     }
 }
 
