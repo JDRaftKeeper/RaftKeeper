@@ -28,7 +28,7 @@ struct SnapTask
     SnapTask(const ptr<snapshot> & s_, KeeperStore & store, nuraft::async_result<bool>::handler_type & when_done_)
         : s(s_), next_zxid(store.zxid), next_session_id(store.session_id_counter), when_done(when_done_)
     {
-        auto log = &Poco::Logger::get("SnapTask");
+        auto * log = &Poco::Logger::get("SnapTask");
         session_and_timeout = store.getSessionTimeOut();
         session_count = session_and_timeout.size();
         session_and_auth = store.getSessionAuth();
@@ -36,7 +36,7 @@ struct SnapTask
         acl_map = store.acl_map.getMapping();
         Stopwatch watch;
         buckets_nodes = store.dumpDataTree();
-        LOG_INFO(log, "Dump dataTree costs {}ms", watch.elapsedMilliseconds());
+        LOG_INFO(log, "Dumping data tree costs {}ms", watch.elapsedMilliseconds());
         Metrics::getMetrics().snap_blocking_time_ms->add(watch.elapsedMilliseconds());
 
         for (auto && bucket : *buckets_nodes)

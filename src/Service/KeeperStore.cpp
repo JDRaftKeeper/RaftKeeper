@@ -1902,16 +1902,35 @@ std::shared_ptr<KeeperStore::BucketNodes> KeeperStore::dumpDataTree()
                 {
                     if (bucket_idx % MAP_BUCKET_NUM != thread_idx)
                         continue;
-                    LOG_INFO(log, "Dump datatree index {}", bucket_idx);
+
+                    LOG_INFO(log, "Dump data tree for bucket {}", bucket_idx);
+
                     auto && bucket = this->container.getMap(bucket_idx).getMap();
-                    (*result)[bucket_idx].reserve(bucket.size());
+                    auto & bucket_in_result = (*result)[bucket_idx];
+                    bucket_in_result.reserve(bucket.size());
+
                     size_t key_size = 0;
-                    for (auto && [path, node] : bucket)
+                    for (auto it = bucket.begin(); it != bucket.end(); ++it)
                     {
-                        key_size += path.size();
-                        (*result)[bucket_idx].emplace_back(path, node->cloneWithoutChildren());
+                        auto data_size = it->first.size();
+                        key_size += data_size;
+
+                        String path_copied;
+                        path_copied.reserve(data_size);
+                        memcopy(path_copied.data(), it->first.data(), data_size);
+                        path_copied.resize(data_size);
+
+                        bucket_in_result.emplace_back(std::move(path_copied), it->second->cloneWithoutChildren());
+
+                        /// Prefetch the next element, may slightly improve performance in this case.
+                        auto next_it = std::next(it);
+                        if (likely(next_it != bucket.end()))
+                        {
+                            __builtin_prefetch(next_it->first.data(), 0, 3);
+                            __builtin_prefetch(next_it->second.get(), 0, 3);
+                        }
                     }
-                    LOG_INFO(log, "Dump datatree done index {}, key_size {}, result size {}", bucket_idx, key_size, (*result)[bucket_idx].size());
+                    LOG_INFO(log, "Dump data tree for bucket {} done, key_size {}, result size {}", bucket_idx, key_size, (*result)[bucket_idx].size());
                 }
             });
     }

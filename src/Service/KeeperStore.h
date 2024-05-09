@@ -6,6 +6,7 @@
 #include <vector>
 #include <Service/ACLMap.h>
 #include <Service/SessionExpiryQueue.h>
+#include <Service/memcopy.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/KeeperCommon.h>
 #include <Service/formatHex.h>
@@ -40,12 +41,15 @@ struct KeeperNode
     bool is_sequential = false;
 
     Coordination::Stat stat{};
-    ChildrenSet children{};
+    ChildrenSet children;
 
     std::shared_ptr<KeeperNode> clone() const
     {
         auto node = std::make_shared<KeeperNode>();
-        node->data = data;
+        auto data_size = data.size();
+        node->data.reserve(data_size);
+        memcopy(node->data.data(), data.data(), data_size);
+        node->data.resize(data_size);
         node->acl_id = acl_id;
         node->is_ephemeral = is_ephemeral;
         node->is_sequential = is_sequential;
@@ -57,7 +61,10 @@ struct KeeperNode
     std::shared_ptr<KeeperNode> cloneWithoutChildren() const
     {
         auto node = std::make_shared<KeeperNode>();
-        node->data = data;
+        auto data_size = data.size();
+        node->data.reserve(data_size);
+        memcopy(node->data.data(), data.data(), data_size);
+        node->data.resize(data_size);
         node->acl_id = acl_id;
         node->is_ephemeral = is_ephemeral;
         node->is_sequential = is_sequential;
