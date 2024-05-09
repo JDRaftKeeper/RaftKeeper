@@ -84,8 +84,8 @@ void LastCommittedIndexManager::persistThread()
                         auto now
                             = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
                                   .count();
-                        return !previous_persist_index || last_committed_index >= previous_persist_index + BATCH_COUNT
-                            || now - previous_persist_time > PERSIST_INTERVAL_US;
+                        return last_committed_index >= previous_persist_index + BATCH_COUNT
+                            || (previous_persist_time && now - previous_persist_time > PERSIST_INTERVAL_US);
                     }))
                 break;
         }
