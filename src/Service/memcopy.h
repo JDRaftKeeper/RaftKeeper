@@ -31,8 +31,7 @@ inline void memcopy(char * __restrict dst, const char * __restrict src, size_t n
         /// Avoid clang loop-idiom optimization, which transforms _mm_storeu_si128 to built-in memcpy
         __asm__ __volatile__("" : : : "memory");
     }
-    if (left > 0)
-        ::memcpy(dst, src, left);
+    ::memcpy(dst, src, left);
 }
 
 #elif defined(__aarch64__) && defined(__ARM_NEON)
@@ -49,8 +48,7 @@ inline void memcopy(char * __restrict dst, const char * __restrict src, size_t n
         src += 16;
         aligned_n -= 16;
     }
-    if (left > 0)
-        ::memcpy(dst, src, left);
+    ::memcpy(dst, src, left);
 }
 
 #else

@@ -47,9 +47,8 @@ struct KeeperNode
     {
         auto node = std::make_shared<KeeperNode>();
         auto data_size = data.size();
-        node->data.reserve(data_size);
-        memcopy(node->data.data(), data.data(), data_size);
         node->data.resize(data_size);
+        memcopy(node->data.data(), data.data(), data_size);
         node->acl_id = acl_id;
         node->is_ephemeral = is_ephemeral;
         node->is_sequential = is_sequential;
@@ -62,9 +61,8 @@ struct KeeperNode
     {
         auto node = std::make_shared<KeeperNode>();
         auto data_size = data.size();
-        node->data.reserve(data_size);
-        memcopy(node->data.data(), data.data(), data_size);
         node->data.resize(data_size);
+        memcopy(node->data.data(), data.data(), data_size);
         node->acl_id = acl_id;
         node->is_ephemeral = is_ephemeral;
         node->is_sequential = is_sequential;

@@ -1916,9 +1916,8 @@ std::shared_ptr<KeeperStore::BucketNodes> KeeperStore::dumpDataTree()
                         key_size += data_size;
 
                         String path_copied;
-                        path_copied.reserve(data_size);
-                        memcopy(path_copied.data(), it->first.data(), data_size);
                         path_copied.resize(data_size);
+                        memcopy(path_copied.data(), it->first.data(), data_size);
 
                         bucket_in_result.emplace_back(std::move(path_copied), it->second->cloneWithoutChildren());
 
