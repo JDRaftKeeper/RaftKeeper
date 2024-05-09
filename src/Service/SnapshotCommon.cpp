@@ -247,7 +247,7 @@ void serializeAclsV2(const NumToACLMap & acl_map, String path, UInt32 save_batch
 
     if (ephemerals.empty())
     {
-        LOG_INFO(log, "Create snapshot ephemeral nodes size is 0");
+        LOG_INFO(log, "Ephemeral nodes size is 0");
         return 0;
     }
 

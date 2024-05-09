@@ -170,7 +170,7 @@ void NuRaftStateMachine::snapThread()
             last_snapshot_time = Poco::Timestamp().epochMicroseconds();
             in_snapshot = false;
 
-            LOG_INFO(log, "Create snapshot time cost {} ms", Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
+            LOG_INFO(log, "Snapshot created time cost {} ms", Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }

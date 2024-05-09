@@ -121,7 +121,7 @@ void KeeperSnapshotStore::serializeNodeV2(
         /// for there are 4 objects before data objects
         getObjectPath(obj_id + 4, new_obj_path);
 
-        LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 4, new_obj_path);
+        LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + 4, new_obj_path);
         out = openFileAndWriteHeader(new_obj_path, version);
     }
 
@@ -185,7 +185,7 @@ uint32_t KeeperSnapshotStore::serializeNodeAsync(
                 /// for there are 4 objects before data objects
                 getObjectPath(obj_id + 4, new_obj_path);
 
-                LOG_INFO(log, "Create new snapshot object {}, path {}", obj_id + 4, new_obj_path);
+                LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + 4, new_obj_path);
                 out = openFileAndWriteHeader(new_obj_path, version);
             }
 
@@ -747,7 +747,7 @@ size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, Snapshot
     snap_store->init();
     LOG_INFO(
         log,
-        "Create snapshot last_log_term {}, last_log_idx {}, size {}, nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, "
+        "Creating snapshot with last_log_term {}, last_log_idx {}, size {}, nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, "
         "zxid {}",
         meta->get_last_log_term(),
         meta->get_last_log_idx(),
@@ -771,7 +771,7 @@ size_t KeeperSnapshotManager::createSnapshot(
     snap_store->init();
     LOG_INFO(
         log,
-        "Create snapshot last_log_term {}, last_log_idx {}, size {}, nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, "
+        "Creating snapshot with last_log_term {}, last_log_idx {}, size {}, nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, "
         "zxid {}",
         meta.get_last_log_term(),
         meta.get_last_log_idx(),
