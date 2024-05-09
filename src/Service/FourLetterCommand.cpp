@@ -258,8 +258,6 @@ String MonitorCommand::run()
     print(ret, "watch_count", state_machine.getTotalWatchesCount());
     print(ret, "ephemerals_count", state_machine.getTotalEphemeralNodesCount());
     print(ret, "approximate_data_size", state_machine.getApproximateDataSize());
-    print(ret, "snap_count", state_machine.getSnapshotCount());
-    print(ret, "snap_time_ms", state_machine.getSnapshotTimeMs());
     print(ret, "in_snapshot", state_machine.getSnapshoting());
 
 #if defined(__linux__) || defined(__APPLE__)

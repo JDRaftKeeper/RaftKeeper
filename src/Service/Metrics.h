@@ -62,55 +62,47 @@ public:
 enum SummaryLevel
 {
     /**
-         * The returned Summary is expected to track only simple aggregated
-         * values, like min/max/avg
-         */
-    BASIC,
+     * The returned Summary is expected to track only sum of values
+     */
+     SIMPLE,
+
     /**
-         * It is expected that the returned Summary performs expensive
-         * aggregations, like percentiles.
-         */
+     * The returned Summary is expected to track only simple aggregated
+     * values, like min/max/avg
+     */
+    BASIC,
+
+    /**
+     * It is expected that the returned Summary performs expensive
+     * aggregations, like percentiles.
+     */
     ADVANCED
 };
 
 
-class AdvanceSummary : public Summary
+class SimpleSummary : public Summary
 {
 public:
-    AdvanceSummary(const String & name_): name(name_)
+    explicit SimpleSummary(const String & name_): name(name_)
     {
     }
-
-    void reset() override
-    {
-        count.store(0);
-        sum.store(0);
-        reservoir_sampler.reset();
-    }
-
-    void add(UInt64 value) override
-    {
-        count ++;
-        sum += value;
-        reservoir_sampler.update(value);
-    }
-
-    static double getValue(const std::vector<UInt64>& numbers, double quantile);
 
     Strings values() const override;
 
+    void add(RK::UInt64 value) override { sum += value; }
+    UInt64 getSum() const { return sum.load(); }
+
+    void reset() override { sum.store(0); }
+
 private:
     String name;
-    ReservoirSampler reservoir_sampler;
-    std::atomic<UInt64> count{0};
     std::atomic<UInt64> sum{0};
 };
-
 
 class BasicSummary : public Summary
 {
 public:
-    BasicSummary(const String & name_): name(name_)
+    explicit BasicSummary(const String & name_): name(name_)
     {
     }
 
@@ -148,6 +140,38 @@ private:
     std::atomic<UInt64> max{0};
 };
 
+class AdvanceSummary : public Summary
+{
+public:
+    explicit AdvanceSummary(const String & name_): name(name_)
+    {
+    }
+
+    void reset() override
+    {
+        count.store(0);
+        sum.store(0);
+        reservoir_sampler.reset();
+    }
+
+    void add(UInt64 value) override
+    {
+        count ++;
+        sum += value;
+        reservoir_sampler.update(value);
+    }
+
+    static double getValue(const std::vector<UInt64>& numbers, double quantile);
+
+    Strings values() const override;
+
+private:
+    String name;
+    ReservoirSampler reservoir_sampler;
+    std::atomic<UInt64> count{0};
+    std::atomic<UInt64> sum{0};
+};
+
 /** Implements Summary Metrics for RK.
   * There is possible race-condition, but we don't need the stats to be extremely accurate.
   */
@@ -156,7 +180,7 @@ class Metrics
 public:
     using SummaryPtr = std::shared_ptr<Summary>;
 
-    static Metrics& getMetrics()
+    static Metrics & getMetrics()
     {
         static Metrics metrics;
         return metrics;
@@ -176,10 +200,13 @@ public:
     SummaryPtr apply_read_request_time_ms;
     SummaryPtr read_latency;
     SummaryPtr update_latency;
+    SummaryPtr snap_time_ms;
+    SummaryPtr snap_blocking_time_ms;
+    SummaryPtr snap_count;
 
 private:
     Metrics();
-    SummaryPtr getSummary(const String & name, SummaryLevel detailLevel);
+    SummaryPtr getSummary(const String & name, SummaryLevel level);
 
     std::map<String, SummaryPtr> summaries;
 };

@@ -17,6 +17,7 @@ node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'
 node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
                              stay_alive=True)
 
+simple_metrics = ["snap_time_ms", "snap_blocking_time_ms", "snap_count"]
 basic_metrics = ["log_replication_batch_size"]
 advance_metrics = ["apply_read_request_time_ms", "apply_write_request_time_ms", "push_request_queue_time_ms", "readlatency", "updatelatency", ]
 
@@ -193,6 +194,9 @@ def test_cmd_mntr(started_cluster):
         # contains 31 user request response and some responses for server startup
         assert int(result["zk_packets_sent"]) >= 31
         assert int(result["zk_packets_received"]) >= 31
+
+        for metric in simple_metrics:
+            assert (f'zk_{metric}' in result)
 
         for metric in basic_metrics:
             assert (f'zk_avg_{metric}' in result)

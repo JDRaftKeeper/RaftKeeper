@@ -271,18 +271,6 @@ public:
     /// and follower only contains local session.
     bool containsSession(int64_t session_id) const;
 
-    /// how many snapshot created in process life time.
-    uint64_t getSnapshotCount() const
-    {
-        return snap_count;
-    }
-
-    /// how many times cost byt snapshot creating in process life time.
-    uint64_t getSnapshotTimeMs() const
-    {
-        return snap_time_ms;
-    }
-
     /// whether a snapshot creating is in progress.
     bool getSnapshoting() const
     {
@@ -344,15 +332,10 @@ private:
     /// When get a not exist node, return blank.
     KeeperNode default_node;
 
-    /// how many snapshot created in process life time.
-    std::atomic_int64_t snap_count{0};
-
-    /// how many times cost byt snapshot creating in process life time.
-    std::atomic_int64_t snap_time_ms{0};
-
     /// whether a snapshot creating is in progress.
     std::atomic_bool in_snapshot = false;
     std::atomic_bool snap_task_ready{false};
+    std::atomic_uint64_t snap_start_time;
 
     ThreadFromGlobalPool snap_thread;
 

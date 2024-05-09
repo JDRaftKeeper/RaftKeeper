@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Service/SnapshotCommon.h>
+#include <Service/Metrics.h>
 #include <Common/Stopwatch.h>
 
 
@@ -36,6 +37,7 @@ struct SnapTask
         Stopwatch watch;
         buckets_nodes = store.dumpDataTree();
         LOG_INFO(log, "Dump dataTree costs {}ms", watch.elapsedMilliseconds());
+        Metrics::getMetrics().snap_blocking_time_ms->add(watch.elapsedMilliseconds());
 
         for (auto && bucket : *buckets_nodes)
         {
