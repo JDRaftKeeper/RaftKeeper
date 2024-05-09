@@ -80,6 +80,13 @@ Strings AdvanceSummary::values() const
     return results;
 }
 
+Strings SimpleSummary::values() const
+{
+    Strings results;
+    results.emplace_back(fmt::format("zk_{}\t{}", name, sum.load()));
+    return results;
+}
+
 void BasicSummary::add(RK::UInt64 value)
 {
     UInt64 current;
@@ -117,9 +124,13 @@ Metrics::Metrics()
     apply_read_request_time_ms = getSummary("apply_read_request_time_ms", SummaryLevel::ADVANCED);
     read_latency = getSummary("readlatency", SummaryLevel::ADVANCED);
     update_latency = getSummary("updatelatency", SummaryLevel::ADVANCED);
+
+    snap_time_ms = getSummary("snap_time_ms", SummaryLevel::SIMPLE);
+    snap_blocking_time_ms = getSummary("snap_blocking_time_ms", SummaryLevel::SIMPLE);
+    snap_count = getSummary("snap_count", SummaryLevel::SIMPLE);
 }
 
-SummaryPtr Metrics::getSummary(const RK::String & name, RK::SummaryLevel detailLevel)
+SummaryPtr Metrics::getSummary(const RK::String & name, RK::SummaryLevel level)
 {
     SummaryPtr summary;
 
@@ -127,7 +138,9 @@ SummaryPtr Metrics::getSummary(const RK::String & name, RK::SummaryLevel detailL
         throw Exception(
             ErrorCodes::BAD_ARGUMENTS, "Already registered summary {} ", name);
 
-    if (detailLevel == SummaryLevel::BASIC)
+    if (level == SummaryLevel::SIMPLE)
+        summary = std::make_shared<SimpleSummary>(name);
+    else if (level == SummaryLevel::BASIC)
         summary = std::make_shared<BasicSummary>(name);
     else
         summary =  std::make_shared<AdvanceSummary>(name);

@@ -149,7 +149,6 @@ void NuRaftStateMachine::snapThread()
     {
         if (snap_task_ready)
         {
-            Stopwatch stopwatch;
             auto current_task = std::move(snap_task);
             snap_task_ready = false;
 
@@ -165,15 +164,13 @@ void NuRaftStateMachine::snapThread()
 
             current_task->when_done(ret, except);
 
-            stopwatch.stop();
-
-            snap_count.fetch_add(1);
-            snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+            Metrics::getMetrics().snap_count->add(1);
+            Metrics::getMetrics().snap_time_ms->add(Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
 
             last_snapshot_time = Poco::Timestamp().epochMicroseconds();
             in_snapshot = false;
 
-            LOG_INFO(log, "Create snapshot time cost {} ms", stopwatch.elapsedMilliseconds());
+            LOG_INFO(log, "Create snapshot time cost {} ms", Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -432,8 +429,8 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         }
     }
 
-    Stopwatch stopwatch;
     in_snapshot = true;
+    snap_start_time = Poco::Timestamp().epochMicroseconds() / 1000;
 
     LOG_INFO(log, "Creating snapshot last_log_term {}, last_log_idx {}", s.get_last_log_term(), s.get_last_log_idx());
 
@@ -444,15 +441,13 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         bool ret = true;
         when_done(ret, except);
 
-        stopwatch.stop();
-
-        snap_count.fetch_add(1);
-        snap_time_ms.fetch_add(stopwatch.elapsedMilliseconds());
+        Metrics::getMetrics().snap_count->add(1);
+        Metrics::getMetrics().snap_time_ms->add(Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
 
         last_snapshot_time = Poco::Timestamp().epochMicroseconds();
         in_snapshot = false;
 
-        LOG_INFO(log, "Created snapshot, time cost {} us", stopwatch.elapsedMicroseconds());
+        LOG_INFO(log, "Created snapshot, time cost {} ms", Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
     }
     else
     {
@@ -462,7 +457,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
         snap_task = std::make_shared<SnapTask>(snap_copy, store, when_done);
         snap_task_ready = true;
 
-        LOG_INFO(log, "Scheduling asynchronous creating snapshot task, time cost {} us", stopwatch.elapsedMicroseconds());
+        LOG_INFO(log, "Scheduling asynchronous creating snapshot task, time cost {} ms", Poco::Timestamp().epochMicroseconds() / 1000 - snap_start_time);
     }
 }
 
