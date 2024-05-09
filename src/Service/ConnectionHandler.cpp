@@ -502,6 +502,8 @@ bool ConnectionHandler::sendHandshake(const Coordination::ZooKeeperResponsePtr &
     Coordination::write(passwd, *send_buf);
 
     send_buf->next();
+    packageSent();
+
     return success;
 }
 
