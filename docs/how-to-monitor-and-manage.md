@@ -52,6 +52,7 @@ zk_ephemerals_count	0
 zk_approximate_data_size	3757
 zk_snap_count	2
 zk_snap_time_ms	1039
+zk_snap_blocking_time_ms 20
 zk_in_snapshot	0
 zk_open_file_descriptor_count	126
 zk_max_file_descriptor_count	60480000
@@ -111,6 +112,7 @@ zk_ephemerals_count	41933
 zk_approximate_data_size: approximate data size in byte
 zk_snap_count: the number of snapshots created in the whole process live time
 zk_snap_time_ms: The time spent creating snapshots in the whole process live time
+zk_snap_blocking_time_ms: Blocking user request time when creating snapshots
 zk_in_snapshot: whether process is creating snapshot right now
 zk_open_file_descriptor_count: current opening fd count
 zk_max_file_descriptor_count: max opening fd count
