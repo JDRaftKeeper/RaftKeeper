@@ -41,7 +41,8 @@ private:
     void destroyMe();
 
     static constexpr size_t SENT_BUFFER_SIZE = 1024;
-    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
+    std::optional<WriteBufferFromPocoSocket> send_buf;
+//    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
     Logger * log;
 
@@ -65,7 +66,7 @@ private:
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
-    ThreadSafeResponseQueuePtr responses;
+    ThreadSafeForwardResponseQueuePtr responses;
 
     std::mutex send_response_mutex;
 
@@ -78,9 +79,6 @@ private:
     void processHandshake();
     void processUserOrSessionRequest(ForwardRequestPtr request);
     void processSyncSessionsRequest(ForwardRequestPtr request);
-
-    /// The connection is stale and need destroyed
-    std::atomic<bool> need_destroy;
 };
 
 }

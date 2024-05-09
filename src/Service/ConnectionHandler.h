@@ -70,6 +70,7 @@ public:
 
 private:
     Coordination::OpNum receiveHandshake(int32_t handshake_length);
+    bool sendHandshake(const Coordination::ZooKeeperResponsePtr & response);
     static bool isHandShake(Int32 & handshake_length);
 
     void tryExecuteFourLetterWordCmd(int32_t four_letter_cmd);
@@ -92,7 +93,8 @@ private:
     void destroyMe();
 
     static constexpr size_t SENT_BUFFER_SIZE = 1024;
-    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
+    std::optional<WriteBufferFromPocoSocket> send_buf;
+//    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
     std::shared_ptr<FIFOBuffer> is_close = nullptr;
 

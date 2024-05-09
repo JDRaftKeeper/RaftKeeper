@@ -4,6 +4,7 @@
 #include <Service/Context.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
+#include <Service/ForwardResponse.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
 #include <Poco/Net/TCPServerConnection.h>
@@ -56,9 +57,11 @@ struct ConnectRequest
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-using ThreadSafeResponseQueue = ThreadSafeQueue<std::shared_ptr<FIFOBuffer>>;
-
+using ThreadSafeResponseQueue = ThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
 using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
+
+using ThreadSafeForwardResponseQueue = ThreadSafeQueue<ForwardResponsePtr>;
+using ThreadSafeForwardResponseQueuePtr = std::unique_ptr<ThreadSafeForwardResponseQueue>;
 
 struct LastOp;
 using LastOpMultiVersion = MultiVersion<LastOp>;
