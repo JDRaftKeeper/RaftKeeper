@@ -77,6 +77,7 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
 {
     LOG_INFO(log, "New connection from {}", peer);
     registerConnection(this);
+    send_buf.emplace(sock);
 
     auto read_handler = Observer<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable);
     auto error_handler = Observer<ConnectionHandler, ErrorNotification>(*this, &ConnectionHandler::onSocketError);
@@ -255,14 +256,17 @@ void ConnectionHandler::onSocketWritable(const Notification &)
     auto remove_event_handler_if_needed = [this]
     {
         /// Double check to avoid dead lock
-        if (responses->empty() && send_buf.used() == 0)
+        if (responses->empty())
         {
             std::lock_guard lock(send_response_mutex);
             {
                 /// If all sent unregister writable event.
-                if (responses->empty() && send_buf.used() == 0)
+                if (responses->empty())
                 {
+                    send_buf->next();
+
                     LOG_TRACE(log, "Remove socket writable event handler for peer {}", peer);
+
                     reactor.removeEventHandler(
                         sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
                 }
@@ -272,75 +276,42 @@ void ConnectionHandler::onSocketWritable(const Notification &)
 
     try
     {
-        if (responses->empty() && send_buf.used() == 0)
+        while (!responses->empty())
         {
-            remove_event_handler_if_needed();
-            LOG_DEBUG(log, "Peer {} is writable, but there is nothing to send, will remove event handler.", peer);
-            return;
-        }
+            Coordination::ZooKeeperResponsePtr response;
 
-        /// TODO use zero copy buffer
-        size_t size_to_sent = 0;
+            if (!responses->tryPop(response))
+                throw Exception(ErrorCodes::LOGICAL_ERROR, "We must have ready response, but queue is empty. It's a bug.");
 
-        /// 1. accumulate data into tmp_buf
-        responses->forEach(
-            [&size_to_sent, this](const auto & resp) -> bool
+            if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
             {
-                if (resp == is_close)
-                    return false;
+                send_buf->next();
 
-                if (size_to_sent + resp->used() < SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else if (size_to_sent + resp->used() == SENT_BUFFER_SIZE)
-                {
-                    /// add whole resp to send_buf
-                    send_buf.write(resp->begin(), resp->used());
-                    size_to_sent += resp->used();
-                }
-                else
-                {
-                    /// add part of resp to send_buf
-                    send_buf.write(resp->begin(), SENT_BUFFER_SIZE - size_to_sent);
-                }
-                return size_to_sent < SENT_BUFFER_SIZE;
-            });
-
-        /// 2. send data
-        size_t sent = sock.sendBytes(send_buf);
-
-        /// 3. remove sent responses
-
-        ptr<FIFOBuffer> resp;
-        while (responses->peek(resp) && sent > 0)
-        {
-            if (sent >= resp->used())
-            {
-                sent -= resp->used();
-                responses->remove();
-                /// package sent
-                packageSent();
-                LOG_TRACE(log, "Sent response to {}#{}", peer, toHexString(session_id.load()));
+                LOG_DEBUG(log, "Received close event for session_id {}, internal_id {}", toHexString(session_id.load()), toHexString(internal_id.load()));
+                destroyMe();
+                return;
             }
-            else
+
+            if (response->getOpNum() == OpNum::NewSession || response->getOpNum() == OpNum::UpdateSession)
             {
-                resp->drain(sent);
-                /// move data to begin
-                resp->begin();
-                sent = 0;
+                if (!sendHandshake(response))
+                {
+                    LOG_ERROR(log, "Failed to establish session, close connection.");
+                    destroyMe();
+                    return;
+                }
+                continue;
+            }
+
+            response->write(*send_buf);
+
+            packageSent();
+
+            if (send_buf->available() >= SENT_BUFFER_SIZE)
+            {
+                send_buf->next();
             }
         }
-
-        if (responses->peek(resp) && resp == is_close)
-        {
-            LOG_DEBUG(log, "Received close event for session_id {}, internal_id {}", toHexString(session_id.load()), toHexString(internal_id.load()));
-            destroyMe();
-            return;
-        }
-
         /// If all sent remove writable event.
         remove_event_handler_if_needed();
     }
@@ -495,6 +466,45 @@ Coordination::OpNum ConnectionHandler::receiveHandshake(int32_t handshake_req_le
     return opnum;
 }
 
+bool ConnectionHandler::sendHandshake(const Coordination::ZooKeeperResponsePtr & response)
+{
+    bool success;
+    uint64_t sid;
+
+    if (const auto * new_session_resp = dynamic_cast<const ZooKeeperNewSessionResponse *>(response.get()))
+    {
+        success = new_session_resp->success;
+        sid = new_session_resp->session_id;
+    }
+    else if (const auto * update_session_resp = dynamic_cast<const ZooKeeperUpdateSessionResponse *>(response.get()))
+    {
+        success = update_session_resp->success;
+        sid = update_session_resp->session_id;
+    }
+    else
+    {
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Bad session response {}", response->toString());
+    }
+
+    Coordination::write(Coordination::SERVER_HANDSHAKE_LENGTH, *send_buf);
+    if (success)
+        Coordination::write(Coordination::ZOOKEEPER_PROTOCOL_VERSION, *send_buf);
+    else
+        Coordination::write(42, *send_buf);
+
+    /// Session timeout -1 represent session expired in Zookeeper
+    int32_t negotiated_session_timeout
+        = !success && response->error == Coordination::Error::ZSESSIONEXPIRED ? -1 : session_timeout.totalMilliseconds();
+    Coordination::write(negotiated_session_timeout, *send_buf);
+
+    Coordination::write(sid, *send_buf);
+    std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
+    Coordination::write(passwd, *send_buf);
+
+    send_buf->next();
+    return success;
+}
+
 
 bool ConnectionHandler::isHandShake(Int32 & handshake_length)
 {
@@ -586,48 +596,11 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Bad session response {}", response->toString());
     }
 
-    WriteBufferFromFiFoBuffer buf;
-    Coordination::write(Coordination::SERVER_HANDSHAKE_LENGTH, buf);
+    /// Register callback
     if (success)
-        Coordination::write(Coordination::ZOOKEEPER_PROTOCOL_VERSION, buf);
-    else
-        Coordination::write(42, buf);
-
-    /// Session timeout -1 represent session expired in Zookeeper
-    int32_t negotiated_session_timeout
-        = !success && response->error == Coordination::Error::ZSESSIONEXPIRED ? -1 : session_timeout.totalMilliseconds();
-    Coordination::write(negotiated_session_timeout, buf);
-
-    Coordination::write(sid, buf);
-    std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
-    Coordination::write(passwd, buf);
-
-    // Send response to client
-    {
-        std::lock_guard lock(send_response_mutex);
-        responses->push(buf.getBuffer());
-        reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
-    }
-    reactor.wakeUp();
-
-    if (!success)
-    {
-        LOG_ERROR(log, "Failed to establish session, close connection.");
-
-        // Send empty FIFOBuffer to close connection
-        {
-            std::lock_guard lock(send_response_mutex);
-            responses->push(ptr<FIFOBuffer>());
-            reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
-        }
-        reactor.wakeUp();
-    }
-    else
     {
         session_id = sid;
         handshake_done = true;
-
-        /// 2. Register callback
 
         keeper_dispatcher->unRegisterSessionResponseCallbackWithoutLock(id);
         auto response_callback = [this](const Coordination::ZooKeeperResponsePtr & response_) { pushUserResponseToSendingQueue(response_); };
@@ -635,6 +608,14 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
         bool is_reconnected = response->getOpNum() == Coordination::OpNum::UpdateSession;
         keeper_dispatcher->registerUserResponseCallBackWithoutLock(sid, response_callback, is_reconnected);
     }
+
+    // Send response to client
+    {
+        std::lock_guard lock(send_response_mutex);
+        responses->push(response);
+        reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+    }
+    reactor.wakeUp();
 }
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
@@ -645,18 +626,7 @@ void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKe
     /// Lock to avoid data condition which will lead response leak
     {
         std::lock_guard lock(send_response_mutex);
-        /// We do not need send anything for close request to client.
-        if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
-        {
-            responses->push(ptr<FIFOBuffer>());
-        }
-        else
-        {
-            WriteBufferFromFiFoBuffer buf;
-            response->write(buf);
-            /// TODO handle push timeout
-            responses->push(buf.getBuffer());
-        }
+        responses->push(response);
 
         /// Trigger socket writable event
         reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
