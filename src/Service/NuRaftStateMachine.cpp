@@ -30,6 +30,8 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int NOT_IMPLEMENTED;
+    extern const int STALE_LOG;
+    extern const int GAP_BETWEEN_SNAPSHOT_AND_LOG;
 }
 
 struct ReplayLogBatch
@@ -78,12 +80,26 @@ NuRaftStateMachine::NuRaftStateMachine(
         applySnapshotImpl(*last_snapshot);
 
     committed_log_manager = cs_new<LastCommittedIndexManager>(log_dir);
-    uint64_t previous_last_commit_id = 0; /// Last committed idx of the previous startup, we should apply log to here.
-    committed_log_manager->get(previous_last_commit_id);
+    /// Last committed idx of the previous startup, we should apply log to here.
+    uint64_t previous_last_commit_id = committed_log_manager->get();
 
-    LOG_INFO(log, "Loading logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
-    assert(previous_last_commit_id == 0 || previous_last_commit_id >= last_committed_idx);
-    replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
+    if (!previous_last_commit_id)
+    {
+        LOG_INFO(log, "No previous last commit idx found, skip replaying logs.");
+    }
+    else if (previous_last_commit_id < last_committed_idx)
+    {
+        LOG_WARNING(
+            log,
+            "Previous last commit idx {} is less than the last committed idx {} from snapshot, skip replaying logs.",
+            previous_last_commit_id,
+            last_committed_idx);
+    }
+    else
+    {
+        LOG_INFO(log, "Replaying logs from {} to {}", last_committed_idx + 1, previous_last_commit_id);
+        replayLogs(log_store_, last_committed_idx + 1, previous_last_commit_id);
+    }
 
     /// If the node is empty and join cluster, the log index is less than the last index of the snapshot, so compact is required.
     if (log_store_ && log_store_->next_slot() <= last_committed_idx)
@@ -91,7 +107,7 @@ NuRaftStateMachine::NuRaftStateMachine(
 
     LOG_INFO(
         log,
-        "Load logs done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
+        "Replaying logs done: nodes {}, ephemeral nodes {}, sessions {}, session_id_counter {}, zxid {}",
         store.getNodesCount(),
         store.getTotalEphemeralNodesCount(),
         store.getSessionCount(),
@@ -574,23 +590,31 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
         return;
     }
 
-    ulong last_log_index = log_store_->next_slot() - 1;
-    if (last_log_index == 0)
+    ulong first_index_in_store = log_store_->start_index();
+    ulong last_index_in_store = log_store_->next_slot() - 1;
+
+    if (last_index_in_store == 0)
     {
-        LOG_WARNING(log, "We have no log in local");
+        LOG_WARNING(log, "Log store is empty, skip to replay logs.");
         return;
     }
 
-    if (to == 0)
+    if (from > last_index_in_store)
+        throw Exception(
+            ErrorCodes::STALE_LOG,
+            "Logs in log store is stale. Last log index in log store is {} and snapshot last log index is {}. If the snapshot is copied "
+            "from another server, please clean the logs to start the server.",
+            last_index_in_store,
+            from);
+
+    if (from < first_index_in_store)
+        throw Exception(ErrorCodes::GAP_BETWEEN_SNAPSHOT_AND_LOG, "There is log gap between snapshot and log store, {} / {}", from, first_index_in_store);
+
+    if (to < last_index_in_store)
     {
-        LOG_WARNING(log, "Try too replay log to 0, caused by there is no previous last_commit_idx, maybe this is the first start.");
-        return;
+        LOG_WARNING(log, "The last log index in log store is {} which is lower than 'to' {}, adjust to it.", last_index_in_store, to);
+        last_index_in_store = to;
     }
-
-    if (to < last_log_index)
-        last_log_index = to;
-
-    LOG_INFO(log, "Replay logs from {} to {}", from, last_log_index);
 
     /// [ batch_start_index, batch_end_index )
     std::atomic<ulong> batch_start_index = from;
@@ -600,10 +624,10 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
     /// Loading and applying asynchronously
     auto load_thread = ThreadFromGlobalPool(
-        [this, last_log_index, &log_queue, &batch_start_index, &batch_end_index, &log_store_]
+        [this, last_index_in_store, &log_queue, &batch_start_index, &batch_end_index, &log_store_]
         {
             Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-            while (batch_start_index < last_log_index)
+            while (batch_start_index < last_index_in_store)
             {
                 while (log_queue.size() > 10)
                 {
@@ -613,8 +637,8 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
                 /// 0.3 * 10000 = 3M
                 batch_end_index = batch_start_index + 10000;
-                if (batch_end_index > last_log_index + 1)
-                    batch_end_index = last_log_index + 1;
+                if (batch_end_index > last_index_in_store + 1)
+                    batch_end_index = last_index_in_store + 1;
 
                 LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index, batch_end_index);
 
@@ -656,9 +680,9 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
         });
 
     /// Apply loaded logs
-    while (!log_queue.empty() || batch_start_index < last_log_index)
+    while (!log_queue.empty() || batch_start_index < last_index_in_store)
     {
-        while (log_queue.empty() && batch_start_index != last_log_index)
+        while (log_queue.empty() && batch_start_index != last_index_in_store)
         {
             LOG_DEBUG(log, "Sleep 100ms to wait for log loading");
             usleep(100000);

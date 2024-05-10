@@ -26,9 +26,8 @@ public:
     /// Push last_committed_index into queue
     void push(UInt64 index);
 
-    /// Get last committed log index.
-    /// Used when replaying logs after restart.
-    void get(UInt64 & index);
+    /// Get last committed log index, used when replaying logs.
+    UInt64 get();
 
     void persistThread();
 
@@ -48,7 +47,7 @@ private:
 
     std::atomic_uint64_t last_committed_index{0};
     uint64_t previous_persist_index = 0;
-    uint64_t previous_persist_time = 0;
+    uint64_t previous_persist_time;
 
     std::mutex mutex;
     std::condition_variable cv;

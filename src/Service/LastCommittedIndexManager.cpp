@@ -18,6 +18,11 @@ namespace ErrorCodes
     extern const int CANNOT_SEEK_THROUGH_FILE;
 }
 
+inline UInt64 getCurrentTimeMicroseconds()
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
 LastCommittedIndexManager::LastCommittedIndexManager(const String & log_dir) : log(&Poco::Logger::get("LastCommittedIndexManager"))
 {
     if (!Poco::File(log_dir).exists())
@@ -29,6 +34,7 @@ LastCommittedIndexManager::LastCommittedIndexManager(const String & log_dir) : l
     if (persist_file_fd < 0)
         throwFromErrno("Failed to open committed log index file", ErrorCodes::CANNOT_OPEN_FILE);
 
+    previous_persist_time = getCurrentTimeMicroseconds();
     persist_thread = ThreadFromGlobalPool([this] { persistThread(); });
 }
 
@@ -44,7 +50,7 @@ void LastCommittedIndexManager::push(UInt64 index)
     cv.notify_all();
 }
 
-void LastCommittedIndexManager::get(UInt64 & index)
+UInt64 LastCommittedIndexManager::get()
 {
     off_t file_size = lseek(persist_file_fd, 0, SEEK_END);
     if (-1 == file_size)
@@ -54,16 +60,19 @@ void LastCommittedIndexManager::get(UInt64 & index)
     if (file_size == 0)
     {
         LOG_INFO(log, "Last committed log index file {} is empty", persist_file_name);
-        index = 0;
-        return;
+        return 0;
     }
 
     /// seek to file start
     lseek(persist_file_fd, 0, SEEK_SET);
     ReadBufferFromFileDescriptor in(persist_file_fd);
 
+    UInt64 index{};
     readIntBinary(index, in);
+
     LOG_INFO(log, "Read last committed index {}", index);
+
+    return index;
 }
 
 void LastCommittedIndexManager::persistThread()
@@ -73,7 +82,7 @@ void LastCommittedIndexManager::persistThread()
 
     while (!is_shut_down)
     {
-        while (true)
+        while (!is_shut_down)
         {
             std::unique_lock lock(mutex);
             if (cv.wait_for(
@@ -81,9 +90,7 @@ void LastCommittedIndexManager::persistThread()
                     std::chrono::microseconds(PERSIST_INTERVAL_US),
                     [this]
                     {
-                        auto now
-                            = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
-                                  .count();
+                        auto now = getCurrentTimeMicroseconds();
                         return last_committed_index >= previous_persist_index + BATCH_COUNT
                             || (previous_persist_time && now - previous_persist_time > PERSIST_INTERVAL_US);
                     }))
@@ -101,8 +108,7 @@ void LastCommittedIndexManager::persistThread()
         out.next();
 
         previous_persist_index = current_index;
-        previous_persist_time
-            = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+        previous_persist_time = getCurrentTimeMicroseconds();
     }
 }
 
