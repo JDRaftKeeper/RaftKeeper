@@ -221,9 +221,7 @@ public:
     /// get persisted last committed index
     ulong getLastCommittedIndex()
     {
-        ulong index;
-        committed_log_manager->get(index);
-        return index;
+        return committed_log_manager->get();
     }
 
     /// whether znode exist
