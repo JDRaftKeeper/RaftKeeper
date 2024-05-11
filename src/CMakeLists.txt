@@ -121,21 +121,11 @@ target_link_libraries (raftkeeper_common_io
             dragonbox_to_chars
 )
 
-#if(RE2_LIBRARY)
-#    target_link_libraries(raftkeeper_common_io PUBLIC ${RE2_LIBRARY})
-#endif()
-#if(RE2_ST_LIBRARY)
-#    target_link_libraries(raftkeeper_common_io PUBLIC ${RE2_ST_LIBRARY})
-#endif()
-
 target_link_libraries(raftkeeper_common_io
-        PRIVATE
-            ${EXECINFO_LIBRARIES}
         PUBLIC
             boost::program_options
             boost::system
             ${CITYHASH_LIBRARIES}
-            ${ZLIB_LIBRARIES}
             pcg_random
             Poco::Foundation
 )

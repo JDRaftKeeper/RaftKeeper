@@ -25,8 +25,5 @@ target_link_libraries (limit_read_buffer PRIVATE raftkeeper_common_io)
 add_executable (limit_read_buffer2 limit_read_buffer2.cpp)
 target_link_libraries (limit_read_buffer2 PRIVATE raftkeeper_common_io)
 
-add_executable (zlib_ng_bug zlib_ng_bug.cpp)
-target_link_libraries (zlib_ng_bug PRIVATE ${ZLIB_LIBRARIES})
-
 add_executable (dragonbox_test dragonbox_test.cpp)
 target_link_libraries (dragonbox_test PRIVATE dragonbox_to_chars)
