@@ -1,20 +1,29 @@
-# Foundation (pcre)
+set(SRCS_ZLIB
+        ${LIBRARY_DIR}/Foundation/src/adler32.c
+        ${LIBRARY_DIR}/Foundation/src/compress.c
+        ${LIBRARY_DIR}/Foundation/src/crc32.c
+        ${LIBRARY_DIR}/Foundation/src/deflate.c
+        ${LIBRARY_DIR}/Foundation/src/infback.c
+        ${LIBRARY_DIR}/Foundation/src/inffast.c
+        ${LIBRARY_DIR}/Foundation/src/inflate.c
+        ${LIBRARY_DIR}/Foundation/src/inftrees.c
+        ${LIBRARY_DIR}/Foundation/src/trees.c
+        ${LIBRARY_DIR}/Foundation/src/zutil.c
+    )
+add_library(_poco_foundation_zlib ${SRCS_ZLIB})
+add_library(Poco::Foundation::ZLIB ALIAS _poco_foundation_zlib)
 
 set(SRCS_PCRE
-#        ${LIBRARY_DIR}/Foundation/src/pcre2.h
         ${LIBRARY_DIR}/Foundation/src/pcre2_auto_possess.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_chartables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_compile.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_config.c
-#        ${LIBRARY_DIR}/Foundation/src/pcre2_config.h
         ${LIBRARY_DIR}/Foundation/src/pcre2_context.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_convert.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_dfa_match.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_error.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_extuni.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_find_bracket.c
-#        ${LIBRARY_DIR}/Foundation/src/pcre2_internal.h
-#        ${LIBRARY_DIR}/Foundation/src/pcre2_intmodedep.h
         ${LIBRARY_DIR}/Foundation/src/pcre2_jit_compile.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_maketables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_match.c
@@ -30,7 +39,6 @@ set(SRCS_PCRE
         ${LIBRARY_DIR}/Foundation/src/pcre2_substring.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_tables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_ucd.c
-#        ${LIBRARY_DIR}/Foundation/src/pcre2_ucp.h
         ${LIBRARY_DIR}/Foundation/src/pcre2_ucptables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_valid_utf.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_xclass.c
@@ -199,7 +207,7 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/Windows1252Encoding.cpp
         )
 
-list(REMOVE_ITEM SRCS ${SRCS_PCRE})
+list(REMOVE_ITEM SRCS ${SRCS_PCRE} ${SRCS_ZLIB})
 
 add_library(_poco_foundation ${SRCS})
 add_library(Poco::Foundation ALIAS _poco_foundation)
@@ -236,4 +244,4 @@ target_compile_definitions(_poco_foundation
         )
 target_include_directories(_poco_foundation SYSTEM PUBLIC ${LIBRARY_DIR}/Foundation/include)
 target_include_directories(_poco_foundation PRIVATE ${LIBRARY_DIR}/Foundation/src)
-target_link_libraries(_poco_foundation PRIVATE Poco::Foundation::PCRE ${ZLIB_LIBRARIES})
+target_link_libraries(_poco_foundation PRIVATE Poco::Foundation::PCRE Poco::Foundation::ZLIB)

@@ -1,73 +1,60 @@
 # Third Party Codes
 
 1.poco
+https://github.com/pocoproject/poco.git
+
+2.NuRaft
 Copyright 2016 andy.yx.chen@outlook.com
 https://github.com/eBay/NuRaft.git
 
-2.cctz
-https://github.com/ClickHouse-Extras/cctz.git
-
-3.zlib-ng
-(C) 1995-2013 Jean-loup Gailly and Mark Adler
-https://github.com/ClickHouse-Extras/zlib-ng.git
-
-4.googletest
+3.googletest
 Copyright 2008, Google Inc.
 https://github.com/google/googletest.git
 
-5.double-conversion
-Copyright 2006-2011, the V8 project authors.
-https://github.com/google/double-conversion.git
-
-6.re2
-Copyright (c) 2009 The RE2 Authors
-https://github.com/google/re2.git
-
-7.jemalloc
+4.jemalloc
 Copyright (C) 2002-present Jason Evans <jasone@canonware.com>.
 All rights reserved.
 Copyright (C) 2007-2012 Mozilla Foundation.  All rights reserved.
 Copyright (C) 2009-present Facebook, Inc.  All rights reserved.
 https://github.com/ClickHouse-Extras/jemalloc.git
 
-8.protobuf
-Copyright 2008 Google Inc
-https://github.com/ClickHouse-Extras/protobuf.git
-
-9.boost
+5.boost
 https://github.com/ClickHouse-Extras/boost.git
 
-10.libxml2
-https://github.com/GNOME/libxml2.git
-
-11.libcxx
-https://github.com/ClickHouse-Extras/libcxx.git
-
-12.libcxxabi
-https://github.com/ClickHouse-Extras/libcxxabi.git
-
-13.libunwind
-https://github.com/ClickHouse-Extras/libunwind.git
-
-14.fmtlib
+6.fmtlib
 Copyright (c) 2012 - present, Victor Zverovich
 https://github.com/fmtlib/fmt.git
 
-15.dragonbox
+7.dragonbox
 https://github.com/ClickHouse-Extras/dragonbox.git
 
-16.fast_float
+8.fast_float
 Copyright (c) 2021 The fast_float authors
 https://github.com/fastfloat/fast_float
 
-17.boringssl
+9.boringssl
 Copyright (c) 1998-2011 The OpenSSL Project
 https://github.com/ClickHouse-Extras/boringssl.git
 
-18.NuRaft
-Copyright 2016 andy.yx.chen@outlook.com
-https://github.com/eBay/NuRaft.git
+10.libcxx
+https://github.com/ClickHouse-Extras/libcxx.git
 
-19.libc-headers
+11.libcxxabi
+https://github.com/ClickHouse-Extras/libcxxabi.git
+
+12.libunwind
+https://github.com/ClickHouse-Extras/libunwind.git
+
+13.libxml2
+https://github.com/GNOME/libxml2.git
+
+14.cctz
+https://github.com/ClickHouse-Extras/cctz.git
+
+15.double-conversion
+Copyright 2006-2011, the V8 project authors.
+https://github.com/google/double-conversion.git
+
+16.libc-headers
 Copyright (C) 1997-2018 Free Software Foundation, Inc.
 https://github.com/ClickHouse-Extras/libc-headers.git
