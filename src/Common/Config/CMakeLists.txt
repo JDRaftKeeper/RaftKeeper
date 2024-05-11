@@ -5,11 +5,11 @@ set (SRCS
     ConfigReloader.cpp
 )
 
-add_library(raftkeeper_common_config ${SRCS})
+add_library(rk_config ${SRCS})
 
-target_link_libraries(raftkeeper_common_config
+target_link_libraries(rk_config
     PUBLIC
-        raftkeeper_common_zookeeper
+        rk_zookeeper
         common
         Poco::XML
 )
