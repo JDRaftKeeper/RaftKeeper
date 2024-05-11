@@ -1,10 +1,10 @@
-include(${RaftKeeper_SOURCE_DIR}/cmake/dbms_glob_sources.cmake)
+include(${RaftKeeper_SOURCE_DIR}/cmake/glob_sources.cmake)
 
-add_headers_and_sources(raftkeeper_common_zookeeper .)
+add_headers_and_sources(rk_zookeeper .)
 
-add_library(raftkeeper_common_zookeeper ${raftkeeper_common_zookeeper_headers} ${raftkeeper_common_zookeeper_sources})
-target_include_directories(raftkeeper_common_zookeeper SYSTEM PUBLIC ${gRPC_INCLUDE_DIRS} ${Protobuf_INCLUDE_DIR} ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries (raftkeeper_common_zookeeper PUBLIC raftkeeper_common_io common)
+add_library(rk_zookeeper ${rk_zookeeper_headers} ${rk_zookeeper_sources})
+target_include_directories(rk_zookeeper SYSTEM PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries (rk_zookeeper PUBLIC rk_common_io common)
 
 if (ENABLE_TESTS)
     add_subdirectory (tests)

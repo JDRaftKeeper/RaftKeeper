@@ -42,7 +42,7 @@ if (ARCH_AMD64 AND OS_LINUX AND NOT OS_ANDROID)
     set(HARMFUL_LIB harmful)
 endif ()
 
-target_link_libraries(raftkeeper PRIVATE raftkeeper_common_io ${HARMFUL_LIB})
+target_link_libraries(raftkeeper PRIVATE rk_common_io ${HARMFUL_LIB})
 target_include_directories(raftkeeper PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 raftkeeper_target_link_split_lib(raftkeeper server)
@@ -66,7 +66,7 @@ endif ()
 add_custom_target(raftkeeper-bundle ALL DEPENDS ${RAFTKEEPER_BUNDLE})
 
 if (ENABLE_TESTS AND USE_GTEST)
-    set(RAFTKEEPER_UNIT_TESTS_TARGETS unit_tests_libcommon unit_tests_dbms)
+    set(RAFTKEEPER_UNIT_TESTS_TARGETS unit_tests_libcommon rk_unit_tests)
     add_custom_target(raftkeeper-tests ALL DEPENDS ${RAFTKEEPER_UNIT_TESTS_TARGETS})
     add_dependencies(raftkeeper-bundle raftkeeper-tests)
 endif ()

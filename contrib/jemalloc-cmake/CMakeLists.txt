@@ -5,7 +5,7 @@ if (SANITIZE OR NOT (ARCH_AMD64 OR ARCH_ARM) OR NOT (OS_LINUX OR OS_FREEBSD OR O
     endif()
     set (ENABLE_JEMALLOC OFF)
 else()
-    option (ENABLE_JEMALLOC "Enable jemalloc allocator" ${ENABLE_LIBRARIES})
+    option (ENABLE_JEMALLOC "Enable jemalloc allocator" ON)
 endif ()
 
 if (NOT ENABLE_JEMALLOC)
@@ -132,9 +132,7 @@ target_compile_options(jemalloc PRIVATE -Wno-redundant-decls)
 target_compile_options(jemalloc PRIVATE -D_GNU_SOURCE)
 
 set_property(TARGET jemalloc APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS USE_JEMALLOC=1)
-if (MAKE_STATIC_LIBRARIES)
-    # To detect whether we need to register jemalloc for osx as default zone.
-    set_property(TARGET jemalloc APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS BUNDLED_STATIC_JEMALLOC=1)
-endif()
+# To detect whether we need to register jemalloc for osx as default zone.
+set_property(TARGET jemalloc APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS BUNDLED_STATIC_JEMALLOC=1)
 
 message (STATUS "Using jemalloc")

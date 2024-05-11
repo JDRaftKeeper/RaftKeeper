@@ -22,4 +22,4 @@ if(USE_GTEST)
 endif()
 
 add_executable (dump_variable dump_variable.cpp)
-target_link_libraries (dump_variable PRIVATE raftkeeper_common_io)
+target_link_libraries (dump_variable PRIVATE rk_common_io)

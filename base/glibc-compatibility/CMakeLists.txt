@@ -1,6 +1,8 @@
 if (GLIBC_COMPATIBILITY)
     set (ENABLE_FASTMEMCPY ON)
 
+    cmake_policy(SET CMP0079 NEW)
+
     enable_language(ASM)
     include(CheckIncludeFile)
 
@@ -28,8 +30,8 @@ if (GLIBC_COMPATIBILITY)
     endif()
 
     if (NOT ARCH_ARM)
-        # raftkeeper_memcpy don't support ARCH_ARM, see https://github.com/ClickHouse/ClickHouse/issues/18951
-        add_library (raftkeeper_memcpy OBJECT
+        # FastMemcpy don't support ARCH_ARM
+        add_library (rk_memcpy OBJECT
             ${RaftKeeper_SOURCE_DIR}/contrib/FastMemcpy/memcpy_wrapper.c
         )
     endif()
@@ -46,10 +48,6 @@ if (GLIBC_COMPATIBILITY)
     endif ()
 
     target_include_directories(glibc-compatibility PRIVATE libcxxabi ${musl_arch_include_dir})
-
-    if (NOT USE_STATIC_LIBRARIES AND NOT MAKE_STATIC_LIBRARIES)
-        target_compile_options(glibc-compatibility PRIVATE -fPIC)
-    endif ()
 
     target_link_libraries(global-libs INTERFACE glibc-compatibility)
 

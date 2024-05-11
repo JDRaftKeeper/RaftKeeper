@@ -4,8 +4,8 @@ set(RAFTKEEPER_SERVER_SOURCES
 
 set(RAFTKEEPER_SERVER_LINK
         PRIVATE
-        raftkeeper_common_config
-        raftkeeper_common_io
+        rk_config
+        rk_common_io
         nuraft
         ${LINK_RESOURCE_LIB}
 
