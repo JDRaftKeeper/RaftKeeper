@@ -50,18 +50,19 @@ ptr<log_entry> makeClone(const ptr<log_entry> & entry)
     return clone;
 }
 
+String getBaseName(const String & path)
+{
+    size_t basename_start = path.rfind('/');
+    return String{&path[basename_start + 1], path.length() - basename_start - 1};
+}
+
+
 String getParentPath(const String & path)
 {
     auto rslash_pos = path.rfind('/');
     if (rslash_pos > 0)
         return path.substr(0, rslash_pos);
     return "/";
-}
-
-String getBaseName(const String & path)
-{
-    size_t basename_start = path.rfind('/');
-    return String{&path[basename_start + 1], path.length() - basename_start - 1};
 }
 
 String base64Encode(const String & decoded)

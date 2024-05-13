@@ -44,12 +44,16 @@ struct RequestForSession
     String toSimpleString() const;
 };
 
+using RequestsForSessions = std::vector<RequestForSession>;
+
 /// Attached session id to response
 struct ResponseForSession
 {
     int64_t session_id;
     Coordination::ZooKeeperResponsePtr response;
 };
+
+using ResponsesForSessions = std::vector<ResponseForSession>;
 
 /// Global client request id.
 struct RequestId
@@ -86,5 +90,4 @@ bool isSessionRequest(Coordination::OpNum opnum);
 bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request);
 
 bool isNewSessionRequest(Coordination::OpNum opnum);
-
 }

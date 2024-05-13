@@ -94,7 +94,7 @@ std::vector<int64_t> SessionExpiryQueue::getExpiredSessions() const
     return result;
 }
 
-const std::unordered_map<int64_t, int64_t> & SessionExpiryQueue::sessionToExpirationTime()
+const std::unordered_map<int64_t, int64_t> & SessionExpiryQueue::sessionToExpirationTime() const
 {
     return session_to_expiration_time;
 }

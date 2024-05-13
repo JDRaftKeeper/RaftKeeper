@@ -65,7 +65,7 @@ size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
     checksum = new_checksum;
 
     writeTailAndClose(out, checksum);
-    LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.zxid);
+    LOG_INFO(log, "Creating snapshot processed data size {}, current zxid {}", processed, storage.getZxid());
 
     return getObjectIdx(out->getFileName());
 }
@@ -93,7 +93,7 @@ void KeeperSnapshotStore::serializeNodeV2(
     uint64_t & processed,
     uint32_t & checksum)
 {
-    auto node = store.container.get(path);
+    auto node = store.getNode(path);
 
     /// In case of node is deleted
     if (!node)
@@ -258,8 +258,8 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
 
     Poco::File(snap_dir).createDirectories();
 
-    size_t data_object_count = store.container.size() / max_object_node_size;
-    if (store.container.size() % max_object_node_size)
+    size_t data_object_count = store.getNodesCount() / max_object_node_size;
+    if (store.getNodesCount() % max_object_node_size)
     {
         data_object_count += 1;
     }
@@ -291,9 +291,9 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
     /// object index should start from 1
     getObjectPath(2, session_path);
 
-    auto session_and_timeout = store.getSessionTimeOut();
-    auto session_and_auth = store.getSessionAuth();
-    auto serialized_next_session_id = store.session_id_counter;
+    auto session_and_timeout = store.getSessionAndTimeOut();
+    auto session_and_auth = store.getSessionAndAuth();
+    auto serialized_next_session_id = store.getSessionIDCounter();
 
     serializeSessionsV2(session_and_timeout, session_and_auth, save_batch_size, version, session_path);
     LOG_INFO(
@@ -306,7 +306,7 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
     String acl_path;
     /// object index should start from 1
     getObjectPath(3, acl_path);
-    serializeAclsV2(store.acl_map.getMapping(), acl_path, save_batch_size, version);
+    serializeAclsV2(store.getACLMap().getMapping(), acl_path, save_batch_size, version);
 
     /// 4. Save data tree
     size_t last_id = serializeDataTreeV2(store);
@@ -543,7 +543,7 @@ void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & b
         case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
             LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
             parseBatchIntMapV2(store, *batch, version_);
-            LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.zxid, store.session_id_counter);
+            LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.getZxid(), store.getSessionIDCounter());
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
         case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
@@ -596,7 +596,7 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
             [this, thread_id, &store]
             {
                 Poco::Logger * thread_log = &(Poco::Logger::get("KeeperSnapshotStore.buildDataTreeThread#" + std::to_string(thread_id)));
-                for (UInt32 bucket_id = 0; bucket_id < store.container.getBucketNum(); bucket_id++)
+                for (UInt32 bucket_id = 0; bucket_id < store.getDataTreeBucketNum(); bucket_id++)
                 {
                     if (bucket_id % SNAPSHOT_THREAD_NUM == thread_id)
                     {
@@ -740,7 +740,6 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, String & path)
 
 size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, SnapshotVersion version)
 {
-//    size_t store_size = store.container.size();
     auto && meta = snap_task.s;
     meta->set_size(snap_task.nodes_count);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, *meta, object_node_size, SAVE_BATCH_SIZE, version);
@@ -765,7 +764,7 @@ size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, Snapshot
 size_t KeeperSnapshotManager::createSnapshot(
     snapshot & meta, KeeperStore & store, int64_t next_zxid, int64_t next_session_id, SnapshotVersion version)
 {
-    size_t store_size = store.container.size();
+    size_t store_size = store.getNodesCount();
     meta.set_size(store_size);
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size, SAVE_BATCH_SIZE, version);
     snap_store->init();
