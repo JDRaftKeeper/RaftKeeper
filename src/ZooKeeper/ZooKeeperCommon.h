@@ -105,12 +105,10 @@ struct ZooKeeperHeartbeatResponse final : ZooKeeperResponse
  */
 struct ZooKeeperSetWatchesRequest final : ZooKeeperRequest
 {
-    using Watches = std::vector<String>;
-
     int64_t relative_zxid;
-    Watches data_watches;
-    Watches exist_watches;
-    Watches list_watches;
+    std::vector<String> data_watches;
+    std::vector<String> exist_watches;
+    std::vector<String> list_watches;
 
     String getPath() const override { return {}; }
     OpNum getOpNum() const override { return OpNum::SetWatches; }

@@ -249,9 +249,9 @@ void KeeperServer::handleRemoteSession(int64_t session_id, int64_t expiration_ti
 [[maybe_unused]] int64_t KeeperServer::getSessionTimeout(int64_t session_id)
 {
     LOG_DEBUG(log, "New session timeout for {}", session_id);
-    if (state_machine->getStore().session_and_timeout.contains(session_id))
+    if (state_machine->getStore().containsSession(session_id))
     {
-        return state_machine->getStore().session_and_timeout.find(session_id)->second;
+        return state_machine->getStore().getSessionAndTimeOut().find(session_id)->second;
     }
     else
     {

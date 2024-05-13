@@ -21,47 +21,9 @@ namespace RK
  */
 class KeeperServer
 {
-private:
-    /// my id configured in config.xml
-    int32_t my_id;
-
-    /// configurations
-    SettingsPtr settings;
-
-    /// NuRaft state machine who hold all data and sessions.
-    nuraft::ptr<NuRaftStateMachine> state_machine;
-
-    /// NuRaft cluster state manager.
-    nuraft::ptr<NuRaftStateManager> state_manager;
-
-    /// NuRaft cluster launcher.
-    nuraft::raft_launcher launcher;
-
-    /// NuRaft server which provides interface to interact with NuRaft.
-    nuraft::ptr<nuraft::raft_server> raft_instance;
-
-    /// configurations
-    const Poco::Util::AbstractConfiguration & config;
-
-    Poco::Logger * log;
-
-    /// initialized flag
-    std::mutex initialized_mutex;
-    std::atomic<bool> initialized_flag = false;
-    std::condition_variable initialized_cv;
-
-    std::mutex new_session_id_callback_mutex;
-    std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
-
-    using UpdateForwardListener = std::function<void()>;
-    std::mutex forward_listener_mutex;
-    UpdateForwardListener update_forward_listener;
-
-    /// Will registered to NuRaft and wait BecomeFresh for follower and
-    /// BecomeLeader for leader events, which means itself joins cluster.
-    nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
-
 public:
+    using UpdateForwardListener = std::function<void()>;
+
     KeeperServer(
         const SettingsPtr & settings_,
         const Poco::Util::AbstractConfiguration & config_,
@@ -151,6 +113,45 @@ public:
     int32_t myId() const { return my_id; }
 
     size_t getClusterNodeCount() const { return state_manager->getClusterNodeCount(); }
+
+private:
+    /// Will registered to NuRaft and wait BecomeFresh for follower and
+    /// BecomeLeader for leader events, which means itself joins cluster.
+    nuraft::cb_func::ReturnCode callbackFunc(nuraft::cb_func::Type type, nuraft::cb_func::Param * param);
+
+    /// my id configured in config.xml
+    int32_t my_id;
+
+    /// configurations
+    SettingsPtr settings;
+
+    /// NuRaft state machine who hold all data and sessions.
+    nuraft::ptr<NuRaftStateMachine> state_machine;
+
+    /// NuRaft cluster state manager.
+    nuraft::ptr<NuRaftStateManager> state_manager;
+
+    /// NuRaft cluster launcher.
+    nuraft::raft_launcher launcher;
+
+    /// NuRaft server which provides interface to interact with NuRaft.
+    nuraft::ptr<nuraft::raft_server> raft_instance;
+
+    /// configurations
+    const Poco::Util::AbstractConfiguration & config;
+
+    Poco::Logger * log;
+
+    /// initialized flag
+    std::mutex initialized_mutex;
+    std::atomic<bool> initialized_flag = false;
+    std::condition_variable initialized_cv;
+
+    std::mutex new_session_id_callback_mutex;
+    std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
+
+    std::mutex forward_listener_mutex;
+    UpdateForwardListener update_forward_listener;
 };
 
 }

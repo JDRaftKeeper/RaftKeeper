@@ -321,7 +321,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     else
     {
         auto request_for_session = parseRequest(data);
-        KeeperStore::ResponsesForSessions responses_for_sessions;
+        ResponsesForSessions responses_for_sessions;
 
         LOG_TRACE(log, "Commit log index {} fore request {}", log_idx, request_for_session.toSimpleString());
 
@@ -354,7 +354,7 @@ std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
 
 int64_t NuRaftStateMachine::getLastProcessedZxid() const
 {
-    return store.zxid.load();
+    return store.getZxid();
 }
 
 uint64_t NuRaftStateMachine::getNodesCount() const
@@ -452,7 +452,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 
     if (!raft_settings->async_snapshot)
     {
-        create_snapshot(s, store.zxid, store.session_id_counter);
+        create_snapshot(s, store.getZxid(), store.getSessionIDCounter());
         ptr<std::exception> except(nullptr);
         bool ret = true;
         when_done(ret, except);
@@ -721,14 +721,14 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 auto & request = (*batch.request_vec)[i];
                 LOG_TRACE(log, "Replay log request {}", request->toString());
                 store.processRequest(responses_queue, *request, {}, true, true);
-                if (!RK::isNewSessionRequest(request->request->getOpNum()) && request->session_id > store.session_id_counter)
+                if (!RK::isNewSessionRequest(request->request->getOpNum()) && request->session_id > store.getSessionIDCounter())
                 {
                     LOG_WARNING(
                         log,
                         "Storage's session_id_counter {} must bigger than the session id {} of log.",
-                        toHexString(store.session_id_counter),
+                        toHexString(store.getSessionIDCounter()),
                         toHexString(request->session_id));
-                    store.session_id_counter = request->session_id;
+                    store.setSessionIDCounter(request->session_id);
                 }
             }
         }
@@ -745,7 +745,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
         log,
         "Replay done, node count {}, session count {}, ephemeral nodes {}, watch count {}",
         getNodesCount(),
-        store.session_and_timeout.size(),
+        store.getSessionCount(),
         getTotalEphemeralNodesCount(),
         getTotalWatchesCount());
 }
@@ -771,12 +771,12 @@ ptr<snapshot> NuRaftStateMachine::last_snapshot()
 
 bool NuRaftStateMachine::exists(const String & path)
 {
-    return (store.container.count(path) == 1);
+    return (store.getNode(path) != nullptr);
 }
 
 KeeperNode & NuRaftStateMachine::getNode(const String & path)
 {
-    auto node_ptr = store.container.get(path);
+    auto node_ptr = store.getNode(path);
     if (node_ptr != nullptr)
     {
         return *node_ptr.get();

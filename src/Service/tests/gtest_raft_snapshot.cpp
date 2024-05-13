@@ -234,24 +234,23 @@ void setEphemeralNode(KeeperStore & storage, const String key, const String valu
 void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
 {
     /// assert unit map
-    ASSERT_EQ(storage.zxid, ano_storage.zxid);
-    ASSERT_EQ(storage.session_id_counter, ano_storage.session_id_counter);
+    ASSERT_EQ(storage.getZxid(), ano_storage.getZxid());
+    ASSERT_EQ(storage.getSessionIDCounter(), ano_storage.getSessionIDCounter());
 
     /// assert size
-    ASSERT_EQ(storage.container.size(), ano_storage.container.size());
-    ASSERT_EQ(storage.ephemerals.size(), ano_storage.ephemerals.size());
-    ASSERT_EQ(storage.session_and_timeout.size(), ano_storage.session_and_timeout.size());
+    ASSERT_EQ(storage.getNodesCount(), ano_storage.getNodesCount());
+    ASSERT_EQ(storage.getEphemerals().size(), ano_storage.getEphemerals().size());
+    ASSERT_EQ(storage.getSessionCount(), ano_storage.getSessionCount());
 
 
-    /// assert container
-    for (uint32_t i = 0; i < KeeperStore::MAP_BUCKET_NUM; i++)
+    /// assert data tree
+    for (uint32_t i = 0; i < KeeperStore::DATA_TREE_BUCKET_NUM; i++)
     {
-        auto & map = storage.container.getMap(i);
-        auto & ano_map = ano_storage.container.getMap(i);
+        auto & map = storage.getDataTree().getMap(i);
+        auto & ano_map = ano_storage.getDataTree().getMap(i);
 
         map.forEach([&ano_map](const auto & key, const auto & value)
         {
-            /// TODO only compare data
             const auto * l = dynamic_cast<const KeeperNode *>(value.get());
             const auto * r = dynamic_cast<const KeeperNode *>(ano_map.get(key).get());
             ASSERT_EQ(l->data, r->data);
@@ -260,10 +259,10 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
     }
 
     /// assert ephemeral nodes
-    for (const auto & it : storage.ephemerals)
+    for (const auto & it : storage.getEphemerals())
     {
-        ASSERT_TRUE(ano_storage.ephemerals.contains(it.first));
-        auto ano_paths = ano_storage.ephemerals.at(it.first);
+        ASSERT_TRUE(ano_storage.getEphemerals().contains(it.first));
+        auto ano_paths = ano_storage.getEphemerals().at(it.first);
         ASSERT_EQ(it.second.size(), ano_paths.size());
         for (const auto & path_it : it.second)
         {
@@ -272,10 +271,10 @@ void assertStateMachineEquals(KeeperStore & storage, KeeperStore & ano_storage)
     }
 
     /// assert session_and_timeout
-    for (auto it : storage.session_and_timeout)
+    for (auto it : storage.getSessionAndTimeOut())
     {
-        ASSERT_TRUE(ano_storage.session_and_timeout.contains(it.first));
-        ASSERT_EQ(it.second, ano_storage.session_and_timeout.at(it.first));
+        ASSERT_TRUE(ano_storage.containsSession(it.first));
+        ASSERT_EQ(it.second, ano_storage.getSessionAndTimeOut().at(it.first));
     }
 
     auto filter_auth = [](KeeperStore::SessionAndAuth & auth_ids)
@@ -349,7 +348,7 @@ TEST(RaftSnapshot, createSnapshot_1)
     KeeperStore storage(raft_settings->dead_session_check_period_ms);
 
     setNode(storage, "1", "table_1");
-    ASSERT_EQ(storage.container.size(), 2); /// it's has "/" and "/1"
+    ASSERT_EQ(storage.getNodesCount(), 2); /// it's has "/" and "/1"
     size_t object_size = snap_mgr.createSnapshot(snap_meta, storage);
     ASSERT_EQ(object_size, 1 + 1 + 1 + 1);
     cleanDirectory(snap_dir);
@@ -433,13 +432,13 @@ TEST(RaftSnapshot, readAndSaveSnapshot)
 
 void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compare_acl)
 {
-    ASSERT_EQ(new_store.container.size(), store.container.size());
-    for (UInt32 i = 0; i < store.container.getBucketNum(); i++)
+    ASSERT_EQ(new_store.getNodesCount(), store.getNodesCount());
+    for (UInt32 i = 0; i < store.getDataTreeBucketNum(); i++)
     {
-        auto & inner_map = store.container.getMap(i);
+        auto & inner_map = store.getDataTree().getMap(i);
         for (auto it = inner_map.getMap().begin(); it != inner_map.getMap().end(); it++)
         {
-            auto new_node = new_store.container.get(it->first);
+            auto new_node = new_store.getNode(it->first);
             ASSERT_TRUE(new_node != nullptr);
             ASSERT_EQ(new_node->data, it->second->data);
             if (compare_acl)
@@ -453,32 +452,32 @@ void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compa
             ASSERT_EQ(new_node->children, it->second->children);
         }
     }
-    ASSERT_EQ(new_store.container.get("/1020/test112")->data, "test211");
+    ASSERT_EQ(new_store.getNode("/1020/test112")->data, "test211");
 
-    ASSERT_TRUE(true) << "compare container.";
+    ASSERT_TRUE(true) << "compare data tree.";
 
     /// compare ephemeral
-    ASSERT_EQ(new_store.ephemerals.size(), store.ephemerals.size());
-    ASSERT_EQ(store.ephemerals.size(), 1);
-    for (const auto & [session_id, paths] : store.ephemerals)
+    ASSERT_EQ(new_store.getSessionWithEphemeralNodesCount(), store.getSessionWithEphemeralNodesCount());
+    ASSERT_EQ(store.getSessionWithEphemeralNodesCount(), 1);
+    for (const auto & [session_id, paths] : store.getEphemerals())
     {
-        ASSERT_FALSE(new_store.ephemerals.find(session_id) == new_store.ephemerals.end());
-        ASSERT_EQ(paths, new_store.ephemerals.find(session_id)->second);
+        ASSERT_FALSE(new_store.getEphemerals().find(session_id) == new_store.getEphemerals().end());
+        ASSERT_EQ(paths, new_store.getEphemerals().find(session_id)->second);
     }
 
     ASSERT_TRUE(true) << "compare ephemeral.";
 
     /// compare sessions
-    ASSERT_EQ(store.session_and_timeout.size(), 10003);
-    ASSERT_EQ(store.session_and_timeout.size(), new_store.session_and_timeout.size());
-    ASSERT_EQ(store.session_and_timeout, new_store.session_and_timeout);
+    ASSERT_EQ(store.getSessionCount(), 10003);
+    ASSERT_EQ(store.getSessionCount(), new_store.getSessionCount());
+    ASSERT_EQ(store.getSessionAndTimeOut(), new_store.getSessionAndTimeOut());
 
     ASSERT_TRUE(true) << "compare sessions.";
 
     /// compare Others(int_map)
-    ASSERT_EQ(store.session_id_counter, 10004);
-    ASSERT_EQ(store.session_id_counter, new_store.session_id_counter);
-    ASSERT_EQ(store.zxid, new_store.zxid);
+    ASSERT_EQ(store.getSessionIDCounter(), 10004);
+    ASSERT_EQ(store.getSessionIDCounter(), new_store.getSessionIDCounter());
+    ASSERT_EQ(store.getZxid(), new_store.getZxid());
 
     ASSERT_TRUE(true) << "compare Others(int_map).";
 
@@ -498,17 +497,17 @@ void compareKeeperStore(KeeperStore & store, KeeperStore & new_store, bool compa
         ASSERT_EQ(new_store.acl_map.getMapping().size(), 4);
         ASSERT_EQ(store.acl_map.getMapping(), new_store.acl_map.getMapping());
 
-        const auto & acls = new_store.acl_map.convertNumber(store.container.get("/1020")->acl_id);
+        const auto & acls = new_store.acl_map.convertNumber(store.getNode("/1020")->acl_id);
         ASSERT_EQ(acls.size(), 2);
         ASSERT_EQ(acls[0].id, "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
         ASSERT_EQ(acls[1].id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
 
-        for (const auto & acl : new_store.acl_map.convertNumber(store.container.get("/1022")->acl_id))
+        for (const auto & acl : new_store.acl_map.convertNumber(store.getNode("/1022")->acl_id))
         {
             ASSERT_EQ(acl.permissions, ACL::Read);
         }
 
-        for (const auto & acl : new_store.acl_map.convertNumber(store.container.get("/1024")->acl_id))
+        for (const auto & acl : new_store.acl_map.convertNumber(store.getNode("/1024")->acl_id))
         {
             ASSERT_EQ(acl.permissions, ACL::All);
             ASSERT_EQ(acl.id, "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
@@ -610,12 +609,12 @@ void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version
         store.getSessionID(6000);
     }
 
-    ASSERT_EQ(store.container.size(), 2050); /// Include "/" node
+    ASSERT_EQ(store.getNodesCount(), 2050); /// Include "/" node
 
     /// 2. create snapshot with version1
 
     snapshot meta(1, 1, config);
-    size_t object_size = snap_mgr.createSnapshot(meta, store, store.zxid, store.session_id_counter, version1);
+    size_t object_size = snap_mgr.createSnapshot(meta, store, store.getZxid(), store.getSessionIDCounter(), version1);
 
     /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
     ASSERT_EQ(object_size, 21 + 3);
@@ -630,7 +629,7 @@ void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version
 
     /// 5. create snapshot with version2
     snapshot new_meta(2, 1, config); /// We should use different last_log_index
-    size_t new_object_size = snap_mgr.createSnapshot(new_meta, new_store, new_store.zxid, new_store.session_id_counter, version2);
+    size_t new_object_size = snap_mgr.createSnapshot(new_meta, new_store, new_store.getZxid(), new_store.getSessionIDCounter(), version2);
     ASSERT_EQ(new_object_size, 21 + 3);
 
     /// 6. load the snapshot into new_store1
@@ -693,7 +692,7 @@ void createSnapshotWithFuzzyLog(bool async_snapshot)
     }
 
     /// use the first session
-    int64_t session_id = machine.getStore().session_id_counter - 2;
+    int64_t session_id = machine.getStore().getSessionIDCounter() - 2;
     ASSERT_EQ(session_id, 1);
 
     /// create 10 znodes

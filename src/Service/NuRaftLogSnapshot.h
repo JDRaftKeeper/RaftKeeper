@@ -19,21 +19,21 @@ struct SnapTask
     int64_t nodes_count;
     int64_t ephemeral_nodes_count;
     int64_t session_count;
-    KeeperStore::SessionAndTimeout session_and_timeout;
+    SessionAndTimeout session_and_timeout;
     std::unordered_map<uint64_t, Coordination::ACLs> acl_map;
     KeeperStore::SessionAndAuth session_and_auth;
     std::shared_ptr<KeeperStore::BucketNodes> buckets_nodes;
     nuraft::async_result<bool>::handler_type when_done;
 
     SnapTask(const ptr<snapshot> & s_, KeeperStore & store, nuraft::async_result<bool>::handler_type & when_done_)
-        : s(s_), next_zxid(store.zxid), next_session_id(store.session_id_counter), when_done(when_done_)
+        : s(s_), next_zxid(store.getZxid()), next_session_id(store.getSessionIDCounter()), when_done(when_done_)
     {
         auto * log = &Poco::Logger::get("SnapTask");
-        session_and_timeout = store.getSessionTimeOut();
+        session_and_timeout = store.getSessionAndTimeOut();
         session_count = session_and_timeout.size();
-        session_and_auth = store.getSessionAuth();
+        session_and_auth = store.getSessionAndAuth();
 
-        acl_map = store.acl_map.getMapping();
+        acl_map = store.getACLMap().getMapping();
         Stopwatch watch;
         buckets_nodes = store.dumpDataTree();
         LOG_INFO(log, "Dumping data tree costs {}ms", watch.elapsedMilliseconds());

@@ -90,7 +90,7 @@ void deserializeACLMap(KeeperStore & store, ReadBuffer & in)
             acls_len--;
         }
 
-        store.acl_map.addMapping(map_index, acls);
+        store.addACLs(map_index, acls);
         count--;
     }
 }
@@ -132,12 +132,12 @@ int64_t deserializeStorageData(KeeperStore & store, ReadBuffer & in, Poco::Logge
         if (!path.empty())
         {
             node->stat.dataLength = node->data.length();
-            store.container.emplace(path, node);
+            store.addNode(path, node);
 
             if (node->stat.ephemeralOwner != 0)
             {
                 node->is_ephemeral = true;
-                store.ephemerals[node->stat.ephemeralOwner].insert(path);
+                store.addEphemeralNode(node->stat.ephemeralOwner, path);
             }
         }
 
@@ -166,7 +166,7 @@ void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const String & snap
     auto max_session_id = deserializeSessionAndTimeout(store, reader);
     LOG_INFO(log, "Sessions and timeouts deserialized, max_session_id: {}", max_session_id);
 
-    store.session_id_counter = max_session_id + 1; /// session_id_counter pointer to next slot
+    store.setSessionIDCounter(max_session_id + 1); /// session_id_counter pointer to next slot
     deserializeACLMap(store, reader);
     LOG_INFO(log, "ACLs deserialized");
 
@@ -187,9 +187,9 @@ void deserializeKeeperStoreFromSnapshot(KeeperStore & store, const String & snap
     if (zxid_from_nodes > zxid)
         LOG_WARNING(log, "ZooKeeper snapshot was in inconsistent (fuzzy) state. Will try to apply log. ZooKeeper create non fuzzy snapshot with restart. You can just restart ZooKeeper server and get consistent version.");
 
-    store.zxid = zxid;
+    store.setZxid(zxid);
 
-    LOG_INFO(log, "Finished, snapshot ZXID {}", store.zxid);
+    LOG_INFO(log, "Finished, snapshot ZXID {}", store.getZxid());
 }
 
 void deserializeKeeperStoreFromSnapshotsDir(KeeperStore & store, const String & path, Poco::Logger * log)
@@ -589,7 +589,7 @@ void deserializeLogsAndApplyToStore(KeeperStore & store, const String & path, Po
     std::vector<String> stored_files;
     for (auto it = existing_logs.rbegin(); it != existing_logs.rend(); ++it)
     {
-        if (it->first >= store.zxid)
+        if (it->first >= store.getZxid())
         {
             stored_files.emplace_back(it->second);
         }

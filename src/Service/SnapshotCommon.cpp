@@ -478,13 +478,8 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdge
 
         auto ephemeral_owner = node->stat.ephemeralOwner;
         if (ephemeral_owner != 0)
-        {
-            std::lock_guard l(store.ephemerals_mutex);
-            auto & ephemeral_nodes = store.ephemerals[ephemeral_owner];
-            ephemeral_nodes.emplace(path);
-        }
+            store.addEphemeralNode(ephemeral_owner, path);
 
-        // store.container.emplace(path, std::move(node));
         if (likely(path != "/"))
         {
             auto rslash_pos = path.rfind('/');
@@ -496,10 +491,10 @@ void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdge
 
             // Storage edges in different bucket, according to the bucket index of parent node.
             // Which allow us to insert child paths for all nodes in parallel.
-            buckets_edges[store.container.getBucketIndex(parent_path)].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
+            buckets_edges[store.getBucketIndex(parent_path)].emplace_back(std::move(parent_path), path.substr(rslash_pos + 1));
         }
 
-        bucket_nodes[store.container.getBucketIndex(path)].emplace_back(std::move(path), std::move(node));
+        bucket_nodes[store.getBucketIndex(path)].emplace_back(std::move(path), std::move(node));
     }
 }
 
@@ -523,10 +518,7 @@ void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, Snapsho
                 Coordination::AuthIDs ids;
                 Coordination::read(ids, in);
                 if (!ids.empty())
-                {
-                    std::lock_guard lock(store.auth_mutex);
-                    store.session_and_auth[session_id] = ids;
-                }
+                    store.addSessionAuth(session_id, ids);
             }
         }
         catch (...)
@@ -559,7 +551,7 @@ void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
                 throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot is corrupted, can't parse the {}th acl in batch", i + 1);
             }
 
-            store.acl_map.addMapping(acl_id, acls);
+            store.addACLs(acl_id, acls);
         }
     }
 }
@@ -588,11 +580,11 @@ void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
     }
     if (int_map.find("ZXID") != int_map.end())
     {
-        store.zxid = int_map["ZXID"];
+        store.setZxid(int_map["ZXID"]);
     }
     if (int_map.find("SESSIONID") != int_map.end())
     {
-        store.session_id_counter = int_map["SESSIONID"];
+        store.setSessionIDCounter(int_map["SESSIONID"]);
     }
 }
 
