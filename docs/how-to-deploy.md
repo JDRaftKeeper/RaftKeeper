@@ -150,3 +150,29 @@ and `/path/to/raftkeeper/root/dir/` with your RaftKeeper root directory.
 ```
 cd RaftKeeper/bin && sh start.sh
 ```
+
+### Deploy with learner nodes
+
+RaftKeeper also support learner node which will not participate in leader election or log replication.
+The following demonstrates how to configure the 4th node as learner node.
+```xml
+    <cluster>
+        <server>
+            <id>1</id>
+            <host>ip_of_node1</host>
+        </server>
+        <server>
+            <id>2</id>
+            <host>ip_of_node2</host>
+        </server>
+        <server>
+            <id>3</id>
+            <host>ip_of_node3</host>
+        </server>
+        <server>
+            <id>4</id>
+            <host>ip_of_node4</host>
+            <learner>true</learner>
+        </server>
+    </cluster>
+```
