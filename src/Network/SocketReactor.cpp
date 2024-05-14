@@ -8,9 +8,9 @@
 #include <Poco/Thread.h>
 
 #include <Common/Exception.h>
-#include <NIO/SocketNotification.h>
-#include <NIO/SocketNotifier.h>
-#include <NIO/SocketReactor.h>
+#include <Network/SocketNotification.h>
+#include <Network/SocketNotifier.h>
+#include <Network/SocketReactor.h>
 
 
 using Poco::ErrorHandler;

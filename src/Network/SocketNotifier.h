@@ -7,9 +7,9 @@
 #include <Poco/Net/Net.h>
 #include <Poco/Net/Socket.h>
 
-#include <NIO/NotificationCenter.h>
-#include <NIO/Observer.h>
-#include <NIO/SocketReactor.h>
+#include <Network/NotificationCenter.h>
+#include <Network/Observer.h>
+#include <Network/SocketReactor.h>
 
 namespace RK
 {

@@ -11,9 +11,9 @@
 #include <Poco/Net/ServerSocket.h>
 #include <Poco/Net/StreamSocket.h>
 
-#include <NIO/Observer.h>
-#include <NIO/SocketNotification.h>
-#include <NIO/SocketReactor.h>
+#include <Network/Observer.h>
+#include <Network/SocketNotification.h>
+#include <Network/SocketReactor.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
 #include <common/logger_useful.h>
 

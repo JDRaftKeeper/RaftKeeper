@@ -17,7 +17,7 @@ if (COMPILER_GCC)
 endif ()
 
 add_subdirectory (Common)
-add_subdirectory (NIO)
+add_subdirectory (Network)
 add_subdirectory (Common/IO)
 add_subdirectory (Service)
 
@@ -55,7 +55,7 @@ set(rk_headers)
 set(rk_sources)
 
 add_headers_and_sources(rk Service)
-add_headers_and_sources(rk NIO)
+add_headers_and_sources(rk Network)
 
 add_library (rk STATIC ${rk_headers} ${rk_sources})
 target_link_libraries (rk PRIVATE jemalloc ${RK_COMMON_LIBRARIES})

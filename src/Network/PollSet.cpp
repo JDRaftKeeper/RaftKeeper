@@ -19,7 +19,7 @@
 #include <Poco/Thread.h>
 
 #include <Common/Exception.h>
-#include <NIO/PollSet.h>
+#include <Network/PollSet.h>
 #include <common/logger_useful.h>
 
 using Poco::Net::SocketImpl;
