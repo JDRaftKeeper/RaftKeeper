@@ -13,10 +13,10 @@
 #include <Poco/Thread.h>
 #include <Poco/Timespan.h>
 
-#include <NIO/Observer.h>
-#include <NIO/PollSet.h>
-#include <NIO/SocketNotification.h>
-#include <NIO/SocketNotifier.h>
+#include <Network/Observer.h>
+#include <Network/PollSet.h>
+#include <Network/SocketNotification.h>
+#include <Network/SocketNotifier.h>
 #include <Common/setThreadName.h>
 #include <common/logger_useful.h>
 

@@ -14,9 +14,9 @@
 #include <Poco/Util/OptionSet.h>
 #include <Poco/Util/ServerApplication.h>
 
-#include <NIO/SocketAcceptor.h>
-#include <NIO/SocketNotification.h>
-#include <NIO/SocketReactor.h>
+#include <Network/SocketAcceptor.h>
+#include <Network/SocketNotification.h>
+#include <Network/SocketReactor.h>
 
 #include <Service/ConnCommon.h>
 #include <Service/ForwardConnection.h>
