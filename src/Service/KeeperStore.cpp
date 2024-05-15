@@ -783,6 +783,7 @@ struct StoreRequestList final : public StoreRequest
         else
         {
             Coordination::ZooKeeperSimpleListResponse & response = dynamic_cast<Coordination::ZooKeeperSimpleListResponse &>(*response_ptr);
+            response.names.reserve(node->children.size());
             response.names.insert(response.names.end(), node->children.begin(), node->children.end());
         }
 
