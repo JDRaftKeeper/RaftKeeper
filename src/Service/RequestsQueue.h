@@ -14,7 +14,7 @@ namespace RK
  *      1 KeeperDispatcher
  *      2 RequestForwarder
  *      3 RequestAccumulator
- *      4 Raft data replication (not use)
+ *      4 Raft log replication
  *      5 RequestProcessor
  *
  * For high throughput, we setup n execution pipe in whole pipeline, execution
@@ -23,15 +23,15 @@ namespace RK
  * The whole requests execution pipeline looks like:
  *
  *        1        2        3         4         5
- *      -----    -----                        -----
+ *      -----    -----
  *      -----    -----    -----     -----     -----
- *      -----    -----                        -----
+ *      -----    -----
  * 1 KeeperDispatcher: receive user requests and dispatcher to RequestForwarder(write request)
  *   or RequestProcessor(read request).
  * 2 RequestForwarder: redirect request to leader.
  * 3 RequestAccumulator: accumulate request and send to Raft in batch.
- * 4 Raft data replication
- * 5 RequestProcessor: process user requests, for write requests only 1 thread running, for read requests multi-thread running.
+ * 4 Raft log replication
+ * 5 RequestProcessor: process user requests.
  */
 struct RequestsQueue
 {

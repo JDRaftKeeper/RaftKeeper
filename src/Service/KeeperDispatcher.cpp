@@ -331,7 +331,9 @@ void KeeperDispatcher::shutdown()
             response->error = Coordination::Error::ZSESSIONEXPIRED;
             invokeResponseCallBack(request_for_session.session_id, response);
         }
+        std::lock_guard lock(response_callbacks_mutex);
         user_response_callbacks.clear();
+        session_response_callbacks.clear();
     }
     catch (...)
     {
