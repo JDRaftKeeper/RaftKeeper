@@ -26,10 +26,8 @@ class WatchManager
 {
 public:
     using SessionIDs = std::vector<int64_t>;
-    using Watches = std::unordered_map<String /* path, relative of root_path */, SessionIDs>;
+    using Watches = std::unordered_map<String, SessionIDs>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<String>>;
-    using SessionAndWatcherPtr = std::shared_ptr<SessionAndWatcher>;
-    using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
 
     explicit WatchManager() : log(&Poco::Logger::get("WatchManager")) { }
 
@@ -59,7 +57,7 @@ public:
     void reset();
 
 private:
-    /// Session id -> node patch
+    /// Session id -> node path
     SessionAndWatcher sessions_and_watchers;
     /// Node path -> session id. Watches for 'get' and 'exist' requests
     Watches watches;
