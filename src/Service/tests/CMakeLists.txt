@@ -1,7 +1,0 @@
-add_executable(raft_tcp_client raft_tcp_client.cpp)
-add_executable(raft_service_client raft_service_client.cpp)
-add_executable(raft_unit_benchmark raft_unit_benchmark.cpp raft_test_common.cpp)
-
-target_link_libraries(raft_tcp_client PRIVATE rk_zookeeper)
-target_link_libraries(raft_service_client PRIVATE rk_zookeeper loggers)
-target_link_libraries(raft_unit_benchmark PRIVATE nuraft rk_common_io rk_zookeeper loggers)
