@@ -58,6 +58,7 @@ if (COMPILER_CLANG)
     add_warning(unused-exception-parameter)
     add_warning(unused-macros)
     add_warning(unused-member-function)
+    no_warning(unsafe-buffer-usage)
     # XXX: libstdc++ has some of these for 3way compare
     if (USE_LIBCXX)
         add_warning(zero-as-null-pointer-constant)
