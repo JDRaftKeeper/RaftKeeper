@@ -673,7 +673,7 @@ void createSnapshotWithFuzzyLog(bool async_snapshot)
     KeeperResponsesQueue queue;
     RaftSettingsPtr setting_ptr = RaftSettings::getDefault();
     setting_ptr->async_snapshot = async_snapshot;
-    ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir);
+    ptr<NuRaftFileLogStore> store = cs_new<NuRaftFileLogStore>(log_dir, false, FsyncMode::FSYNC);
 
     std::mutex new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> new_session_id_callback;
@@ -764,7 +764,7 @@ void createSnapshotWithFuzzyLog(bool async_snapshot)
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     KeeperResponsesQueue ano_queue;
-    ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir);
+    ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir, false, FsyncMode::FSYNC);
 
     NuRaftStateMachine ano_machine(
         ano_queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback, ano_store);

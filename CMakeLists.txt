@@ -59,13 +59,11 @@ if (CMAKE_GENERATOR STREQUAL "Ninja" AND NOT DISABLE_COLORED_BUILD)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always")
 endif ()
 
-if (COMPILER_CLANG)
-    # clang: warning: argument unused during compilation: '-specs=/usr/share/dpkg/no-pie-compile.specs' [-Wunused-command-line-argument]
-    set (COMMON_WARNING_FLAGS "${COMMON_WARNING_FLAGS} -Wno-unused-command-line-argument")
-    # generate ranges for fast "addr2line" search
-    if (NOT CMAKE_BUILD_TYPE_UC STREQUAL "RELEASE")
-        set(COMPILER_FLAGS "${COMPILER_FLAGS} -gdwarf-aranges")
-    endif ()
+# clang: warning: argument unused during compilation: '-specs=/usr/share/dpkg/no-pie-compile.specs' [-Wunused-command-line-argument]
+set (COMMON_WARNING_FLAGS "${COMMON_WARNING_FLAGS} -Wno-unused-command-line-argument")
+# generate ranges for fast "addr2line" search
+if (NOT CMAKE_BUILD_TYPE_UC STREQUAL "RELEASE")
+    set(COMPILER_FLAGS "${COMPILER_FLAGS} -gdwarf-aranges")
 endif ()
 
 # If turned `ON`, assumes the user has either the system GTest library or the bundled one.
@@ -154,12 +152,7 @@ if (ARCH_NATIVE)
     set (COMPILER_FLAGS "${COMPILER_FLAGS} -march=native")
 endif ()
 
-if (COMPILER_GCC OR COMPILER_CLANG)
-    # to make numeric_limits<__int128> works with GCC
-    set (_CXX_STANDARD "gnu++2a")
-else()
-    set (_CXX_STANDARD "c++2a")
-endif()
+set (_CXX_STANDARD "gnu++2a")
 
 # cmake < 3.12 doesn't support 20. We'll set CMAKE_CXX_FLAGS for now
 set (CMAKE_CXX_STANDARD 20)
@@ -168,25 +161,17 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=${_CXX_STANDARD}")
 set (CMAKE_CXX_EXTENSIONS 0) # https://cmake.org/cmake/help/latest/prop_tgt/CXX_EXTENSIONS.html#prop_tgt:CXX_EXTENSIONS
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if (COMPILER_GCC OR COMPILER_CLANG)
-    # Enable C++14 sized global deallocation functions. It should be enabled by setting -std=c++14 but I'm not sure.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsized-deallocation")
-endif ()
+# Enable C++14 sized global deallocation functions. It should be enabled by setting -std=c++14 but I'm not sure.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsized-deallocation")
 
 # Compiler-specific coverage flags e.g. -fcoverage-mapping for gcc
 option(WITH_COVERAGE "Profile the resulting binary/binaries" OFF)
 
-if (WITH_COVERAGE AND COMPILER_CLANG)
+if (WITH_COVERAGE)
     set(COMPILER_FLAGS "${COMPILER_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
     # If we want to disable coverage for specific translation units
     set(WITHOUT_COVERAGE "-fno-profile-instr-generate -fno-coverage-mapping")
-endif()
-
-if (WITH_COVERAGE AND COMPILER_GCC)
-    set(COMPILER_FLAGS "${COMPILER_FLAGS} -fprofile-arcs -ftest-coverage")
-    set(COVERAGE_OPTION "-lgcov")
-    set(WITHOUT_COVERAGE "-fno-profile-arcs -fno-test-coverage")
-endif()
+endif ()
 
 set(COMPILER_FLAGS "${COMPILER_FLAGS}")
 
@@ -199,57 +184,51 @@ set (CMAKE_C_FLAGS                       "${CMAKE_C_FLAGS} ${COMPILER_FLAGS} ${C
 set (CMAKE_C_FLAGS_RELWITHDEBINFO        "${CMAKE_C_FLAGS_RELWITHDEBINFO} -O3 ${CMAKE_C_FLAGS_ADD}")
 set (CMAKE_C_FLAGS_DEBUG                 "${CMAKE_C_FLAGS_DEBUG} -O0 -g3 -ggdb3 -fno-inline ${CMAKE_C_FLAGS_ADD}")
 
-if (COMPILER_CLANG)
-    if (OS_DARWIN)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-U,_inside_main")
-    endif()
+if (OS_DARWIN)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-U,_inside_main")
+endif()
 
-    # Display absolute paths in error messages. Otherwise KDevelop fails to navigate to correct file and opens a new file instead.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-absolute-paths")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-absolute-paths")
+# Display absolute paths in error messages. Otherwise KDevelop fails to navigate to correct file and opens a new file instead.
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-absolute-paths")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-absolute-paths")
 
-    if (NOT ENABLE_TESTS AND NOT SANITIZE)
-        # https://clang.llvm.org/docs/ThinLTO.html
-        # Applies to clang only.
-        # Disabled when building with tests or sanitizers.
-        option(ENABLE_THINLTO "Clang-specific link time optimization" ON)
-    endif()
+if (NOT ENABLE_TESTS AND NOT SANITIZE)
+    # https://clang.llvm.org/docs/ThinLTO.html
+    option(ENABLE_THINLTO "Clang-specific link time optimization" ON)
+endif()
 
-    # We cannot afford to use LTO when compiling unit tests, and it's not enough
-    # to only supply -fno-lto at the final linking stage. So we disable it
-    # completely.
-    if (ENABLE_THINLTO AND NOT ENABLE_TESTS AND NOT SANITIZE)
-        # Link time optimization
-        set (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -flto=thin")
-        set (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -flto=thin")
-        set (CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} -flto=thin")
-    elseif (ENABLE_THINLTO)
-        message (${RECONFIGURE_MESSAGE_LEVEL} "Cannot enable ThinLTO")
-    endif ()
-
-    # Always prefer llvm tools when using clang. For instance, we cannot use GNU ar when llvm LTO is enabled
-    find_program (LLVM_AR_PATH NAMES "llvm-ar" "llvm-ar-11" "llvm-ar-12" "llvm-ar-13" "llvm-ar-14" "llvm-ar-15" "llvm-ar-16")
-
-    if (LLVM_AR_PATH)
-        message(STATUS "Using llvm-ar: ${LLVM_AR_PATH}.")
-        set (CMAKE_AR ${LLVM_AR_PATH})
-    else ()
-        message(WARNING "Cannot find llvm-ar. System ar will be used instead. It does not work with ThinLTO.")
-    endif ()
-
-    find_program (LLVM_RANLIB_PATH NAMES "llvm-ranlib" "llvm-ranlib-11" "llvm-ranlib-12" "llvm-ranlib-13" "llvm-ranlib-14"  "llvm-ranlib-15"  "llvm-ranlib-16")
-
-    if (LLVM_RANLIB_PATH)
-        message(STATUS "Using llvm-ranlib: ${LLVM_RANLIB_PATH}.")
-        set (CMAKE_RANLIB ${LLVM_RANLIB_PATH})
-    else ()
-        message(WARNING "Cannot find llvm-ranlib. System ranlib will be used instead. It does not work with ThinLTO.")
-    endif ()
-
+# We cannot afford to use LTO when compiling unit tests, and it's not enough
+# to only supply -fno-lto at the final linking stage. So we disable it
+# completely.
+if (ENABLE_THINLTO AND NOT ENABLE_TESTS AND NOT SANITIZE)
+    # Link time optimization
+    set (CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} -flto=thin")
+    set (CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -flto=thin")
+    set (CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO} -flto=thin")
 elseif (ENABLE_THINLTO)
-    message (${RECONFIGURE_MESSAGE_LEVEL} "ThinLTO is only available with CLang")
+    message (${RECONFIGURE_MESSAGE_LEVEL} "Cannot enable ThinLTO")
 endif ()
+
+# Always prefer llvm tools when using clang. For instance, we cannot use GNU ar when llvm LTO is enabled
+find_program (LLVM_AR_PATH NAMES "llvm-ar" "llvm-ar-13" "llvm-ar-14" "llvm-ar-15" "llvm-ar-16" "llvm-ar-17")
+
+if (LLVM_AR_PATH)
+    message(STATUS "Using llvm-ar: ${LLVM_AR_PATH}.")
+    set (CMAKE_AR ${LLVM_AR_PATH})
+else ()
+    message(WARNING "Cannot find llvm-ar. System ar will be used instead. It does not work with ThinLTO.")
+endif ()
+
+find_program (LLVM_RANLIB_PATH NAMES "llvm-ranlib" "llvm-ranlib-13" "llvm-ranlib-14"  "llvm-ranlib-15"  "llvm-ranlib-16" "llvm-ranlib-17")
+
+if (LLVM_RANLIB_PATH)
+    message(STATUS "Using llvm-ranlib: ${LLVM_RANLIB_PATH}.")
+    set (CMAKE_RANLIB ${LLVM_RANLIB_PATH})
+else ()
+    message(WARNING "Cannot find llvm-ranlib. System ranlib will be used instead. It does not work with ThinLTO.")
+endif ()
+
 
 add_warning(error)
 
@@ -261,7 +240,7 @@ endif ()
 
 include(cmake/glob_sources.cmake)
 
-if (OS_LINUX OR OS_ANDROID)
+if (OS_LINUX)
     include(cmake/linux/default_libs.cmake)
 elseif (OS_DARWIN)
     include(cmake/darwin/default_libs.cmake)

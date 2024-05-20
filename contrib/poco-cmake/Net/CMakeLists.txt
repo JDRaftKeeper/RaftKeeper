@@ -110,15 +110,13 @@ elseif (OS_DARWIN OR OS_FREEBSD)
     target_compile_definitions (_poco_net PUBLIC POCO_HAVE_FD_POLL)
 endif ()
 
-if (COMPILER_CLANG)
-    # clang-specific warnings
-    target_compile_options (_poco_net
-        PRIVATE
-            -Wno-atomic-implicit-seq-cst
-            -Wno-extra-semi-stmt
-            -Wno-extra-semi
-    )
-endif ()
+# clang-specific warnings
+target_compile_options (_poco_net
+    PRIVATE
+        -Wno-atomic-implicit-seq-cst
+        -Wno-extra-semi-stmt
+        -Wno-extra-semi
+)
 target_compile_options (_poco_net
     PRIVATE
         -Wno-deprecated

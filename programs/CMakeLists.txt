@@ -38,7 +38,7 @@ add_subdirectory(converter)
 add_executable(raftkeeper main.cpp)
 
 # A library that prevent usage of several functions from libc.
-if (ARCH_AMD64 AND OS_LINUX AND NOT OS_ANDROID)
+if (ARCH_AMD64 AND OS_LINUX)
     set(HARMFUL_LIB harmful)
 endif ()
 

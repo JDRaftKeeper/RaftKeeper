@@ -8,9 +8,7 @@ if (GLIBC_COMPATIBILITY)
 
     check_include_file("sys/random.h" HAVE_SYS_RANDOM_H)
 
-    if(COMPILER_CLANG)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-requires-header -Wno-unused-but-set-variable")
-    endif()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-builtin-requires-header -Wno-unused-but-set-variable")
 
     add_headers_and_sources(glibc_compatibility .)
     add_headers_and_sources(glibc_compatibility musl)
@@ -41,11 +39,7 @@ if (GLIBC_COMPATIBILITY)
 
     add_library(glibc-compatibility STATIC ${glibc_compatibility_sources})
 
-    if (COMPILER_CLANG)
-        target_compile_options(glibc-compatibility PRIVATE -Wno-unused-command-line-argument)
-    elseif (COMPILER_GCC)
-        target_compile_options(glibc-compatibility PRIVATE -Wno-unused-but-set-variable)
-    endif ()
+    target_compile_options(glibc-compatibility PRIVATE -Wno-unused-command-line-argument)
 
     target_include_directories(glibc-compatibility PRIVATE libcxxabi ${musl_arch_include_dir})
 

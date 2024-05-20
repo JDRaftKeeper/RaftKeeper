@@ -22,7 +22,7 @@ TEST(RaftPerformance, appendLogPerformance)
     String log_dir(LOG_DIR + "/50");
     cleanDirectory(log_dir);
 
-    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
+    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC);
     int key_bytes = 256;
     int value_bytes = 1024;
 
@@ -81,7 +81,7 @@ TEST(RaftPerformance, appendLogThread)
     String log_dir(LOG_DIR + "/51");
     cleanDirectory(log_dir);
     //auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
+    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC);
     //ASSERT_EQ(log_store->init(), 0);
     int key_bytes = 256;
     int value_bytes = 1024;

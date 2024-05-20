@@ -260,7 +260,7 @@ TEST(RaftLog, writeAt)
 {
     String log_dir(LOG_DIR + "/9");
     cleanDirectory(log_dir);
-    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true);
+    ptr<NuRaftFileLogStore> file_store = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC);
 
     UInt64 term = 1;
     String key("/ck");
@@ -330,7 +330,7 @@ TEST(RaftLog, compact)
     String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store
-        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC_PARALLEL, 1000, static_cast<UInt32>(200), static_cast<UInt32>(3));
+        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC, 1000, static_cast<UInt32>(200), static_cast<UInt32>(3));
 
     UInt64 term = 1;
     String key("/ck/table/table1");
