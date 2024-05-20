@@ -547,7 +547,7 @@ bool KeeperDispatcher::isLocalSession(int64_t session_id)
 
 void KeeperDispatcher::filterLocalSessions(std::unordered_map<int64_t, int64_t> & session_to_expiration_time)
 {
-    std::unique_lock<std::shared_mutex> write_lock(response_callbacks_mutex);
+    std::shared_lock<std::shared_mutex> read_lock(response_callbacks_mutex);
     for (auto it = session_to_expiration_time.begin(); it != session_to_expiration_time.end();)
     {
         if (!user_response_callbacks.contains(it->first))
