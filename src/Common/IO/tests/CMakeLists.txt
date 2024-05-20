@@ -24,6 +24,3 @@ target_link_libraries (limit_read_buffer PRIVATE rk_common_io)
 
 add_executable (limit_read_buffer2 limit_read_buffer2.cpp)
 target_link_libraries (limit_read_buffer2 PRIVATE rk_common_io)
-
-add_executable (dragonbox_test dragonbox_test.cpp)
-target_link_libraries (dragonbox_test PRIVATE dragonbox_to_chars)
