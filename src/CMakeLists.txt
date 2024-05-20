@@ -12,10 +12,6 @@ message (STATUS "Will build ${VERSION_FULL} ${GIT_COMMIT_HASH}")
 configure_file (Common/config.h.in ${CONFIG_COMMON})
 configure_file (Common/config_version.h.in ${CONFIG_VERSION})
 
-if (COMPILER_GCC)
-    add_definitions ("-fno-tree-loop-distribute-patterns")
-endif ()
-
 add_subdirectory (Common)
 add_subdirectory (Network)
 add_subdirectory (Common/IO)
@@ -34,12 +30,8 @@ target_link_libraries(rk_common_io PUBLIC ${NURAFT_LIBRARY})
 add_library (rk_malloc OBJECT Common/malloc.cpp)
 set_source_files_properties(Common/malloc.cpp PROPERTIES COMPILE_FLAGS "-fno-builtin")
 
-if (((SANITIZE STREQUAL "thread") OR (SANITIZE STREQUAL "address")) AND COMPILER_GCC)
-    message(WARNING "Memory tracking is disabled, due to gcc sanitizers")
-else()
-    add_library (rk_new_delete STATIC Common/new_delete.cpp)
-    target_link_libraries (rk_new_delete PRIVATE rk_common_io jemalloc)
-endif()
+add_library (rk_new_delete STATIC Common/new_delete.cpp)
+target_link_libraries (rk_new_delete PRIVATE rk_common_io jemalloc)
 
 add_subdirectory(ZooKeeper)
 add_subdirectory(Common/Config)
@@ -47,7 +39,7 @@ add_subdirectory(Common/Config)
 set (RK_COMMON_LIBRARIES)
 # libgcc_s does not provide an implementation of an atomics library. Instead,
 # GCC’s libatomic library can be used to supply these when using libgcc_s.
-if ((NOT USE_LIBCXX) AND COMPILER_CLANG AND OS_LINUX)
+if ((NOT USE_LIBCXX) AND OS_LINUX)
     list (APPEND RK_COMMON_LIBRARIES atomic)
 endif()
 

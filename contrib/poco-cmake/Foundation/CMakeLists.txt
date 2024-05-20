@@ -212,23 +212,16 @@ list(REMOVE_ITEM SRCS ${SRCS_PCRE} ${SRCS_ZLIB})
 add_library(_poco_foundation ${SRCS})
 add_library(Poco::Foundation ALIAS _poco_foundation)
 
-if (COMPILER_GCC)
-    target_compile_options(_poco_foundation
-            PRIVATE
-            -Wno-suggest-override
-            )
-elseif (COMPILER_CLANG)
-    target_compile_options(_poco_foundation
-            PRIVATE
-            -Wno-atomic-implicit-seq-cst
-            -Wno-deprecated
-            -Wno-extra-semi-stmt
-            -Wno-zero-as-null-pointer-constant
-            -Wno-implicit-int-float-conversion
-            -Wno-thread-safety-analysis
-            -Wno-thread-safety-negative
-            )
-endif ()
+target_compile_options(_poco_foundation
+        PRIVATE
+        -Wno-atomic-implicit-seq-cst
+        -Wno-deprecated
+        -Wno-extra-semi-stmt
+        -Wno-zero-as-null-pointer-constant
+        -Wno-implicit-int-float-conversion
+        -Wno-thread-safety-analysis
+        -Wno-thread-safety-negative
+        )
 target_compile_options(_poco_foundation
         PRIVATE
         -Wno-sign-compare

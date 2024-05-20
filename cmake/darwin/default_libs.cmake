@@ -1,9 +1,5 @@
 set (DEFAULT_LIBS "-nodefaultlibs")
 
-if (NOT COMPILER_CLANG)
-    message (FATAL_ERROR "Darwin build is supported only for Clang")
-endif ()
-
 set (DEFAULT_LIBS "${DEFAULT_LIBS} ${COVERAGE_OPTION} -lc -lm -lpthread -ldl")
 
 message(STATUS "Default libraries: ${DEFAULT_LIBS}")
