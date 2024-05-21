@@ -230,8 +230,8 @@ def test_invalid_timeout_setting(started_cluster):
             result[row[0]] = row[1]
 
     assert result['operation_timeout_ms'] == '1000'
-    assert result['min_session_timeout_ms'] == '10000'
-    assert result['max_session_timeout_ms'] == '100000'
+    assert result['min_session_timeout_ms'] == '1000'
+    assert result['max_session_timeout_ms'] == '3600000'
 
     node1.stop_raftkeeper()
     time.sleep(3)
