@@ -80,11 +80,11 @@
             <!-- NuRaft log replication timeout in millisecond, default is same with operation_timeout_ms. -->
             <!-- <client_req_timeout_ms>10000</client_req_timeout_ms> -->
 
-            <!-- NuRaft election timeout lower bound, default is 10s. -->
-            <!-- <election_timeout_lower_bound_ms>10000</election_timeout_lower_bound_ms> -->
+            <!-- NuRaft election timeout lower bound, default is 3s. -->
+            <!-- <election_timeout_lower_bound_ms>3000/election_timeout_lower_bound_ms> -->
 
-            <!-- NuRaft election timeout upper bound, default is 20s. -->
-            <!-- <election_timeout_upper_bound_ms>20000</election_timeout_upper_bound_ms> -->
+            <!-- NuRaft election timeout upper bound, default is 5s. -->
+            <!-- <election_timeout_upper_bound_ms>5000</election_timeout_upper_bound_ms> -->
 
             <!-- Keeper will keep at least this log item, default 1_000_000. -->
             <!-- <reserved_log_items>1000000</reserved_log_items> -->

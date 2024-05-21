@@ -73,8 +73,8 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         dead_session_check_period_ms = config.getUInt(get_key("dead_session_check_period_ms"), 500);
         heart_beat_interval_ms = config.getUInt(get_key("heart_beat_interval_ms"), 500);
         client_req_timeout_ms = config.getUInt(get_key("client_req_timeout_ms"), operation_timeout_ms);
-        election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), 10000);
-        election_timeout_upper_bound_ms = config.getUInt(get_key("election_timeout_upper_bound_ms"), 20000);
+        election_timeout_lower_bound_ms = config.getUInt(get_key("election_timeout_lower_bound_ms"), Coordination::ELECTION_TIMEOUT_LOWER_BOUND_MS);
+        election_timeout_upper_bound_ms = config.getUInt(get_key("election_timeout_upper_bound_ms"), Coordination::ELECTION_TIMEOUT_UPPER_BOUND_MS);
         reserved_log_items = config.getUInt(get_key("reserved_log_items"), 1000000);
         snapshot_distance = config.getUInt(get_key("snapshot_distance"), 3000000);
         max_stored_snapshots = config.getUInt(get_key("max_stored_snapshots"), 5);
@@ -109,8 +109,8 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->dead_session_check_period_ms = 500;
     settings->heart_beat_interval_ms = 500;
     settings->client_req_timeout_ms = settings->operation_timeout_ms;
-    settings->election_timeout_lower_bound_ms = 10000;
-    settings->election_timeout_upper_bound_ms = 20000;
+    settings->election_timeout_lower_bound_ms = Coordination::ELECTION_TIMEOUT_LOWER_BOUND_MS;
+    settings->election_timeout_upper_bound_ms = Coordination::ELECTION_TIMEOUT_UPPER_BOUND_MS;
     settings->reserved_log_items = 10000000;
     settings->snapshot_distance = 3000000;
     settings->max_stored_snapshots = 5;
