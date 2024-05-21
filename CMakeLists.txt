@@ -152,14 +152,13 @@ if (ARCH_NATIVE)
     set (COMPILER_FLAGS "${COMPILER_FLAGS} -march=native")
 endif ()
 
-set (_CXX_STANDARD "gnu++2a")
-
-# cmake < 3.12 doesn't support 20. We'll set CMAKE_CXX_FLAGS for now
-set (CMAKE_CXX_STANDARD 20)
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=${_CXX_STANDARD}")
-
-set (CMAKE_CXX_EXTENSIONS 0) # https://cmake.org/cmake/help/latest/prop_tgt/CXX_EXTENSIONS.html#prop_tgt:CXX_EXTENSIONS
+set (CMAKE_CXX_STANDARD 23)
+set (CMAKE_CXX_EXTENSIONS OFF)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set (CMAKE_C_STANDARD 11)
+set (CMAKE_C_EXTENSIONS ON)
+set (CMAKE_C_STANDARD_REQUIRED ON)
 
 # Enable C++14 sized global deallocation functions. It should be enabled by setting -std=c++14 but I'm not sure.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsized-deallocation")
