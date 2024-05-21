@@ -295,8 +295,8 @@ def test_cmd_conf(started_cluster):
         assert result["operation_timeout_ms"] == "1000"
         assert result["dead_session_check_period_ms"] == "500"
         assert result["heart_beat_interval_ms"] == "500"
-        assert result["election_timeout_lower_bound_ms"] == "5000"
-        assert result["election_timeout_upper_bound_ms"] == "10000"
+        assert result["election_timeout_lower_bound_ms"] == "3000"
+        assert result["election_timeout_upper_bound_ms"] == "5000"
 
         assert result["reserved_log_items"] == "1000000"
         assert result["snapshot_distance"] == "3000000"
