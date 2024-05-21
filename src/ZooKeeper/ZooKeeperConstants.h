@@ -62,5 +62,7 @@ static constexpr int32_t DEFAULT_SESSION_TIMEOUT_MS = 30000;
 static constexpr int32_t DEFAULT_MIN_SESSION_TIMEOUT_MS = 10000;
 static constexpr int32_t DEFAULT_MAX_SESSION_TIMEOUT_MS = 100000;
 static constexpr int32_t DEFAULT_OPERATION_TIMEOUT_MS = 10000;
+static constexpr int32_t ELECTION_TIMEOUT_LOWER_BOUND_MS = 3000;
+static constexpr int32_t ELECTION_TIMEOUT_UPPER_BOUND_MS = 5000;
 
 }
