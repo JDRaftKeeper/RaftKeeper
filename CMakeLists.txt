@@ -168,6 +168,9 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsized-deallocation")
 option(WITH_COVERAGE "Profile the resulting binary/binaries" OFF)
 
 if (WITH_COVERAGE)
+    if (SANITIZE)
+        message (FATAL_ERROR "Cannot enable coverage with sanitizers")
+    endif ()
     set(COMPILER_FLAGS "${COMPILER_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
     # If we want to disable coverage for specific translation units
     set(WITHOUT_COVERAGE "-fno-profile-instr-generate -fno-coverage-mapping")
