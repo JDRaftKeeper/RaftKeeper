@@ -62,14 +62,14 @@
 
         <!-- NuRaft related settings -->
         <raft_settings>
-            <!-- User minimum session timeout in millisecond, default is 10000. -->
-            <!-- <min_session_timeout_ms>10000</min_session_timeout_ms> -->
+            <!-- User minimum session timeout in millisecond, default is 1000. -->
+            <!-- <min_session_timeout_ms>1000</min_session_timeout_ms> -->
 
-            <!-- User maximum session timeout in millisecond, default is 100000. -->
-            <!-- <max_session_timeout_ms>100000</max_session_timeout_ms> -->
+            <!-- User maximum session timeout in millisecond, default is 3600000. -->
+            <!-- <max_session_timeout_ms>3600000</max_session_timeout_ms> -->
 
-            <!-- User operation timeout in millisecond, default is 10000. -->
-            <!-- <operation_timeout_ms>10000</operation_timeout_ms> -->
+            <!-- User operation timeout in millisecond, default is 3000. -->
+            <!-- <operation_timeout_ms>3000</operation_timeout_ms> -->
 
             <!-- Leader will check whether session is dead in this period, default is 500. -->
             <!-- <dead_session_check_period_ms>500</dead_session_check_period_ms> -->
