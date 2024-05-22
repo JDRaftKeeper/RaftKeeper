@@ -46,8 +46,6 @@ LastCommittedIndexManager::~LastCommittedIndexManager()
 void LastCommittedIndexManager::push(UInt64 index)
 {
     last_committed_index = index;
-    std::unique_lock lock(mutex);
-    cv.notify_all();
 }
 
 UInt64 LastCommittedIndexManager::get()
@@ -111,7 +109,6 @@ void LastCommittedIndexManager::persistThread()
         out.next();
 
         previous_persist_index = current_index;
-        previous_persist_time = getCurrentTimeMicroseconds();
     }
 }
 
