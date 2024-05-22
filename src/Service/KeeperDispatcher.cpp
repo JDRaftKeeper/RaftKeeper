@@ -119,7 +119,8 @@ void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordina
     /// session request
     if (unlikely(isSessionRequest(response->getOpNum())))
     {
-        std::shared_lock<std::shared_mutex> read_lock(response_callbacks_mutex);
+        /// We should use write-lock here for the callback will modify session_response_callbacks
+        std::unique_lock<std::shared_mutex> write_lock(response_callbacks_mutex);
         auto session_writer = session_response_callbacks.find(session_id); /// TODO session id == internal id?
         if (session_writer == session_response_callbacks.end())
             return;
