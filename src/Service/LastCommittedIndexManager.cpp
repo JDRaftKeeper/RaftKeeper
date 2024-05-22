@@ -20,7 +20,7 @@ namespace ErrorCodes
 
 inline UInt64 getCurrentTimeMicroseconds()
 {
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 LastCommittedIndexManager::LastCommittedIndexManager(const String & log_dir) : log(&Poco::Logger::get("LastCommittedIndexManager"))
@@ -77,7 +77,7 @@ UInt64 LastCommittedIndexManager::get()
 
 void LastCommittedIndexManager::persistThread()
 {
-    LOG_INFO(log, "Starting LastCommittedIndexManager");
+    LOG_INFO(log, "Starting background last committed index persist thread");
     setThreadName("pst_lst_idx");
 
     while (!is_shut_down)
@@ -97,6 +97,9 @@ void LastCommittedIndexManager::persistThread()
                 break;
         }
 
+        /// Update previous_persist_time to avoid endless loop.
+        previous_persist_time = getCurrentTimeMicroseconds();
+
         uint64_t current_index = last_committed_index.load();
         if (previous_persist_index == current_index)
             continue;
@@ -114,7 +117,7 @@ void LastCommittedIndexManager::persistThread()
 
 void LastCommittedIndexManager::shutDown()
 {
-    LOG_INFO(log, "Shutting down LastCommittedIndexManager");
+    LOG_INFO(log, "Shutting down last committed index persist thread");
     if (!is_shut_down)
     {
         is_shut_down = true;
