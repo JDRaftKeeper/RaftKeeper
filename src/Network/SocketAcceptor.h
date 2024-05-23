@@ -44,6 +44,7 @@ template <class ServiceHandler>
 class SocketAcceptor
 {
 public:
+    using SocketConfigurator = std::function<void(StreamSocket &)>;
     using MainReactorPtr = AsyncSocketReactorPtr;
     using WorkerReactor = AsyncSocketReactor;
     using WorkerReactorPtr = AsyncSocketReactorPtr;
@@ -61,13 +62,15 @@ public:
         ServerSocket & socket_,
         MainReactorPtr & main_reactor_,
         const Poco::Timespan & timeout_,
-        size_t worker_count_ = getNumberOfPhysicalCPUCores())
+        size_t worker_count_ = getNumberOfPhysicalCPUCores(),
+        SocketConfigurator socket_configurator_ = nullptr)
         : name(name_)
         , socket(socket_)
         , main_reactor(main_reactor_)
         , worker_count(worker_count_)
         , keeper_context(keeper_context_)
         , timeout(timeout_)
+        , socket_configurator(socket_configurator_)
         , log(&Poco::Logger::get("SocketAcceptor"))
     {
         initialize();
@@ -96,6 +99,8 @@ public:
         {
             LOG_TRACE(log, "{} tries to accept connection", socket.address().toString());
             sock = socket.acceptConnection();
+            if (socket_configurator)
+                socket_configurator(sock);
             LOG_TRACE(log, "Successfully accepted {}", sock.peerAddress().toString());
             createServiceHandler(sock);
         }
@@ -141,8 +146,6 @@ protected:
     /// Create and initialize a new ServiceHandler instance.
     virtual ServiceHandler * createServiceHandler(StreamSocket & socket_)
     {
-        socket_.setBlocking(false);
-
         auto worker_reactor = getWorkerReactor(socket_);
         auto * handler = new ServiceHandler(keeper_context, socket_, *worker_reactor);
 
@@ -170,6 +173,9 @@ private:
 
     /// A period in which worker reactor poll waits.
     Poco::Timespan timeout;
+
+    /// Used to configure accepted sockets
+    SocketConfigurator socket_configurator;
 
     Poco::Logger * log;
 };

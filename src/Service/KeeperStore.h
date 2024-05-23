@@ -285,11 +285,13 @@ public:
     }
 
     inline void addNode(const String & path, KeeperNodePtr node)
-    { data_tree.emplace(path, node);
+    {
+        data_tree.emplace(path, node);
     }
 
     inline void removeNode(const String & path)
-    { data_tree.erase(path);
+    {
+        data_tree.erase(path);
     }
 
     inline void addEphemeralNode(int64_t session_id, const String & path)

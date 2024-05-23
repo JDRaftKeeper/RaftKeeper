@@ -41,6 +41,9 @@
         <!-- Port for Raft internal usage: heartbeat, log replicate, leader selection etc. -->
         <!-- <internal_port>8103</internal_port> -->
 
+        <!-- Socket option no_delay which works with connection and forwarder handlers, default is false. -->
+        <!-- <socket_option_no_delay>false</socket_option_no_delay> -->
+
         <!-- Raft log store directory -->
         <log_dir>./data/log</log_dir>
 

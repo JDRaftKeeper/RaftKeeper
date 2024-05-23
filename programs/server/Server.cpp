@@ -156,6 +156,13 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
     auto cpu_core_size = getNumberOfPhysicalCPUCores();
 
+    auto socket_configurator = [&global_context](StreamSocket & sock)
+    {
+        bool no_delay = global_context.getConfigRef().getBool("keeper.socket_option_no_delay", false);
+        sock.setNoDelay(no_delay);
+        sock.setBlocking(false);
+    };
+
     createServer(
         listen_host,
         port,
@@ -169,8 +176,8 @@ int Server::main(const std::vector<std::string> & /*args*/)
             server = std::make_shared<AsyncSocketReactor>(timeout, "IO-Acptr");
 
             /// TODO add io thread count to config
-            conn_acceptor
-                = std::make_shared<SocketAcceptor<ConnectionHandler>>("IO-Hdlr", global_context, socket, server, timeout, cpu_core_size);
+            conn_acceptor = std::make_shared<SocketAcceptor<ConnectionHandler>>(
+                "IO-Hdlr", global_context, socket, server, timeout, cpu_core_size, socket_configurator);
             LOG_INFO(log, "Listening for user connections on {}", socket.address().toString());
         });
 
@@ -193,7 +200,7 @@ int Server::main(const std::vector<std::string> & /*args*/)
 
             /// TODO add io thread count to config
             forwarding_conn_acceptor = std::make_shared<SocketAcceptor<ForwardConnectionHandler>>(
-                "IO-FwdHdlr", global_context, socket, forwarding_server, timeout, cpu_core_size);
+                "IO-FwdHdlr", global_context, socket, forwarding_server, timeout, cpu_core_size, socket_configurator);
             LOG_INFO(log, "Listening for forwarding connections on {}", socket.address().toString());
         });
 
