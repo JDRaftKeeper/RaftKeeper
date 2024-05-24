@@ -1,20 +1,18 @@
 #pragma once
 
-#include <functional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <Service/SessionExpiryQueue.h>
-#include <Service/ThreadSafeQueue.h>
-#include <Service/KeeperCommon.h>
-#include <Service/formatHex.h>
-#include <ZooKeeper/IKeeper.h>
-#include <ZooKeeper/ZooKeeperCommon.h>
+
 #include <Poco/Logger.h>
-#include <Common/ConcurrentBoundedQueue.h>
+
 #include <Common/IO/Operators.h>
 #include <Common/IO/WriteBufferFromString.h>
 #include <common/logger_useful.h>
+
+#include <Service/SessionExpiryQueue.h>
+#include <Service/formatHex.h>
+#include <ZooKeeper/ZooKeeperCommon.h>
 
 namespace RK
 {

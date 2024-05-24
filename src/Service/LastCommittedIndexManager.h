@@ -35,7 +35,6 @@ public:
     void shutDown();
 
 private:
-    UInt32 static constexpr BATCH_COUNT = 1000;
     UInt64 static constexpr PERSIST_INTERVAL_US = 100 * 1000;
     std::string_view static constexpr FILE_NAME = "last_committed_index.bin";
 

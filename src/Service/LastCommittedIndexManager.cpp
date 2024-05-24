@@ -89,8 +89,7 @@ void LastCommittedIndexManager::persistThread()
                     [this]
                     {
                         auto now = getCurrentTimeMicroseconds();
-                        return last_committed_index >= previous_persist_index + BATCH_COUNT
-                            || (previous_persist_time && now - previous_persist_time > PERSIST_INTERVAL_US);
+                        return previous_persist_time && now - previous_persist_time > PERSIST_INTERVAL_US;
                     }))
                 break;
         }
