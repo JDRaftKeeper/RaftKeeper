@@ -1,22 +1,14 @@
 #pragma once
 
-#include <functional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include <Poco/Logger.h>
 
-#include <Common/ConcurrentBoundedQueue.h>
-#include <Common/IO/Operators.h>
-#include <Common/IO/WriteBufferFromString.h>
-#include <common/logger_useful.h>
-
 #include <Service/KeeperCommon.h>
 #include <Service/SessionExpiryQueue.h>
-#include <Service/ThreadSafeQueue.h>
 #include <Service/formatHex.h>
-#include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 
 namespace RK
@@ -25,8 +17,7 @@ namespace RK
 class WatchManager
 {
 public:
-    using SessionIDs = std::vector<int64_t>;
-    using Watches = std::unordered_map<String, SessionIDs>;
+    using Watches = std::unordered_map<String, std::vector<int64_t>>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_set<String>>;
 
     explicit WatchManager() : log(&Poco::Logger::get("WatchManager")) { }
