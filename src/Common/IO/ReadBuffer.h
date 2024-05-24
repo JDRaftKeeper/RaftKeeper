@@ -47,7 +47,7 @@ public:
     // accidental copying.
     ReadBuffer(const ReadBuffer &) = delete;
 
-    // FIXME: behavior differs greately from `BufferBase::set()` and it's very confusing.
+    // FIXME: behavior differs greatly from `BufferBase::set()` and it's very confusing.
     void set(Position ptr, size_t size) { BufferBase::set(ptr, size, 0); working_buffer.resize(0); }
 
     /** read next data and fill a buffer with it; set position to the beginning;
