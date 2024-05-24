@@ -304,9 +304,7 @@ void SocketReactor::dispatch(SocketNotifierPtr & notifier, const Notification & 
     try
     {
         const auto & sock = notifier->getSocket();
-        const auto socket_name = sock.isStream() ? sock.address().toString() /// use local address for server socket
-                                                 : sock.peerAddress().toString(); /// use remote address for server socket
-        LOG_TRACE(log, "Dispatch event {} for {} ", notification.name(), socket_name);
+        LOG_TRACE(log, "Dispatch event {} for {} ", notification.name(), sock.isStream() ? sock.address().toString() : sock.peerAddress().toString());
         notifier->dispatch(notification);
     }
     catch (...)
