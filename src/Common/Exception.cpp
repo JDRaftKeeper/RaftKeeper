@@ -119,7 +119,7 @@ void tryLogCurrentException(const char * log_name, const std::string & start_of_
 
 void tryLogCurrentException(Poco::Logger * logger, const std::string & start_of_message)
 {
-    /// Under high memory pressure, any new allocation will definitelly lead
+    /// Under high memory pressure, any new allocation will definitely lead
     /// to MEMORY_LIMIT_EXCEEDED exception.
     ///
     /// And in this case the exception will not be logged, so let's block the
