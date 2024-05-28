@@ -1,3 +1,2 @@
 # https://clang.llvm.org/docs/UndefinedBehaviorSanitizer.html#issue-suppression
 signed-integer-overflow:*contrib/boost/boost/geometry/*
-alignment:*contrib/protobuf/*
