@@ -1,9 +1,9 @@
 #include <functional>
 #include <iomanip>
+#include <Service/memcopy.h>
 #include <Service/KeeperStore.h>
 #include <Service/KeeperUtils.h>
 #include <ZooKeeper/IKeeper.h>
-#include <Common/StringUtils.h>
 
 namespace RK
 {
@@ -1293,7 +1293,7 @@ void KeeperStore::processRequest(
         auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
         response->xid = zk_request->xid;
         response->zxid = zxid;
-        LOG_INFO(log, "heart beat for session {}", toHexString(session_id));
+        LOG_TRACE(log, "heart beat for session {}", toHexString(session_id));
         set_response(responses_queue, ResponseForSession{session_id, response}, ignore_response);
     }
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)

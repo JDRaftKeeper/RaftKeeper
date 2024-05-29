@@ -7,12 +7,10 @@
 #include <Service/ACLMap.h>
 #include <Service/SessionManager.h>
 #include <Service/WatchManager.h>
-#include <Service/memcopy.h>
 #include <Service/ThreadSafeQueue.h>
 #include <Service/KeeperCommon.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/IKeeper.h>
-#include <ZooKeeper/ZooKeeperCommon.h>
 #include <Poco/Logger.h>
 #include <Common/ConcurrentBoundedQueue.h>
 #include <Common/IO/Operators.h>

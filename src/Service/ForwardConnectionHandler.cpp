@@ -1,12 +1,10 @@
 #include <Poco/Net/NetException.h>
 
-#include <Common/Stopwatch.h>
 #include <Common/setThreadName.h>
 
 #include <Service/ForwardConnection.h>
 #include <Service/ForwardConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
-#include <ZooKeeper/ZooKeeperCommon.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 
 namespace RK

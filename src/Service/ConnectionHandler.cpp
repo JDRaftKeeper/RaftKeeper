@@ -3,7 +3,6 @@
 #include <Poco/Net/NetException.h>
 
 #include <Common/Stopwatch.h>
-#include <Common/setThreadName.h>
 
 #include <Service/FourLetterCommand.h>
 #include <Service/formatHex.h>
@@ -19,8 +18,6 @@ namespace ErrorCodes
     extern const int TIMEOUT_EXCEEDED;
     extern const int LOGICAL_ERROR;
 }
-
-using Poco::NObserver;
 
 std::mutex ConnectionHandler::conns_mutex;
 std::unordered_set<ConnectionHandler *> ConnectionHandler::connections;
@@ -96,7 +93,10 @@ ConnectionHandler::~ConnectionHandler()
 {
     try
     {
-        LOG_INFO(log, "Disconnecting peer {}#{}", peer, toHexString(session_id.load()));
+        /// session_id==0 indicates that this is not a normal connection, it may be a 4lw connection.
+        if (session_id)
+            LOG_INFO(log, "Disconnecting peer {} #{}", peer, toHexString(session_id.load()));
+
         unregisterConnection(this);
 
         reactor.removeEventHandler(sock, Observer<ConnectionHandler, ReadableNotification>(*this, &ConnectionHandler::onSocketReadable));
@@ -114,9 +114,9 @@ void ConnectionHandler::onSocketReadable(const Notification &)
     try
     {
         LOG_TRACE(log, "Peer {}#{} is readable", peer, toHexString(session_id.load()));
+
         if (!sock.available())
         {
-            LOG_INFO(log, "Peer {} close connection! Current errno {}", peer, errno);
             destroyMe();
             return;
         }
@@ -192,7 +192,6 @@ void ConnectionHandler::onSocketReadable(const Notification &)
             /// 3. handshake
             if (unlikely(!handshake_done)) /// TODO in handshaking
             {
-                ConnectRequest connect_req;
                 try
                 {
                     int32_t handshake_req_len = body_len;

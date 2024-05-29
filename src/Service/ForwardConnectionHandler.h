@@ -1,18 +1,8 @@
 #pragma once
 
-#include <unordered_set>
-
-#include <Poco/Delegate.h>
-#include <Poco/Exception.h>
 #include <Poco/FIFOBuffer.h>
-#include <Poco/NObserver.h>
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
-#include <Poco/ThreadPool.h>
-#include <Poco/Util/HelpFormatter.h>
-#include <Poco/Util/Option.h>
-#include <Poco/Util/OptionSet.h>
-#include <Poco/Util/ServerApplication.h>
 
 #include <Network/SocketAcceptor.h>
 #include <Network/SocketNotification.h>
@@ -20,7 +10,6 @@
 
 #include <Service/ConnCommon.h>
 #include <Service/ForwardConnection.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
 
 
 namespace RK
