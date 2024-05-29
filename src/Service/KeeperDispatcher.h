@@ -80,7 +80,6 @@ private:
 
     std::shared_ptr<KeeperServer> server;
 
-    mutable std::mutex keeper_stats_mutex;
     ConnectionStats keeper_stats;
 
     SettingsPtr configuration_and_settings;
@@ -178,9 +177,8 @@ public:
     uint64_t getSnapDirSize() const;
 
     /// Request statistics such as qps, latency etc.
-    ConnectionStats getKeeperConnectionStats() const
+    const ConnectionStats & getKeeperConnectionStats() const
     {
-        std::lock_guard lock(keeper_stats_mutex);
         return keeper_stats;
     }
 
@@ -192,25 +190,21 @@ public:
 
     void incrementPacketsSent()
     {
-        std::lock_guard lock(keeper_stats_mutex);
         keeper_stats.incrementPacketsSent();
     }
 
     void incrementPacketsReceived()
     {
-        std::lock_guard lock(keeper_stats_mutex);
         keeper_stats.incrementPacketsReceived();
     }
 
     void resetConnectionStats()
     {
-        std::lock_guard lock(keeper_stats_mutex);
         keeper_stats.reset();
     }
 
     void incrementPushRequest()
     {
-        std::lock_guard lock(keeper_stats_mutex);
         keeper_stats.incrementPacketsReceived();
     }
 

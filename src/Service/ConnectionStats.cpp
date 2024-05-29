@@ -5,7 +5,8 @@ namespace RK
 
 uint64_t ConnectionStats::getMinLatency() const
 {
-    return min_latency == std::numeric_limits<uint64_t>::max() ? static_cast<uint64_t>(0): min_latency;
+    UInt64 current_min = min_latency.load();
+    return current_min == std::numeric_limits<uint64_t>::max() ? static_cast<uint64_t>(0): current_min;
 }
 
 uint64_t ConnectionStats::getMaxLatency() const
@@ -15,8 +16,9 @@ uint64_t ConnectionStats::getMaxLatency() const
 
 uint64_t ConnectionStats::getAvgLatency() const
 {
-    if (count != 0)
-        return total_latency / count;
+    uint64_t current_count = count.load();
+    if (current_count != 0)
+        return total_latency / current_count;
     return 0;
 }
 
