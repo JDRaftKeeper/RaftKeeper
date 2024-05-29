@@ -105,6 +105,9 @@ void KeeperDispatcher::responseThread()
             try
             {
                 invokeResponseCallBack(response_for_session.session_id, response_for_session.response);
+                /// ZooKeeperResponsePtr should reset here to avoid destruction in responses_queue.tryPop()
+                /// See details in https://github.com/JDRaftKeeper/RaftKeeper/issues/290
+                response_for_session.response.reset();
             }
             catch (...)
             {
