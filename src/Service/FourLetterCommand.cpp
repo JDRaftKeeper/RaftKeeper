@@ -218,7 +218,7 @@ void print(IFourLetterCommand::StringBuffer & buf, const String & key, uint64_t 
 
 String MonitorCommand::run()
 {
-    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    const auto & stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     if (!keeper_info.has_leader)
@@ -327,7 +327,7 @@ String ServerStatCommand::run()
         writeText("\n", buf);
     };
 
-    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    const auto & stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     write("RaftKeeper version", VERSION_FULL);
@@ -353,7 +353,7 @@ String StatCommand::run()
 
     auto write = [&buf] (const String & key, const String & value) { buf << key << ": " << value << '\n'; };
 
-    ConnectionStats stats = keeper_dispatcher.getKeeperConnectionStats();
+    const auto & stats = keeper_dispatcher.getKeeperConnectionStats();
     Keeper4LWInfo keeper_info = keeper_dispatcher.getKeeper4LWInfo();
 
     write("RaftKeeper version", VERSION_FULL);

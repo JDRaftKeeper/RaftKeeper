@@ -364,22 +364,14 @@ void ConnectionHandler::onSocketError(const Notification &)
     destroyMe();
 }
 
-ConnectionStats ConnectionHandler::getConnectionStats() const
-{
-    std::lock_guard lock(conn_stats_mutex);
-    return conn_stats;
-}
-
 void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
 {
-    ConnectionStats stats = getConnectionStats();
-
     writeText(" ", buf);
     writeText(peer, buf);
     writeText("(recved=", buf);
-    writeIntText(stats.getPacketsReceived(), buf);
+    writeIntText(conn_stats.getPacketsReceived(), buf);
     writeText(",sent=", buf);
-    writeIntText(stats.getPacketsSent(), buf);
+    writeIntText(conn_stats.getPacketsSent(), buf);
     if (!brief)
     {
         if (session_id != 0)
@@ -406,13 +398,13 @@ void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
             writeIntText(op->last_response_time, buf);
 
             writeText(",llat=", buf);
-            writeIntText(stats.getLastLatency(), buf);
+            writeIntText(conn_stats.getLastLatency(), buf);
             writeText(",minlat=", buf);
-            writeIntText(stats.getMinLatency(), buf);
+            writeIntText(conn_stats.getMinLatency(), buf);
             writeText(",avglat=", buf);
-            writeIntText(stats.getAvgLatency(), buf);
+            writeIntText(conn_stats.getAvgLatency(), buf);
             writeText(",maxlat=", buf);
-            writeIntText(stats.getMaxLatency(), buf);
+            writeIntText(conn_stats.getMaxLatency(), buf);
         }
     }
     writeText(")", buf);
@@ -421,10 +413,7 @@ void ConnectionHandler::dumpStats(WriteBufferFromOwnString & buf, bool brief)
 
 void ConnectionHandler::resetStats()
 {
-    {
-        std::lock_guard lock(conn_stats_mutex);
-        conn_stats.reset();
-    }
+    conn_stats.reset();
     last_op.set(std::make_unique<LastOp>(EMPTY_LAST_OP));
 }
 
@@ -680,19 +669,13 @@ void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKe
 
 void ConnectionHandler::packageSent()
 {
-    {
-        std::lock_guard lock(conn_stats_mutex);
-        conn_stats.incrementPacketsSent();
-    }
+    conn_stats.incrementPacketsSent();
     keeper_dispatcher->incrementPacketsSent();
 }
 
 void ConnectionHandler::packageReceived()
 {
-    {
-        std::lock_guard lock(conn_stats_mutex);
-        conn_stats.incrementPacketsReceived();
-    }
+    conn_stats.incrementPacketsReceived();
     keeper_dispatcher->incrementPacketsReceived();
 }
 
@@ -704,7 +687,6 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
     {
         Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - response->request_created_time_ms;
         {
-            std::lock_guard lock(conn_stats_mutex);
             conn_stats.updateLatency(elapsed);
             if (unlikely(elapsed > 10000))
                 LOG_WARNING(
