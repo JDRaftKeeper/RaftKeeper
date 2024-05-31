@@ -24,7 +24,6 @@ ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, St
     , responses(std::make_unique<ThreadSafeForwardResponseQueue>())
 {
     LOG_INFO(log, "New forward connection from {}", sock.peerAddress().toString());
-    send_buf.emplace(sock);
 
     auto read_handler = Observer<ForwardConnectionHandler, ReadableNotification>(*this, &ForwardConnectionHandler::onSocketReadable);
     auto error_handler = Observer<ForwardConnectionHandler, ErrorNotification>(*this, &ForwardConnectionHandler::onSocketError);
@@ -267,15 +266,13 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
     auto remove_event_handler_if_needed = [this]
     {
         /// Double check to avoid dead lock
-        if (responses->empty())
+        if (responses->empty() && send_buf.isEmpty() && !out_buffer)
         {
             std::lock_guard lock(send_response_mutex);
             {
                 /// If all sent unregister writable event.
-                if (responses->empty())
+                if (responses->empty() && send_buf.isEmpty() && !out_buffer)
                 {
-                    send_buf->next();
-
                     LOG_TRACE(log, "Remove forwarder socket writable event handler for server {} client {}", server_id, client_id);
 
                     reactor.removeEventHandler(
@@ -287,9 +284,24 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
         }
     };
 
+    auto copy_buffer_to_send = [this]
+    {
+        auto used = send_buf.used();
+        if (used + out_buffer->used() <= SENT_BUFFER_SIZE)
+        {
+            send_buf.write(out_buffer->begin(), out_buffer->used());
+            out_buffer.reset();
+        }
+        else
+        {
+            send_buf.write(out_buffer->begin(), SENT_BUFFER_SIZE - used);
+            out_buffer->drain(SENT_BUFFER_SIZE - used);
+        }
+    };
+
     try
     {
-        while (!responses->empty())
+        while (!responses->empty() && send_buf.available())
         {
             ForwardResponsePtr response;
 
@@ -300,17 +312,18 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
             if (response->forwardType() == ForwardType::Destroy)
             {
                 LOG_WARNING(log, "The connection for server {} client {} is stale, will close it", server_id, client_id);
-                delete this;
+                destroyMe();
                 return;
             }
 
-            response->write(*send_buf);
-
-            if (send_buf->available() >= SENT_BUFFER_SIZE)
-            {
-                send_buf->next();
-            }
+            WriteBufferFromFiFoBuffer buf;
+            response->write(buf);
+            out_buffer = buf.getBuffer();
+            copy_buffer_to_send();
         }
+
+        size_t sent = sock.sendBytes(send_buf);
+        Metrics::getMetrics().forward_response_socket_send_size->add(sent);
 
         remove_event_handler_if_needed();
     }

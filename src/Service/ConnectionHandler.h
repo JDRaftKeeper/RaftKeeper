@@ -92,11 +92,14 @@ private:
     /// destroy connection
     void destroyMe();
 
-    static constexpr size_t SENT_BUFFER_SIZE = 1024;
-    std::optional<WriteBufferFromPocoSocket> send_buf;
-//    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
+    // Todo Add configuration sent_buffer_size
+    static constexpr size_t SENT_BUFFER_SIZE = 16384;
+    FIFOBuffer send_buf = FIFOBuffer(SENT_BUFFER_SIZE);
 
-    std::shared_ptr<FIFOBuffer> is_close = nullptr;
+    /// Storing the result of the response serialization temporarily,
+    /// We cannot directly serialize it onto send_buf，
+    /// because `send_buf` maybe too small to hold a large size response.
+    std::shared_ptr<Poco::BasicFIFOBuffer<char>> out_buffer;
 
     Logger * log;
 
