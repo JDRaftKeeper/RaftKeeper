@@ -120,6 +120,8 @@ Metrics::Metrics()
 {
     push_request_queue_time_ms = getSummary("push_request_queue_time_ms", SummaryLevel::ADVANCED);
     log_replication_batch_size = getSummary("log_replication_batch_size", SummaryLevel::BASIC);
+    response_socket_send_size = getSummary("response_socket_send_size", SummaryLevel::BASIC);
+    forward_response_socket_send_size = getSummary("forward_response_socket_send_size", SummaryLevel::BASIC);
     apply_write_request_time_ms = getSummary("apply_write_request_time_ms", SummaryLevel::ADVANCED);
     apply_read_request_time_ms = getSummary("apply_read_request_time_ms", SummaryLevel::ADVANCED);
     read_latency = getSummary("readlatency", SummaryLevel::ADVANCED);

@@ -196,6 +196,8 @@ public:
 
     SummaryPtr push_request_queue_time_ms;
     SummaryPtr log_replication_batch_size;
+    SummaryPtr response_socket_send_size;
+    SummaryPtr forward_response_socket_send_size;
     SummaryPtr apply_write_request_time_ms;
     SummaryPtr apply_read_request_time_ms;
     SummaryPtr read_latency;
