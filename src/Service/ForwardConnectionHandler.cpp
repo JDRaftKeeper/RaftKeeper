@@ -274,7 +274,7 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
                 if (responses->empty() && send_buf.isEmpty() && !out_buffer)
                 {
                     LOG_TRACE(log, "Remove forwarder socket writable event handler for server {} client {}", server_id, client_id);
-
+                    on_socket_writable = false;
                     reactor.removeEventHandler(
                         sock,
                         Observer<ForwardConnectionHandler, WritableNotification>(
@@ -287,20 +287,24 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
     auto copy_buffer_to_send = [this]
     {
         auto used = send_buf.used();
-        if (used + out_buffer->used() <= SENT_BUFFER_SIZE)
+        if (used + out_buffer->available() <= SENT_BUFFER_SIZE)
         {
-            send_buf.write(out_buffer->begin(), out_buffer->used());
+            send_buf.write(out_buffer->position(), out_buffer->available());
             out_buffer.reset();
         }
         else
         {
-            send_buf.write(out_buffer->begin(), SENT_BUFFER_SIZE - used);
-            out_buffer->drain(SENT_BUFFER_SIZE - used);
+            send_buf.write(out_buffer->position(), SENT_BUFFER_SIZE - used);
+            out_buffer->seek(SENT_BUFFER_SIZE - used, SEEK_CUR);
         }
     };
 
     try
     {
+        /// If the buffer was not completely sent last time, continue sending.
+        if (out_buffer)
+            copy_buffer_to_send();
+
         while (!responses->empty() && send_buf.available())
         {
             ForwardResponsePtr response;
@@ -316,9 +320,9 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
                 return;
             }
 
-            WriteBufferFromFiFoBuffer buf;
+            WriteBufferFromOwnString buf;
             response->write(buf);
-            out_buffer = buf.getBuffer();
+            out_buffer = std::make_shared<ReadBufferFromOwnString>(std::move(buf.str()));
             copy_buffer_to_send();
         }
 
@@ -354,9 +358,15 @@ void ForwardConnectionHandler::sendResponse(ForwardResponsePtr response)
         std::lock_guard lock(send_response_mutex);
         /// TODO handle timeout
         responses->push(response);
-        /// Trigger socket writable event
-        reactor.addEventHandler(
-            sock, Observer<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
+
+        /// We should register write events.
+        if (!on_socket_writable)
+        {
+            on_socket_writable = true;
+            reactor.addEventHandler(sock, Observer<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
+            /// We must wake up getWorkerReactor to interrupt it's sleeping.
+            reactor.wakeUp();
+        }
     }
 
     /// We must wake up getWorkerReactor to interrupt it's sleeping.

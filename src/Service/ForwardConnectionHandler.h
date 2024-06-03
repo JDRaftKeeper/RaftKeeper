@@ -46,7 +46,7 @@ private:
     /// Storing the result of the response serialization temporarily,
     /// We cannot directly serialize it onto send_buf，
     /// because `send_buf` maybe too small to hold a large size response.
-    std::shared_ptr<Poco::BasicFIFOBuffer<char>> out_buffer;
+    std::shared_ptr<ReadBufferFromOwnString> out_buffer;
 
     Logger * log;
 
@@ -73,6 +73,7 @@ private:
     ThreadSafeForwardResponseQueuePtr responses;
 
     std::mutex send_response_mutex;
+    bool on_socket_writable = false;
 
     /// server id in client endpoint which actually is my_id
     int32_t server_id{-1};

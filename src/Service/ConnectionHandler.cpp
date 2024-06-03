@@ -264,7 +264,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
                 if (responses->empty() && send_buf.isEmpty() && !out_buffer)
                 {
                     LOG_TRACE(log, "Remove socket writable event handler for peer {}", peer);
-
+                    on_socket_writable = false;
                     reactor.removeEventHandler(
                         sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
                 }
@@ -275,15 +275,15 @@ void ConnectionHandler::onSocketWritable(const Notification &)
     auto copy_buffer_to_send = [this]
     {
         auto used = send_buf.used();
-        if (used + out_buffer->used() <= SENT_BUFFER_SIZE)
+        if (used + out_buffer->available() <= SENT_BUFFER_SIZE)
         {
-            send_buf.write(out_buffer->begin(), out_buffer->used());
+            send_buf.write(out_buffer->position(), out_buffer->available());
             out_buffer.reset();
         }
         else
         {
-            send_buf.write(out_buffer->begin(), SENT_BUFFER_SIZE - used);
-            out_buffer->drain(SENT_BUFFER_SIZE - used);
+            send_buf.write(out_buffer->position(), SENT_BUFFER_SIZE - used);
+            out_buffer->seek(SENT_BUFFER_SIZE - used, SEEK_CUR);
         }
     };
 
@@ -312,6 +312,10 @@ void ConnectionHandler::onSocketWritable(const Notification &)
                 if (!sendHandshake(response))
                 {
                     LOG_ERROR(log, "Failed to establish session, close connection.");
+                    sock.setBlocking(true);
+                    sock.sendBytes(send_buf);
+                    sock.sendBytes(out_buffer->position(), out_buffer->available());
+
                     destroyMe();
                     return;
                 }
@@ -319,9 +323,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
             }
             else
             {
-                WriteBufferFromFiFoBuffer buf;
-                response->write(buf);
-                out_buffer = buf.getBuffer();
+                out_buffer = response->getBuffer();
                 copy_buffer_to_send();
             }
             packageSent();
@@ -487,7 +489,7 @@ bool ConnectionHandler::sendHandshake(const Coordination::ZooKeeperResponsePtr &
 {
     bool success;
     uint64_t sid;
-    WriteBufferFromFiFoBuffer buf;
+    WriteBufferFromOwnString buf;
 
     if (const auto * new_session_resp = dynamic_cast<const ZooKeeperNewSessionResponse *>(response.get()))
     {
@@ -519,7 +521,7 @@ bool ConnectionHandler::sendHandshake(const Coordination::ZooKeeperResponsePtr &
     std::array<char, Coordination::PASSWORD_LENGTH> passwd{};
     Coordination::write(passwd, buf);
 
-    out_buffer = buf.getBuffer();
+    out_buffer = std::make_shared<ReadBufferFromOwnString>(std::move(buf.str()));
 
     return success;
 }
@@ -633,9 +635,12 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
         std::lock_guard lock(send_response_mutex);
         responses->push(response);
 
-        if (responses->size() == 1)
+        /// We should register write events.
+        if (!on_socket_writable)
         {
+            on_socket_writable = true;
             reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
+            /// We must wake up getWorkerReactor to interrupt it's sleeping.
             reactor.wakeUp();
         }
     }
@@ -651,10 +656,10 @@ void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKe
         std::lock_guard lock(send_response_mutex);
         responses->push(response);
 
-        /// If
-        if (responses->size() == 1)
+        /// We should register write events.
+        if (!on_socket_writable)
         {
-            /// We must wake up getWorkerReactor to interrupt it's sleeping.
+            on_socket_writable = true;
             reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
             /// We must wake up getWorkerReactor to interrupt it's sleeping.
             reactor.wakeUp();

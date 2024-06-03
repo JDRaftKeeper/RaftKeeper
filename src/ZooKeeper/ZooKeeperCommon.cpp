@@ -1,7 +1,6 @@
 #include "ZooKeeperCommon.h"
 #include <array>
 #include "common/logger_useful.h"
-#include <Common/IO//Operators.h>
 #include "ZooKeeperIO.h"
 
 
@@ -21,6 +20,24 @@ void ZooKeeperResponse::write(WriteBuffer & out) const
         writeImpl(buf);
     Coordination::write(buf.str(), out);
     out.next();
+}
+
+std::shared_ptr<ReadBufferFromOwnString> ZooKeeperResponse::getBuffer() const
+{
+    WriteBufferFromOwnString buf;
+    Coordination::write(int32_t(0), buf);
+    Coordination::write(xid, buf);
+    Coordination::write(zxid, buf);
+    Coordination::write(error, buf);
+    if (error == Error::ZOK)
+        writeImpl(buf);
+    String & result = buf.str();
+
+    // write data length at begin of string
+    int32_t size = __builtin_bswap32(result.size() - sizeof(int32_t));
+    memcpy(result.data(), reinterpret_cast<const char *>(&size), sizeof(int32_t));
+
+    return std::make_shared<ReadBufferFromOwnString>(std::move(result));
 }
 
 void ZooKeeperRequest::write(WriteBuffer & out) const

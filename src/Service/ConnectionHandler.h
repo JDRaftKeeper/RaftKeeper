@@ -99,7 +99,7 @@ private:
     /// Storing the result of the response serialization temporarily,
     /// We cannot directly serialize it onto send_buf，
     /// because `send_buf` maybe too small to hold a large size response.
-    std::shared_ptr<Poco::BasicFIFOBuffer<char>> out_buffer;
+    std::shared_ptr<ReadBufferFromOwnString> out_buffer;
 
     Logger * log;
 
@@ -145,6 +145,7 @@ private:
     ConnectionStats conn_stats;
 
     mutable std::mutex send_response_mutex;
+    bool on_socket_writable = false;
 };
 
 }
