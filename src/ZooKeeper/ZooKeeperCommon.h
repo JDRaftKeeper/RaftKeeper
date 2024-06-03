@@ -18,6 +18,8 @@
 #include <Common/IO/WriteBuffer.h>
 #include <Common/IO/WriteHelpers.h>
 #include <boost/noncopyable.hpp>
+#include <Common/IO//Operators.h>
+#include "Common/IO/ReadBufferFromString.h"
 
 
 namespace Coordination
@@ -35,6 +37,7 @@ struct ZooKeeperResponse : virtual Response
     virtual void readImpl(ReadBuffer &) = 0;
     virtual void writeImpl(WriteBuffer &) const = 0;
     virtual void write(WriteBuffer & out) const;
+    virtual std::shared_ptr<ReadBufferFromOwnString> getBuffer() const;
     virtual OpNum getOpNum() const = 0;
 
     virtual bool operator==(const ZooKeeperResponse & response) const
