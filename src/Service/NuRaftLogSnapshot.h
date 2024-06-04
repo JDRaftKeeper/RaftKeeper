@@ -3,6 +3,7 @@
 #include <Service/SnapshotCommon.h>
 #include <Service/Metrics.h>
 #include <Common/Stopwatch.h>
+#include <charconv>
 
 
 namespace RK
@@ -46,6 +47,70 @@ struct SnapTask
 
         nodes_count = store.getNodesCount();
         ephemeral_nodes_count = store.getTotalEphemeralNodesCount();
+    }
+};
+
+struct SnapObject
+{
+    /// create_time, last_log_index, object_id
+    static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_{}_{}_{}";
+    /// create_time, last_log_term, last_log_index, object_id
+    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_{}_{}_{}_{}";
+
+    String time_str;
+    UInt64 log_last_term;
+    UInt64 log_last_index;
+    UInt64 object_id;
+
+    SnapObject(String _time_str = "", UInt64 _log_last_term = 1, UInt64 _log_last_index = 1, UInt64 _object_id = 1)
+        :time_str(_time_str), log_last_term(_log_last_term), log_last_index(_log_last_index), object_id(_object_id)
+    {
+    }
+
+    String getObjectName()
+    {
+        return fmt::format(SNAPSHOT_FILE_NAME_V1, time_str, log_last_term, log_last_index, object_id);
+    }
+
+    bool parseInfoFromObjectName(const String & object_name)
+    {
+        auto tryReadUint64Text = [] (const String & str, UInt64 & num)
+        {
+            auto [_, ec] = std::from_chars(str.data(), str.data() + str.size(), num);
+            return ec == std::errc();
+        };
+
+        Strings tokens;
+
+        splitInto<'_'>(tokens, object_name);
+
+        if (tokens.size() == 4)
+        {
+            if (!tryReadUint64Text(tokens[2], log_last_index))
+                return false;
+
+            if (!tryReadUint64Text(tokens[3], object_id))
+                return false;
+        }
+        else if (tokens.size() == 5)
+        {
+            if (!tryReadUint64Text(tokens[2], log_last_term))
+                return false;
+
+            if (!tryReadUint64Text(tokens[3], log_last_index))
+                return false;
+
+            if (!tryReadUint64Text(tokens[2], object_id))
+                return false;
+        }
+        else
+        {
+            return false;
+        }
+
+        time_str = std::move(tokens[1]);
+
+        return true;
     }
 };
 
@@ -120,18 +185,6 @@ public:
 
     /// parse object id from file name
     static size_t getObjectIdx(const String & file_name);
-
-#ifdef __APPLE__
-    /// create_time, last_log_index, object_id
-    static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%llu_%llu";
-    /// create_time, last_log_index, last_log_term, object_id
-    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%llu_%llu_%llu";
-#else
-    /// create_time, last_log_index, object_id
-    static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_%s_%lu_%lu";
-    /// create_time, last_log_index, last_log_term, object_id
-    static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_%s_%lu_%lu_%lu";
-#endif
 
     static constexpr int SNAPSHOT_THREAD_NUM = 8;
     static constexpr int IO_BUFFER_SIZE = 16384; /// 16K
@@ -216,7 +269,14 @@ private:
     std::shared_ptr<ThreadPool> snapshot_thread;
 };
 
-using KeeperSnapshotStoreMap = std::map<uint64_t, ptr<KeeperSnapshotStore>>;
+// In Raft, each log entry can be uniquely identified by the combination of its Log Index and Term.
+inline uint128_t getSnapshotStoreMapKey(const snapshot & meta)
+{
+    return static_cast<uint128_t>(meta.get_last_log_term()) << 64 | meta.get_last_log_idx();
+}
+
+// Map key is term << 64 | log
+using KeeperSnapshotStoreMap = std::map<uint128_t, ptr<KeeperSnapshotStore>>;
 
 /**
  * Snapshots manager who may create, remove snapshots.

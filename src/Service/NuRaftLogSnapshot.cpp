@@ -1,8 +1,11 @@
 #include <algorithm>
+#include <fmt/format.h>
 #include <fcntl.h>
 #include <filesystem>
 #include <stdio.h>
 #include <unistd.h>
+
+#include "common/find_symbols.h"
 
 #include <Poco/DateTime.h>
 #include <Poco/DateTimeFormatter.h>
@@ -40,10 +43,8 @@ using Poco::NumberFormatter;
 
 void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path)
 {
-    char path_buf[1024];
-    snprintf(path_buf, 1024, SNAPSHOT_FILE_NAME, curr_time.c_str(), last_log_index, object_id);
-    obj_path = path_buf;
-    obj_path = snap_dir + "/" + obj_path;
+    SnapObject s_obj(curr_time.c_str(), last_log_term, last_log_index, object_id);
+    obj_path = snap_dir + "/" + s_obj.getObjectName();
 }
 
 size_t KeeperSnapshotStore::getObjectIdx(const String & file_name)
@@ -757,7 +758,7 @@ size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, Snapshot
         snap_task.next_session_id,
         snap_task.next_zxid);
     size_t obj_size = snap_store->createObjectsAsync(snap_task);
-    snapshots[meta->get_last_log_idx()] = snap_store;
+    snapshots[getSnapshotStoreMapKey(*meta)] = snap_store;
     return obj_size;
 }
 
@@ -781,7 +782,7 @@ size_t KeeperSnapshotManager::createSnapshot(
         next_session_id,
         next_zxid);
     size_t obj_size = snap_store->createObjects(store, next_zxid, next_session_id);
-    snapshots[meta.get_last_log_idx()] = snap_store;
+    snapshots[getSnapshotStoreMapKey(meta)] = snap_store;
     return obj_size;
 }
 
@@ -789,18 +790,18 @@ bool KeeperSnapshotManager::receiveSnapshotMeta(snapshot & meta)
 {
     ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
     snap_store->init();
-    snapshots[meta.get_last_log_idx()] = snap_store;
+    snapshots[getSnapshotStoreMapKey(meta)] = snap_store;
     return true;
 }
 
 bool KeeperSnapshotManager::existSnapshot(const snapshot & meta)
 {
-    return snapshots.find(meta.get_last_log_idx()) != snapshots.end();
+    return snapshots.find(getSnapshotStoreMapKey(meta)) != snapshots.end();
 }
 
 bool KeeperSnapshotManager::existSnapshotObject(const snapshot & meta, ulong obj_id)
 {
-    auto it = snapshots.find(meta.get_last_log_idx());
+    auto it = snapshots.find(getSnapshotStoreMapKey(meta));
     if (it == snapshots.end())
     {
         LOG_INFO(log, "Not exists snapshot last_log_idx {}", meta.get_last_log_idx());
@@ -814,7 +815,7 @@ bool KeeperSnapshotManager::existSnapshotObject(const snapshot & meta, ulong obj
 
 bool KeeperSnapshotManager::loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer)
 {
-    auto it = snapshots.find(meta.get_last_log_idx());
+    auto it = snapshots.find(getSnapshotStoreMapKey(meta));
 
     if (it == snapshots.end())
         throw Exception(
@@ -831,14 +832,14 @@ bool KeeperSnapshotManager::loadSnapshotObject(const snapshot & meta, ulong obj_
 
 bool KeeperSnapshotManager::saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer)
 {
-    auto it = snapshots.find(meta.get_last_log_idx());
+    auto it = snapshots.find(getSnapshotStoreMapKey(meta));
     ptr<KeeperSnapshotStore> store;
     if (it == snapshots.end())
     {
         meta.set_size(0);
         store = cs_new<KeeperSnapshotStore>(snap_dir, meta);
         store->init();
-        snapshots[meta.get_last_log_idx()] = store;
+        snapshots[getSnapshotStoreMapKey(meta)] = store;
     }
     else
     {
@@ -850,7 +851,7 @@ bool KeeperSnapshotManager::saveSnapshotObject(snapshot & meta, ulong obj_id, bu
 
 bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & storage)
 {
-    auto it = snapshots.find(meta.get_last_log_idx());
+    auto it = snapshots.find(getSnapshotStoreMapKey(meta));
     if (it == snapshots.end())
     {
         throw Exception(ErrorCodes::SNAPSHOT_NOT_EXISTS, "Error when parsing snapshot {}, for it does not exist", meta.get_last_log_idx());
@@ -869,31 +870,35 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
 
     std::vector<String> file_vec;
     file_dir.list(file_vec);
-    char time_str[128];
-
-    unsigned long log_last_index;
-    unsigned long object_id;
 
     for (const auto & file : file_vec)
     {
         if (file.find("snapshot_") == file.npos)
         {
-            LOG_INFO(log, "Skip non-snapshot file {}", file);
+            LOG_WARNING(log, "Skip non-snapshot file {}", file);
             continue;
         }
-        sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
 
-        if (snapshots.find(log_last_index) == snapshots.end())
+        SnapObject s_obj;
+        if (!s_obj.parseInfoFromObjectName(file))
         {
-            ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(log_last_index, log_last_index - 1);
-            nuraft::snapshot meta(log_last_index, 1, config);
+            LOG_ERROR(log, "Can't parse object info from file name {}", file);
+            continue;
+        }
+
+        auto key = static_cast<uint128_t>(s_obj.log_last_term) << 64 | s_obj.log_last_index;
+
+        if (snapshots.find(key) == snapshots.end())
+        {
+            ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(s_obj.log_last_index, s_obj.log_last_index - 1);
+            nuraft::snapshot meta(s_obj.log_last_index, s_obj.log_last_term, config);
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
-            snap_store->init(time_str);
-            snapshots[meta.get_last_log_idx()] = snap_store;
-            LOG_INFO(log, "Load filename {}, time {}, index {}, object id {}", file, time_str, log_last_index, object_id);
+            snap_store->init(s_obj.time_str);
+            snapshots[key] = snap_store;
+            LOG_INFO(log, "Load filename {}, term {}, index {}, object id {}", file, s_obj.log_last_term, s_obj.log_last_index, s_obj.object_id);
         }
         String full_path = snap_dir + "/" + file;
-        snapshots[log_last_index]->addObjectPath(object_id, full_path);
+        snapshots[key]->addObjectPath(s_obj.object_id, full_path);
     }
     LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
     return snapshots.size();
@@ -911,10 +916,6 @@ ptr<snapshot> KeeperSnapshotManager::lastSnapshot()
 size_t KeeperSnapshotManager::removeSnapshots()
 {
     Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
-    char time_str[128];
-
-    unsigned long log_last_index;
-    unsigned long object_id;
 
     while (remove_count > 0)
     {
@@ -932,8 +933,13 @@ size_t KeeperSnapshotManager::removeSnapshots()
                     LOG_INFO(log, "Skip no snapshot file {}", file);
                     continue;
                 }
-                sscanf(file.c_str(), "snapshot_%[^_]_%lu_%lu", time_str, &log_last_index, &object_id);
-                if (remove_log_index == log_last_index)
+                SnapObject s_obj;
+                if (!s_obj.parseInfoFromObjectName(file))
+                {
+                    LOG_ERROR(log, "Can't parse object info from file name {}", file);
+                    continue;
+                }
+                if (remove_log_index == s_obj.log_last_index)
                 {
                     LOG_INFO(
                         log,
