@@ -145,7 +145,7 @@ private:
     ConnectionStats conn_stats;
 
     mutable std::mutex send_response_mutex;
-    bool on_socket_writable = false;
+    bool socket_writable_event_registered = false;
 };
 
 }
