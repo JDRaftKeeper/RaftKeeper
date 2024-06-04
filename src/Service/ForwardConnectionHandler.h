@@ -73,7 +73,7 @@ private:
     ThreadSafeForwardResponseQueuePtr responses;
 
     std::mutex send_response_mutex;
-    bool on_socket_writable = false;
+    bool socket_writable_event_registered = false;
 
     /// server id in client endpoint which actually is my_id
     int32_t server_id{-1};

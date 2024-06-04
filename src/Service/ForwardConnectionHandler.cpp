@@ -274,7 +274,7 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
                 if (responses->empty() && send_buf.isEmpty() && !out_buffer)
                 {
                     LOG_TRACE(log, "Remove forwarder socket writable event handler for server {} client {}", server_id, client_id);
-                    on_socket_writable = false;
+                    socket_writable_event_registered = false;
                     reactor.removeEventHandler(
                         sock,
                         Observer<ForwardConnectionHandler, WritableNotification>(
@@ -360,9 +360,9 @@ void ForwardConnectionHandler::sendResponse(ForwardResponsePtr response)
         responses->push(response);
 
         /// We should register write events.
-        if (!on_socket_writable)
+        if (!socket_writable_event_registered)
         {
-            on_socket_writable = true;
+            socket_writable_event_registered = true;
             reactor.addEventHandler(sock, Observer<ForwardConnectionHandler, WritableNotification>(*this, &ForwardConnectionHandler::onSocketWritable));
             /// We must wake up getWorkerReactor to interrupt it's sleeping.
             reactor.wakeUp();

@@ -264,7 +264,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
                 if (responses->empty() && send_buf.isEmpty() && !out_buffer)
                 {
                     LOG_TRACE(log, "Remove socket writable event handler for peer {}", peer);
-                    on_socket_writable = false;
+                    socket_writable_event_registered = false;
                     reactor.removeEventHandler(
                         sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
                 }
@@ -323,7 +323,9 @@ void ConnectionHandler::onSocketWritable(const Notification &)
             }
             else
             {
-                out_buffer = response->getBuffer();
+                WriteBufferFromOwnString buf;
+                response->writeNoCopy(buf);
+                out_buffer = std::make_shared<ReadBufferFromOwnString>(std::move(buf.str()));
                 copy_buffer_to_send();
             }
             packageSent();
@@ -636,9 +638,9 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
         responses->push(response);
 
         /// We should register write events.
-        if (!on_socket_writable)
+        if (!socket_writable_event_registered)
         {
-            on_socket_writable = true;
+            socket_writable_event_registered = true;
             reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
             /// We must wake up getWorkerReactor to interrupt it's sleeping.
             reactor.wakeUp();
@@ -657,9 +659,9 @@ void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKe
         responses->push(response);
 
         /// We should register write events.
-        if (!on_socket_writable)
+        if (!socket_writable_event_registered)
         {
-            on_socket_writable = true;
+            socket_writable_event_registered = true;
             reactor.addEventHandler(sock, Observer<ConnectionHandler, WritableNotification>(*this, &ConnectionHandler::onSocketWritable));
             /// We must wake up getWorkerReactor to interrupt it's sleeping.
             reactor.wakeUp();

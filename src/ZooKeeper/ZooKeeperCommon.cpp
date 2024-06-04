@@ -22,22 +22,21 @@ void ZooKeeperResponse::write(WriteBuffer & out) const
     out.next();
 }
 
-std::shared_ptr<ReadBufferFromOwnString> ZooKeeperResponse::getBuffer() const
+void ZooKeeperResponse::writeNoCopy(WriteBufferFromOwnString & out) const
 {
-    WriteBufferFromOwnString buf;
-    Coordination::write(int32_t(0), buf);
-    Coordination::write(xid, buf);
-    Coordination::write(zxid, buf);
-    Coordination::write(error, buf);
+    auto pre_size = out.offset();
+    /// Prepended length
+    Coordination::write(static_cast<int32_t>(0), out);
+    Coordination::write(xid, out);
+    Coordination::write(zxid, out);
+    Coordination::write(error, out);
     if (error == Error::ZOK)
-        writeImpl(buf);
-    String & result = buf.str();
+        writeImpl(out);
+    String & result = out.str();
 
     // write data length at begin of string
-    int32_t size = __builtin_bswap32(result.size() - sizeof(int32_t));
-    memcpy(result.data(), reinterpret_cast<const char *>(&size), sizeof(int32_t));
-
-    return std::make_shared<ReadBufferFromOwnString>(std::move(result));
+    int32_t len = __builtin_bswap32(static_cast<int32_t>(result.size() - pre_size - sizeof(int32_t)));
+    memcpy(result.data() + pre_size, reinterpret_cast<const char *>(&len), sizeof(int32_t));
 }
 
 void ZooKeeperRequest::write(WriteBuffer & out) const
