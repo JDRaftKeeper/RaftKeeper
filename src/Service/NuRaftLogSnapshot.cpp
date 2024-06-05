@@ -895,9 +895,9 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
             snap_store->init(s_obj.time_str);
             snapshots[key] = snap_store;
-            LOG_INFO(log, "Load filename {}, term {}, index {}, object id {}", file, s_obj.log_last_term, s_obj.log_last_index, s_obj.object_id);
         }
         String full_path = snap_dir + "/" + file;
+        LOG_INFO(log, "Load filename {}, term {}, index {}, object id {}", file, s_obj.log_last_term, s_obj.log_last_index, s_obj.object_id);
         snapshots[key]->addObjectPath(s_obj.object_id, full_path);
     }
     LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
