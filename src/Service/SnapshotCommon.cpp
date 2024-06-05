@@ -34,8 +34,6 @@ String toString(SnapshotVersion version)
             return "v1";
         case SnapshotVersion::V2:
             return "v2";
-        case SnapshotVersion::V3:
-            return "v3";
         case SnapshotVersion::None:
             return "none";
     }
