@@ -100,7 +100,7 @@ struct SnapObject
             if (!tryReadUint64Text(tokens[3], log_last_index))
                 return false;
 
-            if (!tryReadUint64Text(tokens[2], object_id))
+            if (!tryReadUint64Text(tokens[4], object_id))
                 return false;
         }
         else
