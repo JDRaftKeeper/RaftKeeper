@@ -44,7 +44,6 @@ enum SnapshotVersion : uint8_t
     V0 = 0,
     V1 = 1, /// Add ACL map
     V2 = 2, /// Replace protobuf
-    V3 = 3, /// Add last_log_term to file name
     None = 255,
 };
 
