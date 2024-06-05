@@ -57,19 +57,19 @@ struct SnapObject
     /// create_time, last_log_term, last_log_index, object_id
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_{}_{}_{}_{}";
 
-    String time_str;
+    String create_time;
     UInt64 log_last_term;
     UInt64 log_last_index;
     UInt64 object_id;
 
-    SnapObject(String _time_str = "", UInt64 _log_last_term = 1, UInt64 _log_last_index = 1, UInt64 _object_id = 1)
-        :time_str(_time_str), log_last_term(_log_last_term), log_last_index(_log_last_index), object_id(_object_id)
+    SnapObject(String _create_time = "", UInt64 _log_last_term = 1, UInt64 _log_last_index = 1, UInt64 _object_id = 1)
+        :create_time(_create_time), log_last_term(_log_last_term), log_last_index(_log_last_index), object_id(_object_id)
     {
     }
 
     String getObjectName()
     {
-        return fmt::format(SNAPSHOT_FILE_NAME_V1, time_str, log_last_term, log_last_index, object_id);
+        return fmt::format(SNAPSHOT_FILE_NAME_V1, create_time, log_last_term, log_last_index, object_id);
     }
 
     bool parseInfoFromObjectName(const String & object_name)
@@ -108,7 +108,7 @@ struct SnapObject
             return false;
         }
 
-        time_str = std::move(tokens[1]);
+        create_time = std::move(tokens[1]);
 
         return true;
     }
@@ -270,9 +270,19 @@ private:
 };
 
 // In Raft, each log entry can be uniquely identified by the combination of its Log Index and Term.
+inline uint128_t getSnapshotStoreMapKeyImpl(UInt64 log_term, UInt64 log_idx)
+{
+    return static_cast<uint128_t>(log_term) << 64 | log_idx;
+}
+
 inline uint128_t getSnapshotStoreMapKey(const snapshot & meta)
 {
-    return static_cast<uint128_t>(meta.get_last_log_term()) << 64 | meta.get_last_log_idx();
+    return getSnapshotStoreMapKeyImpl(meta.get_last_log_term(), meta.get_last_log_idx());
+}
+
+inline uint128_t getSnapshotStoreMapKey(const SnapObject & obj)
+{
+    return getSnapshotStoreMapKeyImpl(obj.log_last_term, obj.log_last_index);
 }
 
 // Map key is term << 64 | log

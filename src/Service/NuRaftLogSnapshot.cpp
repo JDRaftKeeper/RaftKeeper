@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "common/find_symbols.h"
+#include <common/find_symbols.h>
 
 #include <Poco/DateTime.h>
 #include <Poco/DateTimeFormatter.h>
@@ -886,14 +886,14 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             continue;
         }
 
-        auto key = static_cast<uint128_t>(s_obj.log_last_term) << 64 | s_obj.log_last_index;
+        auto key = getSnapshotStoreMapKey(s_obj);
 
         if (snapshots.find(key) == snapshots.end())
         {
             ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(s_obj.log_last_index, s_obj.log_last_index - 1);
             nuraft::snapshot meta(s_obj.log_last_index, s_obj.log_last_term, config);
             ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size);
-            snap_store->init(s_obj.time_str);
+            snap_store->init(s_obj.create_time);
             snapshots[key] = snap_store;
         }
         String full_path = snap_dir + "/" + file;
