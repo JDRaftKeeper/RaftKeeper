@@ -1,7 +1,6 @@
 #include "ZooKeeper.h"
 #include <functional>
 #include "KeeperException.h"
-#include "TestKeeper.h"
 #include "ZooKeeperImpl.h"
 #include "pcg-random/pcg_random.hpp"
 
@@ -126,12 +125,6 @@ void ZooKeeper::init(
         else
             LOG_TRACE(log, "Initialized, hosts: {}, chroot: {}", fmt::join(hosts, ","), chroot);
     }
-    else if (implementation == "testkeeper")
-    {
-        impl = std::make_unique<Coordination::TestKeeper>(
-                chroot,
-                Poco::Timespan(0, operation_timeout_ms_ * 1000));
-    }
     else
     {
         throw RK::Exception("Unknown implementation of coordination service: " + implementation, RK::ErrorCodes::NOT_IMPLEMENTED);
@@ -251,10 +244,6 @@ bool ZooKeeper::configChanged(const Poco::Util::AbstractConfiguration & config, 
 {
     ZooKeeperArgs args(config, config_name);
 
-    // skip reload testkeeper cause it's for test and data in memory
-    if (args.implementation == implementation && implementation == "testkeeper")
-        return false;
-
     return std::tie(args.implementation, args.hosts, args.identity, args.session_timeout_ms, args.operation_timeout_ms, args.chroot)
         != std::tie(implementation, hosts, identity, session_timeout_ms, operation_timeout_ms, chroot);
 }
@@ -281,7 +270,7 @@ Coordination::Error ZooKeeper::getChildrenImpl(const std::string & path, Strings
         code = response.error;
         if (code == Coordination::Error::ZOK)
         {
-            res = response.names;
+            res = response.names.toStrings();
             if (stat)
                 *stat = response.stat;
         }

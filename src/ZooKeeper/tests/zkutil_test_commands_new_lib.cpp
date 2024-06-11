@@ -105,7 +105,7 @@ try
             else
             {
                 std::cerr << "Children:\n";
-                for (const auto & name : response.names)
+                for (auto name : response.names)
                     std::cerr << name << "\n";
             }
 

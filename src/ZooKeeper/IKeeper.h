@@ -1,12 +1,13 @@
 #pragma once
 
-#include "Common/Exception.h"
-#include <common/types.h>
-
-#include <vector>
-#include <memory>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <vector>
+
+#include <Common/CompactStrings.h>
+#include <Common/Exception.h>
+#include <common/types.h>
 
 /** Generic interface for ZooKeeper-like services.
   * Possible examples are:
@@ -303,13 +304,13 @@ struct ListRequest : virtual Request
 
 struct ListResponse : virtual Response
 {
-    std::vector<String> names;
+    CompactStrings names;
     Stat stat;
 };
 
 struct SimpleListResponse : virtual Response
 {
-    std::vector<String> names;
+    CompactStrings names;
 };
 
 struct CheckRequest : virtual Request

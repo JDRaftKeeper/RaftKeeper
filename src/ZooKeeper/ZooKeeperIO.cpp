@@ -89,6 +89,13 @@ void write(const Error & x, WriteBuffer & out)
     write(static_cast<int32_t>(x), out);
 }
 
+void write(const CompactStrings & strings, WriteBuffer & out)
+{
+    write(static_cast<int32_t>(strings.size()), out);
+    for (auto elem : strings)
+        write(elem.toString(), out);
+}
+
 void read(size_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
@@ -197,5 +204,23 @@ void read(Error & x, ReadBuffer & in)
     read(code, in);
     x = Coordination::Error(code);
 }
+
+void read(CompactStrings & strings, ReadBuffer & in)
+{
+    int32_t size = 0;
+    read(size, in);
+    if (size < 0)
+        throw Exception("Negative size while reading array from ZooKeeper", Error::ZMARSHALLINGERROR);
+    if (size > MAX_STRING_OR_ARRAY_SIZE)
+        throw Exception("Too large array size while reading from ZooKeeper", Error::ZMARSHALLINGERROR);
+    strings.reserve(size);
+    for (int32_t i = 0; i < size; ++i)
+    {
+        String s;
+        read(s, in);
+        strings.push_back(s);
+    }
+}
+
 
 }

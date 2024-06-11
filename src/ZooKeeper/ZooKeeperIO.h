@@ -2,11 +2,14 @@
 #include <array>
 #include <cstdint>
 #include <vector>
-#include "IKeeper.h"
+
+#include <Common/CompactStrings.h>
 #include <Common/IO/Operators.h>
 #include <Common/IO/ReadHelpers.h>
 #include <Common/IO/WriteHelpers.h>
-#include "ZooKeeperConstants.h"
+
+#include <ZooKeeper/IKeeper.h>
+#include <ZooKeeper/ZooKeeperConstants.h>
 
 namespace Coordination
 {
@@ -29,6 +32,7 @@ void write(const ACL & acl, WriteBuffer & out);
 void write(const AuthID & auth_id, WriteBuffer & out);
 void write(const Stat & stat, WriteBuffer & out);
 void write(const Error & x, WriteBuffer & out);
+void write(const CompactStrings & strings, WriteBuffer & out);
 
 template <size_t N>
 void write(const std::array<char, N> s, WriteBuffer & out)
@@ -44,6 +48,7 @@ void write(const std::vector<T> & arr, WriteBuffer & out)
     for (const auto & elem : arr)
         write(elem, out);
 }
+
 
 void read(size_t & x, ReadBuffer & in);
 #ifdef __APPLE__
@@ -61,6 +66,7 @@ void read(ACL & acl, ReadBuffer & in);
 void read(AuthID & auth_id, ReadBuffer & in);
 void read(Stat & stat, ReadBuffer & in);
 void read(Error & x, ReadBuffer & in);
+void read(CompactStrings & strings, ReadBuffer & in);
 
 template <size_t N>
 void read(std::array<char, N> & s, ReadBuffer & in)

@@ -692,7 +692,7 @@ struct StoreRequestList final : public StoreRequest
             if (list_request_type == ALL)
             {
                 response_typed.names.reserve(node->children.size());
-                response_typed.names.insert(response_typed.names.end(), node->children.begin(), node->children.end());
+                response_typed.names.push_back(node->children.begin(), node->children.end());
                 return {response, {}};
             }
 
@@ -723,7 +723,7 @@ struct StoreRequestList final : public StoreRequest
         {
             auto & response_typed = dynamic_cast<Coordination::ZooKeeperSimpleListResponse &>(*response);
             response_typed.names.reserve(node->children.size());
-            response_typed.names.insert(response_typed.names.end(), node->children.begin(), node->children.end());
+            response_typed.names.push_back(node->children.begin(), node->children.end());
         }
 
         response->error = Coordination::Error::ZOK;
