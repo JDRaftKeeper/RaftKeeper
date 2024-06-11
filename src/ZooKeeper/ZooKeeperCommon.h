@@ -460,8 +460,8 @@ struct ZooKeeperListResponse final : ListResponse, ZooKeeperResponse
     {
         if (const ZooKeeperListResponse * list_response = dynamic_cast<const ZooKeeperListResponse *>(&response))
         {
-            std::vector<String> copy_other_nodes(list_response->names);
-            std::vector<String> copy_nodes(names);
+            std::vector<String> copy_other_nodes = list_response->names.toStrings();
+            std::vector<String> copy_nodes = names.toStrings();
             std::sort(copy_other_nodes.begin(), copy_other_nodes.end());
             std::sort(copy_nodes.begin(), copy_nodes.end());
             return ZooKeeperResponse::operator==(response) && list_response->stat == stat && copy_other_nodes == copy_nodes;
@@ -472,7 +472,7 @@ struct ZooKeeperListResponse final : ListResponse, ZooKeeperResponse
     String toString() const override
     {
         String base = "ListResponse " + ZooKeeperResponse::toString() + ", stat " + stat.toString() + ", names ";
-        auto func = [&](const String & value) { base += ", " + value; };
+        auto func = [&](const StringRef & s) { base += ", " + s.toString(); };
         std::for_each(names.begin(), names.end(), func);
         return base;
     }
@@ -488,8 +488,8 @@ struct ZooKeeperSimpleListResponse final : SimpleListResponse, ZooKeeperResponse
     {
         if (const ZooKeeperSimpleListResponse * list_response = dynamic_cast<const ZooKeeperSimpleListResponse *>(&response))
         {
-            std::vector<String> copy_other_nodes(list_response->names);
-            std::vector<String> copy_nodes(names);
+            std::vector<String> copy_other_nodes = list_response->names.toStrings();
+            std::vector<String> copy_nodes = names.toStrings();
             std::sort(copy_other_nodes.begin(), copy_other_nodes.end());
             std::sort(copy_nodes.begin(), copy_nodes.end());
             return ZooKeeperResponse::operator==(response) && copy_other_nodes == copy_nodes;
@@ -500,7 +500,7 @@ struct ZooKeeperSimpleListResponse final : SimpleListResponse, ZooKeeperResponse
     String toString() const override
     {
         String base = "SimpleListResponse " + ZooKeeperResponse::toString() + ", names ";
-        auto func = [&](const String & value) { base += ", " + value; };
+        auto func = [&](const StringRef & s) { base += ", " + s.toString(); };
         std::for_each(names.begin(), names.end(), func);
         return base;
     }
