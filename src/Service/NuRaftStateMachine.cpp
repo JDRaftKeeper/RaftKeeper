@@ -11,15 +11,8 @@
 #include <Service/NuRaftStateMachine.h>
 #include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <Service/RequestProcessor.h>
-#include <Service/ThreadSafeQueue.h>
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
-
-
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
-#endif
 
 
 using namespace nuraft;
@@ -615,7 +608,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
     std::atomic<ulong> batch_start_index = from;
     std::atomic<ulong> batch_end_index = 0;
 
-    ThreadSafeQueue<ReplayLogBatch> log_queue;
+    LockFreeConcurrentBoundedQueue<ReplayLogBatch> log_queue;
 
     /// Loading and applying asynchronously
     auto load_thread = ThreadFromGlobalPool(
@@ -684,7 +677,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
         }
 
         ReplayLogBatch batch;
-        log_queue.peek(batch);
+        log_queue.pop(batch);
 
         if (batch.log_vec == nullptr)
         {
@@ -733,7 +726,6 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
             }
         }
 
-        log_queue.pop();
         last_committed_idx = batch.batch_end_index - 1;
 
         LOG_INFO(log, "Replayed log batch [{}, {})", batch.batch_start_index, batch.batch_end_index);
@@ -809,7 +801,3 @@ void NuRaftStateMachine::reset()
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
