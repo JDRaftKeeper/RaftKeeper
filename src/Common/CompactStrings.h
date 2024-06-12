@@ -13,9 +13,10 @@ namespace RK
 class CompactStrings
 {
 public:
-    using IndexType = uint64_t;
     using Offsets = PODArray<int64_t, 128, Allocator<false>, 15, 8>;
-    using Data = PODArray<char, 4096, Allocator<false>, 15, 8>;
+    using Data = PODArray<char, 256, Allocator<false>, 15, 8>;
+
+    static constexpr size_t AVG_ELEMENT_SIZE_HINT = 64;
 
     struct Iterator
     {
