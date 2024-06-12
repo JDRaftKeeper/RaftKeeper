@@ -1596,4 +1596,27 @@ uint64_t KeeperStore::getApproximateDataSize() const
     return size_bytes;
 }
 
+void KeeperStore::initializeSystemNodes()
+{
+    auto add_node = [&](const String & path)
+    {
+        if (!data_tree.count(path))
+        {
+            data_tree.emplace(path, std::make_shared<KeeperNode>());
+            getNode(getParentPath(path))->children.insert(getBaseName(path));
+        }
+    };
+
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
+    add_node(ZOOKEEPER_SYSTEM_PATH);
+    add_node(ZOOKEEPER_CONFIG_NODE);
+
+#else
+    add_node(CLICKHOUSE_KEEPER_SYSTEM_PATH);
+    add_node(CLICKHOUSE_KEEPER_API_VERSION_PATH);
+
+    data_tree.get(CLICKHOUSE_KEEPER_API_VERSION_PATH)->data = toString(static_cast<uint8_t>(CURRENT_KEEPER_API_VERSION));
+#endif
+}
+
 }
