@@ -114,6 +114,8 @@ NuRaftStateMachine::NuRaftStateMachine(
         store.getSessionIDCounter(),
         store.getZxid());
 
+    store.initializeSystemNodes();
+
     LOG_INFO(log, "Starting background creating snapshot thread.");
     snap_thread = ThreadFromGlobalPool([this] { snapThread(); });
 }

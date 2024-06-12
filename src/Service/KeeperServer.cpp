@@ -47,6 +47,19 @@ KeeperServer::KeeperServer(
         checkAndGetSuperdigest(settings->super_digest),
         MAX_OBJECT_NODE_SIZE,
         request_processor_);
+
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
+    auto cluster_config = state_manager->getClusterConfig();
+
+    String data;
+    for (const auto & s : cluster_config->get_servers())
+    {
+        data += fmt::format("server.{}={}:participant\n", s->get_id(), s->get_endpoint());
+    }
+    data += "version=0";
+    state_machine->getStore().getNode(ZOOKEEPER_CONFIG_NODE)->data = data;
+#endif
+
 }
 namespace
 {

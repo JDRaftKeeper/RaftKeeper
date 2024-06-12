@@ -718,3 +718,16 @@ def test_concurrent_watches(started_cluster):
         assert dumb_watch_triggered_counter == watches_must_be_triggered
     finally:
         close_zk_clients([fake_zk])
+
+
+def test_system_nodes(started_cluster):
+    genuine_zk = fake_zk = None
+    try:
+        genuine_zk = get_genuine_zk()
+        fake_zk = get_fake_zk()
+        cluster_config = (b'server.1=node1:8103:participant\nserver.2=node2:8103:participant\nserver.3=node3:8103'
+                          b':participant\nversion=0')
+        assert fake_zk.get('/zookeeper/config')[0] == cluster_config
+    finally:
+        close_zk_clients([genuine_zk, fake_zk])
+ 

@@ -406,11 +406,14 @@ public:
     {
         watch_manager.dumpWatches(buf);
     }
+
     void dumpWatchesByPath(WriteBufferFromOwnString & buf) const
     {
         watch_manager.dumpWatchesByPath(buf);
     }
 
+    void initializeSystemNodes();
+    
     mutable std::shared_mutex auth_mutex;
     SessionAndAuth session_and_auth;
 
