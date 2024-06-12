@@ -20,6 +20,8 @@ void CompactStrings::reserve(size_t n, size_t total_size_)
     offsets.reserve(n);
     if (total_size_)
         data.reserve(total_size_);
+    else
+        data.reserve(AVG_ELEMENT_SIZE_HINT * total_size_);
 }
 
 void CompactStrings::push_back(const String & s)
