@@ -730,4 +730,3 @@ def test_system_nodes(started_cluster):
         assert fake_zk.get('/zookeeper/config')[0] == cluster_config
     finally:
         close_zk_clients([genuine_zk, fake_zk])
- 

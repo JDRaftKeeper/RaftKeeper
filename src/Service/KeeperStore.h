@@ -413,7 +413,7 @@ public:
     }
 
     void initializeSystemNodes();
-    
+
     mutable std::shared_mutex auth_mutex;
     SessionAndAuth session_and_auth;
 

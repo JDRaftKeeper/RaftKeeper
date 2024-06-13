@@ -156,7 +156,7 @@ TEST(RaftStateMachine, createSnapshot)
     UInt64 term = 1;
     snapshot meta(last_index, term, config);
     machine.create_snapshot(meta);
-    ASSERT_EQ(machine.getStore().getNodesCount(), 36);
+    ASSERT_EQ(machine.getStore().getNodesCount(), 38);
     machine.shutdown();
 
     cleanDirectory(snap_dir);
@@ -209,7 +209,7 @@ TEST(RaftStateMachine, syncSnapshot)
         machine_target.save_logical_snp_obj(meta, obj_id, *(data_out.get()), is_first, is_last_obj);
     }
     machine_target.apply_snapshot(meta);
-    ASSERT_EQ(machine_target.getStore().getNodesCount(), last_index + 1);
+    ASSERT_EQ(machine_target.getStore().getNodesCount(), last_index + 3);
 
     for (auto i = 1; i < obj_id; i++)
     {
@@ -276,7 +276,7 @@ TEST(RaftStateMachine, initStateMachine)
         LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
 
 
-        ASSERT_EQ(machine.getStore().getNodesCount(), 257);
+        ASSERT_EQ(machine.getStore().getNodesCount(), 259);
         machine.shutdown();
     }
 
