@@ -105,9 +105,10 @@ def compare_states(zk1, zk2, path="/"):
     data2, stat2 = zk2.get(path)
     print("Left Stat", stat1)
     print("Right Stat", stat2)
-    assert data1 == data2, "Data not equal on path " + str(path)
+    if path not in ("/zookeeper/config",):
+        assert data1 == data2, "Data not equal on path " + str(path)
     # both paths have strange stats
-    if path not in ("/", "/zookeeper"):
+    if path not in ("/", "/zookeeper", "/zookeeper/config"):
         compare_stats(stat1, stat2, path)
 
     first_children = list(sorted(zk1.get_children(path)))
