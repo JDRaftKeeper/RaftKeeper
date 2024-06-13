@@ -12,21 +12,22 @@ namespace RK
 using RunnerId = size_t;
 using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
-const String CLICKHOUSE_KEEPER_SYSTEM_PATH = "/keeper";
-const String CLICKHOUSE_KEEPER_API_VERSION_PATH = CLICKHOUSE_KEEPER_SYSTEM_PATH + "/api_version";
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
+    const String ZOOKEEPER_SYSTEM_PATH = "/zookeeper";
+    const String ZOOKEEPER_CONFIG_NODE = ZOOKEEPER_SYSTEM_PATH + "/config";
+#else
+    const String CLICKHOUSE_KEEPER_SYSTEM_PATH = "/keeper";
+    const String CLICKHOUSE_KEEPER_API_VERSION_PATH = CLICKHOUSE_KEEPER_SYSTEM_PATH + "/api_version";
 
-enum class KeeperApiVersion : uint8_t
-{
-    ZOOKEEPER_COMPATIBLE = 0,
-    WITH_FILTERED_LIST,
-    WITH_MULTI_READ
-};
+    enum class KeeperApiVersion : uint8_t
+    {
+        ZOOKEEPER_COMPATIBLE = 0,
+        WITH_FILTERED_LIST,
+        WITH_MULTI_READ
+    };
 
-inline constexpr auto CURRENT_KEEPER_API_VERSION = KeeperApiVersion::WITH_MULTI_READ;
-
-const String ZOOKEEPER_SYSTEM_PATH= "/zookeeper";
-const String ZOOKEEPER_CONFIG_NODE= ZOOKEEPER_SYSTEM_PATH + "/config";
-
+    inline constexpr auto CURRENT_KEEPER_API_VERSION = KeeperApiVersion::WITH_MULTI_READ;
+#endif
 
 struct RequestId;
 
