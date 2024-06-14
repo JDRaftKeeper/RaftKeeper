@@ -246,8 +246,8 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     ret->internal_port = config.getInt("keeper.internal_port", 8103);
     ret->thread_count = config.getInt("keeper.thread_count", getNumberOfPhysicalCPUCores());
 
-    ret->snapshot_create_interval = config.getInt("keeper.snapshot_create_interval", 3600);
-    ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1);
+    ret->snapshot_create_interval = config.getUInt("keeper.snapshot_create_interval", 3600);
+    ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1U);
 
     ret->super_digest = config.getString("keeper.superdigest", "");
 
