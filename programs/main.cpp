@@ -14,6 +14,7 @@
 
 int mainEntryRaftKeeperServer(int argc, char ** argv);
 int mainEntryRaftKeeperConverter(int argc, char ** argv);
+int mainEntryRaftKeeperBench(int argc, char ** argv);
 
 namespace
 {
@@ -25,6 +26,7 @@ using MainFunc = int (*)(int, char **);
 std::pair<const char *, MainFunc> raftkeeper_applications[] = {
     {"server", mainEntryRaftKeeperServer},
     {"converter", mainEntryRaftKeeperConverter},
+    {"bench", mainEntryRaftKeeperBench},
 };
 
 
