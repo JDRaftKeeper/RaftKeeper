@@ -323,7 +323,7 @@ private:
     ptr<KeeperSnapshotManager> snap_mgr;
 
     /// The minimal interval to create snapshot
-    int32_t snapshot_creating_interval;
+    uint64_t snapshot_creating_interval;
 
     std::atomic<int64_t> last_snapshot_time;
 

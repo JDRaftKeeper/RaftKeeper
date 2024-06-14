@@ -60,7 +60,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     , responses_queue(responses_queue_)
     , request_processor(request_processor_)
     , last_committed_idx(0)
-    , snapshot_creating_interval(internal * 1000000)
+    , snapshot_creating_interval(static_cast<uint64_t>(internal) * 1000000)
     , last_snapshot_time(Poco::Timestamp().epochMicroseconds())
     , new_session_id_callback_mutex(new_session_id_callback_mutex_)
     , new_session_id_callback(new_session_id_callback_)

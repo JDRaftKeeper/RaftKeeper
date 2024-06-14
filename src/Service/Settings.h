@@ -48,7 +48,7 @@ struct Settings
     String log_dir;
     String snapshot_dir;
 
-    int32_t snapshot_create_interval;
+    uint32_t snapshot_create_interval;
     int32_t thread_count;
 
     String four_letter_word_white_list;
