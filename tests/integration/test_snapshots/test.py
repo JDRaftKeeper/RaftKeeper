@@ -1,6 +1,7 @@
 import os
 import random
 import string
+import time
 
 import pytest
 
@@ -72,6 +73,7 @@ def test_state_after_restart(started_cluster, node):
     finally:
         close_zk_clients([node_zk, node_zk2])
 
+
 @pytest.mark.parametrize(
     'node',
     [
@@ -113,5 +115,30 @@ def test_ephemeral_after_restart(started_cluster, node):
                 assert data == strs[i]
                 assert stat.ephemeralOwner == session_id
         assert list(sorted(existing_children)) == list(sorted(node_zk2.get_children("/test_ephemeral_after_restart")))
+    finally:
+        close_zk_clients([node_zk, node_zk2])
+
+
+@pytest.mark.parametrize(
+    'node',
+    [
+        cluster.add_instance('node5', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node6', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+    ]
+)
+def test_restart_with_no_log(started_cluster, node):
+    node_zk = node_zk2 = None
+    try:
+        node_zk = node.get_fake_zk()
+        node_zk.create("/test_restart_with_no_log", b"somevalue")
+
+        node.send_4lw_cmd(cmd="csnp")
+        time.sleep(1) # wait for snapshot to be taken
+
+        node.restart_raftkeeper(kill=True)
+        node.wait_for_join_cluster()
+
+        node_zk2 = node.get_fake_zk()
+        assert node_zk2.exists("/test_restart_with_no_log")
     finally:
         close_zk_clients([node_zk, node_zk2])

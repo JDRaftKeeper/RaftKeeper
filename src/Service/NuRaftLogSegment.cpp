@@ -706,13 +706,11 @@ int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     return ret;
 }
 
-ptr<LogSegmentStore> LogSegmentStore::segment_store = nullptr;
-
 ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool force_new)
 {
+    static ptr<LogSegmentStore> segment_store;
     if (segment_store == nullptr || force_new)
         segment_store = cs_new<LogSegmentStore>(log_dir_);
-
     return segment_store;
 }
 
