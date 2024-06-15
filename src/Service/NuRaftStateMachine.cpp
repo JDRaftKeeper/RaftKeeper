@@ -87,7 +87,7 @@ NuRaftStateMachine::NuRaftStateMachine(
     {
         LOG_INFO(log, "No previous last commit idx found, skip replaying logs.");
     }
-    else if (previous_last_commit_id < last_committed_idx)
+    else if (previous_last_commit_id <= last_committed_idx)
     {
         LOG_WARNING(
             log,

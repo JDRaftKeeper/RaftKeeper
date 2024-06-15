@@ -239,7 +239,7 @@ private:
 class LogSegmentStore
 {
 public:
-    using SegmentVector = std::vector<ptr<NuRaftLogSegment>>;
+    using Segments = std::vector<ptr<NuRaftLogSegment>>;
 
     static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; //1G, 0.3K/Log, 3M logs
     static constexpr UInt32 MAX_SEGMENT_COUNT = 50; //50G
@@ -296,7 +296,7 @@ public:
     int reset(UInt64 next_log_index);
 
     /// get closed segments
-    SegmentVector & getClosedSegments() { return segments; }
+    Segments & getClosedSegments() { return segments; }
 
     /// get file format version
     LogVersion getVersion(UInt64 index);
@@ -311,9 +311,6 @@ private:
 
     /// find segment by log index
     int getSegment(UInt64 log_index, ptr<NuRaftLogSegment> & ptr);
-
-    /// global instance
-    static ptr<LogSegmentStore> segment_store;
 
     /// file log store directory
     String log_dir;
@@ -331,7 +328,7 @@ private:
     Poco::Logger * log;
 
     /// closed segments
-    SegmentVector segments;
+    Segments segments;
 
     /// open segments
     ptr<NuRaftLogSegment> open_segment;
