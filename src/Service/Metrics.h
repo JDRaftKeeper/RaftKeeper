@@ -205,6 +205,10 @@ public:
     SummaryPtr snap_time_ms;
     SummaryPtr snap_blocking_time_ms;
     SummaryPtr snap_count;
+    SummaryPtr reads_issued_from_requests_queue;
+    SummaryPtr write_commit_proc_issued;
+    SummaryPtr reads_after_write_in_session_queue;
+    SummaryPtr reads_issued_from_session_queue;
 
 private:
     Metrics();

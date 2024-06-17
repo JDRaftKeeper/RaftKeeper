@@ -4,6 +4,8 @@
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
+#include <unordered_set>
 
 namespace RK
 {
@@ -42,14 +44,16 @@ private:
     /// Exist system for fatal error.
     [[noreturn]] static void systemExist();
 
-    void moveRequestToPendingQueue(RunnerId runner_id);
+    void moveRequestToPendingQueue();
 
-    void processReadRequests(RunnerId runner_id);
+    void readRequestProcessor(RunnerId id);
+
+    void sendToProcessor(const RequestForSession & request);
     void processErrorRequest(size_t count);
-    void processCommittedRequest(size_t count);
+    std::unordered_set<int64_t> processCommittedRequest(size_t);
 
     /// Apply request to state machine
-    void applyRequest(const RequestForSession & request) const;
+    void applyRequest(const RequestForSession & request);
     size_t getRunnerId(int64_t session_id) const { return session_id % runner_count; }
 
     /// Find error request in pending request queue
@@ -60,7 +64,7 @@ private:
     /// we need to interrupt the processing.
     bool shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue);
 
-    using RequestForSessions = std::vector<RequestForSession>;
+    using RequestForSessions = std::queue<RequestForSession>;
 
     ThreadFromGlobalPool main_thread;
 
@@ -71,11 +75,11 @@ private:
     KeeperResponsesQueue & responses_queue;
 
     /// Local requests
-    ptr<RequestsQueue> requests_queue;
+    ptr<ConcurrentBoundedQueue<RequestForSession>> requests_queue;
 
-    /// <runner_id, <session_id, requests>>
+    /// <session_id, requests>
     /// Requests from `requests_queue` grouped by session
-    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> pending_requests;
+    std::unordered_map<int64_t, RequestForSessions> pending_requests;
 
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<RequestForSession> committed_queue{1000};
@@ -95,6 +99,16 @@ private:
     Poco::Logger * log;
 
     UInt64 operation_timeout_ms = 10000;
+
+    ThreadPoolPtr read_thread_pool;
+    std::shared_ptr<RequestsQueue> read_request_process_queues ;
+
+    std::atomic<uint32_t> numRequestsProcessing{0};
+
+    std::mutex empty_pool_lock;
+    std::condition_variable empty_pool_cv;
+
+    size_t max_read_batch_size = 32;
 };
 
 }

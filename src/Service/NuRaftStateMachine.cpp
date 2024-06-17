@@ -259,7 +259,7 @@ void NuRaftStateMachine::rollback(const ulong log_idx, buffer & data)
 
 nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nuraft::buffer & data, bool ignore_response)
 {
-    LOG_TRACE(log, "Begin commit log index {}", log_idx);
+    LOG_INFO(log, "Begin commit log index {}", log_idx);
 
     if (isNewSessionRequest(data)) /// TODO remove in future
     {

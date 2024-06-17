@@ -42,15 +42,21 @@ void RequestProcessor::run()
                 /// to pending queue and then the first loop handle the write request, then If we do not check the
                 /// pending queue in our wait condition, it will result in meaningless waiting.
                 bool pending_requests_empty = true;
-                for (const auto & [_, runner_pending_requests] : pending_requests)
+
+                for (auto it = pending_requests.begin(); it != pending_requests.end(); )
                 {
-                    for (const auto & [session_, session_pending_requests] : runner_pending_requests)
-                        if (!session_pending_requests.empty())
-                        {
-                            pending_requests_empty = false;
-                            break;
-                        }
+                    if (it->second.empty())
+                    {
+                        LOG_ERROR(log, "Got empty queue in pending_requests, it's a bug");
+                        it = pending_requests.erase(it);  // erase 返回下一个迭代器
+                    }
+                    else
+                    {
+                        pending_requests_empty = false;
+                        break;
+                    }
                 }
+
                 return error_request_ids.empty() && requests_queue->empty() && committed_queue.empty() && pending_requests_empty;
             };
 
@@ -69,7 +75,6 @@ void RequestProcessor::run()
             if (shutdown_called)
                 return;
 
-            size_t committed_request_size = committed_queue.size();
             size_t error_request_size;
             {
                 std::unique_lock lk(mutex);
@@ -78,20 +83,56 @@ void RequestProcessor::run()
 
             /// 1. process read request
             watch.restart();
-            for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
-            {
-                moveRequestToPendingQueue(runner_id);
-                processReadRequests(runner_id);
-            }
-            Metrics::getMetrics().apply_read_request_time_ms->add(watch.elapsedMilliseconds());
+            moveRequestToPendingQueue();
 
             /// 2. process committed request, single thread
             watch.restart();
-            processCommittedRequest(committed_request_size);
+            size_t committed_request_size = committed_queue.size();
+
+            if (committed_request_size == 0)
+                continue;
+
+            auto queuesToDrain = processCommittedRequest(committed_request_size);
             Metrics::getMetrics().apply_write_request_time_ms->add(watch.elapsedMilliseconds());
 
             /// 3. process error requests
             processErrorRequest(error_request_size);
+
+            /// 4. handle need_drain sessions
+            size_t read_processed = 0;
+
+            for (auto && sessionId : queuesToDrain)
+            {
+                if (!pending_requests.contains(sessionId))
+                    continue;
+
+                auto & session_queue = pending_requests[sessionId];
+                size_t read_after_write = 0;
+
+                while (!shutdown_called && !session_queue.empty() && session_queue.front().request->isReadRequest())
+                {
+                    auto & read_request = session_queue.front();
+                    ++ read_after_write;
+                    sendToProcessor(read_request);
+
+                    LOG_DEBUG(log, "Move read request {} from pending_requests", read_request.toSimpleString());
+                    session_queue.pop();
+
+                    if (!session_queue.empty())
+                    {
+                        LOG_DEBUG(log, "Next pending_request {}", session_queue.front().toSimpleString());
+                    }
+                }
+
+                Metrics::getMetrics().reads_after_write_in_session_queue->add(read_after_write);
+                read_processed += read_after_write;
+
+                // Remove empty queues
+                if (session_queue.empty())
+                    pending_requests.erase(sessionId);
+            }
+            Metrics::getMetrics().reads_issued_from_session_queue->add(read_processed);
+
         }
         catch (...)
         {
@@ -100,27 +141,42 @@ void RequestProcessor::run()
     }
 }
 
-void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
+void RequestProcessor::moveRequestToPendingQueue()
 {
-    auto & thread_requests = pending_requests.find(runner_id)->second;
-    size_t request_size = requests_queue->size(runner_id);
+    size_t requestsToProcess = requests_queue->size();
+    if (requestsToProcess == 0)
+        return;
 
-    if (request_size)
-        LOG_TRACE(log, "Prepare to move {} requests to pending queue of runner {}", request_size, runner_id);
-
-    for (size_t i = 0; i < request_size; ++i)
+    size_t readsProcessed = 0;
+    while (!shutdown_called
+           && requestsToProcess > 0
+           && readsProcessed <= max_read_batch_size)
     {
         RequestForSession request;
-        if (requests_queue->tryPop(runner_id, request))
+
+        if (requests_queue->tryPop(request))
         {
-            auto op_num = request.request->getOpNum();
-            if (op_num != Coordination::OpNum::Auth)
+            if (request.request->getOpNum() == Coordination::OpNum::Auth)
             {
-                LOG_TRACE(log, "Move {} to pending queue", request.toSimpleString());
-                thread_requests[request.session_id].push_back(request);
+                continue;
+            }
+
+            if (request.request->isReadRequest() && !pending_requests.contains(request.session_id))
+            {
+                readsProcessed++;
+                sendToProcessor(request);
+            }
+            else
+            {
+                LOG_DEBUG(log, "Move {} to pending queue", request.toSimpleString());
+                pending_requests[request.session_id].emplace(request);
             }
         }
+
+        requestsToProcess--;
     }
+
+    Metrics::getMetrics().reads_issued_from_requests_queue->add(readsProcessed);
 }
 
 bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue)
@@ -128,10 +184,8 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
     bool has_read_request = false;
     bool found_error = false;
 
-    auto runner_id = getRunnerId(committed_request.session_id);
-    auto & my_pending_requests = pending_requests.find(runner_id)->second;
 
-    auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
+    auto & pending_requests_for_session = pending_requests[committed_request.session_id];
 
     auto process_not_in_pending_queue = [this, &found_in_pending_queue, &committed_request]()
     {
@@ -194,18 +248,25 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
     return !has_read_request && !found_error;
 }
 
-void RequestProcessor::processCommittedRequest(size_t count)
+std::unordered_set<int64_t> RequestProcessor::processCommittedRequest(size_t commits_to_process)
 {
-    RequestForSession committed_request;
-    for (size_t i = 0; i < count; ++i)
+    /// Drain outstanding reads
     {
+        std::unique_lock<std::mutex> lk(empty_pool_lock);
+        cv.wait(lk, [this]{ return numRequestsProcessing == 0 || shutdown_called; });
+    }
+
+    std::unordered_set<int64_t> queues_to_drain;
+
+    size_t commits_processed = 0;
+
+    for (; commits_processed < commits_to_process; ++commits_processed)
+    {
+        RequestForSession committed_request;
         if (!committed_queue.peek(committed_request))
             continue;
 
         LOG_DEBUG(log, "Process committed(write) request {}", committed_request.toSimpleString());
-
-        auto runner_id = getRunnerId(committed_request.session_id);
-        auto & my_pending_requests = pending_requests.find(runner_id)->second;
 
         /// New session and update session requests are not put into pending queue
         if (unlikely(isSessionRequest(committed_request.request)))
@@ -216,14 +277,14 @@ void RequestProcessor::processCommittedRequest(size_t count)
         /// Remote requests
         else if (!keeper_dispatcher->isLocalSession(committed_request.session_id))
         {
-            if (my_pending_requests.contains(committed_request.session_id))
+            if (pending_requests.contains(committed_request.session_id))
             {
                 LOG_WARNING(
                     log,
                     "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
                     "Just delete from pending queue.",
                     toHexString(committed_request.session_id));
-                my_pending_requests.erase(committed_request.session_id);
+                pending_requests.erase(committed_request.session_id);
             }
 
             applyRequest(committed_request);
@@ -240,26 +301,53 @@ void RequestProcessor::processCommittedRequest(size_t count)
             }
             else
             {
-                bool found_in_pending_queue;
-                if (!shouldProcessCommittedRequest(committed_request, found_in_pending_queue))
+                if (!pending_requests.contains(committed_request.session_id)
+                    || pending_requests[committed_request.session_id].empty()
+                    || pending_requests[committed_request.session_id].front().request->isReadRequest()
+                    )
+                {
+                    if (!pending_requests.contains(committed_request.session_id))
+                    {
+                        LOG_DEBUG(log, "Commit request got, but not in pending_requests");
+                    }
+                    else if (pending_requests[committed_request.session_id].empty())
+                    {
+                        LOG_DEBUG(log, "Commit request got, but pending_requests empty");
+                    }
+                    else
+                    {
+                        LOG_DEBUG(log, "Commit request got, but next pending_request {}", pending_requests[committed_request.session_id].front().toSimpleString());
+                    }
+
                     break;
+                }
 
                 /// apply request
                 applyRequest(committed_request);
+
                 committed_queue.pop();
+
+                LOG_DEBUG(log, "Move committed(write) request {} from committed_queue and pending_requests", committed_request.toSimpleString());
                 auto current_time = getCurrentTimeMilliseconds();
                 Metrics::getMetrics().update_latency->add(current_time - committed_request.create_time);
 
                 /// remove request from pending queue
-                auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];
-                if (found_in_pending_queue)
-                    pending_requests_for_session.erase(pending_requests_for_session.begin());
+                auto & pending_requests_for_session = pending_requests[committed_request.session_id];
+                pending_requests_for_session.pop();
 
                 if (pending_requests_for_session.empty())
-                    my_pending_requests.erase(committed_request.session_id);
+                    pending_requests.erase(committed_request.session_id);
+                else
+                    LOG_DEBUG(log, "Next pending_request {}", pending_requests_for_session.front().toSimpleString());
+
+                queues_to_drain.emplace(committed_request.session_id);
             }
         }
     }
+
+    Metrics::getMetrics().write_commit_proc_issued->add(commits_processed);
+
+    return queues_to_drain;
 }
 
 void RequestProcessor::processErrorRequest(size_t count)
@@ -276,8 +364,6 @@ void RequestProcessor::processErrorRequest(size_t count)
     {
         auto & error_request = error_requests.front();
         auto [session_id, xid] = error_request.getRequestId();
-
-        auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
 
         if (unlikely(isSessionRequest(error_request.opnum)))
         {
@@ -312,14 +398,14 @@ void RequestProcessor::processErrorRequest(size_t count)
         /// Remote request
         else if (!keeper_dispatcher->isLocalSession(session_id))
         {
-            if (my_pending_requests.contains(session_id))
+            if (pending_requests.contains(session_id))
             {
                 LOG_WARNING(
                     log,
                     "Found session {} in pending_queue while it is not local, maybe because of connection disconnected. "
                     "Just delete from pending queue.",
                     toHexString(session_id));
-                my_pending_requests.erase(session_id);
+                pending_requests.erase(session_id);
             }
 
             LOG_WARNING(log, "Error request {} is not local", error_request.toString());
@@ -388,68 +474,77 @@ std::optional<RequestForSession> RequestProcessor::findErrorRequest(const ErrorR
 
     std::optional<RequestForSession> request;
 
-    auto & my_pending_requests = pending_requests.find(getRunnerId(session_id))->second;
-    auto session_requests = my_pending_requests.find(session_id);
 
-    if (session_requests != my_pending_requests.end())
+    if (pending_requests.contains(session_id))
     {
-        auto & requests = session_requests->second;
-        for (auto request_it = requests.begin(); request_it != requests.end();)
-        {
-            LOG_TRACE(log, "Try match {}", request_it->toSimpleString());
+        auto & session_requests = pending_requests[session_id];
 
-            if (request_it->request->xid == xid
-                || (request_it->request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
+        RequestForSessions new_session_requests;
+
+        while (!session_requests.empty())
+        {
+            auto & request_it = session_requests.front();
+            if (request_it.request->xid == xid
+                || (request_it.request->getOpNum() == Coordination::OpNum::Close && error_request.opnum == Coordination::OpNum::Close))
             {
-                LOG_WARNING(log, "Matched error request {} in pending queue", request_it->toSimpleString());
-                request = *request_it;
-                requests.erase(request_it);
-                break;
+                LOG_WARNING(log, "Matched error request {} in pending queue", request_it.toSimpleString());
+                request.emplace(request_it);
             }
             else
             {
-                ++request_it;
+                new_session_requests.push(request_it);
             }
+            session_requests.pop();
+
         }
+
+        if (new_session_requests.empty())
+            pending_requests.erase(session_id);
+        else
+            pending_requests[session_id] = new_session_requests;
     }
 
     return request;
 }
 
-void RequestProcessor::processReadRequests(RunnerId runner_id)
+void RequestProcessor::readRequestProcessor(RunnerId runner_id)
 {
-    auto & thread_requests = pending_requests.find(runner_id)->second;
+    setThreadName(("ReadProcess#" + std::to_string(runner_id)).c_str());
+    auto max_wait_ms = std::min(static_cast<uint64_t>(1000), operation_timeout_ms);
 
-    /// process every session, until encountered write request
-    for (auto it = thread_requests.begin(); it != thread_requests.end();)
+    while (!shutdown_called)
     {
-        auto & session_requests = it->second;
-        for (auto session_request = session_requests.begin(); session_request != session_requests.end();)
+        RequestForSession request_for_session;
+
+        if (read_request_process_queues->tryPop(runner_id, request_for_session, max_wait_ms))
         {
-            /// read request
-            if (session_request->request->isReadRequest())
-            {
-                applyRequest(*session_request);
-                auto current_time = getCurrentTimeMilliseconds();
-                Metrics::getMetrics().read_latency->add(current_time - session_request->create_time);
-                session_request = session_requests.erase(session_request);
-            }
-            else
-            {
+            if (shutdown_called)
                 break;
+            applyRequest(request_for_session);
+
+            LOG_DEBUG(log, "numRequestsProcessing {}", numRequestsProcessing.load());
+
+            if (--numRequestsProcessing == 0)
+            {
+                LOG_DEBUG(log, "Try notify empty");
+                std::unique_lock lk(empty_pool_lock);
+                empty_pool_cv.notify_all();
+                LOG_DEBUG(log, "Finish notify empty");
             }
         }
-
-        if (session_requests.empty())
-            it = thread_requests.erase(it);
-        else
-            ++it;
     }
 }
 
-void RequestProcessor::applyRequest(const RequestForSession & request) const
+void RequestProcessor::sendToProcessor(const RequestForSession & request)
 {
-    LOG_TRACE(log, "Apply request {}", request.toSimpleString());
+    numRequestsProcessing++;
+    LOG_DEBUG(log, "Schedule request {}", request.toSimpleString());
+    read_request_process_queues->push(request);
+}
+
+void RequestProcessor::applyRequest(const RequestForSession & request)
+{
+    LOG_DEBUG(log, "Apply request {}", request.toSimpleString());
     try
     {
         if (request.request->isReadRequest())
@@ -505,7 +600,7 @@ void RequestProcessor::shutdown()
         main_thread.join();
 
     RequestForSession request_for_session;
-    while (requests_queue->tryPopAny(request_for_session))
+    while (requests_queue->tryPop(request_for_session))
     {
         LOG_DEBUG(log, "Make session expire response for request {}", request_for_session.toSimpleString());
         auto response = request_for_session.request->makeResponse();
@@ -556,14 +651,20 @@ void RequestProcessor::initialize(
 {
     operation_timeout_ms = operation_timeout_ms_;
     runner_count = thread_count_;
+    max_read_batch_size = thread_count_ * 4;
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
-    requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
+    requests_queue = std::make_shared<ConcurrentBoundedQueue<RequestForSession>>(10000);
+    main_thread = ThreadFromGlobalPool([this] { run(); });
+
+    read_request_process_queues = std::make_shared<RequestsQueue>(runner_count, 1000);
+
+    read_thread_pool = std::make_shared<ThreadPool>(runner_count);
+
     for (size_t i = 0; i < runner_count; i++)
     {
-        pending_requests[i];
+        read_thread_pool->trySchedule([this, i] { readRequestProcessor(i); });
     }
-    main_thread = ThreadFromGlobalPool([this] { run(); });
 }
 
 }
