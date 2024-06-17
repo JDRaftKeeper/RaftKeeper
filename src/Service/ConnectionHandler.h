@@ -136,7 +136,7 @@ private:
     std::atomic<int64_t> internal_id{0};
 
     Stopwatch session_stopwatch;
-    ThreadSafeResponseQueuePtr responses;
+    ResponseQueuePtr responses;
 
     /// connection established timestamp
     Poco::Timestamp established;

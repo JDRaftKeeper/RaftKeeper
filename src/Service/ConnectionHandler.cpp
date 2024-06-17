@@ -72,7 +72,7 @@ ConnectionHandler::ConnectionHandler(Context & global_context_, StreamSocket & s
           0,
           Context::getConfigRef().getUInt("keeper.raft_settings.max_session_timeout_ms", Coordination::DEFAULT_MAX_SESSION_TIMEOUT_MS)
               * 1000)
-    , responses(std::make_unique<ThreadSafeResponseQueue>())
+    , responses(std::make_unique<ResponseQueue>())
     , last_op(std::make_unique<LastOp>(EMPTY_LAST_OP))
 {
     LOG_INFO(log, "New connection from {}", peer);
@@ -296,9 +296,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
         while (!responses->empty() && send_buf.available())
         {
             Coordination::ZooKeeperResponsePtr response;
-
-            if (!responses->tryPop(response))
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "We must have ready response, but queue is empty. It's a bug.");
+            responses->pop(response);
 
             if (response->xid != Coordination::WATCH_XID && response->getOpNum() == Coordination::OpNum::Close)
             {

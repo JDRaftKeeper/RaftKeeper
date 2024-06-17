@@ -14,7 +14,7 @@
 #include <Service/LastCommittedIndexManager.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/Settings.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Service/LockFreeConcurrentBoundedQueue.h>
 
 
 namespace RK
@@ -23,7 +23,7 @@ using nuraft::async_result;
 using nuraft::buffer;
 using nuraft::cs_new;
 
-using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
+using KeeperResponsesQueue = LockFreeConcurrentBoundedQueue<ResponseForSession>;
 
 class RequestProcessor;
 

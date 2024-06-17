@@ -3,7 +3,6 @@
 #include <Service/KeeperCommon.h>
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
-#include <Service/RequestsQueue.h>
 
 namespace RK
 {

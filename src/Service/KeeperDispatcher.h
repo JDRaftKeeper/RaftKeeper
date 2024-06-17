@@ -34,7 +34,7 @@ class KeeperDispatcher : public std::enable_shared_from_this<KeeperDispatcher>
 private:
     std::mutex push_request_mutex;
     ptr<RequestsQueue> requests_queue;
-    ThreadSafeQueue<ResponseForSession> responses_queue;
+    LockFreeConcurrentBoundedQueue<ResponseForSession> responses_queue;
     std::atomic<bool> shutdown_called{false};
 
     /// Response callback which will send response to IO handler. Key is session_id

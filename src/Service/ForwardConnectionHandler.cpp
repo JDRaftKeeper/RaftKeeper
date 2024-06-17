@@ -10,18 +10,13 @@
 namespace RK
 {
 
-namespace ErrorCodes
-{
-    extern const int LOGICAL_ERROR;
-}
-
 ForwardConnectionHandler::ForwardConnectionHandler(Context & global_context_, StreamSocket & socket_, SocketReactor & reactor_)
     : log(&Logger::get("ForwardConnectionHandler"))
     , sock(socket_)
     , reactor(reactor_)
     , global_context(global_context_)
     , keeper_dispatcher(global_context.getDispatcher())
-    , responses(std::make_unique<ThreadSafeForwardResponseQueue>())
+    , responses(std::make_unique<ForwardResponseQueue>())
 {
     LOG_INFO(log, "New forward connection from {}", sock.peerAddress().toString());
 
@@ -308,9 +303,7 @@ void ForwardConnectionHandler::onSocketWritable(const Notification &)
         while (!responses->empty() && send_buf.available())
         {
             ForwardResponsePtr response;
-
-            if (!responses->tryPop(response))
-                throw Exception(ErrorCodes::LOGICAL_ERROR, "We must have ready response, but queue is empty. It's a bug.");
+            responses->pop(response);
 
             /// The connection is stale and need destroyed, receive from keeper_dispatcher
             if (response->forwardType() == ForwardType::Destroy)
