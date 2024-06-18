@@ -302,26 +302,37 @@ std::unordered_set<int64_t> RequestProcessor::processCommittedRequest(size_t com
             {
                 if (!pending_requests.contains(committed_request.session_id)
                     || pending_requests[committed_request.session_id].empty()
-                    || pending_requests[committed_request.session_id].front().request->isReadRequest()
                     )
                 {
+                    if (committed_request.request->getOpNum() == Coordination::OpNum::Close)
+                    {
+                        LOG_DEBUG(log, "Commit request got, but not in pending_requests,"
+                                       "it's close requests from deadSessionCleanThread");
+
+                        applyRequest(committed_request);
+                        committed_queue.pop();
+                        continue;
+                    }
                     if (!pending_requests.contains(committed_request.session_id))
                     {
                         LOG_DEBUG(log, "Commit request got, but not in pending_requests");
                     }
                     else if (pending_requests[committed_request.session_id].empty())
                     {
-                        LOG_DEBUG(log, "Commit request got, but pending_requests empty");
-                    }
-                    else
-                    {
-                        LOG_DEBUG(log, "Commit request got, but next pending_request {}", pending_requests[committed_request.session_id].front().toSimpleString());
+                        LOG_DEBUG(log, "Commit request got, but pending_requests is empty, it's a Bug");
                     }
 
                     break;
                 }
 
-                /// apply request
+                // Pending reads
+                if (pending_requests[committed_request.session_id].front().request->isReadRequest())
+                {
+                    LOG_DEBUG(log, "Commit request got, but next pending_request {}",
+                              pending_requests[committed_request.session_id].front().toSimpleString());
+                    break;
+                }
+
                 applyRequest(committed_request);
 
                 committed_queue.pop();
