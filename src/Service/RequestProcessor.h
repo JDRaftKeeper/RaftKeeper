@@ -44,13 +44,14 @@ private:
     /// Exist system for fatal error.
     [[noreturn]] static void systemExist();
 
-    void moveRequestToPendingQueue();
+    void moveRequestToPendingQueue(size_t);
 
     void readRequestProcessor(RunnerId id);
 
     void sendToProcessor(const RequestForSession & request);
-    void processErrorRequest(size_t count);
-    std::unordered_set<int64_t> processCommittedRequest(size_t);
+    void processErrorRequest(size_t);
+    void processCommittedRequest(size_t);
+    void drainQueues();
 
     /// Apply request to state machine
     void applyRequest(const RequestForSession & request);
@@ -81,6 +82,11 @@ private:
     /// Requests from `requests_queue` grouped by session
     std::unordered_map<int64_t, RequestForSessions> pending_requests;
 
+    /// <session_id, requests>
+    /// sortedErrorRequests grouped by session
+    using sortedErrorRequests = std::map<Coordination::XID, ErrorRequest>;
+    std::unordered_map<int64_t, sortedErrorRequests> pending_error_requests;
+
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<RequestForSession> committed_queue{1000};
 
@@ -88,13 +94,13 @@ private:
 
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
+    std::unordered_set<int64_t> queues_to_drain;
+
     mutable std::mutex mutex;
     std::condition_variable cv;
 
     /// Error requests when append entry or forward to leader.
     ErrorRequests error_requests;
-    /// Used as index for error_requests
-    std::unordered_set<RequestId, RequestId::RequestIdHash> error_request_ids;
 
     Poco::Logger * log;
 
@@ -108,7 +114,7 @@ private:
     std::mutex empty_pool_lock;
     std::condition_variable empty_pool_cv;
 
-    size_t max_read_batch_size = 32;
+    // size_t max_read_batch_size = 32;
 };
 
 }
