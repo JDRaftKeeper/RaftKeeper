@@ -18,7 +18,7 @@ The main features of RaftKeeper are its performance and query stability.
 1. The write-request throughput is twice as high as Zookeeper
 2. TP99 is smoother than Zookeeper
 
-See [benchmark](benchmark%2FBenchmark.md) for details.
+See [benchmark](benchmark%2FREADME.md) for details.
 
 RaftKeeper is derived from [ClickHouse](https://github.com/ClickHouse/ClickHouse) 
 and take [NuRaft](https://github.com/eBay/NuRaft) as Raft implementation. 
@@ -50,7 +50,7 @@ cd RaftKeeper && /bin/bash build.sh 'clickhouse'
 # now you can find built files in director 'build/'
 ```
 
-Now RaftKeeper support build on Linux and Mac OX, details see [how-to-build](docs%2Fhow-to-build.md)
+Now RaftKeeper support build on Linux and Mac OX both x86 and arm64, details see [how-to-build](docs%2Fhow-to-build.md)
 
 ## 2. Deploy RaftKeeper
 

@@ -1,44 +1,32 @@
-# RaftKeeper Benchmark
+# RaftKeeper Benchmarks
 
-1. Install requirements (the following shows how to install in Ubuntu)
-```
-sudo apt-get update && sudo apt-get install openjdk-8-jdk maven
-```
+You can use the Benchmark tool that comes with RaftKeeper to benchmark RaftKeeper performance. Below we compare the performance of ZooKeeper and RaftKeeper.
 
-2. Build the benchmark tool
 
-```
-cd RaftKeeper/benchmark && sh build.sh
-```
 
-3. Run benchmark test
+## Environment
 
 ```
-cd target/raft-benchmark-1.0 && bin/benchmark.sh nodes thread_size payload_size run_duration(second) only_create
-
-Arguments:
-
-nodes: target nodes
-thread_size: thread size, every thread will use a separated zookeeper client.
-payload_size: data item size in byte
-run_duration: test will run x seconds
-only_create: whether only send create command, if not, send mixed request (create-10% set-40% get-40% delete-10%)
-
-# For example : bin/benchmark.sh "localhost:2181" 10 100 20 true
+Server: Docker - 16 cores, 32GB memory, 50GB NVMe disk
+System: CentOS 7.9
+Version:  RaftKeeper 2.0.0, ZooKeeper 3.7.1
+Cluster: RaftKeeper 3 nodes, ZooKeeper 3 nodes
+Config: RaftKeeper log level warning, ZooKeeper log level warn, others is default
+Test Data: every item is 100 bytes
 ```
 
-# Session Consistency Test
+## 1. Write request benchmark (Create-100%)
 
-Test read write consistency in one session.
+![benchmark-create-tps.png](images/benchmark-create-tps.png)
 
-```
-bin/session_consistency.sh nodes thread_size
+![benchmark-create-avgrt.png](images/benchmark-create-avgrt.png)
 
-Arguments: 
+![benchmark-create-tp99.png](images/benchmark-create-tp99.png)
 
-nodes: target nodes
-thread_size: thread size, all thread use a same zookeeper client.
+## 2. Mixed request benchmark (create-10% set-40% get-40% delete-10%)
 
-# For example : bin/session_consistency.sh "localhost:2181" 10
-```
+![benchmark-mixed-tps.png](images/benchmark-mixed-tps.png)
 
+![benchmark-mixed-avgrt.png](images/benchmark-mixed-avgrt.png)
+
+![benchmark-mixed-tp99.png](images/benchmark-mixed-tp99.png)
