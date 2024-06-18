@@ -282,8 +282,6 @@ void RequestProcessor::processErrorRequest(size_t error_to_process)
 {
     // Process error_requests, move local error_request to pending_error_requests
     {
-        std::lock_guard lock(mutex);
-
         LOG_WARNING(log, "There are {} error requests", error_to_process);
 
         /// Note that error requests may be not processed in order.
@@ -619,13 +617,13 @@ void RequestProcessor::onError(
     if (!shutdown_called)
     {
         ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
+        error_requests.push_back(error_request);
 
         LOG_WARNING(log, "Found error request {}", error_request.toString());
         {
             std::unique_lock lock(mutex);
-            error_requests.push_back(error_request);
+            cv.notify_all();
         }
-        cv.notify_all();
     }
 }
 
