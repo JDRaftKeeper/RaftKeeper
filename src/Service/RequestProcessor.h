@@ -100,7 +100,8 @@ private:
     std::condition_variable cv;
 
     /// Error requests when append entry or forward to leader.
-    ErrorRequests error_requests;
+    ConcurrentBoundedQueue<ErrorRequest> error_requests{1000};
+    // ErrorRequests error_requests;
 
     Poco::Logger * log;
 

@@ -287,7 +287,8 @@ void RequestProcessor::processErrorRequest(size_t error_to_process)
         /// Note that error requests may be not processed in order.
         for (size_t i = 0; i < error_to_process; i++)
         {
-            auto & error_request = error_requests.front();
+            ErrorRequest error_request;
+            error_requests.pop(error_request);
             auto [session_id, xid] = error_request.getRequestId();
 
             if (unlikely(isSessionRequest(error_request.opnum)))
@@ -345,9 +346,6 @@ void RequestProcessor::processErrorRequest(size_t error_to_process)
                     pending_error_requests[error_request.session_id].emplace(error_request.xid, error_request);
                 }
             }
-
-            // Remove error request from error_requests
-            error_requests.erase(error_requests.begin());
         }
     }
 
@@ -617,7 +615,7 @@ void RequestProcessor::onError(
     if (!shutdown_called)
     {
         ErrorRequest error_request{accepted, error_code, session_id, xid, opnum};
-        error_requests.push_back(error_request);
+        error_requests.push(error_request);
 
         LOG_WARNING(log, "Found error request {}", error_request.toString());
         {
