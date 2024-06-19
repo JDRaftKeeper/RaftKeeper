@@ -92,6 +92,8 @@ void RequestProcessor::run()
             size_t commits_to_process = committed_queue.size();
             size_t requests_to_process = requests_queue->size();
 
+            LOG_DEBUG(log, "Got errors size {}, requests_queue size {}, committed_queue size {} to process");
+
             /// 1. process request from request_queue
             if (requests_to_process != 0)
                 moveRequestToPendingQueue(requests_to_process);
@@ -367,7 +369,6 @@ void RequestProcessor::processErrorRequest(size_t error_to_process)
 
                 if (request)
                 {
-                    LOG_DEBUG(log, "rico ga");
                     LOG_ERROR(log, "Make error response for {}", error_request.toString());
 
                     ZooKeeperResponsePtr response = request->request->makeResponse();
