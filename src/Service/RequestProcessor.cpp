@@ -228,7 +228,7 @@ void RequestProcessor::processCommittedRequest(size_t commits_to_process)
 
 
                     /// We push request to request_processor first, than do replication (forward to leader)
-                    /// for every RequestProcessor::run(), wo got current commited queue size before got
+                    /// for every RequestProcessor::run(), wo got current committed queue size before got
                     /// request queue, an normal commit should find in pending queue.
 
                     /// ----------------------------------------- Timeline ------------------------------------------------->
