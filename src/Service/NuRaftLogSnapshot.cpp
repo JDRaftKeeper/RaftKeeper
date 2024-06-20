@@ -917,7 +917,7 @@ size_t KeeperSnapshotManager::removeSnapshots()
 {
     Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
 
-    LOG_INFO(log, "Remove index");
+    LOG_INFO(log, "There are {} snapshots, we will try to move {remove_count} of them", snapshots.size(), remove_count);
 
     while (remove_count > 0)
     {
@@ -965,6 +965,11 @@ size_t KeeperSnapshotManager::removeSnapshots()
         }
         remove_count--;
     }
+
+    if (snapshots.size() > keep_max_snapshot_count)
+        LOG_ERROR(log, "Snapshots size() is still large than keep_max_snapshot_count {}, it's a bug",
+                  snapshots.size(), keep_max_snapshot_count);
+
     return snapshots.size();
 }
 
