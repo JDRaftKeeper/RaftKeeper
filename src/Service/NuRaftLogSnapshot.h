@@ -285,6 +285,11 @@ inline uint128_t getSnapshotStoreMapKey(const SnapObject & obj)
     return getSnapshotStoreMapKeyImpl(obj.log_last_term, obj.log_last_index);
 }
 
+inline std::pair<uint64_t, uint64_t> getTermLogFromSnapshotStoreMapKey(uint128_t & key)
+{
+    return {static_cast<uint64_t>(key >> 64), static_cast<uint64_t>(key & 0xFFFFFFFFFFFFFFFF)};
+}
+
 // Map key is term << 64 | log
 using KeeperSnapshotStoreMap = std::map<uint128_t, ptr<KeeperSnapshotStore>>;
 
