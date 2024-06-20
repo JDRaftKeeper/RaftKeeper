@@ -917,10 +917,15 @@ size_t KeeperSnapshotManager::removeSnapshots()
 {
     Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
 
+    LOG_INFO(log, "Remove index");
+
     while (remove_count > 0)
     {
         auto it = snapshots.begin();
-        ulong remove_log_index = it->first;
+        uint128_t remove_term_log_index = it->first;
+        auto [log_term, log_index] = getTermLogFromSnapshotStoreMapKey(remove_term_log_index);
+        LOG_INFO(log, "Remove snapshot with term {} log index {}", log_term, log_index);
+
         Poco::File dir_obj(snap_dir);
         if (dir_obj.exists())
         {
@@ -939,17 +944,19 @@ size_t KeeperSnapshotManager::removeSnapshots()
                     LOG_ERROR(log, "Can't parse object info from file name {}", file);
                     continue;
                 }
-                if (remove_log_index == s_obj.log_last_index)
+                auto key = getSnapshotStoreMapKey(s_obj);
+                if (remove_term_log_index == key)
                 {
                     LOG_INFO(
                         log,
-                        "remove_count {}, snapshot size {}, remove log index {}, file {}",
+                        "remove_count {}, snapshot size {}, remove term with term {} log index {}, file {}",
                         remove_count,
                         snapshots.size(),
-                        remove_log_index,
+                        log_term,
+                        log_index,
                         file);
                     Poco::File(snap_dir + "/" + file).remove();
-                    if (snapshots.find(remove_log_index) != snapshots.end())
+                    if (snapshots.find(key) != snapshots.end())
                     {
                         snapshots.erase(it);
                     }
