@@ -1,6 +1,5 @@
-![logo.png](logo.png)
+**RaftKeeper** is a high-performance distributed consensus service. 
 
-RaftKeeper is a high-performance distributed consensus service. 
 It is fully compatible with Zookeeper and can be accessed through the Zookeeper 
 client. It implements most of the functions of Zookeeper (except: Container node, 
 TTL node, quota etc.) and provides some additional functions, such as more 
@@ -10,12 +9,15 @@ RaftKeeper provides same consistency guarantee:
 1. Responses must be returned in order in one session.
 2. All committed write requests must be handled in order, across all sessions.
 
-RaftKeeper data resides in memory and provides snapshot + operation log data 
-persistence capabilities. The execution framework adopts pipeline and batch 
-execution methods to greatly improve system throughput.
+RaftKeeper stores its data in memory, while also offering robust data persistence 
+through a combination of snapshots and operation logs. To enhance system efficiency, 
+the execution framework leverages a pipelined and batch processing approach, 
+significantly boosting overall throughput. Crafted in C++, the system has undergone 
+extensive low-level optimization to deliver superior performance, ensuring that it 
+operates at peak efficiency.
 
 The main features of RaftKeeper are its performance and query stability. 
-1. The write-request throughput is twice as high as Zookeeper
+1. The TPS is more than 2x higher than Zookeeper
 2. TP99 is smoother than Zookeeper
 
 See [benchmark](benchmark%2FREADME.md) for details.
@@ -66,7 +68,7 @@ The following is a `zkCli.sh` demo
 ./zkCli.sh -server localhost:8101
 ```
 Also, RaftKeeper supports Zookeeper's [4lw command](https://zookeeper.apache.org/doc/r3.6.0/zookeeperAdmin.html#sc_zkCommands).
-4lw command provide the ablility to monitor and manage RaftKeeper, details see [how-to-monitor-and-manage](docs%2Fhow-to-monitor-and-manage.md)
+4lw command provide the ability to monitor and manage RaftKeeper, details see [how-to-monitor-and-manage](docs%2Fhow-to-monitor-and-manage.md)
 
 # How to migrate from Zookeeper?
 
