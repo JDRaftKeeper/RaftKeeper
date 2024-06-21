@@ -2,8 +2,8 @@
 <keeper>
     <my_id>1</my_id>
     <host>node</host>
-    <log_dir>./raft_log</log_dir>
-    <snapshot_dir>./snapshot_log</snapshot_dir>
+    <log_dir>/raft_log</log_dir>
+    <snapshot_dir>/snapshot</snapshot_dir>
     <snapshot_create_interval>86400</snapshot_create_interval>
     <forwarding_port>8102</forwarding_port>
     <port>8101</port>
@@ -15,6 +15,7 @@
         <max_session_timeout_ms>80000</max_session_timeout_ms>
         <operation_timeout_ms>1000</operation_timeout_ms>
         <snapshot_distance>10</snapshot_distance>
+        <max_stored_snapshots>1</max_stored_snapshots>
         <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
         <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         <min_session_timeout_ms>1000</min_session_timeout_ms>

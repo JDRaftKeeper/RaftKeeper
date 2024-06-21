@@ -777,6 +777,10 @@ class RaftKeeperInstance:
         return self.exec_in_container(
             ["bash", "-c", "echo $(if [ -e '{}' ]; then echo 'yes'; else echo 'no'; fi)".format(path)]) == 'yes\n'
 
+    def list_path(self, path):
+        return self.exec_in_container(
+            ["bash", "-c", "ls {}".format(path)])
+
     def copy_file_to_container(self, local_path, dest_path):
         container_id = self.get_docker_handle().id
         return self.cluster.copy_file_to_container(container_id, local_path, dest_path)

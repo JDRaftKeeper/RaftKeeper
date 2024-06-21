@@ -142,3 +142,41 @@ def test_restart_with_no_log(started_cluster, node):
         assert node_zk2.exists("/test_restart_with_no_log")
     finally:
         close_zk_clients([node_zk, node_zk2])
+
+
+def get_snapshots(node):
+    files = node.list_path('/snapshot').split()
+
+    snapshots = dict()
+    for file_name in files:
+        print(file_name)
+        file_name_splits = file_name.split('_')
+        assert(len(file_name_splits) == 5)
+        key = '_'.join(file_name_splits[:4])
+        value = snapshots.get(key, [])
+        value.append(file_name_splits[4])
+        snapshots[key] = value
+    return snapshots
+
+
+@pytest.mark.parametrize(
+    'node',
+    [
+        cluster.add_instance('node7', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node8', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+    ]
+)
+def test_snapshot_clear(started_cluster, node):
+    node_zk = node_zk2 = None
+    try:
+        node_zk = node.get_fake_zk()
+
+        for i in range(5):
+            node_zk.create(f"/test_node_clear_{i}", b"test")
+            node.send_4lw_cmd(cmd="csnp")
+            # wait for snapshot to be taken
+            time.sleep(1)
+            snapshots = get_snapshots(node)
+            assert (len(snapshots) == 1)
+    finally:
+        close_zk_clients([node_zk, node_zk2])
