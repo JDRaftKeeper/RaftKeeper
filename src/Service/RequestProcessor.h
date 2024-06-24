@@ -4,6 +4,8 @@
 #include <Service/KeeperServer.h>
 #include <Service/RequestsQueue.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
+#include <Common/getNumberOfPhysicalCPUCores.h>
+#include <unordered_set>
 
 namespace RK
 {
@@ -42,14 +44,17 @@ private:
     /// Exist system for fatal error.
     [[noreturn]] static void systemExist();
 
-    void moveRequestToPendingQueue(RunnerId runner_id);
+    void moveRequestToPendingQueue(size_t);
 
-    void processReadRequests(RunnerId runner_id);
-    void processErrorRequest(size_t count);
-    void processCommittedRequest(size_t count);
+    void readRequestProcessor(RunnerId id);
+
+    void sendToProcessor(const RequestForSession & request);
+    void processErrorRequest(size_t);
+    void processCommittedRequest(size_t);
+    void drainQueues();
 
     /// Apply request to state machine
-    void applyRequest(const RequestForSession & request) const;
+    void applyRequest(const RequestForSession & request);
     size_t getRunnerId(int64_t session_id) const { return session_id % runner_count; }
 
     /// Find error request in pending request queue
@@ -60,7 +65,7 @@ private:
     /// we need to interrupt the processing.
     bool shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue);
 
-    using RequestForSessions = std::vector<RequestForSession>;
+    using RequestForSessions = std::queue<RequestForSession>;
 
     ThreadFromGlobalPool main_thread;
 
@@ -71,11 +76,16 @@ private:
     KeeperResponsesQueue & responses_queue;
 
     /// Local requests
-    ptr<RequestsQueue> requests_queue;
+    ptr<ConcurrentBoundedQueue<RequestForSession>> requests_queue;
 
-    /// <runner_id, <session_id, requests>>
+    /// <session_id, requests>
     /// Requests from `requests_queue` grouped by session
-    std::unordered_map<size_t, std::unordered_map<int64_t, RequestForSessions>> pending_requests;
+    std::unordered_map<int64_t, RequestForSessions> pending_requests;
+
+    /// <session_id, requests>
+    /// sortedErrorRequests grouped by session
+    using sortedErrorRequests = std::map<Coordination::XID, ErrorRequest>;
+    std::unordered_map<int64_t, sortedErrorRequests> pending_error_requests;
 
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<RequestForSession> committed_queue{1000};
@@ -84,17 +94,28 @@ private:
 
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
+    std::unordered_set<int64_t> queues_to_drain;
+
     mutable std::mutex mutex;
     std::condition_variable cv;
 
     /// Error requests when append entry or forward to leader.
-    ErrorRequests error_requests;
-    /// Used as index for error_requests
-    std::unordered_set<RequestId, RequestId::RequestIdHash> error_request_ids;
+    ConcurrentBoundedQueue<ErrorRequest> error_requests{1000};
+    // ErrorRequests error_requests;
 
     Poco::Logger * log;
 
     UInt64 operation_timeout_ms = 10000;
+
+    ThreadPoolPtr read_thread_pool;
+    std::shared_ptr<RequestsQueue> read_request_process_queues ;
+
+    std::atomic<uint32_t> numRequestsProcessing{0};
+
+    std::mutex empty_pool_lock;
+    std::condition_variable empty_pool_cv;
+
+    // size_t max_read_batch_size = 32;
 };
 
 }

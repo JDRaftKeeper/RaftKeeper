@@ -324,6 +324,7 @@ void ConnectionHandler::onSocketWritable(const Notification &)
             else
             {
                 WriteBufferFromOwnString buf;
+                LOG_DEBUG(log, "Send response {}", response->toString());
                 response->writeNoCopy(buf);
                 out_buffer = std::make_shared<ReadBufferFromOwnString>(std::move(buf.str()));
                 copy_buffer_to_send();

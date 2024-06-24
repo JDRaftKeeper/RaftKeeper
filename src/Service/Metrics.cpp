@@ -130,6 +130,11 @@ Metrics::Metrics()
     snap_time_ms = getSummary("snap_time_ms", SummaryLevel::SIMPLE);
     snap_blocking_time_ms = getSummary("snap_blocking_time_ms", SummaryLevel::SIMPLE);
     snap_count = getSummary("snap_count", SummaryLevel::SIMPLE);
+
+    reads_issued_from_requests_queue = getSummary("reads_issued_from_requests_queue", SummaryLevel::BASIC);
+    write_commit_proc_issued = getSummary("write_commit_proc_issued", SummaryLevel::BASIC);
+    reads_after_write_in_session_queue = getSummary("reads_after_write_in_session_queue", SummaryLevel::BASIC);
+    reads_issued_from_session_queue = getSummary("reads_issued_from_session_queue", SummaryLevel::BASIC);
 }
 
 SummaryPtr Metrics::getSummary(const RK::String & name, RK::SummaryLevel level)

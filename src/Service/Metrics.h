@@ -16,7 +16,7 @@ namespace RK
 
 inline UInt64 getCurrentTimeMilliseconds()
 {
-    return duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 };
 
 
@@ -205,6 +205,10 @@ public:
     SummaryPtr snap_time_ms;
     SummaryPtr snap_blocking_time_ms;
     SummaryPtr snap_count;
+    SummaryPtr reads_issued_from_requests_queue;
+    SummaryPtr write_commit_proc_issued;
+    SummaryPtr reads_after_write_in_session_queue;
+    SummaryPtr reads_issued_from_session_queue;
 
 private:
     Metrics();
