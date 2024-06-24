@@ -9,6 +9,7 @@
         <port>8101</port>
         <internal_port>8103</internal_port>
         <thread_count>16</thread_count>
+        <four_letter_word_white_list>*</four_letter_word_white_list>
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>
             <nuraft_thread_size>32</nuraft_thread_size>
