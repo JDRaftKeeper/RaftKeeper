@@ -34,7 +34,7 @@ function build()
   if [ -n "$1" ] && [ "$1" == "clickhouse" ]; then
     COMPATIBLE_MODE_ZOOKEEPER="OFF"
   fi
-  cmake .. -DCMAKE_BUILD_TYPE=Release -DCOMPATIBLE_MODE_ZOOKEEPER=$COMPATIBLE_MODE_ZOOKEEPER
+  cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCOMPATIBLE_MODE_ZOOKEEPER=$COMPATIBLE_MODE_ZOOKEEPER
 
   PARALLEL="$(($(nproc) / 4 + 1))"
   make -j $PARALLEL
