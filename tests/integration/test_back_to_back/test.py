@@ -261,8 +261,8 @@ def test_watchers(started_cluster):
             zk.get_children("/test_multi_request_watches", watch=watch_children_callback)
 
             t = zk.transaction()
-            zk.set("/test_multi_request_watches", b"a")
-            zk.create("/test_multi_request_watches/node-", sequence=True)
+            t.set_data("/test_multi_request_watches", b"a")
+            t.create("/test_multi_request_watches/node-", sequence=True)
             t.commit()
             time.sleep(3)
 
@@ -270,6 +270,41 @@ def test_watchers(started_cluster):
         print("Fake child", datas[1])
         assert datas[0] == datas[1]
 
+        print("Genuine child", child_lists[0])
+        print("Fake child", child_lists[1])
+        assert child_lists[0] == child_lists[1]
+        
+        
+        # test watcher in multi writes ops failed
+        datas = [None, None]
+        child_lists = [None, None]
+        for index, zk in enumerate([genuine_zk, fake_zk]):
+            zk.create("/test_multi_request_failed_watches")
+            
+            zk.create("/test_multi_request_failed_watches/exists_node", b"a")
+
+            def watch_data_callback(data):
+                print("data watch called")
+                datas[index] = data
+
+            def watch_children_callback(children):
+                print("children watch called")
+                child_lists[index] = children
+
+            zk.get("/test_multi_request_failed_watches", watch=watch_data_callback)
+            zk.get_children("/test_multi_request_failed_watches", watch=watch_children_callback)
+
+            t = zk.transaction()
+            t.set_data("/test_multi_request_failed_watches", b"a")
+            t.create("/test_multi_request_failed_watches/exists_node", b"a")
+            t.create("/test_multi_request_failed_watches/node-", sequence=True)
+            t.commit()
+            time.sleep(3)
+
+        print("Genuine child", datas[0])
+        print("Fake child", datas[1])
+        assert datas[0] == datas[1]
+        
         print("Genuine child", child_lists[0])
         print("Fake child", child_lists[1])
         assert child_lists[0] == child_lists[1]

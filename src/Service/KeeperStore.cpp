@@ -1,3 +1,4 @@
+#include "Service/LoggerWrapper.h"
 #include <functional>
 #include <iomanip>
 #include <Service/memcopy.h>
@@ -1365,15 +1366,20 @@ void KeeperStore::processRequest(
             {
                 if (zk_request->getOpNum() == Coordination::OpNum::Multi)
                 {
-                    auto * multi_request = dynamic_cast<Coordination::ZooKeeperMultiRequest *>(zk_request.get());
-                    for (auto & concrete_request : multi_request->requests)
+                    auto multi_response = std::dynamic_pointer_cast<Coordination::ZooKeeperMultiWriteResponse>(response);
+                    /// trigger watches for all requests
+                    if (!multi_response->responses.empty() && multi_response->responses.back()->error == Coordination::Error::ZOK)
                     {
-                        const auto * sub_zk_request = dynamic_cast<Coordination::ZooKeeperRequest *>(concrete_request.get());
-                        auto watch_responses = watch_manager.processWatches(sub_zk_request->getPath(), sub_zk_request->getOpNum());
-                        if (!watch_responses.empty())
+                        auto * multi_request = dynamic_cast<Coordination::ZooKeeperMultiRequest *>(zk_request.get());
+                        for (auto & concrete_request : multi_request->requests)
                         {
-                            LOG_TRACE(log, "{} triggered {} watches", request_for_session.toSimpleString(), watch_responses.size());
-                            set_response(responses_queue, watch_responses, ignore_response);
+                            const auto * sub_zk_request = dynamic_cast<Coordination::ZooKeeperRequest *>(concrete_request.get());
+                            auto watch_responses = watch_manager.processWatches(sub_zk_request->getPath(), sub_zk_request->getOpNum());
+                            if (!watch_responses.empty())
+                            {
+                                LOG_TRACE(log, "{} triggered {} watches", request_for_session.toSimpleString(), watch_responses.size());
+                                set_response(responses_queue, watch_responses, ignore_response);
+                            }
                         }
                     }
                 }
