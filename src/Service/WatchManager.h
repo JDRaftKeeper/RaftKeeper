@@ -14,7 +14,8 @@
 namespace RK
 {
 
-enum class WatcherType : UInt8
+// Enum values must be 1, 2, 4, 8, 16 to support bitwise operations
+enum class WatchType : UInt8
 {
     List = 1,
     Data = 2,
@@ -23,7 +24,7 @@ enum class WatcherType : UInt8
 class WatchManager
 {
 public:
-    using Watches = std::unordered_map<String, std::vector<int64_t>>;
+    using Watches = std::unordered_map<String, std::unordered_set<int64_t>>;
     using SessionAndWatcher = std::unordered_map<int64_t, std::unordered_map<String, UInt8>>;
 
     explicit WatchManager() : log(&Poco::Logger::get("WatchManager")) { }

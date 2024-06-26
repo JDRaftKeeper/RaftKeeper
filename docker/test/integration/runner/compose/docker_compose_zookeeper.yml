@@ -1,7 +1,7 @@
 version: '2.3'
 services:
     zoo1:
-        image: zookeeper:3.7.1
+        image: zookeeper:3.6.2
         restart: always
         environment:
             ZOO_TICK_TIME: 500
@@ -17,7 +17,7 @@ services:
               source: ${ZK_DATA_LOG1:-}
               target: /datalog
     zoo2:
-        image: zookeeper:3.7.1
+        image: zookeeper:3.6.2
         restart: always
         environment:
             ZOO_TICK_TIME: 500
@@ -33,7 +33,7 @@ services:
               source: ${ZK_DATA_LOG2:-}
               target: /datalog
     zoo3:
-        image: zookeeper:3.7.1
+        image: zookeeper:3.6.2
         restart: always
         environment:
             ZOO_TICK_TIME: 500

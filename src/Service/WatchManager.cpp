@@ -1,4 +1,3 @@
-#include "Common/IO/WriteHelpers.h"
 #include <Common/IO/Operators.h>
 #include <Common/IO/WriteBufferFromString.h>
 #include <common/logger_useful.h>
@@ -14,15 +13,15 @@ void WatchManager::registerWatches(const String & path, int64_t session_id, Coor
     std::lock_guard lock(watch_mutex);
     auto watches_type = opnum == Coordination::OpNum::List
             || opnum == Coordination::OpNum::SimpleList
-            || opnum == Coordination::OpNum::FilteredList ? WatcherType::List : WatcherType::Data;
+            || opnum == Coordination::OpNum::FilteredList ? WatchType::List : WatchType::Data;
 
     switch (watches_type)
     {
-        case WatcherType::Data:
-            watches[path].emplace_back(session_id);
+        case WatchType::Data:
+            watches[path].emplace(session_id);
             break;
-        case WatcherType::List:
-            list_watches[path].emplace_back(session_id);
+        case WatchType::List:
+            list_watches[path].emplace(session_id);
             break;
     }
 
@@ -64,7 +63,7 @@ ResponsesForSessions WatchManager::processWatches(const String & path, Coordinat
         {
             result.push_back(ResponseForSession{watcher_session, watch_response});
             LOG_TRACE(log, "Unregister watch for path={}, session_id={}, data={}", path, watcher_session, toString(sessions_and_watchers[watcher_session][path]));
-            if ((sessions_and_watchers[watcher_session][path] ^= static_cast<uint8_t>(WatcherType::Data)) == 0)
+            if ((sessions_and_watchers[watcher_session][path] ^= static_cast<uint8_t>(WatchType::Data)) == 0)
             {
                 sessions_and_watchers[watcher_session].erase(path);
                 LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path, watcher_session);
@@ -108,7 +107,7 @@ ResponsesForSessions WatchManager::processWatches(const String & path, Coordinat
             {
                 result.push_back(ResponseForSession{watcher_session, watch_list_response});
                 LOG_TRACE(log, "Unregister watch forlistwatch path={}, session_id={}, data={}", path_to_check, watcher_session, toString(sessions_and_watchers[watcher_session][path_to_check]));
-                if ((sessions_and_watchers[watcher_session][path_to_check] ^= static_cast<uint8_t>(WatcherType::List)) == 0)
+                if ((sessions_and_watchers[watcher_session][path_to_check] ^= static_cast<uint8_t>(WatchType::List)) == 0)
                 {
                     sessions_and_watchers[watcher_session].erase(path_to_check);
                     LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path_to_check, watcher_session);
@@ -135,8 +134,8 @@ ResponsesForSessions WatchManager::processRequestSetWatch(
     {
         LOG_TRACE(log, "Register data_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
         /// register watches
-        watches[path].emplace_back(session_id);
-        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatcherType::Data);
+        watches[path].emplace(session_id);
+        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatchType::Data);
 
         /// trigger watches
         if (!watch_nodes_info.contains(path))
@@ -159,8 +158,8 @@ ResponsesForSessions WatchManager::processRequestSetWatch(
     {
         LOG_TRACE(log, "Register exist_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
         /// register watches
-        watches[path].emplace_back(session_id);
-        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatcherType::Data);
+        watches[path].emplace(session_id);
+        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatchType::Data);
 
         /// trigger watches
         if (watch_nodes_info.contains(path))
@@ -176,8 +175,8 @@ ResponsesForSessions WatchManager::processRequestSetWatch(
     {
         LOG_TRACE(log, "Register list_watches for session {}, path {}, xid", toHexString(session_id), path, request->xid);
         /// register watches
-        list_watches[path].emplace_back(session_id);
-        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatcherType::List);
+        list_watches[path].emplace(session_id);
+        sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(WatchType::List);
 
         /// trigger watches
         if (!watch_nodes_info.contains(path))
@@ -283,7 +282,7 @@ void WatchManager::dumpWatches(WriteBufferFromOwnString & buf) const
 
 void WatchManager::dumpWatchesByPath(WriteBufferFromOwnString & buf) const
 {
-    auto write_int_vec = [&buf](const std::vector<int64_t> & session_ids)
+    auto write_int_vec = [&buf](const std::unordered_set<int64_t> & session_ids)
     {
         for (int64_t session_id : session_ids)
         {
