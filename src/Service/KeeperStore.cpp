@@ -1,4 +1,3 @@
-#include "Service/LoggerWrapper.h"
 #include <functional>
 #include <iomanip>
 #include <Service/memcopy.h>
@@ -1361,13 +1360,16 @@ void KeeperStore::processRequest(
         }
         else
         {
-            /// trigger watches
+            /// Trigger watches
             if (response->error == Coordination::Error::ZOK)
             {
+                /// Trigger watches for all requests
                 if (zk_request->getOpNum() == Coordination::OpNum::Multi)
                 {
                     auto multi_response = std::dynamic_pointer_cast<Coordination::ZooKeeperMultiWriteResponse>(response);
-                    /// trigger watches for all requests
+                    /// An multi request allows you to execute multiple operations within a single transaction. 
+                    /// If any one of these operations fails, the before transaction will be rolled back, and rest operations will set to an error code
+                    /// So we only check last reponse code to determine if we need to trigger watches
                     if (!multi_response->responses.empty() && multi_response->responses.back()->error == Coordination::Error::ZOK)
                     {
                         auto * multi_request = dynamic_cast<Coordination::ZooKeeperMultiRequest *>(zk_request.get());
