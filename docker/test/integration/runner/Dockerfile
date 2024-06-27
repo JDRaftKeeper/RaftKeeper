@@ -1,13 +1,14 @@
 # docker build -t raftkeeper/raftkeeper-integration-tests-runner .
-FROM raftkeeper/raftkeeper-test-base
+FROM ubuntu:22.04
 
 ## ARG for quick switch to a given ubuntu mirror
-#ARG apt_archive="http://mirrors.tuna.tsinghua.edu.cn"
-#RUN sed -i "s|http://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
-#RUN sed -i "s|https://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
+ARG apt_archive="http://archive.ubuntu.com"
+
+RUN sed -i "s|http://archive.ubuntu.com|$apt_archive|g" /etc/apt/sources.list
 
 RUN apt-get update \
     && env DEBIAN_FRONTEND=noninteractive apt-get install --yes \
+    adduser \
     ca-certificates \
     bash \
     btrfs-progs \
@@ -31,15 +32,13 @@ RUN apt-get update \
     libssl-dev \
     libcurl4-openssl-dev \
     gdb \
+    default-jdk \
     software-properties-common \
     libkrb5-dev \
     krb5-user \
     g++ \
-    && rm -rf \
-        /var/lib/apt/lists/* \
-        /var/cache/debconf \
-        /tmp/* \
-    && apt-get clean
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/debconf /tmp/*
 
 ENV TZ=Etc/UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
@@ -59,33 +58,35 @@ RUN apt-get update \
 
 RUN dockerd --version; docker --version
 
-RUN python3 -m pip install \
-    aerospike==4.0.0 \
+RUN python3 -m pip install --no-cache-dir \
     avro==1.10.2 \
-    dict2xml \
-    dicttoxml \
-    docker \
-    docker-compose==1.28.2 \
-    grpcio \
-    grpcio-tools \
-    kazoo \
-    lz4 \
-    minio \
-    protobuf \
-    psycopg2-binary==2.8.6 \
-    pytest \
+    dict2xml==1.7.4 \
+    dicttoxml==1.7.16 \
+    docker==6.1.3 \
+    docker-compose==1.29.2 \
+    grpcio==1.60.0 \
+    grpcio-tools==1.60.0 \
+    kazoo==2.9.0\
+    protobuf==4.25.2 \
+    psycopg2-binary==2.9.6 \
+    pytest==7.4.4 \
     pytest-order==1.0.0 \
-    pytest-timeout \
-    pytest-xdist \
-    pytest-repeat \
-    pytz \
+    pytest-timeout==2.2.0 \
+    pytest-xdist==3.5.0 \
+    pytest-repeat==0.9.3 \
+    pytz==2023.3.post1 \
+    pyyaml==5.3.1 \
     tzlocal==2.1 \
-    urllib3 \
-    requests-kerberos
+    urllib3==2.0.7 \
+    requests-kerberos==0.14.0 \
+    requests==2.31.0
 
 COPY modprobe.sh /usr/local/bin/modprobe
 COPY dockerd-entrypoint.sh /usr/local/bin/
 COPY compose/ /compose/
+COPY zookeeper.tar /usr/local/bin/
+COPY raftkeeper-integration-helper.tar  /usr/local/bin/
+COPY raftkeeper-integration-tests.tar /usr/local/bin/
 
 RUN set -x \
   && addgroup --system dockremap \

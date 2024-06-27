@@ -197,6 +197,8 @@ class _NetworkManager:
         self._docker_client = docker.from_env(version=os.environ.get("DOCKER_API_VERSION"))
 
         self._container = None
+        
+        self.image = "raftkeeper/raftkeeper-integration-helper"
 
         self._ensure_container()
 
@@ -214,7 +216,7 @@ class _NetworkManager:
                         print("Error removing network blocade container, will try again", str(ex))
                         time.sleep(i)
 
-            image = subprocess.check_output("docker images -q yandex/clickhouse-integration-helper 2>/dev/null", shell=True)
+            image = subprocess.check_output(f"docker images -q {self.image} 2>/dev/null", shell=True)
             if not image.strip():
                 print("No network image helper, will try download")
                 # for some reason docker api may hang if image doesn't exist, so we download it
@@ -222,14 +224,14 @@ class _NetworkManager:
                 for i in range(5):
                     try:
                         # STYLE_CHECK_ALLOW_SUBPROCESS_CHECK_CALL
-                        subprocess.check_call("docker pull yandex/clickhouse-integration-helper", shell=True)
+                        subprocess.check_call(f"docker pull {self.image}", shell=True)
                         break
                     except:
                         time.sleep(i)
                 else:
-                    raise Exception("Cannot pull yandex/clickhouse-integration-helper image")
+                    raise Exception(f"Cannot pull {self.image} image")
 
-            self._container = self._docker_client.containers.run('yandex/clickhouse-integration-helper',
+            self._container = self._docker_client.containers.run(self.image,
                                                                  auto_remove=True,
                                                                  command=('sleep %s' % self.container_exit_timeout),
                                                                  detach=True, network_mode='host')
