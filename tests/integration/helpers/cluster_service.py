@@ -373,32 +373,16 @@ class RaftKeeperCluster:
             print(f"start raftkeeper cluster current work dir {os.getcwd()}")
             subprocess.check_output(raftkeeper_start_cmd)
             print("RaftKeeper instance created")
-            
-            time.sleep(10)
-            
-            if 1 == 1:
-                command = ["docker", "ps"]
-                
-                result = subprocess.run(command, capture_output=True, text=True)
-
-                print("rico docker ps:", instance.name, result.stdout)
-                
-                if result.stderr:
-                    print("Error:", result.stderr)
-            
 
             for instance in self.instances.values():
                 container_id = instance.docker_id
                 command = ["docker", "logs", container_id]
-                
                 result = subprocess.run(command, capture_output=True, text=True)
-
-                print("rico docker log:", instance.name, result.stdout)
+                print(f"{instance.name} docker log:", result.stdout) 
                 
                 if result.stderr:
                     print("Error:", result.stderr)
-
-            for instance in self.instances.values():
+                
                 instance.docker_client = self.docker_client
                 instance.ip_address = self.get_instance_ip(instance.name)
 

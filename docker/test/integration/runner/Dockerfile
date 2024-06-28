@@ -85,7 +85,7 @@ COPY modprobe.sh /usr/local/bin/modprobe
 COPY dockerd-entrypoint.sh /usr/local/bin/
 COPY compose/ /compose/
 COPY zookeeper.tar /usr/local/bin/
-COPY raftkeeper-integration-helper.tar  /usr/local/bin/
+COPY raftkeeper-network-partition.tar  /usr/local/bin/
 COPY raftkeeper-integration-tests.tar /usr/local/bin/
 
 RUN set -x \

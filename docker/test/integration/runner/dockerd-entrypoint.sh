@@ -17,7 +17,7 @@ while true; do
     sleep 0.1
 done
 docker load -i /usr/local/bin/zookeeper.tar
-docker load -i /usr/local/bin/raftkeeper-integration-helper.tar
+docker load -i /usr/local/bin/raftkeeper-network-partition.tar
 docker load -i /usr/local/bin/raftkeeper-integration-tests.tar
 docker image ls
 
