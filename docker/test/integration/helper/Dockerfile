@@ -1,4 +1,4 @@
-# docker build -t raftkeeper/raftkeeper-integration-tests .
+# docker build -t raftkeeper/raftkeeper-network-partition .
 # Helper docker container to run iptables without sudo
 
 FROM alpine:3.18

@@ -198,7 +198,7 @@ class _NetworkManager:
 
         self._container = None
         
-        self.image = "raftkeeper/raftkeeper-integration-helper"
+        self.image = "raftkeeper/raftkeeper-network-partition"
 
         self._ensure_container()
 
