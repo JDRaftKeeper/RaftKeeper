@@ -1367,9 +1367,9 @@ void KeeperStore::processRequest(
                 if (zk_request->getOpNum() == Coordination::OpNum::Multi)
                 {
                     auto multi_response = std::dynamic_pointer_cast<Coordination::ZooKeeperMultiWriteResponse>(response);
-                    /// An multi request allows you to execute multiple operations within a single transaction. 
+                    /// An multi request allows you to execute multiple operations within a single transaction.
                     /// If any one of these operations fails, the before transaction will be rolled back, and rest operations will set to an error code
-                    /// So we only check last reponse code to determine if we need to trigger watches
+                    /// So we only check last response code to determine if we need to trigger watches
                     if (!multi_response->responses.empty() && multi_response->responses.back()->error == Coordination::Error::ZOK)
                     {
                         auto * multi_request = dynamic_cast<Coordination::ZooKeeperMultiRequest *>(zk_request.get());
