@@ -27,7 +27,7 @@ void WatchManager::registerWatches(const String & path, int64_t session_id, Coor
 
     sessions_and_watchers[session_id][path] |= static_cast<uint8_t>(watches_type);
 
-    LOG_TRACE(log, "Register watch path={}, session_id={}, data={}", path, session_id, toString(sessions_and_watchers[session_id][path]));
+    LOG_TRACE(log, "Register watch path={}, session_id={}, data={}", path, toHexString(session_id), toString(sessions_and_watchers[session_id][path]));
 }
 
 ResponsesForSessions WatchManager::processWatches(const String & path, Coordination::OpNum opnum)
