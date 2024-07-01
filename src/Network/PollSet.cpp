@@ -20,7 +20,6 @@
 
 #include <Common/Exception.h>
 #include <Network/PollSet.h>
-#include <common/logger_useful.h>
 
 using Poco::Net::SocketImpl;
 
@@ -214,7 +213,6 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
 
         if (rc == 0)
         {
-            LOG_TRACE(log, "epoll_wait got 0 events");
             return result;
         }
 
@@ -231,8 +229,6 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
 
     if (rc < 0 && errno != POCO_EINTR)
         throwFromErrno("Error when epoll waiting", ErrorCodes::EPOLL_WAIT, errno);
-
-    LOG_TRACE(log, "Got {} events", rc);
 
     Poco::FastMutex::ScopedLock lock(mutex);
 
@@ -271,7 +267,6 @@ PollSet::SocketModeMap PollSetImpl::poll(const Poco::Timespan & timeout)
 
 void PollSetImpl::wakeUp()
 {
-    LOG_TRACE(log, "Try to wakeup poll set");
     uint64_t val = 0;
     int n = ::write(waking_up_fd, &val, sizeof(val));
     if (n < 0)

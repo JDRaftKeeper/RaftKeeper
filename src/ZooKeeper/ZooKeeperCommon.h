@@ -84,6 +84,8 @@ struct ZooKeeperRequest : virtual Request
 
     virtual ZooKeeperResponsePtr makeResponse() const = 0;
     virtual bool isReadRequest() const = 0;
+
+    virtual String toString() const override { return Coordination::toString(getOpNum()); }
 };
 
 using ZooKeeperRequestPtr = std::shared_ptr<ZooKeeperRequest>;

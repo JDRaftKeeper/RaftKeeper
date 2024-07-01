@@ -44,13 +44,15 @@ std::size_t RequestId::RequestIdHash::operator()(const RequestId & request_id) c
 
 String RequestForSession::toString() const
 {
-    return fmt::format(
-        "[session:{} request:{} create_time:{} server_id:{} client_id:{}]",
-        toHexString(session_id),
-        request->toString(),
-        create_time,
-        server_id,
-        client_id);
+    return (server_id != -1 && client_id != -1)
+        ? fmt::format(
+              "[session:{} request:{} create_time:{} server_id:{} client_id:{}]",
+              toHexString(session_id),
+              request->toString(),
+              create_time,
+              server_id,
+              client_id)
+        : fmt::format("[session:{} request:{} create_time:{}]", toHexString(session_id), request->toString(), create_time);
 }
 
 String RequestForSession::toSimpleString() const
