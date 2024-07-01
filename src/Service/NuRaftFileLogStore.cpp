@@ -10,7 +10,6 @@ using namespace nuraft;
 
 ptr<log_entry> LogEntryQueue::getEntry(const UInt64 & index)
 {
-    LOG_TRACE(log, "get entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), index >> BIT_SIZE);
     std::shared_lock read_lock(queue_mutex);
 
     /// match index
@@ -257,23 +256,17 @@ ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ul
 
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
-    ptr<nuraft::log_entry> src;
+    ptr<nuraft::log_entry> res;
+    if (res == log_queue.getEntry(index))
     {
-        src = log_queue.getEntry(index);
-        if (src == nullptr)
-        {
-            src = segment_store->getEntry(index);
-            LOG_TRACE(log, "get entry {} from disk", index);
-        }
-        else
-        {
-            LOG_TRACE(log, "get entry {} from queue", index);
-        }
+        LOG_TRACE(log, "Get log {} from queue", index);
     }
-    if (src)
-        return makeClone(src);
     else
-        return nullptr;
+    {
+        LOG_TRACE(log, "Get log {} from disk", index);
+        res = segment_store->getEntry(index);
+    }
+    return res ? makeClone(res) : nullptr;
 }
 
 ulong NuRaftFileLogStore::term_at(ulong index)

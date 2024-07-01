@@ -6,14 +6,15 @@ namespace RK
 int64_t SessionManager::getSessionID(int64_t session_timeout_ms)
 {
     std::lock_guard lock(session_mutex);
-    auto result = session_id_counter++;
-    auto it = session_and_timeout.emplace(result, session_timeout_ms);
+    auto new_id = session_id_counter++;
+    auto it = session_and_timeout.emplace(new_id, session_timeout_ms);
     if (!it.second)
     {
-        LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", toHexString(result));
+        LOG_DEBUG(log, "Session {} already exist, must applying a fuzzy log.", toHexString(new_id));
     }
-    session_expiry_queue.addNewSessionOrUpdate(result, session_timeout_ms);
-    return result;
+    LOG_DEBUG(log, "New session {} created.", toHexString(new_id));
+    session_expiry_queue.addNewSessionOrUpdate(new_id, session_timeout_ms);
+    return new_id;
 }
 
 bool SessionManager::updateSessionTimeout(int64_t session_id, int64_t /*session_timeout_ms*/)
