@@ -62,11 +62,11 @@ ResponsesForSessions WatchManager::processWatches(const String & path, Coordinat
         for (auto watcher_session : it->second)
         {
             result.push_back(ResponseForSession{watcher_session, watch_response});
-            LOG_TRACE(log, "Unregister watch for path={}, session_id={}, data={}", path, watcher_session, toString(sessions_and_watchers[watcher_session][path]));
+            LOG_TRACE(log, "Unregister watch for path={}, session_id={}, data={}", path, toHexString(watcher_session), toString(sessions_and_watchers[watcher_session][path]));
             if ((sessions_and_watchers[watcher_session][path] ^= static_cast<uint8_t>(WatchType::Data)) == 0)
             {
                 sessions_and_watchers[watcher_session].erase(path);
-                LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path, watcher_session);
+                LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path, toHexString(watcher_session));
             }
         }
         watches.erase(it);
@@ -106,11 +106,11 @@ ResponsesForSessions WatchManager::processWatches(const String & path, Coordinat
             for (auto watcher_session : it->second)
             {
                 result.push_back(ResponseForSession{watcher_session, watch_list_response});
-                LOG_TRACE(log, "Unregister watch forlistwatch path={}, session_id={}, data={}", path_to_check, watcher_session, toString(sessions_and_watchers[watcher_session][path_to_check]));
+                LOG_TRACE(log, "Unregister watch forlistwatch path={}, session_id={}, data={}", path_to_check, toHexString(watcher_session), toString(sessions_and_watchers[watcher_session][path_to_check]));
                 if ((sessions_and_watchers[watcher_session][path_to_check] ^= static_cast<uint8_t>(WatchType::List)) == 0)
                 {
                     sessions_and_watchers[watcher_session].erase(path_to_check);
-                    LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path_to_check, watcher_session);
+                    LOG_TRACE(log, "Unregister sessions_and_watchers path={}, session_id={}", path_to_check, toHexString(watcher_session));
                 }
             }
 
