@@ -1,3 +1,4 @@
+import socket
 import pytest
 import random
 import string
@@ -763,5 +764,67 @@ def test_system_nodes(started_cluster):
         cluster_config = (b'server.1=node1:8103:participant\nserver.2=node2:8103:participant\nserver.3=node3:8103'
                           b':participant\nversion=0')
         assert fake_zk.get('/zookeeper/config')[0] == cluster_config
+    finally:
+        close_zk_clients([genuine_zk, fake_zk])
+
+
+def test_unregister_watch(started_cluster):
+    genuine_zk = fake_zk = None
+    datas = [[] for i in range(2)]
+    
+    def send_4lw_cmd(host, port, cmd):
+        client = None
+        try:
+            client = socket.socket()
+            client.settimeout(10)
+            client.connect((host, port))
+
+            client.send(cmd.encode())
+            data = client.recv(100_000)
+            data = data.decode()
+            return data
+        finally:
+            if client is not None:
+                client.close()
+
+    try:
+        genuine_zk = get_genuine_zk()
+        fake_zk = get_fake_zk()
+        hosts = [[cluster.get_instance_ip("zoo1"), 2181], [cluster.get_instance_ip("node1"), 8101]]
+        for index, zk in enumerate([genuine_zk, fake_zk]):
+            def exists_watch(event):
+                print(f"Exists watch triggered! Event: {event}")
+
+            def list_watch(event):
+                print(f"List watch triggered! Event: {event}")
+
+            znode_path = "/test_unregister_watch"
+
+            zk.create(znode_path, b"initial data")
+
+            if zk.exists(znode_path, watch=exists_watch):
+                print(f"Znode {znode_path} exists.")
+            else:
+                print(f"Znode {znode_path} does not exist. Watch set for creation or deletion.")
+                
+            zk.get_children(znode_path, watch=list_watch)
+            
+            datas[index].append(send_4lw_cmd(hosts[index][0], hosts[index][1], cmd='wchc'))
+            
+            zk.create(f"{znode_path}/child", b"initial data")
+
+            time.sleep(2)
+            datas[index].append(send_4lw_cmd(hosts[index][0], hosts[index][1], cmd='wchc'))
+            
+            zk.set(znode_path, b"new data")
+
+            time.sleep(2)
+            datas[index].append(send_4lw_cmd(hosts[index][0], hosts[index][1], cmd='wchc'))
+            
+        for index, data in enumerate(datas):
+            print(f"Data {index}: {data}")
+            
+        for data0, data1 in zip(datas[0], datas[1]):
+            assert len(data0[0].splitlines()) == len(data1[1].splitlines())  
     finally:
         close_zk_clients([genuine_zk, fake_zk])
