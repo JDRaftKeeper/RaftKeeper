@@ -325,7 +325,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
         auto request_for_session = parseRequest(data);
         ResponsesForSessions responses_for_sessions;
 
-        LOG_TRACE(log, "Commit log index {} fore request {}", log_idx, request_for_session.toSimpleString());
+        LOG_TRACE(log, "Commit log index {}, request {}", log_idx, request_for_session.toSimpleString());
 
         if (request_processor)
             request_processor->commit(request_for_session);
@@ -696,6 +696,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
         for (size_t i = 0; i < batch.log_vec->size(); ++i)
         {
+            ulong log_index = batch.batch_start_index + i;
             auto entry = (*batch.log_vec)[i];
             if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
                 continue;
@@ -723,7 +724,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
             {
                 /// replay user requests
                 auto & request = (*batch.request_vec)[i];
-                LOG_TRACE(log, "Replay log request {}", request->toString());
+                LOG_TRACE(log, "Replay log {}, request {}", log_index, request->toString());
                 store.processRequest(responses_queue, *request, {}, true, true);
                 if (!RK::isNewSessionRequest(request->request->getOpNum()) && request->session_id > store.getSessionIDCounter())
                 {
