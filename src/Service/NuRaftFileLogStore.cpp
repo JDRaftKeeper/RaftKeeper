@@ -256,8 +256,8 @@ ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ul
 
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
-    ptr<nuraft::log_entry> res;
-    if (res == log_queue.getEntry(index))
+    ptr<nuraft::log_entry> res = log_queue.getEntry(index);
+    if (res)
     {
         LOG_TRACE(log, "Get log {} from queue", index);
     }
