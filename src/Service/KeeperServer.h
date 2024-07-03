@@ -33,12 +33,6 @@ public:
     /// Put write request into queue and keeper server will append it to NuRaft asynchronously.
     ptr<nuraft::cmd_result<ptr<buffer>>> pushRequestBatch(const std::vector<RequestForSession> & request_batch);
 
-    /// Allocate a new session id.
-    int64_t newSession(int64_t session_timeout_ms);
-
-    /// Update session timeout, used when client reconnected
-    bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms);
-
     /// Get expired sessions, used in clear session task.
     std::vector<int64_t> getDeadSessions();
 

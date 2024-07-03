@@ -124,13 +124,6 @@ public:
     /// Push forward request
     bool pushForwardRequest(size_t server_id, size_t client_id, ForwardRequestPtr request);
 
-    /// TODO remove
-    int64_t newSession(int64_t session_timeout_ms) { return server->newSession(session_timeout_ms); }
-    bool updateSessionTimeout(int64_t session_id, int64_t session_timeout_ms)
-    {
-        return server->updateSessionTimeout(session_id, session_timeout_ms);
-    }
-
     /// Register response callback for forwarder
     void registerForwarderResponseCallBack(ForwardClientId client_id, ForwardResponseCallback callback);
     void unRegisterForwarderResponseCallBack(ForwardClientId client_id);

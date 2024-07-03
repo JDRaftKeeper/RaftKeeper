@@ -700,6 +700,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
             if (entry.entry->get_val_type() != nuraft::log_val_type::app_log)
                 continue;
 
+            /// Compatible with old NewSessionRequest log_entry.
             if (isNewSessionRequest(entry.entry->get_buf()))
             {
                 /// replay session
@@ -707,6 +708,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 int64_t session_id = store.getSessionID(session_timeout_ms);
                 LOG_TRACE(log, "Replay log create session {} with timeout {} from log", toHexString(session_id), session_timeout_ms);
             }
+            /// Compatible with old UpdateSessionRequest log_entry.
             else if (isUpdateSessionRequest(entry.entry->get_buf()))
             {
                 /// replay update session
@@ -725,12 +727,12 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 store.processRequest(responses_queue, *request, {}, true, true);
                 if (!RK::isNewSessionRequest(request->request->getOpNum()) && request->session_id > store.getSessionIDCounter())
                 {
+                    /// We may receive an error session id from client, and we just ignore it.
                     LOG_WARNING(
                         log,
                         "Storage's session_id_counter {} must bigger than the session id {} of log.",
                         toHexString(store.getSessionIDCounter()),
                         toHexString(request->session_id));
-                    store.setSessionIDCounter(request->session_id);
                 }
             }
         }
