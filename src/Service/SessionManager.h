@@ -24,7 +24,7 @@ public:
     using SessionIDs = std::vector<int64_t>;
 
     explicit SessionManager(int64_t dead_session_check_period_ms)
-        : session_expiry_queue(dead_session_check_period_ms), log(&Poco::Logger::get("WatchManager"))
+        : session_expiry_queue(dead_session_check_period_ms), log(&Poco::Logger::get("SessionManager"))
     {
     }
 
