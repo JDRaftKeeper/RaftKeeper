@@ -4,6 +4,7 @@ import random
 import string
 import os
 import time
+import threading
 from multiprocessing.dummy import Pool
 from kazoo.client import KazooClient, KazooState
 from helpers.cluster_service import RaftKeeperCluster
@@ -666,94 +667,115 @@ def test_end_of_watches_session(started_cluster):
         close_zk_clients([fake_zk1, fake_zk2])
 
 
-# RuntimeError: ('xids do not match, expected %r received %r', 18, 19)
 def test_concurrent_watches(started_cluster):
-    fake_zk = None
-    try:
-        fake_zk = get_fake_zk()
-        fake_zk.restart()
+    global_path = "/test_concurrent_watches_0"
+    dumb_watch_triggered_counter = 0
+    all_paths_triggered = []
+    existing_path = []
+    all_paths_created = []
+    watches_created = 0
+    trigger_called = 0
+
+    lock = threading.Lock()
+
+    fake_zk = get_fake_zk()
+    fake_zk.start()
+
+    def create_path_and_watch(zk, i):
+        nonlocal watches_created
+        nonlocal all_paths_created
+        nonlocal existing_path
+        nonlocal dumb_watch_triggered_counter
+        nonlocal all_paths_triggered
         global_path = "/test_concurrent_watches_0"
-        fake_zk.create(global_path)
+        node_path = global_path + "/" + str(i)
 
-        dumb_watch_triggered_counter = 0
-        all_paths_triggered = []
+        zk.ensure_path(node_path)
 
-        existing_path = []
-        all_paths_created = []
-        watches_created = 0
-
-        def create_path_and_watch(i):
-            nonlocal watches_created
-            nonlocal all_paths_created
-            fake_zk.ensure_path(global_path + "/" + str(i))
-
-            # new function each time
-            def dumb_watch(event):
-                nonlocal dumb_watch_triggered_counter
+        def dumb_watch(event):
+            nonlocal dumb_watch_triggered_counter
+            nonlocal all_paths_triggered
+            with lock:
                 dumb_watch_triggered_counter += 1
-                nonlocal all_paths_triggered
                 all_paths_triggered.append(event.path)
 
-            fake_zk.get(global_path + "/" + str(i), watch=dumb_watch)
+        zk.get(global_path + "/" + str(i), watch=dumb_watch)
+        with lock:
             all_paths_created.append(global_path + "/" + str(i))
             watches_created += 1
             existing_path.append(i)
 
-        trigger_called = 0
+    def trigger_watch(fake_zk, i):
+        nonlocal trigger_called
+        nonlocal existing_path
+        global_path = "/test_concurrent_watches_0"
 
-        def trigger_watch(i):
-            nonlocal trigger_called
+        with lock:
             trigger_called += 1
-            fake_zk.set(global_path + "/" + str(i), b"somevalue")
+        fake_zk.set(global_path + "/" + str(i), b"somevalue")
+        try:
+            existing_path.remove(i)
+        except:
+            pass
+
+    def call(total):
+        thread_zk = get_fake_zk()
+        thread_zk.start()
+        for i in range(total):
+            create_path_and_watch(thread_zk, random.randint(0, 1000))
+            time.sleep(0.1)
             try:
-                existing_path.remove(i)
+                with lock:
+                    rand_num = random.choice(existing_path)
+                trigger_watch(thread_zk, rand_num)
             except:
                 pass
-
-        def call(total):
-            for i in range(total):
-                create_path_and_watch(random.randint(0, 1000))
-                time.sleep(random.random() % 0.5)
-                try:
+        while existing_path:
+            try:
+                with lock:
                     rand_num = random.choice(existing_path)
-                    trigger_watch(rand_num)
-                except:
-                    pass
-            while existing_path:
-                try:
-                    rand_num = random.choice(existing_path)
-                    trigger_watch(rand_num)
-                except:
-                    pass
+                trigger_watch(thread_zk, rand_num)
+            except:
+                pass
+        close_zk_client(thread_zk)
 
-        p = Pool(10)
-        arguments = [100] * 10
-        watches_must_be_created = sum(arguments)
-        watches_trigger_must_be_called = sum(arguments)
-        watches_must_be_triggered = sum(arguments)
-        p.map(call, arguments)
-        p.close()
+    global_path = "/test_concurrent_watches_0"
 
-        # waiting for late watches
-        for i in range(50):
-            if dumb_watch_triggered_counter == watches_must_be_triggered:
-                break
+    fake_zk.delete(global_path, recursive=True)
+    fake_zk.create(global_path)
 
-            time.sleep(0.1)
+    threads = []
+    num_threads = 10
+    calls_per_thread = 100
 
-        assert watches_created == watches_must_be_created
-        assert trigger_called >= watches_trigger_must_be_called
+    for _ in range(num_threads):
+        t = threading.Thread(target=call, args=(calls_per_thread,))
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # waiting for late watches
+    for i in range(50):
+        if dumb_watch_triggered_counter == calls_per_thread * num_threads:
+            break
+
+        time.sleep(0.1)
+
+    with lock:
+        assert watches_created == calls_per_thread * num_threads
+        assert trigger_called >= calls_per_thread * num_threads
         assert len(existing_path) == 0
-        if dumb_watch_triggered_counter != watches_must_be_triggered:
-            print("All created paths", all_paths_created)
-            print("All triggerred paths", all_paths_triggered)
-            print("All paths len", len(all_paths_created))
-            print("All triggered len", len(all_paths_triggered))
-            print("Diff", list(set(all_paths_created) - set(all_paths_triggered)))
+    if dumb_watch_triggered_counter != calls_per_thread * num_threads:
+        print("All created paths", all_paths_created)
+        print("All triggered paths", all_paths_triggered)
+        print("All paths len", len(all_paths_created))
+        print("All triggered len", len(all_paths_triggered))
+        print("Diff", list(set(all_paths_created) - set(all_paths_triggered)))
 
-        assert dumb_watch_triggered_counter == watches_must_be_triggered
-    finally:
-        close_zk_clients([fake_zk])
+    assert dumb_watch_triggered_counter == calls_per_thread * num_threads
+    close_zk_client(fake_zk)
 
 
 def test_system_nodes(started_cluster):
