@@ -76,7 +76,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             }
         }
 
-        if (session_sync_idx % thread_count == runner_id && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
+        if (session_sync_idx % parallel == runner_id && session_sync_time_watch.elapsedMilliseconds() >= session_sync_period_ms)
         {
             if (!server->isLeader() && server->isLeaderAlive())
             {
@@ -158,9 +158,21 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                 max_wait = std::min(max_wait, static_cast<UInt64>(std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline - now).count()) / 1000);
             }
 
+            auto sleep = [this]()
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
+            };
+
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 int32_t leader = server->getLeader();
+                if (leader == server->myId() || leader == -1) /// In case of data condition caused by leader switch
+                {
+                    LOG_INFO(log, "I become leader or no leader when receiving foward response, sleep for a while and try again.");
+                    sleep();
+                    continue;
+                }
+
                 ptr<ForwardConnection> connection;
                 {
                     std::lock_guard<std::mutex> lock(connections_mutex);
@@ -184,18 +196,18 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                         LOG_WARNING(log, "Not found connection for runner {}", runner_id);
                     else if (!connection->isConnected())
                         LOG_TRACE(log, "Connection not connected for runner {}, maybe no session attached to me", runner_id);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
+                    sleep();
                 }
             }
             else
             {
-                std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
+                sleep();
             }
         }
         catch (...)
         {
             tryLogCurrentException(log, "Error when receiving forward response, runner " + std::to_string(runner_id));
-            std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
+            sleep();
         }
     }
 }
@@ -290,15 +302,13 @@ void RequestForwarder::shutdown()
 
 void RequestForwarder::initConnections()
 {
-    std::lock_guard<std::mutex> lock(connections_mutex);
+    LOG_INFO(log, "Begin to init request forwarder connections");
 
-    LOG_INFO(log, "Begin init connections");
-
-    const Poco::Util::AbstractConfiguration & config = Context::get().getConfigRef();
-    /// diff config
-    Poco::Util::AbstractConfiguration::Keys keys;
+    /// Find config diff
     String config_name = "keeper.cluster";
-    config.keys("keeper.cluster", keys);
+    const auto & config = Context::get().getConfigRef();
+    Poco::Util::AbstractConfiguration::Keys keys;
+    config.keys(config_name, keys);
 
     int32_t my_id = server->myId();
 
@@ -311,38 +321,40 @@ void RequestForwarder::initConnections()
             /// only care for host forwarding_port and learner
             int32_t id = config.getInt(config_name + "." + key + ".id");
             String host = config.getString(config_name + "." + key + ".host");
+
             String forwarding_port = config.getString(config_name + "." + key + ".forwarding_port", "8102");
             String endpoint = host + ":" + forwarding_port;
+
             bool learner = config.getBool(config_name + "." + key + ".learner", false);
 
             if (my_id != id && !learner)
-            {
                 new_cluster_config_forward[id] = endpoint;
-            }
         }
     }
 
-    /// Diff config, update and add connections
-    for (auto & [id, endpoint] : new_cluster_config_forward)
-    {
-        auto it = cluster_config_forward.find(id);
-        if (it != cluster_config_forward.end() && it->second == endpoint)
-        {
-            continue;
-        }
+    LOG_INFO(log, "Found {} servers in config and now we have {} servers", new_cluster_config_forward.size(), cluster_config_forward.size());
 
-        cluster_config_forward[id] = endpoint;
-        connections.erase(id);
+    std::lock_guard<std::mutex> lock(connections_mutex);
+
+    /// Diff config, update and add connections
+    for (auto & [server_id, endpoint] : new_cluster_config_forward)
+    {
+        auto it = cluster_config_forward.find(server_id);
+        if (it != cluster_config_forward.end() && it->second == endpoint)
+            continue;
+
+        cluster_config_forward[server_id] = endpoint;
+        connections.erase(server_id);
 
         ConnectionPool connection_pool;
-        for (size_t thread_id = 0; thread_id < thread_count; ++thread_id)
+        for (size_t runner_id = 0; runner_id < parallel; ++runner_id)
         {
+            LOG_INFO(log, "Creating forward connection #{}#{} to {}", server_id, runner_id, endpoint);
             std::shared_ptr<ForwardConnection> connection = std::make_shared<ForwardConnection>(
-                my_id, thread_id, endpoint, operation_timeout);
+                my_id, runner_id, endpoint, operation_timeout);
             connection_pool.push_back(connection);
-            LOG_INFO(log, "Create forward connection for {}, {}, thread {}", id, endpoint, thread_id);
         }
-        connections.emplace(id, connection_pool);
+        connections.emplace(server_id, connection_pool);
     }
 
     /// Diff config, remove connections
@@ -351,7 +363,6 @@ void RequestForwarder::initConnections()
         auto new_it = new_cluster_config_forward.find(it->first);
         if (new_it == new_cluster_config_forward.end())
         {
-            /// remove
             it = cluster_config_forward.erase(it);
             connections.erase(it->first);
         }
@@ -363,21 +374,21 @@ void RequestForwarder::initConnections()
 }
 
 void RequestForwarder::initialize(
-    size_t thread_count_,
+    size_t parallel_,
     std::shared_ptr<KeeperServer> server_,
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     UInt64 session_sync_period_ms_,
     UInt64 operation_timeout_ms_)
 {
-    thread_count = thread_count_;
+    parallel = parallel_;
     session_sync_period_ms = session_sync_period_ms_;
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
-    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+    requests_queue = std::make_shared<RequestsQueue>(parallel, 20000);
 
     operation_timeout = operation_timeout_ms_ * 1000;
 
-    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
+    for (RunnerId runner_id = 0; runner_id < parallel; runner_id++)
     {
         forward_request_queue.push_back(std::make_unique<ForwardRequestQueue>());
     }
@@ -385,14 +396,14 @@ void RequestForwarder::initialize(
     initConnections();
     server->registerForWardListener([this](){ initConnections(); });
 
-    request_thread = std::make_shared<ThreadPool>(thread_count);
-    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
+    request_thread = std::make_shared<ThreadPool>(parallel);
+    for (RunnerId runner_id = 0; runner_id < parallel; runner_id++)
     {
         request_thread->trySchedule([this, runner_id] { runSend(runner_id); });
     }
 
-    response_thread = std::make_shared<ThreadPool>(thread_count);
-    for (RunnerId runner_id = 0; runner_id < thread_count; runner_id++)
+    response_thread = std::make_shared<ThreadPool>(parallel);
+    for (RunnerId runner_id = 0; runner_id < parallel; runner_id++)
     {
         response_thread->trySchedule([this, runner_id] { runReceive(runner_id); });
     }
