@@ -32,7 +32,7 @@ public:
     void runReceive(RunnerId runner_id);
 
     void initialize(
-        size_t thread_count_,
+        size_t parallel_,
         std::shared_ptr<KeeperServer> server_,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         UInt64 session_sync_period_ms_,
@@ -54,7 +54,7 @@ private:
 
     bool processTimeoutRequest(RunnerId runner_id, ForwardRequestPtr newFront);
 
-    size_t thread_count;
+    size_t parallel;
     ptr<RequestsQueue> requests_queue;
 
     Poco::Logger * log;

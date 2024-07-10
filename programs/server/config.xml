@@ -53,8 +53,8 @@
         <!-- Max snapshot interval in second. -->
         <!-- <snapshot_create_interval>3600</snapshot_create_interval> -->
 
-        <!-- Processor thread count, default is CPU core size. For container is cgroup limit size. -->
-        <!-- <thread_count></thread_count> -->
+        <!-- Processor parallel, default is CPU core size. For container is cgroup limit size. -->
+        <!-- <parallel></parallel> -->
 
         <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp" -->
         <!-- <four_letter_word_white_list></four_letter_word_white_list> -->

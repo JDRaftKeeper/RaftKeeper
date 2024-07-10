@@ -78,7 +78,7 @@ void RequestProcessor::run()
 
             /// 1. process read request
             watch.restart();
-            for (RunnerId runner_id = 0; runner_id < runner_count; runner_id++)
+            for (RunnerId runner_id = 0; runner_id < parallel; runner_id++)
             {
                 moveRequestToPendingQueue(runner_id);
                 processReadRequests(runner_id);
@@ -549,20 +549,18 @@ void RequestProcessor::onError(
 }
 
 void RequestProcessor::initialize(
-    size_t thread_count_,
+    size_t parallel_,
     std::shared_ptr<KeeperServer> server_,
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
     UInt64 operation_timeout_ms_)
 {
     operation_timeout_ms = operation_timeout_ms_;
-    runner_count = thread_count_;
+    parallel = parallel_;
     server = server_;
     keeper_dispatcher = keeper_dispatcher_;
-    requests_queue = std::make_shared<RequestsQueue>(runner_count, 20000);
-    for (size_t i = 0; i < runner_count; i++)
-    {
-        pending_requests[i];
-    }
+    requests_queue = std::make_shared<RequestsQueue>(parallel, 20000);
+    for (size_t runner_id = 0; runner_id < parallel; runner_id++)
+        pending_requests.emplace(runner_id, std::unordered_map<int64_t, std::vector<RequestForSession>>());
     main_thread = ThreadFromGlobalPool([this] { run(); });
 }
 

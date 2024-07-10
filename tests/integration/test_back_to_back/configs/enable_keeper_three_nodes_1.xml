@@ -8,7 +8,7 @@
         <forwarding_port>8102</forwarding_port>
         <port>8101</port>
         <internal_port>8103</internal_port>
-        <thread_count>16</thread_count>
+        <parallel>16</parallel>
         <four_letter_word_white_list>*</four_letter_word_white_list>
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>

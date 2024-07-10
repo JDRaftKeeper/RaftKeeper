@@ -18,9 +18,9 @@ namespace RK
 class ForwardConnection
 {
 public:
-    ForwardConnection(int32_t server_id_, int32_t thread_id_, String endpoint_, Poco::Timespan socket_timeout_)
+    ForwardConnection(int32_t server_id_, int32_t client_id_, String endpoint_, Poco::Timespan socket_timeout_)
         : my_server_id(server_id_)
-        , client_id(thread_id_)
+        , client_id(client_id_)
         , endpoint(endpoint_)
         , socket_timeout(socket_timeout_)
         , log(&Poco::Logger::get("ForwardConnection"))

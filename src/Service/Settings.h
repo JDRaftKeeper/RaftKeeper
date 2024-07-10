@@ -49,7 +49,7 @@ struct Settings
     String snapshot_dir;
 
     uint32_t snapshot_create_interval;
-    int32_t thread_count;
+    int32_t parallel;
 
     String four_letter_word_white_list;
 

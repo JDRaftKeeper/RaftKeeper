@@ -132,6 +132,16 @@ void RequestForwarder::runReceive(RunnerId runner_id)
     LOG_DEBUG(log, "Starting forward response receiving thread.");
     while (!shutdown_called)
     {
+        auto sleep = [this]()
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
+        };
+
+        auto to_microseconds = [](const clock::duration & duration) -> UInt64
+        {
+            return std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
+        };
+
         try
         {
             UInt64 max_wait = session_sync_period_ms;
@@ -148,27 +158,22 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                         log,
                         "Earliest request {} deadline {}, now {}",
                         earliest_request->toString(),
-                        std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline.time_since_epoch()).count(),
-                        std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count());
+                        to_microseconds(earliest_request_deadline.time_since_epoch()),
+                        to_microseconds(now.time_since_epoch()));
 
                     if (processTimeoutRequest(runner_id, earliest_request))
                         earliest_request_deadline = earliest_request->send_time + std::chrono::microseconds(operation_timeout.totalMicroseconds());
                 }
 
-                max_wait = std::min(max_wait, static_cast<UInt64>(std::chrono::duration_cast<std::chrono::microseconds>(earliest_request_deadline - now).count()) / 1000);
+                max_wait = std::min(max_wait, to_microseconds(earliest_request_deadline - now) / 1000);
             }
-
-            auto sleep = [this]()
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(session_sync_period_ms));
-            };
 
             if (!server->isLeader() && server->isLeaderAlive())
             {
                 int32_t leader = server->getLeader();
                 if (leader == server->myId() || leader == -1) /// In case of data condition caused by leader switch
                 {
-                    LOG_INFO(log, "I become leader or no leader when receiving foward response, sleep for a while and try again.");
+                    LOG_INFO(log, "I become leader or no leader when receiving forward response, sleep for a while and try again.");
                     sleep();
                     continue;
                 }
