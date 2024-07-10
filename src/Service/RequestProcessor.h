@@ -30,7 +30,7 @@ public:
     void onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid, Coordination::OpNum opnum);
 
     void initialize(
-        size_t thread_count_,
+        size_t parallel_,
         std::shared_ptr<KeeperServer> server_,
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         UInt64 operation_timeout_ms_);
@@ -50,7 +50,7 @@ private:
 
     /// Apply request to state machine
     void applyRequest(const RequestForSession & request) const;
-    size_t getRunnerId(int64_t session_id) const { return session_id % runner_count; }
+    size_t getRunnerId(int64_t session_id) const { return session_id % parallel; }
 
     /// Find error request in pending request queue
     std::optional<RequestForSession> findErrorRequest(const ErrorRequest & error_request);
@@ -80,7 +80,7 @@ private:
     /// Raft committed write requests which can be local or from other nodes.
     ConcurrentBoundedQueue<RequestForSession> committed_queue{1000};
 
-    size_t runner_count;
+    size_t parallel;
 
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 

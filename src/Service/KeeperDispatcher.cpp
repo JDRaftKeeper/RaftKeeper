@@ -247,13 +247,13 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     LOG_INFO(log, "Initializing dispatcher");
     configuration_and_settings = Settings::loadFromConfig(config, true);
 
-    size_t thread_count = configuration_and_settings->thread_count;
+    size_t parallel = configuration_and_settings->parallel;
     UInt64 operation_timeout_ms = configuration_and_settings->raft_settings->operation_timeout_ms;
 
     server = std::make_shared<KeeperServer>(configuration_and_settings, config, responses_queue, request_processor);
     new_session_internal_id_counter = server->myId();
     /// Raft server needs to be able to handle commit when startup.
-    request_processor->initialize(thread_count, server, shared_from_this(), operation_timeout_ms);
+    request_processor->initialize(parallel, server, shared_from_this(), operation_timeout_ms);
 
     try
     {
@@ -271,14 +271,14 @@ void KeeperDispatcher::initialize(const Poco::Util::AbstractConfiguration & conf
     }
 
     UInt64 session_sync_period_ms = configuration_and_settings->raft_settings->dead_session_check_period_ms * 2;
-    request_forwarder.initialize(thread_count, server, shared_from_this(), session_sync_period_ms, operation_timeout_ms);
+    request_forwarder.initialize(parallel, server, shared_from_this(), session_sync_period_ms, operation_timeout_ms);
     request_accumulator.initialize(shared_from_this(), server, operation_timeout_ms, configuration_and_settings->raft_settings->max_batch_size);
-    requests_queue = std::make_shared<RequestsQueue>(thread_count, 20000);
+    requests_queue = std::make_shared<RequestsQueue>(parallel, 20000);
 
-    request_thread = std::make_shared<ThreadPool>(thread_count);
+    request_thread = std::make_shared<ThreadPool>(parallel);
     responses_thread = std::make_shared<ThreadPool>(1);
 
-    for (size_t i = 0; i < thread_count; i++)
+    for (size_t i = 0; i < parallel; i++)
     {
         request_thread->trySchedule([this, i] { requestThread(i); });
     }

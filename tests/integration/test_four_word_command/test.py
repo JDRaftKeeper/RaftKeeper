@@ -281,7 +281,7 @@ def test_cmd_conf(started_cluster):
         assert result["host"] == "node1"
 
         assert result["internal_port"] == "8103"
-        assert result["thread_count"] == "16"
+        assert result["parallel"] == "16"
         assert result["snapshot_create_interval"] == "10000"
 
         assert result["four_letter_word_white_list"] == "*"

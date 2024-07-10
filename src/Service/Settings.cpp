@@ -2,7 +2,6 @@
 #include <Service/Settings.h>
 #include <Common/IO/WriteHelpers.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
-#include <common/logger_useful.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
 
 
@@ -160,8 +159,8 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     writeText("internal_port=", buf);
     write_int(internal_port);
 
-    writeText("thread_count=", buf);
-    write_int(thread_count);
+    writeText("parallel=", buf);
+    write_int(parallel);
 
     writeText("snapshot_create_interval=", buf);
     write_int(snapshot_create_interval);
@@ -244,7 +243,7 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     ret->host = config.getString("keeper.host", "0.0.0.0");
 
     ret->internal_port = config.getInt("keeper.internal_port", 8103);
-    ret->thread_count = config.getInt("keeper.thread_count", getNumberOfPhysicalCPUCores());
+    ret->parallel = config.getInt("keeper.parallel", getNumberOfPhysicalCPUCores());
 
     ret->snapshot_create_interval = config.getUInt("keeper.snapshot_create_interval", 3600);
     ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1U);
