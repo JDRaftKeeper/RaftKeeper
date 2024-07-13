@@ -232,7 +232,10 @@ else ()
 endif ()
 
 
-add_warning(error)
+option(WERROR "Enable -Werror compiler option" ON)
+if (WERROR)
+    add_warning(error)
+endif()
 
 # Make this extra-checks for correct library dependencies.
 if (OS_LINUX AND NOT SANITIZE)
