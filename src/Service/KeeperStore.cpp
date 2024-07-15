@@ -1199,7 +1199,7 @@ void KeeperStore::processRequest(
     bool check_acl,
     bool ignore_response)
 {
-    LOG_TRACE(log, "Process request {}", request_for_session.toSimpleString());
+    LOG_TRACE(log, "Processing request {}", request_for_session.toSimpleString());
 
     if (new_last_zxid)
     {
@@ -1214,11 +1214,11 @@ void KeeperStore::processRequest(
 
     if (zk_request->getOpNum() == Coordination::OpNum::Close)
     {
-        LOG_INFO(log, "Clean ephemeral nodes and watches for {}", toHexString(session_id));
+        LOG_DEBUG(log, "Clean ephemeral nodes and watches for {}", toHexString(session_id));
         cleanEphemeralNodes(session_id, responses_queue, ignore_response);
         watch_manager.cleanDeadWatches(session_id);
 
-        LOG_INFO(log, "Clean auth for {}", toHexString(session_id));
+        LOG_DEBUG(log, "Clean auth for {}", toHexString(session_id));
         /// clean auth for session
         {
             std::lock_guard lock(auth_mutex);
