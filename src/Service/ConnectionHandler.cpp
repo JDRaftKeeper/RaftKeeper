@@ -95,7 +95,7 @@ ConnectionHandler::~ConnectionHandler()
     {
         /// session_id==0 indicates that this is not a normal connection, it may be a 4lw connection.
         if (session_id)
-            LOG_INFO(log, "Disconnecting peer {} #{}", peer, toHexString(session_id.load()));
+            LOG_INFO(log, "Disconnecting peer {}, session #{}", peer, toHexString(session_id.load()));
 
         unregisterConnection(this);
 

@@ -60,10 +60,14 @@ void KeeperDispatcher::requestThread(RunnerId runner_id)
                     LOG_TRACE(log, "Push {} to request processor", request_for_session.toSimpleString());
                     request_processor->push(request_for_session);
                 }
-                /// we should skip close requests from clear session task
+                /// Close requests may be from clear session task
                 else if (!request_for_session.isForwardRequest() && request_for_session.request->getOpNum() != Coordination::OpNum::Close)
                 {
-                    LOG_WARNING(log, "Not local session {}", toHexString(request_for_session.session_id));
+                    LOG_WARNING(
+                        log,
+                        "Receive request from client, but connection of session {} is already closed.",
+                        request_for_session.toSimpleString(),
+                        toHexString(request_for_session.session_id));
                 }
 
                 if (!request_for_session.request->isReadRequest() && server->isLeaderAlive())
