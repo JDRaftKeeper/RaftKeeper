@@ -396,7 +396,7 @@ void KeeperSnapshotStore::init(String create_time = "")
 {
     if (create_time.empty())
     {
-        Poco::DateTime now;
+        Poco::LocalDateTime now;
         curr_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
     }
     else
