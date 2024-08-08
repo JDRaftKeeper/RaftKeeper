@@ -6,7 +6,6 @@
 #include <Service/LogEntry.h>
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftFileLogStore.h>
-#include <Service/NuRaftLogSegment.h>
 #include <Service/tests/raft_test_common.h>
 
 
@@ -100,7 +99,7 @@ TEST(RaftLog, appendEntry)
     String log_dir(LOG_DIR + "/1");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(), 0);
+    ASSERT_NO_THROW(log_store->init());
 
     UInt64 term = 1;
     String key("/ck/table/table1");
@@ -115,7 +114,7 @@ TEST(RaftLog, appendSomeEntry)
     String log_dir(LOG_DIR + "/2");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(), 0);
+    ASSERT_NO_THROW(log_store->init());
 
     for (int i = 0; i < 3; i++)
     {
@@ -133,7 +132,7 @@ TEST(RaftLog, loadLog)
     String log_dir(LOG_DIR + "/3");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(), 0);
+    ASSERT_NO_THROW(log_store->init());
     for (int i = 0; i < 3; i++)
     {
         UInt64 term = 1;
@@ -141,9 +140,9 @@ TEST(RaftLog, loadLog)
         String data("CREATE TABLE table1;");
         ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
-    ASSERT_EQ(log_store->close(), 0);
+    ASSERT_NO_THROW(log_store->close());
     //Load prev log segment from disk when log_store init.
-    ASSERT_EQ(log_store->init(), 0);
+    ASSERT_NO_THROW(log_store->init());
     for (int i = 0; i < 3; i++)
     {
         UInt64 term = 1;
@@ -160,7 +159,7 @@ TEST(RaftLog, splitSegment)
     String log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(200, 10), 0); //81 byte / log
+    ASSERT_NO_THROW(log_store->init(200, 10)); //81 byte / log
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
@@ -169,7 +168,7 @@ TEST(RaftLog, splitSegment)
         ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
     ASSERT_EQ(log_store->getClosedSegments().size(), 5);
-    ASSERT_EQ(log_store->close(), 0);
+    ASSERT_NO_THROW(log_store->close());
     cleanDirectory(log_dir);
 }
 
@@ -178,7 +177,7 @@ TEST(RaftLog, removeSegment)
     String log_dir(LOG_DIR + "/5");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(200, 3), 0);
+    ASSERT_NO_THROW(log_store->init(200, 3));
     //5 segment
     for (int i = 0; i < 10; i++)
     {
@@ -198,7 +197,7 @@ TEST(RaftLog, removeSegment)
     ASSERT_EQ(log_store->getClosedSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
     ASSERT_EQ(log_store->firstLogIndex(), 5);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
-    ASSERT_EQ(log_store->close(), 0);
+    ASSERT_NO_THROW(log_store->close());
     //cleanDirectory(log_dir);
 }
 
@@ -207,7 +206,7 @@ TEST(RaftLog, truncateLog)
     String log_dir(LOG_DIR + "/6");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(200, 3), 0);
+    ASSERT_NO_THROW(log_store->init(200, 3));
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
@@ -252,7 +251,7 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("/ck/table/table1", zk_create_request3->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request3->data);
 
-    ASSERT_EQ(log_store->close(), 0);
+    ASSERT_NO_THROW(log_store->close());
     cleanDirectory(log_dir);
 }
 
@@ -376,7 +375,7 @@ TEST(RaftLog, getEntry)
     String log_dir(LOG_DIR + "/7");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(100, 3), 0);
+    ASSERT_NO_THROW(log_store->init(100, 3));
     UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
@@ -406,7 +405,7 @@ TEST(RaftLog, getEntries)
     String log_dir(LOG_DIR + "/8");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_EQ(log_store->init(250, 3), 0); //69 * 4 = 276
+    ASSERT_NO_THROW(log_store->init(250, 3)); //69 * 4 = 276
     for (int i = 0; i < 8; i++)
     {
         UInt64 term = 1;

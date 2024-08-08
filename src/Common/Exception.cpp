@@ -101,7 +101,6 @@ std::string Exception::getStackTraceString() const
 #endif
 }
 
-
 void throwFromErrno(const std::string & s, int code, int the_errno)
 {
     throw ErrnoException(s + ", " + errnoToString(code, the_errno), code, the_errno);

@@ -5,7 +5,6 @@
 #include <ZooKeeper/ZooKeeperIO.h>
 
 #include <Service/NuRaftFileLogStore.h>
-#include <Service/NuRaftLogSegment.h>
 #include <Service/tests/raft_test_common.h>
 
 

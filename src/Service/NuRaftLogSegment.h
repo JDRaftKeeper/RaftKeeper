@@ -24,11 +24,11 @@ using nuraft::int64;
 enum class LogVersion : uint8_t
 {
     V0 = 0,
-    V1 = 1, /// with ctime mtime
+    V1 = 1, /// with ctime, mtime, magic and version
 };
 
 /// Attach version to log entry
-struct VersionLogEntry
+struct LogEntryWithVersion
 {
     LogVersion version;
     ptr<log_entry> entry;
@@ -39,90 +39,46 @@ static constexpr auto CURRENT_LOG_VERSION = LogVersion::V1;
 class NuRaftLogSegment
 {
 public:
-    NuRaftLogSegment(
-        const String & log_dir_, UInt64 first_index_, const String & file_name_ = "", const String & create_time_ = "")
-        : log_dir(log_dir_)
-        , first_index(first_index_)
-        , last_index(first_index_ - 1)
-        , seg_fd(-1)
-        , file_name(file_name_)
-        , file_size(0)
-        , is_open(true)
-        , log(&(Poco::Logger::get("LogSegment")))
-        , version(CURRENT_LOG_VERSION)
-    {
-        if (create_time_.empty())
-        {
-            Poco::DateTime now;
-            create_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
-        }
-        else
-        {
-            create_time = create_time_;
-        }
-    }
+    /// For new open segment
+    NuRaftLogSegment(const String & log_dir_, UInt64 first_index_);
 
-    NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, UInt64 last_index_, const String file_name_ = "")
-        : log_dir(log_dir_)
-        , first_index(first_index_)
-        , last_index(last_index_)
-        , seg_fd(-1)
-        , file_name(file_name_)
-        , file_size(0)
-        , is_open(false)
-        , log(&(Poco::Logger::get("LogSegment")))
-    {
-    }
+    /// For existing closed segment
+    NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, UInt64 last_index_, const String & file_name_, const String & create_time_);
+    /// For existing open segment
+    NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, const String & file_name_, const String & create_time_);
 
-    ~NuRaftLogSegment() = default;
+    void load();
+    inline UInt64 flush() const;
 
-    /// create open segment
-    /// return 0 if success
-    int create();
-
-    /// load an segment
-    /// return 0 if success
-    int load();
-
-    /// Close open segment, return 0 if success.
-    /// is_full: whether we segment is full, if true,
-    /// close full open log segment and rename to
-    /// finish file name, or else close ofstream
-    int close(bool is_full);
-
-    /// remove the segment
-    /// return 0 if success
-    int remove();
+    /// Close an open segment
+    /// is_full: whether the segment is full, if true, close full open log segment and rename to finish file name
+    void close(bool is_full);
+    void remove();
 
     /**
-     * write segment file header
+     * log segment file header
      *      magic : \0RaftLog 8 bytes
      *      version: version  1 bytes
      */
-    void writeFileHeader();
-
-    /// load data format version, return 0 if success.
-    size_t loadVersion();
+    void writeHeader();
+    void readHeader();
 
     /// get data format version
     LogVersion getVersion() const { return version; }
 
-    /// flush log, return last flushed log index if success or 0 if failed
-    inline UInt64 flush() const;
-
-    /// serialize entry, and append to open segment, return new start index
+    /// serialize entry, and append to open segment, return appended log index
     UInt64 appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index);
-
-    [[maybe_unused]] int writeAt(UInt64 index, const ptr<log_entry> entry);
 
     /// get entry by index, return null if not exist.
     ptr<log_entry> getEntry(UInt64 index);
 
     /// get entry's term by index
-    UInt64 getTerm(UInt64 index) const;
+    [[maybe_unused]] UInt64 getTerm(UInt64 index) const;
 
-    /// Truncate segment from tail to last_index_kept
-    int truncate(UInt64 last_index_kept);
+    /// Truncate segment from tail to last_index_kept.
+    /// Return true if some logs are removed.
+    /// This method will re-open the segment file if it is a closed one.
+    bool truncate(UInt64 last_index_kept);
 
     bool isOpen() const { return is_open; }
 
@@ -165,30 +121,28 @@ private:
     String getOpenFileName();
     String getOpenPath();
 
-    /// when open segment reach log limit,
-    /// we should open a new open segment
-    /// and move current open segment as
-    /// close segment.
-    String getFinishFileName();
-    String getFinishPath();
+    /// when open segment reach log limit, we should open a new open segment
+    /// and move current open segment as close segment.
+    String getClosedFileName();
+    String getClosedPath();
 
     /// current segment file path
     String getPath();
 
-    /// open file by fd, return 0 if success.
-    int openFile();
+    /// open file by fd
+    void openFileIfNeeded();
 
-    /// close file, return 0 if success.
-    int closeFile();
+    /// close file, throw exception if failed
+    void closeFileIfNeeded();
 
-    /// get log entry meta, return 0 if success.
-    int getMeta(UInt64 index, LogMeta * meta) const;
-
-    /// load log entry header
-    int loadLogEntryHeader(int fd, off_t offset, LogEntryHeader * header) const;
+    /// get log entry meta
+    void getMeta(UInt64 index, LogMeta & meta) const;
 
     /// load log entry
-    int loadLogEntry(int fd, off_t offset, LogEntryHeader * head, ptr<log_entry> & entry) const;
+    void loadLogEntry(int fd, off_t offset, LogEntryHeader & header, ptr<log_entry> & entry) const;
+    void loadLogEntryHeader(int fd, off_t offset, LogEntryHeader & header) const;
+
+    static constexpr size_t MAGIC_AND_VERSION_SIZE = 9;
 
     /// segment file directory
     String log_dir;
@@ -199,21 +153,22 @@ private:
     /// last log index in the segment
     std::atomic<UInt64> last_index;
 
-    /// segment file fd
-    int seg_fd;
+    /// Segment is open or closed, if and only if the segment is open, it can be written.
+    /// There is no more than one open segment in the log store.
+    std::atomic_bool is_open = false;
+
+    /// Segment file fd, -1 means the file is not open.
+    /// All segments files in log store should be open.
+    int seg_fd = -1;
 
     /// segment file name
     String file_name;
 
     /// segment file create time
-    /// TODO use
     String create_time;
 
     /// segment file size
-    std::atomic<UInt64> file_size;
-
-    /// open or close
-    bool is_open;
+    std::atomic<UInt64> file_size = 0;
 
     Poco::Logger * log;
 
@@ -243,7 +198,7 @@ public:
 
     static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; //1G, 0.3K/Log, 3M logs
     static constexpr UInt32 MAX_SEGMENT_COUNT = 50; //50G
-    static constexpr int LOAD_THREAD_NUM = 8;
+    static constexpr size_t LOAD_THREAD_NUM = 8;
 
     explicit LogSegmentStore(const String & log_dir_)
         : log_dir(log_dir_), first_log_index(1), last_log_index(0), log(&(Poco::Logger::get("LogSegmentStore")))
@@ -254,12 +209,11 @@ public:
     virtual ~LogSegmentStore() = default;
     static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false);
 
-    /// Init log store, will create dir if not exist, return 0 if success
-    int init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE, UInt32 max_segment_count_ = MAX_SEGMENT_COUNT);
+    /// Init log store, will create dir if not exist
+    void init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE, UInt32 max_segment_count_ = MAX_SEGMENT_COUNT);
 
-    int close();
-
-    /// flush log, return last flushed log index if success
+    void close();
+    /// Return last flushed log index
     UInt64 flush();
 
     /// first log index in whole log store
@@ -268,49 +222,43 @@ public:
     /// last log index in whole log store
     UInt64 lastLogIndex() { return last_log_index.load(std::memory_order_acquire); }
 
-    void setLastLogIndex(UInt64 index) { last_log_index.store(index, std::memory_order_release); }
-
-    /// append entry to log store
+    /// Append entry to log store
     UInt64 appendEntry(ptr<log_entry> entry);
 
-    /// First truncate log whose index large or equal entry.index,
-    /// then append it.
+    /// First truncate log whose index is large than or equals with index of entry, then append it.
     UInt64 writeAt(UInt64 index, ptr<log_entry> entry);
     ptr<log_entry> getEntry(UInt64 index);
 
-    /// collection entries in [start_index, end_index]
+    /// Just for test, collection entries in [start_index, end_index]
     void getEntries(UInt64 start_index, UInt64 end_index, ptr<std::vector<ptr<log_entry>>> & entries);
 
-    [[maybe_unused]] void
-    getEntriesExt(UInt64 start_idx, UInt64 end_idx, int64 batch_size_hint_in_bytes, ptr<std::vector<ptr<log_entry>>> & entries);
-    [[maybe_unused]] UInt64 getTerm(UInt64 index);
-
-    /// Remove segments from storage's head, logs in [1, first_index_kept) will be discarded,
-    /// usually invoked when compaction.
+    /// Remove segments from storage's head, logs in [1, first_index_kept) will be discarded, usually invoked when compaction.
+    /// return number of segments removed
     int removeSegment();
     int removeSegment(UInt64 first_index_kept);
 
     /// Delete uncommitted logs from storage's tail, (last_index_kept, infinity) will be discarded
-    int truncateLog(UInt64 last_index_kept);
+    /// Return true if some logs are removed
+    bool truncateLog(UInt64 last_index_kept);
 
     int reset(UInt64 next_log_index);
 
     /// get closed segments
-    Segments & getClosedSegments() { return segments; }
+    Segments & getClosedSegments() { return closed_segments; }
 
     /// get file format version
     LogVersion getVersion(UInt64 index);
 
 private:
     /// open a new segment, invoked when init
-    int openSegment();
+    void openNewSegmentIfNeeded();
     /// list segments, invoked when init
-    int listSegments();
+    void loadSegmentMetaData();
     /// load listed segments, invoked when init
-    int loadSegments();
+    void loadSegments();
 
-    /// find segment by log index
-    int getSegment(UInt64 log_index, ptr<NuRaftLogSegment> & ptr);
+    /// find segment by log index, return null if not found
+    ptr<NuRaftLogSegment> getSegment(UInt64 log_index);
 
     /// file log store directory
     String log_dir;
@@ -328,7 +276,7 @@ private:
     Poco::Logger * log;
 
     /// closed segments
-    Segments segments;
+    Segments closed_segments;
 
     /// open segments
     ptr<NuRaftLogSegment> open_segment;
