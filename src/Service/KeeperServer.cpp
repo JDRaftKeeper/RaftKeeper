@@ -122,8 +122,8 @@ void KeeperServer::shutdown()
         LOG_WARNING(log, "Failed to shutdown NuRaft core in {}ms", settings->raft_settings->shutdown_timeout);
 
     LOG_INFO(log, "Flush Log store.");
-    if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
-        LOG_WARNING(log, "Log store flush error while server shutdown.");
+    if (state_manager->load_log_store())
+        state_manager->load_log_store()->flush();
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
     state_machine->shutdown();

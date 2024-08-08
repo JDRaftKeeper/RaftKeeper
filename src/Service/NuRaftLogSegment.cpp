@@ -1,6 +1,5 @@
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -27,13 +26,17 @@ namespace ErrorCodes
     extern const int LOGICAL_ERROR;
     extern const int CANNOT_READ_FROM_FILE_DESCRIPTOR;
     extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
+    extern const int CANNOT_CLOSE_FILE;
+    extern const int CANNOT_OPEN_FILE;
+    extern const int FILE_DOESNT_EXIST;
+    extern const int CORRUPTED_LOG;
 }
 
 using namespace nuraft;
 
-int ftruncateUninterrupted(int fd, off_t length)
+[[maybe_unused]] int ftruncateUninterrupted(int fd, off_t length)
 {
-    int rc = 0;
+    int rc;
     do
     {
         rc = ftruncate(fd, length);
@@ -41,16 +44,60 @@ int ftruncateUninterrupted(int fd, off_t length)
     return rc;
 }
 
-bool compareSegment(ptr<NuRaftLogSegment> & seg1, ptr<NuRaftLogSegment> & seg2)
+bool compareSegment(ptr<NuRaftLogSegment> & lhs, ptr<NuRaftLogSegment> & rhs)
 {
-    return seg1->firstIndex() < seg2->firstIndex();
+    return lhs->firstIndex() < rhs->firstIndex();
+}
+
+NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_)
+    : log_dir(log_dir_)
+    , first_index(first_index_)
+    , last_index(first_index_ - 1)
+    , is_open(true)
+    , log(&(Poco::Logger::get("NuRaftLogSegment")))
+    , version(CURRENT_LOG_VERSION)
+{
+    LOG_INFO(log, "create new log segment, first index {}", first_index);
+
+    Poco::DateTime now;
+    create_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
+
+    std::lock_guard write_lock(log_mutex);
+
+    file_name = getOpenFileName();
+    String full_path = getOpenPath();
+
+    if (Poco::File(full_path).exists())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Try to create a log segment but file {} already exists.", full_path);
+
+    seg_fd = ::open(full_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
+    if (seg_fd == -1)
+        throwFromErrno(ErrorCodes::CANNOT_OPEN_FILE, "Fail to create new log segment {}", full_path);
+}
+
+NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, UInt64 last_index_, const String & file_name_, const String & create_time_)
+    : log_dir(log_dir_)
+    , first_index(first_index_)
+    , last_index(last_index_)
+    , file_name(file_name_)
+    , create_time(create_time_)
+    , log(&(Poco::Logger::get("NuRaftLogSegment")))
+{
+}
+
+NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, const String & file_name_, const String & create_time_)
+    : log_dir(log_dir_)
+    , first_index(first_index_)
+    , last_index(first_index_ - 1)
+    , file_name(file_name_)
+    , create_time(create_time_)
+    , log(&(Poco::Logger::get("NuRaftLogSegment")))
+{
 }
 
 String NuRaftLogSegment::getOpenFileName()
 {
-    char buf[1024];
-    snprintf(buf, 1024, LOG_OPEN_FILE_NAME, first_index, create_time.c_str());
-    return String(buf);
+    return fmt::format("log_{}_open_{}", first_index, create_time);
 }
 
 String NuRaftLogSegment::getOpenPath()
@@ -60,29 +107,21 @@ String NuRaftLogSegment::getOpenPath()
     return path;
 }
 
-String NuRaftLogSegment::getFinishFileName()
+String NuRaftLogSegment::getClosedFileName()
 {
-    char buf[1024];
-    snprintf(buf, 1024, LOG_FINISH_FILE_NAME, first_index, last_index.load(std::memory_order_relaxed), create_time.c_str());
-    return String(buf);
+    return fmt::format("log_{}_{}_{}", first_index, last_index.load(std::memory_order_relaxed), create_time);
 }
 
-String NuRaftLogSegment::getFinishPath()
+String NuRaftLogSegment::getClosedPath()
 {
     String path(log_dir);
-    path += "/" + getFinishFileName();
+    path += "/" + getClosedFileName();
     return path;
 }
 
 String NuRaftLogSegment::getFileName()
 {
-    if (!file_name.empty())
-        return file_name;
-
-    if (is_open)
-        return getOpenFileName();
-    else
-        return getFinishFileName();
+    return file_name;
 }
 
 String NuRaftLogSegment::getPath()
@@ -90,72 +129,40 @@ String NuRaftLogSegment::getPath()
     return log_dir + "/" + getFileName();
 }
 
-int NuRaftLogSegment::openFile()
+void NuRaftLogSegment::openFileIfNeeded()
 {
-    if (seg_fd > 0)
-    {
-        return 0;
-    }
+    if (seg_fd != -1)
+        return;
+
+    LOG_INFO(log, "Opening log segment file {}", file_name);
+
     String full_path = getPath();
     if (!Poco::File(full_path).exists())
-    {
-        LOG_ERROR(log, "File path {} is not exists.", full_path);
-        return -1;
-    }
-    errno = 0;
+        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Log segment file {} does not exist.", file_name);
+
     seg_fd = ::open(full_path.c_str(), O_RDWR);
-    if (seg_fd < 0)
-    {
-        LOG_ERROR(log, "Fail to open {}, error:{}", full_path, strerror(errno));
-        return -1;
-    }
-    LOG_INFO(log, "Open segment for read/write, path {}", full_path);
-    return 0;
+    if (seg_fd == -1)
+        throwFromErrno(ErrorCodes::CANNOT_OPEN_FILE, "Fail to open log segment file {}", file_name);
 }
 
-int NuRaftLogSegment::closeFile()
+void NuRaftLogSegment::closeFileIfNeeded()
 {
-    if (seg_fd >= 0)
+    LOG_INFO(log, "Closing log segment file {}", file_name);
+    if (seg_fd != -1)
     {
-        ::close(seg_fd);
+        if (::close(seg_fd) != 0)
+            throwFromErrno(ErrorCodes::CANNOT_CLOSE_FILE, "Error when closing a log segment file");
         seg_fd = -1;
     }
-    return 0;
 }
 
-int NuRaftLogSegment::create()
+void NuRaftLogSegment::writeHeader()
 {
     if (!is_open)
-    {
-        LOG_WARNING(log, "Create on a closed segment at first_index={} in {}", first_index, log_dir);
-        return -1;
-    }
-    std::lock_guard write_lock(log_mutex);
-    file_name = getOpenFileName();
-    String full_path = getOpenPath();
-    if (Poco::File(full_path).exists())
-    {
-        LOG_ERROR(log, "File {} is exists.", full_path);
-        return -1;
-    }
-    errno = 0;
-    seg_fd = ::open(full_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, 0644);
-    if (seg_fd < 0)
-    {
-        LOG_WARNING(log, "Created new segment {} failed, fd {}, error:{}", full_path, seg_fd, strerror(errno));
-        return -1;
-    }
-    LOG_INFO(log, "Created new segment {}, seg_fd {}, first index {}", full_path, seg_fd, first_index);
-    return 0;
-}
-
-void NuRaftLogSegment::writeFileHeader()
-{
-    if (!is_open)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Log segment not open yet");
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Log segment {} not open yet", file_name);
 
     if (seg_fd < 0)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "File not open yet");
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "File {} not open yet", file_name);
 
     union
     {
@@ -167,148 +174,105 @@ void NuRaftLogSegment::writeFileHeader()
     auto version_uint8 = static_cast<uint8_t>(version);
 
     if (write(seg_fd, &magic_num, 8) != 8)
-        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write magic to file descriptor");
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write magic to {}", file_name);
 
     if (write(seg_fd, &version_uint8, 1) != 1)
-        throw Exception(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to file descriptor");
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to {}", file_name);
 
     file_size.fetch_add(sizeof(uint64_t) + sizeof(uint8_t), std::memory_order_release);
 }
 
-int NuRaftLogSegment::load()
+void NuRaftLogSegment::load()
 {
-    int ret = 0;
-
-    if (openFile() != 0)
-        return -1;
+    openFileIfNeeded();
 
     /// get file size
     struct stat st_buf;
-    errno = 0;
-
     if (fstat(seg_fd, &st_buf) != 0)
-    {
-        LOG_ERROR(log, "Fail to get the stat, error:{}", strerror(errno));
-        ::close(seg_fd);
-        seg_fd = -1;
-        return -1;
-    }
+        throwFromErrno(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Fail to get the stat of log segment file {}", file_name);
 
-    /// load entry index
-    file_size = st_buf.st_size;
+    size_t file_size_read = st_buf.st_size;
 
-    size_t entry_off = loadVersion();
-    UInt64 actual_last_index = first_index - 1;
+    /// load header
+    readHeader();
+    size_t entry_off = version == LogVersion::V0 ? 0 : MAGIC_AND_VERSION_SIZE;
 
-    for (; entry_off < file_size;)
+    /// load log entry
+    UInt64 last_index_read = first_index - 1;
+    for (; entry_off < file_size_read;)
     {
         LogEntryHeader header;
-        const int rc = loadLogEntryHeader(seg_fd, entry_off, &header);
-        if (rc != 0)
-        {
-            ret = rc;
-            break;
-        }
+        loadLogEntryHeader(seg_fd, entry_off, header);
 
-        /// rc == 0
-        const UInt64 skip_len = sizeof(LogEntryHeader) + header.data_length;
+        const UInt64 log_entry_len = sizeof(LogEntryHeader) + header.data_length;
 
-        if (entry_off + skip_len > file_size)
-        {
-            /// The last log was not completely written and it should be
-            /// truncated
-            ret = -1;
-            break;
-        }
+        if (entry_off + log_entry_len > file_size_read)
+            throw Exception(ErrorCodes::CORRUPTED_LOG, "Corrupted log segment file {}.", file_name);
 
         offset_term.push_back(std::make_pair(entry_off, header.term));
-        ++actual_last_index;
-        entry_off += skip_len;
+        ++last_index_read;
+        entry_off += log_entry_len;
 
-        if (actual_last_index << 44 == 0)
+        if (last_index_read << 20 == 0)
         {
             LOG_DEBUG(
                 log,
-                "Load log segment, entry_off {}, skip_len {}, file_size {}, actual_last_index {}",
+                "Load log segment {}, entry_off {}, log_entry_len {}, file_size {}, log_index {}",
+                file_name,
                 entry_off,
-                skip_len,
-                file_size,
-                actual_last_index);
+                log_entry_len,
+                file_size_read,
+                last_index_read);
         }
     }
 
     const UInt64 curr_last_index = last_index.load(std::memory_order_relaxed);
 
-    if (ret == 0 && !is_open)
+    if (!is_open)
     {
-        if (actual_last_index < curr_last_index)
-        {
-            LOG_ERROR(
-                log,
-                "Data lost in a full segment, directory {}, first index {}, expect last index {}, actual last index {}",
-                log_dir,
-                first_index,
-                curr_last_index,
-                actual_last_index);
-            ret = -1;
-        }
-        else if (actual_last_index > curr_last_index)
-        {
-            LOG_ERROR(
-                log,
-                "Found garbage in a full segment, directory {}, first index {}, expect last index {}, actual last index {} ",
-                log_dir,
-                first_index,
-                last_index,
-                actual_last_index);
-            ret = -1;
-        }
+        if (last_index_read != curr_last_index)
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "Corrupted log segment {}, last_index_read {}, last_index {}",
+                file_name,
+                last_index_read,
+                curr_last_index);
+    }
+    else
+    {
+        LOG_INFO(log, "Read last log index {} for an open segment {}.", last_index_read, file_name);
+        last_index = last_index_read;
     }
 
-    if (ret != 0)
-        return ret;
-
-    if (is_open)
+    if (entry_off != file_size_read)
     {
-        LOG_INFO(log, "Open segment last_index {}.", actual_last_index);
-        last_index = actual_last_index;
-    }
-
-    /// truncate last uncompleted entry
-    if (entry_off != file_size)
-    {
-        LOG_INFO(
-            log,
-            "Truncate last uncompleted write entry, directory {}, first_index {}, old size {}, new size {} ",
-            log_dir,
-            first_index,
-            file_size,
-            entry_off);
-        ret = ftruncateUninterrupted(seg_fd, entry_off);
+        throw Exception(
+            ErrorCodes::CORRUPTED_LOG,
+            "{} is corrupted, entry_off {} != file_size {}, maybe the last log entry is incomplete.",
+            file_name,
+            entry_off,
+            file_size_read);
+        /// ftruncateUninterrupted(seg_fd, entry_off);
     }
 
     file_size = entry_off;
 
+    /// seek to end of file if it is open
     if (is_open)
         ::lseek(seg_fd, entry_off, SEEK_SET);
-
-    return ret;
 }
 
-size_t NuRaftLogSegment::loadVersion()
+void NuRaftLogSegment::readHeader()
 {
     if (seg_fd < 0)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "File not open yet");
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "File {} not open yet", file_name);
 
-    /// magic + version. 9 bytes
-    ptr<buffer> buf = buffer::alloc(9);
-
+    ptr<buffer> buf = buffer::alloc(MAGIC_AND_VERSION_SIZE);
     buf->pos(0);
-    errno = 0;
 
-    ssize_t ret = pread(seg_fd, buf->data(), 9, 0);
-    if (ret != 9)
-        throw Exception(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Cannot read from file descriptor");
+    ssize_t size_read = pread(seg_fd, buf->data(), MAGIC_AND_VERSION_SIZE, 0);
+    if (size_read != MAGIC_AND_VERSION_SIZE)
+        throw Exception(ErrorCodes::CORRUPTED_LOG, "Corrupted log segment file {}.", file_name);
 
     buffer_serializer bs(buf);
     bs.pos(0);
@@ -323,135 +287,101 @@ size_t NuRaftLogSegment::loadVersion()
     if (magic == magic_num)
     {
         version = static_cast<LogVersion>(bs.get_u8());
-        LOG_INFO(log, "Magic num is {}, version {}", magic_num, version);
-        return 9;
     }
     else
     {
-        LOG_INFO(log, "Not have magic num, set version V0");
+        LOG_INFO(log, "{} does not have magic num, its version is V0", file_name);
         version = LogVersion::V0;
-        return 0;
     }
 }
 
-int NuRaftLogSegment::close(bool is_full)
+void NuRaftLogSegment::close(bool is_full)
 {
     std::lock_guard write_lock(log_mutex);
 
+    closeFileIfNeeded();
+
     if (!is_open)
-        return 0;
-
-    int ret = closeFile();
-
-    if (ret)
-        return ret;
+        return;
 
     if (is_full)
     {
         String old_path = getOpenPath();
-        String new_path = getFinishPath();
+        String new_path = getClosedPath();
 
-        LOG_INFO(
-            log,
-            "Close a full segment. Current first index {}, last index {}, renamed {} to {}.",
-            first_index,
-            last_index,
-            old_path,
-            new_path);
+        LOG_INFO(log, "Closing a full segment {} and rename it to {}.", getOpenFileName(), getClosedFileName());
 
-        is_open = false;
         Poco::File(old_path).renameTo(new_path);
-        file_name = getFinishFileName();
-        return 0;
+        file_name = getClosedFileName();
     }
-    return 0;
+
+    is_open = false;
 }
 
 UInt64 NuRaftLogSegment::flush() const
 {
-    if (seg_fd >= 0)
-    {
-        std::lock_guard write_lock(log_mutex);
+    std::lock_guard write_lock(log_mutex);
 
-        int ret;
+    int ret;
 #if defined(OS_DARWIN)
-        ret = ::fsync(seg_fd);
+    ret = ::fsync(seg_fd);
 #else
-        ret = ::fdatasync(seg_fd);
+    ret = ::fdatasync(seg_fd);
 #endif
-        if (ret == -1)
-            LOG_ERROR(log, "log fsync error error no {}", errno);
-        else if (ret == 0)
-            return last_index; /// return last_index
-    }
-    return 0;
+    if (ret == -1)
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to flush log segment {}", file_name);
+
+    return last_index;
 }
 
-int NuRaftLogSegment::remove()
+void NuRaftLogSegment::remove()
 {
     std::lock_guard write_lock(log_mutex);
-    closeFile();
+    closeFileIfNeeded();
     String full_path = getPath();
-    Poco::File file_obj(full_path);
-    if (file_obj.exists())
-    {
-        LOG_INFO(log, "Remove log segment {}", full_path);
-        file_obj.remove();
-    }
-    return 0;
+    Poco::File f(full_path);
+    if (f.exists())
+        f.remove();
 }
 
 UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index)
 {
     LogEntryHeader header;
-    ptr<buffer> entry_buf;
-
-    char * entry_str;
-    size_t buf_size = 0;
-
     struct iovec vec[2];
+
     {
-        if (!entry || !is_open)
-            return -1;
+        if (!is_open || seg_fd  == -1)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Append log but segment {} is not open.", file_name);
+
+        ptr<buffer> entry_buf;
+        char * data_in_buf;
 
         entry_buf = LogEntryBody::serialize(entry);
-        buf_size = entry_buf->size();
-        entry_str = reinterpret_cast<char *>(entry_buf->data_begin());
+        data_in_buf = reinterpret_cast<char *>(entry_buf->data_begin());
 
-        if (entry_str == nullptr || buf_size == 0)
-        {
-            LOG_ERROR(log, "Can't get entry string buffer, size is {}.", buf_size);
-            return -1;
-        }
+        size_t data_size = entry_buf->size();
 
-        if (seg_fd < 0)
-        {
-            LOG_ERROR(log, "seg fs is null.");
-            return -1;
-        }
+        if (data_in_buf == nullptr || data_size == 0)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Append log but it is empty");
+
 
         header.term = entry->get_term();
-        header.data_length = buf_size;
-        header.data_crc = RK::getCRC32(entry_str, header.data_length);
+        header.data_length = data_size;
+        header.data_crc = RK::getCRC32(data_in_buf, header.data_length);
 
         vec[0].iov_base = &header;
         vec[0].iov_len = LogEntryHeader::HEADER_SIZE;
-        vec[1].iov_base = reinterpret_cast<void *>(entry_str);
+        vec[1].iov_base = reinterpret_cast<void *>(data_in_buf);
         vec[1].iov_len = header.data_length;
     }
-
-    errno = 0;
 
     {
         std::lock_guard write_lock(log_mutex);
         header.index = last_index.load(std::memory_order_acquire) + 1;
-        ssize_t ret = writev(seg_fd, vec, 2);
+        ssize_t size_written = writev(seg_fd, vec, 2);
 
-        if (ret < 0 || ret != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
-        {
-            LOG_WARNING(log, "Write {}, real size {}, error:{}", ret, vec[0].iov_len + vec[1].iov_len, strerror(errno));
-            return -1;
-        }
+        if (size_written != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
+            throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to append log entry to {}", file_name);
 
         offset_term.push_back(std::make_pair(file_size.load(std::memory_order_relaxed), entry->get_term()));
         file_size.fetch_add(LogEntryHeader::HEADER_SIZE + header.data_length, std::memory_order_release);
@@ -462,7 +392,7 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
 
     LOG_TRACE(
         log,
-        "Append term {}, index {}, length {}, crc {}, file {}, entry type {}.",
+        "Append log term {}, index {}, length {}, crc {}, file {}, entry type {}.",
         header.term,
         header.index,
         header.data_length,
@@ -473,19 +403,11 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
     return header.index;
 }
 
-[[maybe_unused]] int NuRaftLogSegment::writeAt(UInt64 index, const ptr<log_entry> entry)
-{
-    LOG_TRACE(log, "Write at term {}, index {}", entry->get_term(), index);
-    return 0;
-}
 
-int NuRaftLogSegment::getMeta(UInt64 index, LogMeta * meta) const
+void NuRaftLogSegment::getMeta(UInt64 index, LogMeta & meta) const
 {
     if (last_index == first_index - 1 || index > last_index.load(std::memory_order_relaxed) || index < first_index)
-    {
-        LOG_WARNING(log, "current_index={}, last_index={}, first_index={}", index, last_index.load(std::memory_order_relaxed), first_index);
-        return -1;
-    }
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Get meta for log {} failed, index out of range [{},{}].", index, first_index, last_index.load(std::memory_order_relaxed));
 
     UInt64 meta_index = index - first_index;
     UInt64 entry_offset = offset_term[meta_index].first;
@@ -497,213 +419,150 @@ int NuRaftLogSegment::getMeta(UInt64 index, LogMeta * meta) const
     else
         next_offset = file_size;
 
-    meta->offset = entry_offset;
-    meta->term = offset_term[meta_index].second;
-    meta->length = next_offset - entry_offset;
-
-    LOG_TRACE(log, "Get meta offset {}, term {}, length {}.", meta->offset, meta->term, meta->length);
-    return 0;
+    meta.offset = entry_offset;
+    meta.term = offset_term[meta_index].second;
+    meta.length = next_offset - entry_offset;
 }
 
-int NuRaftLogSegment::loadLogEntryHeader(int fd, off_t offset, LogEntryHeader * header) const
+void NuRaftLogSegment::loadLogEntryHeader(int fd, off_t offset, LogEntryHeader & header) const
 {
-    if (header == nullptr)
-        return -1;
-
     ptr<buffer> buf = buffer::alloc(LogEntryHeader::HEADER_SIZE);
     buf->pos(0);
 
-    errno = 0;
-    ssize_t ret = pread(fd, buf->data(), LogEntryHeader::HEADER_SIZE, offset);
+    ssize_t size = pread(fd, buf->data(), LogEntryHeader::HEADER_SIZE, offset);
 
-    if (ret != LogEntryHeader::HEADER_SIZE)
-    {
-        LOG_ERROR(
-            log,
-            "Read log entry header failed, offset {}, header size {}, ret:{}, error:{}.",
-            offset,
-            LogEntryHeader::HEADER_SIZE,
-            ret,
-            strerror(errno));
-        return -1;
-    }
+    if (size != LogEntryHeader::HEADER_SIZE)
+        throwFromErrno(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Fail to read header of log segment {}", file_name);
 
     buffer_serializer bs(buf);
     bs.pos(0);
 
-    header->term = bs.get_u64();
-    header->index = bs.get_u64();
+    header.term = bs.get_u64();
+    header.index = bs.get_u64();
 
-    header->data_length = bs.get_u32();
-    header->data_crc = bs.get_u32();
-
-    return 0;
+    header.data_length = bs.get_u32();
+    header.data_crc = bs.get_u32();
 }
 
-int NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader * head, ptr<log_entry> & entry) const
+void NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader & header, ptr<log_entry> & entry) const
 {
-    if (loadLogEntryHeader(fd, offset, head) != 0)
-        return -1;
+    loadLogEntryHeader(fd, offset, header);
 
-    char * entry_str = new char[head->data_length];
+    char * entry_str = new char[header.data_length];
+    ssize_t ret = pread(fd, entry_str, header.data_length, offset + LogEntryHeader::HEADER_SIZE);
 
-    errno = 0;
-    ssize_t ret = pread(fd, entry_str, head->data_length, offset + LogEntryHeader::HEADER_SIZE);
+    if (ret != header.data_length)
+        throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", offset, file_name);
 
-    if (ret < 0 || ret != head->data_length)
-    {
-        LOG_ERROR(log, "Can't read app data from log segment, ret:{}, error:{}.", ret, strerror(errno));
-        delete[] entry_str;
-        return -1;
-    }
+    if (!verifyCRC32(entry_str, header.data_length, header.data_crc))
+        throw Exception(ErrorCodes::CORRUPTED_LOG, "Checking CRC32 failed for log segment {}.", file_name);
 
-    if (!verifyCRC32(entry_str, head->data_length, head->data_crc))
-    {
-        LOG_ERROR(
-            log,
-            "Found corrupted data at offset {}, term {}, index {}, length {}, crc {}, file {}",
-            offset,
-            head->term,
-            head->index,
-            head->data_length,
-            head->data_crc,
-            file_name);
-        delete[] entry_str;
-        return -1;
-    }
-
-    entry = LogEntryBody::parse(entry_str, head->data_length);
-    entry->set_term(head->term);
+    entry = LogEntryBody::parse(entry_str, header.data_length);
+    entry->set_term(header.term);
 
     delete[] entry_str;
-    return 0;
 }
 
 ptr<log_entry> NuRaftLogSegment::getEntry(UInt64 index)
 {
     {
         std::lock_guard write_lock(log_mutex);
-        if (openFile() != 0)
-            return nullptr;
+        openFileIfNeeded();
     }
 
     std::shared_lock read_lock(log_mutex);
     LogMeta meta;
+    getMeta(index, meta);
 
-    if (getMeta(index, &meta) != 0)
-        return nullptr;
-
-    bool ok = true;
     ptr<log_entry> entry;
-
-    do
-    {
-        LogEntryHeader header;
-        size_t offset = meta.offset;
-
-        if (loadLogEntry(seg_fd, offset, &header, entry) != 0)
-        {
-            LOG_WARNING(log, "Get entry failed, path {}, index {}, offset {}.", getPath(), index, offset);
-            ok = false;
-            break;
-        }
-    } while (false);
-
-    if (!ok && entry != nullptr)
-        entry = nullptr;
+    LogEntryHeader header;
+    loadLogEntry(seg_fd, meta.offset, header, entry);
 
     return entry;
 }
 
-
-UInt64 NuRaftLogSegment::getTerm(UInt64 index) const
+[[maybe_unused]] UInt64 NuRaftLogSegment::getTerm(UInt64 index) const
 {
     LogMeta meta;
-    if (getMeta(index, &meta) != 0)
-    {
-        return 0;
-    }
+    getMeta(index, meta);
     return meta.term;
 }
 
-int NuRaftLogSegment::truncate(const UInt64 last_index_kept)
+bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
 {
-    UInt64 truncate_size = 0;
-    UInt64 first_truncate_in_offset = 0;
+    UInt64 file_size_to_keep = 0;
+    UInt64 first_log_offset_to_truncate = 0;
+
+    /// Truncate on a full segment need to rename back to open segment again,
+    /// because the node may crash before truncate.
+    auto reopen_closed_segment = [this]()
+    {
+        if (!is_open)
+        {
+            LOG_INFO(
+                log,
+                "Truncate a closed segment, should re-open it. Current first index {}, last index {}, rename file from {} to {}.",
+                first_index,
+                last_index,
+                getClosedFileName(),
+                getOpenFileName());
+
+            closeFileIfNeeded();
+
+            String old_path = getClosedPath();
+            String new_path = getOpenPath();
+
+            Poco::File(old_path).renameTo(new_path);
+            file_name = getOpenFileName();
+
+            openFileIfNeeded();
+
+            is_open = true;
+        }
+    };
 
     {
         std::lock_guard write_lock(log_mutex);
         if (last_index <= last_index_kept)
         {
-            LOG_INFO(log, "truncate nothing, last_index {}, last_index_kept {}", last_index, last_index_kept);
-            return 0;
+            LOG_INFO(log, "Log segment {} truncates nothing, last_index {}, last_index_kept {}", file_name, last_index, last_index_kept);
+            reopen_closed_segment();
+            return false;
         }
 
-        first_truncate_in_offset = last_index_kept + 1 - first_index;
-        truncate_size = offset_term[first_truncate_in_offset].first;
+        first_log_offset_to_truncate = last_index_kept + 1 - first_index;
+        file_size_to_keep = offset_term[first_log_offset_to_truncate].first;
 
         LOG_INFO(
             log,
             "Truncating {}, offset {}, first_index {}, last_index from {} to {}, truncate_size to {} ",
-            getFileName(),
-            first_truncate_in_offset,
+            file_name,
+            first_log_offset_to_truncate,
             first_index,
             last_index,
             last_index_kept,
-            truncate_size);
+            file_size_to_keep);
     }
 
-    /// Truncate on a full segment need to rename back to open segment again,
-    /// because the node may crash before truncate.
-    if (!is_open)
-    {
-        String old_path = getFinishPath();
-        String new_path = getOpenPath();
+    reopen_closed_segment();
 
-        LOG_INFO(
-            log,
-            "Truncate segment closed and reopen. Current first index {}, last index {}, renamed {} to {}.",
-            first_index,
-            last_index,
-            old_path,
-            new_path);
+    if (ftruncate(seg_fd, file_size_to_keep) != 0)
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to truncate log segment {}", file_name);
 
-        Poco::File(old_path).renameTo(new_path);
-        file_name = getOpenFileName();
-
-        is_open = true;
-    }
-
-    openFile();
-
-    errno = 0;
-    int ret = ftruncate(seg_fd, truncate_size);
-
-    if (ret != 0)
-    {
-        LOG_INFO(log, "Truncate failed errno {}, msg {}", errno, strerror(errno));
-        return ret;
-    }
-
-    LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", getOpenPath(), seg_fd, file_size, truncate_size);
+    LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", getOpenPath(), seg_fd, file_size, file_size_to_keep);
 
     /// seek fd
-    off_t ret_off = lseek(seg_fd, truncate_size, SEEK_SET);
+    off_t ret_off = lseek(seg_fd, file_size_to_keep, SEEK_SET);
 
     if (ret_off < 0)
-    {
-        LOG_ERROR(log, "Fail to lseek fd {} to size {}, path {}.", seg_fd, truncate_size, getOpenPath());
-        ret = ret_off;
-    }
-    else
-    {
-        std::lock_guard write_lock(log_mutex);
-        offset_term.resize(first_truncate_in_offset);
-        last_index.store(last_index_kept, std::memory_order_release);
-        file_size = truncate_size;
-    }
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to seek to {} for log segment {}", file_size_to_keep, file_name);
 
-    return ret;
+    std::lock_guard write_lock(log_mutex);
+    offset_term.resize(first_log_offset_to_truncate);
+    last_index.store(last_index_kept, std::memory_order_release);
+    file_size = file_size_to_keep;
+
+    return true;
 }
 
 ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool force_new)
@@ -714,11 +573,11 @@ ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool 
     return segment_store;
 }
 
-int LogSegmentStore::init(UInt32 max_segment_file_size_, UInt32 max_segment_count_)
+void LogSegmentStore::init(UInt32 max_segment_file_size_, UInt32 max_segment_count_)
 {
     LOG_INFO(
         log,
-        "Begin init log segment store, max segment file size {} bytes, max segment count {}.",
+        "Initializing log segment store, max segment file size {} bytes, max segment count {}.",
         max_segment_file_size_,
         max_segment_count_);
 
@@ -727,154 +586,103 @@ int LogSegmentStore::init(UInt32 max_segment_file_size_, UInt32 max_segment_coun
 
     Poco::File(log_dir).createDirectories();
 
-    int ret = 0;
-
     first_log_index.store(1);
     last_log_index.store(0);
 
     open_segment = nullptr;
 
-    do
-    {
-        ret = listSegments();
-        if (ret != 0)
-        {
-            LOG_WARNING(log, "List segments failed, error code {}.", ret);
-            break;
-        }
-        ret = loadSegments();
-        if (ret != 0)
-        {
-            LOG_WARNING(log, "Load segments failed, error code {}.", ret);
-            break;
-        }
-        ret = openSegment();
-        if (ret != 0)
-        {
-            LOG_WARNING(log, "Open segment failed, error code {}", ret);
-            break;
-        }
-    } while (false);
-
-    return ret;
+    loadSegmentMetaData();
+    loadSegments();
+    openNewSegmentIfNeeded();
 }
 
-int LogSegmentStore::close()
+void LogSegmentStore::close()
 {
+    std::lock_guard write_lock(seg_mutex);
+
     if (open_segment)
     {
-        std::lock_guard write_lock(seg_mutex);
         open_segment->close(false);
         open_segment = nullptr;
     }
-    return 0;
+
+    /// When we getEntry from closed segments, we may open it.
+    for (auto & segment : closed_segments)
+        segment->close(false);
 }
 
 UInt64 LogSegmentStore::flush()
 {
+    std::lock_guard shared_lock(seg_mutex);
     if (open_segment)
-    {
-        std::lock_guard write_lock(seg_mutex);
         return open_segment->flush();
-    }
-    return 0;
+    throw Exception(ErrorCodes::LOGICAL_ERROR, "Flush log segment store failed, open segment is nullptr.");
 }
 
-int LogSegmentStore::openSegment()
+void LogSegmentStore::openNewSegmentIfNeeded()
 {
     {
         std::shared_lock read_lock(seg_mutex);
         if (open_segment && open_segment->getFileSize() <= max_segment_file_size && open_segment->getVersion() >= CURRENT_LOG_VERSION)
-            return 0;
+            return;
     }
 
     std::lock_guard write_lock(seg_mutex);
     if (open_segment)
     {
         open_segment->close(true);
-        segments.push_back(open_segment);
+        closed_segments.push_back(open_segment);
         open_segment = nullptr;
     }
 
     UInt64 next_idx = last_log_index.load(std::memory_order_acquire) + 1;
-    ptr<NuRaftLogSegment> seg = cs_new<NuRaftLogSegment>(log_dir, next_idx);
+    ptr<NuRaftLogSegment> new_seg = cs_new<NuRaftLogSegment>(log_dir, next_idx);
 
-    open_segment = seg;
-    if (open_segment->create() != 0)
-    {
-        LOG_ERROR(log, "Create open segment directory {} index {} failed.", log_dir, next_idx);
-        open_segment = nullptr;
-        return -1;
-    }
-
-    try
-    {
-        open_segment->writeFileHeader();
-    }
-    catch (...)
-    {
-        open_segment = nullptr;
-        return -1;
-    }
-
-    return 0;
+    open_segment = new_seg;
+    open_segment->writeHeader();
 }
 
-int LogSegmentStore::getSegment(UInt64 index, ptr<NuRaftLogSegment> & seg)
+ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index)
 {
-    seg = nullptr;
     UInt64 first_index = first_log_index.load(std::memory_order_acquire);
     UInt64 last_index = last_log_index.load(std::memory_order_acquire);
 
-    if (first_index == last_index + 1) // TODO Right?
-    {
-        LOG_WARNING(log, "Log segment store no data, entry index {}.", index);
-        return -1;
-    }
+    /// No log
+    if (first_index < last_index)
+        return nullptr;
 
     if (index < first_index || index > last_index)
     {
-        LOG_WARNING(log, "Attempted to access entry {} outside of log, index range [{}, {}].", index, first_index, last_index);
-        return -1;
+        LOG_WARNING(log, "Attempted to access log {} who is outside of range [{}, {}].", index, first_index, last_index);
+        return nullptr;
     }
 
+    ptr<NuRaftLogSegment> seg;
     if (open_segment && index >= open_segment->firstIndex())
     {
         seg = open_segment;
     }
     else
     {
-        for (auto & segment : segments)
+        for (auto & segment : closed_segments)
         {
-            ptr<NuRaftLogSegment> seg_it = segment;
-            if (index >= seg_it->firstIndex() && index <= seg_it->lastIndex())
-            {
-                LOG_TRACE(log, "segment index range [{}, {}].", seg_it->firstIndex(), seg_it->lastIndex());
-                seg = seg_it;
-            }
+            if (index >= segment->firstIndex() && index <= segment->lastIndex())
+                seg = segment;
         }
     }
 
-    if (seg != nullptr)
-        return 0;
-    else
-        return -1;
+    return seg;
 }
 
 LogVersion LogSegmentStore::getVersion(UInt64 index)
 {
-    ptr<NuRaftLogSegment> seg;
-    getSegment(index, seg);
+    ptr<NuRaftLogSegment> seg = getSegment(index);
     return seg->getVersion();
 }
 
 UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
 {
-    if (openSegment() != 0)
-    {
-        LOG_INFO(log, "Open segment failed.");
-        return -1;
-    }
+    openNewSegmentIfNeeded();
     std::shared_lock read_lock(seg_mutex);
     return open_segment->appendEntry(entry, last_log_index);
 }
@@ -891,13 +699,10 @@ UInt64 LogSegmentStore::writeAt(UInt64 index, ptr<log_entry> entry)
 
 ptr<log_entry> LogSegmentStore::getEntry(UInt64 index)
 {
-    ptr<NuRaftLogSegment> seg;
     std::shared_lock read_lock(seg_mutex);
-    if (getSegment(index, seg) != 0)
-    {
-        LOG_WARNING(log, "Can't find log segmtnt by index {}.", index);
+    ptr<NuRaftLogSegment> seg = getSegment(index);
+    if (!seg)
         return nullptr;
-    }
     return seg->getEntry(index);
 }
 
@@ -915,78 +720,40 @@ void LogSegmentStore::getEntries(UInt64 start_index, UInt64 end_index, ptr<std::
     }
 }
 
-
-[[maybe_unused]] void LogSegmentStore::getEntriesExt(
-    UInt64 start_index, UInt64 end_index, int64 batch_size_hint_in_bytes, ptr<std::vector<ptr<log_entry>>> & entries)
-{
-    if (entries == nullptr)
-    {
-        LOG_ERROR(log, "Entry vector is nullptr.");
-        return;
-    }
-
-    int64 get_size = 0;
-    int64 entry_size = 0;
-
-    for (UInt64 index = start_index; index <= end_index; index++)
-    {
-        auto entry_pt = getEntry(index);
-        entry_size = entry_pt->get_buf().size() + sizeof(ulong) + sizeof(char);
-
-        if (get_size + entry_size > batch_size_hint_in_bytes)
-            break;
-
-        entries->push_back(entry_pt);
-        get_size += entry_size;
-    }
-}
-
-[[maybe_unused]] UInt64 LogSegmentStore::getTerm(UInt64 index)
-{
-    ptr<NuRaftLogSegment> seg;
-    if (getSegment(index, seg) != 0)
-    {
-        return 0;
-    }
-    return seg->getTerm(index);
-}
-
 int LogSegmentStore::removeSegment(UInt64 first_index_kept)
 {
     if (first_log_index.load(std::memory_order_acquire) >= first_index_kept)
     {
         LOG_INFO(
             log,
-            "Nothing is going to happen since first_log_index {} >= first_index_kept {}",
+            "Remove 0 log segments, since first_log_index {} >= first_index_kept {}",
             first_log_index.load(std::memory_order_relaxed),
             first_index_kept);
         return 0;
     }
 
+    std::vector<ptr<NuRaftLogSegment>> to_be_removed;
     {
         std::lock_guard write_lock(seg_mutex);
-        std::vector<ptr<NuRaftLogSegment>> to_be_removed;
 
+        first_log_index.store(first_index_kept, std::memory_order_release);
+        for (auto it = closed_segments.begin(); it != closed_segments.end();)
         {
-            first_log_index.store(first_index_kept, std::memory_order_release);
-            for (auto it = segments.begin(); it != segments.end();)
+            ptr<NuRaftLogSegment> & segment = *it;
+            if (segment->lastIndex() < first_index_kept)
             {
-                ptr<NuRaftLogSegment> & segment = *it;
-                if (segment->lastIndex() < first_index_kept)
+                to_be_removed.push_back(segment);
+                it = closed_segments.erase(it);
+            }
+            else
+            {
+                if (segment->firstIndex() < first_log_index)
                 {
-                    to_be_removed.push_back(segment);
-                    it = segments.erase(it);
+                    first_log_index.store(segment->firstIndex(), std::memory_order_release);
+                    if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
+                        last_log_index.store(segment->lastIndex(), std::memory_order_release);
                 }
-                else
-                {
-                    if (segment->firstIndex() < first_log_index)
-                    {
-                        first_log_index.store(segment->firstIndex(), std::memory_order_release);
-                        if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
-                            last_log_index.store(segment->lastIndex(), std::memory_order_release);
-                    }
-                    it++;
-                }
+                it++;
             }
         }
 
@@ -1008,54 +775,50 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
                     last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
             }
         }
-
-        for (auto & seg : to_be_removed)
-        {
-            seg->remove();
-            LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, seg->getFileName());
-        }
-
-        /// reset last_log_index
-        if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
-            last_log_index.store(first_log_index - 1, std::memory_order_release);
     }
 
-    return 0;
+    for (auto & seg : to_be_removed)
+    {
+        LOG_INFO(log, "Remove log segment, file {}", seg->getFileName());
+        seg->remove();
+    }
+
+    /// reset last_log_index
+    if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
+        last_log_index.store(first_log_index - 1, std::memory_order_release);
+
+    return to_be_removed.size();
 }
 
 
 int LogSegmentStore::removeSegment()
 {
-    UInt32 remove_count = segments.size() + 1 - max_segment_count;
-    if (remove_count <= 0)
-    {
-        return 0;
-    }
-
     std::lock_guard write_lock(seg_mutex);
-    std::vector<ptr<NuRaftLogSegment>> remove_vec;
+    size_t count = closed_segments.size() + 1 - max_segment_count;
 
+    if (count <= 0)
+        return 0;
+
+    std::vector<ptr<NuRaftLogSegment>> to_removed_segments;
+    std::sort(closed_segments.begin(), closed_segments.end(), compareSegment);
+
+    for (size_t i = 0; i < count; i++)
     {
-        std::sort(segments.begin(), segments.end(), compareSegment);
-        for (UInt32 i = 0; i < remove_count; i++)
-        {
-            ptr<NuRaftLogSegment> & segment = *(segments.begin());
-            remove_vec.push_back(segment);
-            first_log_index.store(segment->lastIndex() + 1, std::memory_order_release);
-            segments.erase(segments.begin());
-        }
+        ptr<NuRaftLogSegment> & segment = *(closed_segments.begin());
+        to_removed_segments.push_back(segment);
+        first_log_index.store(segment->lastIndex() + 1, std::memory_order_release);
+        closed_segments.erase(closed_segments.begin());
     }
 
-    for (auto & i : remove_vec)
+    for (auto & to_removed : to_removed_segments)
     {
-        i->remove();
-        LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, i->getFileName());
-        i = nullptr;
+        LOG_INFO(log, "Removing file for log segment {}", to_removed->getFileName());
+        to_removed->remove();
     }
-    return 0;
+    return count;
 }
 
-int LogSegmentStore::truncateLog(UInt64 last_index_kept)
+bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
 {
     if (last_log_index.load(std::memory_order_acquire) <= last_index_kept)
     {
@@ -1064,92 +827,75 @@ int LogSegmentStore::truncateLog(UInt64 last_index_kept)
             "Nothing is going to happen since last_log_index {} <= last_index_kept {}",
             last_log_index.load(std::memory_order_relaxed),
             last_index_kept);
-        return 0;
+        return false;
     }
 
-    std::vector<ptr<NuRaftLogSegment>> remove_vec;
-    ptr<NuRaftLogSegment> last_segment = nullptr;
+    std::vector<ptr<NuRaftLogSegment>> to_removed_segments;
+    ptr<NuRaftLogSegment> last_segment;
 
+    std::lock_guard write_lock(seg_mutex);
+    /// remove finished segment
+    for (auto it = closed_segments.begin(); it != closed_segments.end();)
     {
-        std::lock_guard write_lock(seg_mutex);
-        /// remove finished segment
-        for (auto it = segments.begin(); it != segments.end();)
+        ptr<NuRaftLogSegment> & segment = *it;
+        if (segment->firstIndex() > last_index_kept)
         {
-            ptr<NuRaftLogSegment> & segment = *it;
-            if (segment->firstIndex() > last_index_kept)
-            {
-                remove_vec.push_back(segment);
-                it = segments.erase(it);
-            }
-
-            /// Get the segment to last_index_kept belongs
-            else if (last_index_kept >= segment->firstIndex() && last_index_kept <= segment->lastIndex())
-            {
-                last_segment = segment;
-                it++;
-            }
-            else
-                it++;
+            to_removed_segments.push_back(segment);
+            it = closed_segments.erase(it);
         }
-
-        /// remove open segment
-        if (open_segment)
+        /// Get the segment to last_index_kept belongs
+        else if (last_index_kept >= segment->firstIndex() && last_index_kept <= segment->lastIndex())
         {
-            if (open_segment->firstIndex() > last_index_kept)
-            {
-                remove_vec.push_back(open_segment);
-                open_segment = nullptr;
-            }
-            else if (last_index_kept >= open_segment->firstIndex() && last_index_kept <= open_segment->lastIndex())
-            {
-                last_segment = open_segment;
-            }
+            last_segment = segment;
+            it++;
+        }
+        else
+            it++;
+    }
+
+    /// remove open segment if needed
+    if (open_segment)
+    {
+        if (open_segment->firstIndex() > last_index_kept)
+        {
+            to_removed_segments.push_back(open_segment);
+            open_segment = nullptr;
+        }
+        else if (last_index_kept >= open_segment->firstIndex() && last_index_kept <= open_segment->lastIndex())
+        {
+            last_segment = open_segment;
         }
     }
 
-    ///remove files
-    for (auto & i : remove_vec)
+    if (!last_segment)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Not found a segment to truncate, last_index_kept {}.", last_index_kept);
+
+    /// remove files
+    for (auto & to_removed : to_removed_segments)
     {
-        i->remove();
-        LOG_INFO(log, "Remove segment, directory {}, file {}", log_dir, i->getFileName());
-        i = nullptr;
+        LOG_INFO(log, "Removing file for segment {}", to_removed->getFileName());
+        to_removed->remove();
+        to_removed = nullptr;
     }
 
-    if (last_segment)
+    bool is_open_before_truncate = last_segment->isOpen();
+    bool removed_something = last_segment->truncate(last_index_kept);
+
+    if (!removed_something && last_segment->lastIndex() != last_index_kept)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate log to last_index_kept {}, but nothing removed from log segment {}.", last_index_kept, last_segment->getFileName());
+
+    if (!is_open_before_truncate && !last_segment->isOpen())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate a closed log segment {}, but the truncated log segment is not open.", last_segment->getFileName());
+
+    if (!is_open_before_truncate)
     {
-        bool closed = !last_segment->isOpen();
-        const int ret = last_segment->truncate(last_index_kept);
-
-        if (ret != 0)
-        {
-            LOG_ERROR(log, "Truncate error {}, last_index_kept {}", last_segment->getFileName(), last_index_kept);
-            return ret;
-        }
-
-        if (closed && last_segment->isOpen())
-        {
-            std::lock_guard write_lock(seg_mutex);
-            if (open_segment)
-            {
-                LOG_WARNING(log, "Open segment is not nullptr.");
-            }
-            open_segment.swap(last_segment);
-
-            if (!segments.empty())
-                segments.erase(segments.end() - 1);
-        }
-        if (ret == 0)
-            last_log_index.store(last_index_kept, std::memory_order_release);
-
-        return ret;
-    }
-    else
-    {
-        LOG_WARNING(log, "Truncate log not found last segment, last_index_kept {}.", last_index_kept);
+        open_segment = last_segment;
+        if (!closed_segments.empty())
+            closed_segments.erase(closed_segments.end() - 1);
     }
 
     last_log_index.store(last_index_kept, std::memory_order_release);
-    return 0;
+    return true;
 }
 
 int LogSegmentStore::reset(UInt64 next_log_index)
@@ -1162,14 +908,15 @@ int LogSegmentStore::reset(UInt64 next_log_index)
 
     std::vector<ptr<NuRaftLogSegment>> popped;
     std::unique_lock write_lock(seg_mutex);
-    popped.reserve(segments.size());
 
-    for (auto & segment : segments)
+    popped.reserve(closed_segments.size());
+
+    for (auto & segment : closed_segments)
     {
         popped.push_back(segment);
     }
 
-    segments.clear();
+    closed_segments.clear();
 
     if (open_segment)
     {
@@ -1188,68 +935,56 @@ int LogSegmentStore::reset(UInt64 next_log_index)
     return 0;
 }
 
-int LogSegmentStore::listSegments()
+void LogSegmentStore::loadSegmentMetaData()
 {
     Poco::File file_dir(log_dir);
     if (!file_dir.exists())
-    {
-        LOG_WARNING(log, "Log directory {} is not exists.", log_dir);
-        return 0;
-    }
+        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Log directory {} does not exist.", log_dir);
 
     std::vector<String> files;
     file_dir.list(files);
 
-    for (const auto& file_name : files)
+    for (const auto & file_name : files)
     {
         if (file_name.find("log_") == String::npos)
             continue;
 
-        LOG_INFO(log, "List log dir {}, file name {}", log_dir, file_name);
+        LOG_INFO(log, "Find log segment file {}", file_name);
 
-        int match = 0;
+        int match;
         UInt64 first_index = 0;
         UInt64 last_index = 0;
-
         char create_time[128];
-        match = sscanf(file_name.c_str(), NuRaftLogSegment::LOG_FINISH_FILE_NAME, &first_index, &last_index, create_time);
 
+        /// Closed log segment
+        match = sscanf(file_name.c_str(), NuRaftLogSegment::LOG_FINISH_FILE_NAME, &first_index, &last_index, create_time);
         if (match == 3)
         {
-            LOG_INFO(log, "Restore closed segment, directory {}, first index {}, last index {}", log_dir, first_index, last_index);
-            ptr<NuRaftLogSegment> segment = cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file_name);
-            segments.push_back(segment);
+            ptr<NuRaftLogSegment> segment = cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file_name, String(create_time));
+            closed_segments.push_back(segment);
             continue;
         }
 
+        /// Open log segment
         match = sscanf(file_name.c_str(), NuRaftLogSegment::LOG_OPEN_FILE_NAME, &first_index, create_time);
-
         if (match == 2)
         {
-            LOG_INFO(log, "Restore open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
-            if (!open_segment)
-            {
-                open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, String(create_time));
-                LOG_INFO(log, "Create open segment, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
-                continue;
-            }
-            else
-            {
-                LOG_WARNING(log, "Open segment conflict, directory {}, first index {}, file name {}", log_dir, first_index, file_name);
-                return -1;
-            }
+            if (open_segment)
+                throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Find more than one open segment in {}", log_dir);
+            open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, String(create_time));
+            continue;
         }
     }
 
-    std::sort(segments.begin(), segments.end(), compareSegment);
+    std::sort(closed_segments.begin(), closed_segments.end(), compareSegment);
 
     /// 0 close/open segment
     /// 1 open segment
     /// N close segment + 1 open segment
     if (open_segment)
     {
-        if (!segments.empty())
-            first_log_index.store((*segments.begin())->firstIndex(), std::memory_order_release);
+        if (!closed_segments.empty())
+            first_log_index.store((*closed_segments.begin())->firstIndex(), std::memory_order_release);
         else
             first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
 
@@ -1262,7 +997,7 @@ int LogSegmentStore::listSegments()
     ptr<NuRaftLogSegment> prev_seg = nullptr;
     ptr<NuRaftLogSegment> segment;
 
-    for (auto it = segments.begin(); it != segments.end();)
+    for (auto it = closed_segments.begin(); it != closed_segments.end();)
     {
         segment = *it;
         LOG_INFO(
@@ -1274,110 +1009,90 @@ int LogSegmentStore::listSegments()
             segment->lastIndex());
 
         if (segment->firstIndex() > segment->lastIndex())
-        {
-            LOG_WARNING(
-                log,
-                "Closed segment is bad, directory {}, current segment first index {}, last index {}",
-                log_dir,
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "Invalid segment {}, first index {} > last index {}",
+                segment->getFileName(),
                 segment->firstIndex(),
                 segment->lastIndex());
-            return -1;
-        }
 
         if (prev_seg && segment->firstIndex() != prev_seg->lastIndex() + 1)
-        {
-            LOG_WARNING(
-                log,
-                "Closed segment not in order, directory {}, prev segment last index {}, current segment first index {}",
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "Segment {} does not connect correctly, prev segment last index {}, current segment first index {}",
                 log_dir,
                 prev_seg->lastIndex(),
                 segment->firstIndex());
-            return -1;
-        }
+
         ++it;
     }
 
     if (open_segment)
     {
         if (prev_seg && open_segment->firstIndex() != prev_seg->lastIndex() + 1)
-        {
-            LOG_WARNING(
-                log,
-                "Open segment has hole, directory {}, prev segment last index {}, open segment first index {}",
-                log_dir,
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "Open segment does not connect correctly, prev segment last index {}, open segment first index {}",
                 prev_seg->lastIndex(),
                 open_segment->firstIndex());
-        }
     }
-
-    return 0;
 }
 
-int LogSegmentStore::loadSegments()
+void LogSegmentStore::loadSegments()
 {
-    /// closed segments
-    ThreadPool load_thread_pool(LOAD_THREAD_NUM);
+    /// 1. Load closed segments in parallel
 
-    for (UInt32 thread_idx = 0; thread_idx < LOAD_THREAD_NUM; thread_idx++)
+    size_t thread_num = std::min(closed_segments.size(), LOAD_THREAD_NUM);
+    ThreadPool load_thread_pool(thread_num);
+
+    for (size_t thread_id = 0; thread_id < LOAD_THREAD_NUM; thread_id++)
     {
-        load_thread_pool.trySchedule([this, thread_idx] {
-            Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-            int ret = 0;
-            for (size_t seg_idx = 0; seg_idx < this->getClosedSegments().size(); seg_idx++)
+        load_thread_pool.trySchedule([this, thread_id, thread_num]
+        {
+            Poco::Logger * thread_log = &(Poco::Logger::get("LoadClosedLogSegmentThread#" + std::to_string(thread_id)));
+            for (size_t seg_id = 0; seg_id < closed_segments.size(); seg_id++)
             {
-                if (seg_idx % LOAD_THREAD_NUM == thread_idx)
+                if (seg_id % thread_num == thread_id)
                 {
-                    ptr<NuRaftLogSegment> segment = this->getClosedSegments()[seg_idx];
-                    LOG_INFO(thread_log, "Load closed segment, first_index {}, last_index {}", segment->firstIndex(), segment->lastIndex());
-                    ret = segment->load();
-                    if (ret != 0)
-                    {
-                        LOG_WARNING(log, "Load closed segment {} failed {}", segment->firstIndex(), ret);
-                        continue;
-                    }
-                    if (segment->lastIndex() > this->lastLogIndex())
-                    {
-                        LOG_INFO(log, "Close segment last index {}", segment->lastIndex());
-                        this->setLastLogIndex(segment->lastIndex());
-                    }
+                    ptr<NuRaftLogSegment> segment = closed_segments[seg_id];
+                    LOG_INFO(thread_log, "Loading closed segment, first_index {}, last_index {}", segment->firstIndex(), segment->lastIndex());
+                    segment->load();
                 }
             }
         });
     }
 
+    /// Update last_log_index
+    if (!closed_segments.empty())
+        last_log_index = closed_segments.back()->lastIndex();
+
     load_thread_pool.wait();
 
-    /// open segment
+    /// 2. Load open segment
+
     if (open_segment)
     {
-        LOG_INFO(log, "Load open segment, directory {}, file name {} ", log_dir, open_segment->getFileName());
-        int ret = open_segment->load();
-
-        if (ret != 0)
-            return ret;
+        LOG_INFO(log, "Loading open segment {} ", log_dir, open_segment->getFileName());
+        open_segment->load();
 
         if (first_log_index.load() > open_segment->lastIndex())
         {
-            LOG_WARNING(
-                log,
-                "open segment need discard, file {}, first_log_index {}, first_index {}, last_index {} ",
-                open_segment->getFileName(),
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "First log index {} > last index {} of open segment {}",
                 first_log_index.load(),
-                open_segment->firstIndex(),
-                open_segment->lastIndex());
-            open_segment = nullptr;
+                open_segment->lastIndex(),
+                open_segment->getFileName());
         }
         else
         {
+            LOG_INFO(log, "The last index of open segment {} is {}", open_segment->lastIndex(), open_segment->getFileName());
             last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-            LOG_INFO(log, "Open segment last index {} {}", open_segment->lastIndex(), last_log_index);
         }
     }
 
     if (last_log_index == 0)
         last_log_index = first_log_index - 1;
-
-    return 0;
 }
 
 }

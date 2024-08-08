@@ -74,16 +74,7 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
-
-    if (segment_store->init(max_log_size_, max_segment_count_) >= 0)
-    {
-        LOG_INFO(log, "Init file log store, last log index {}, log dir {}", segment_store->lastLogIndex(), log_dir);
-    }
-    else
-    {
-        LOG_WARNING(log, "Init file log store failed, log dir {}", log_dir);
-        return;
-    }
+    segment_store->init(max_log_size_, max_segment_count_);
 
     if (segment_store->lastLogIndex() < 1)
         /// no log entry exists, return a dummy constant entry with value set to null and term set to  zero
@@ -217,40 +208,50 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries(ulong start, ul
 ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
 {
     ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
+
     int64 get_size = 0;
     int64 entry_size;
+
     for (auto i = start; i < end; i++)
     {
-        auto entry_ptr = entry_at(i);
-        entry_size = entry_ptr->get_buf().size() + sizeof(ulong) + sizeof(char);
+        auto entry = entry_at(i);
+        if (!entry)
+            return nullptr;
+
+        entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
+
         if (batch_size_hint_in_bytes > 0 && get_size + entry_size > batch_size_hint_in_bytes)
-        {
             break;
-        }
-        ret->push_back(entry_ptr);
+
+        ret->push_back(entry);
         get_size += entry_size;
     }
-    LOG_DEBUG(log, "log entries ext, start {} end {}, real size {}, max size {}", start, end, get_size, batch_size_hint_in_bytes);
+
     return ret;
 }
 
-ptr<std::vector<VersionLogEntry>> NuRaftFileLogStore::log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
+ptr<std::vector<LogEntryWithVersion>> NuRaftFileLogStore::log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes)
 {
-    ptr<std::vector<VersionLogEntry>> ret = cs_new<std::vector<VersionLogEntry>>();
+    ptr<std::vector<LogEntryWithVersion>> ret = cs_new<std::vector<LogEntryWithVersion>>();
+
     int64 get_size = 0;
     int64 entry_size;
+
     for (auto i = start; i < end; i++)
     {
-        auto entry_ptr = entry_at(i);
-        entry_size = entry_ptr->get_buf().size() + sizeof(ulong) + sizeof(char);
+        auto entry = entry_at(i);
+        if (!entry)
+            return nullptr;
+
+        entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
+
         if (batch_size_hint_in_bytes > 0 && get_size + entry_size > batch_size_hint_in_bytes)
-        {
             break;
-        }
-        ret->push_back({segment_store->getVersion(i), entry_ptr});
+
+        ret->push_back({segment_store->getVersion(i), entry});
         get_size += entry_size;
     }
-    LOG_DEBUG(log, "log entries ext, start {} end {}, real size {}, max size {}", start, end, get_size, batch_size_hint_in_bytes);
+
     return ret;
 }
 
@@ -336,24 +337,23 @@ void NuRaftFileLogStore::apply_pack(ulong index, buffer & pack)
 
 bool NuRaftFileLogStore::compact(ulong last_log_index)
 {
-    segment_store->removeSegment(last_log_index + 1);
+    auto removed_count = segment_store->removeSegment(last_log_index + 1);
     log_queue.clear();
-    LOG_DEBUG(log, "compact last_log_index {}", last_log_index);
+    LOG_DEBUG(log, "Compact log to {} and removed {} log segments", last_log_index, removed_count);
     return true;
 }
 
 bool NuRaftFileLogStore::flush()
 {
-    return segment_store->flush() > 0;
+    segment_store->flush();
+    return true;
 }
 
 ulong NuRaftFileLogStore::last_durable_index()
 {
     uint64_t last_log = next_slot() - 1;
     if (log_fsync_mode != FsyncMode::FSYNC_PARALLEL)
-    {
         return last_log;
-    }
 
     return disk_last_durable_index;
 }

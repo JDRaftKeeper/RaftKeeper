@@ -120,7 +120,7 @@ class NuRaftFileLogStore : public nuraft::log_store
     ptr<std::vector<ptr<log_entry>>> log_entries_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0) override;
 
     /// Same with log_entries_ext, but return log entry with version info.
-    ptr<std::vector<VersionLogEntry>> log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0);
+    ptr<std::vector<LogEntryWithVersion>> log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0);
 
     /**
      * Get the log entry at the specified log index number.

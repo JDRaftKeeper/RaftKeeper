@@ -38,7 +38,7 @@ struct ReplayLogBatch
 {
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
-    ptr<std::vector<VersionLogEntry>> log_vec;
+    ptr<std::vector<LogEntryWithVersion>> log_vec;
     ptr<std::vector<ptr<RequestForSession>>> request_vec;
 };
 
