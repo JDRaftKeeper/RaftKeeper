@@ -8,13 +8,16 @@
 #include <libnuraft/log_entry.hxx>
 #include <libnuraft/nuraft.hxx>
 #include <common/logger_useful.h>
+#include <Service/KeeperCommon.h>
 
 
 namespace RK
 {
 
-/// Serialize ZooKeeper request to log
-nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
+/// Serialize and deserialize ZooKeeper request to log
+nuraft::ptr<nuraft::buffer> serializeKeeperRequest(const RequestForSession & request);
+RequestForSession deserializeKeeperRequest(nuraft::buffer & data);
+
 nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 
 /// Parent of a path, for example: got '/a/b' from '/a/b/c'

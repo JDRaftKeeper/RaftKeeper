@@ -133,7 +133,7 @@ private:
     void closeFileIfNeeded();
 
     /// get log entry meta
-    LogMeta getMeta(UInt64 index) const;
+    ptr<LogMeta> getMeta(UInt64 index) const;
 
     /// load log entry
     ptr<log_entry> loadEntry(const LogMeta & meta) const;

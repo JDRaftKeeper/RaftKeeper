@@ -84,7 +84,8 @@ ptr<log_entry> createLogEntry(UInt64 term, const String & key, const String & da
     auto zk_create_request = std::make_shared<Coordination::ZooKeeperCreateRequest>();
     zk_create_request->path = key;
     zk_create_request->data = data;
-    auto serialized_request = getZooKeeperLogEntry(1, 1, zk_create_request);
+    RequestForSession request_with_session(zk_create_request, 1, 1);
+    auto serialized_request = serializeKeeperRequest(request_with_session);
     return std::make_shared<log_entry>(term, serialized_request);
 }
 
@@ -160,7 +161,7 @@ void createZNodeLog(NuRaftStateMachine & machine, const String & key, const Stri
     using namespace std::chrono;
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    ptr<buffer> buf = serializeKeeperRequest(session_request);
     //LOG_INFO(log, "index {}", index);
     if (store != nullptr)
     {
@@ -199,7 +200,7 @@ void setZNode(NuRaftStateMachine & machine, const String & key, const String & d
     using namespace std::chrono;
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    ptr<buffer> buf = serializeKeeperRequest(session_request);
     machine.commit(index, *(buf.get()));
 }
 
@@ -222,7 +223,7 @@ void removeZNode(NuRaftStateMachine & machine, const String & key)
     using namespace std::chrono;
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
+    ptr<buffer> buf = serializeKeeperRequest(session_request);
     machine.commit(index, *(buf.get()));
 }
 

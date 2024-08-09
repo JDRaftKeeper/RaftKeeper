@@ -277,11 +277,6 @@ public:
 
     void shutdown();
 
-    /// deserialize a RequestForSession
-    static RequestForSession parseRequest(nuraft::buffer & data);
-    /// serialize a RequestForSession
-    static ptr<buffer> serializeRequest(RequestForSession & request);
-
 private:
     /// Clear the whole state machine.
     /// Used when apply_snapshot.
