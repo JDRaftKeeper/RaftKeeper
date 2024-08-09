@@ -7,6 +7,7 @@
 #include <Poco/Version.h>
 #include <Poco/Exception.h>
 
+#include <common/errnoToString.h>
 #include <Common/StackTrace.h>
 
 #include <fmt/format.h>
@@ -138,6 +139,12 @@ private:
 
 using Exceptions = std::vector<std::exception_ptr>;
 
+
+template <typename ...Args>
+void throwFromErrno(int code, const std::string & fmt, Args&&... args)
+{
+    throw ErrnoException(fmt::format(fmt, std::forward<Args>(args)...) + ", " + errnoToString(code, errno), code, errno);
+}
 
 [[noreturn]] void throwFromErrno(const std::string & s, int code, int the_errno = errno);
 /// Useful to produce some extra information about available space and inodes on device

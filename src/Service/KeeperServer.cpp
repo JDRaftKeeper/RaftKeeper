@@ -122,8 +122,8 @@ void KeeperServer::shutdown()
         LOG_WARNING(log, "Failed to shutdown NuRaft core in {}ms", settings->raft_settings->shutdown_timeout);
 
     LOG_INFO(log, "Flush Log store.");
-    if (state_manager->load_log_store() && !state_manager->load_log_store()->flush())
-        LOG_WARNING(log, "Log store flush error while server shutdown.");
+    if (state_manager->load_log_store())
+        state_manager->load_log_store()->flush();
 
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
     state_machine->shutdown();
@@ -138,7 +138,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::pushRequestBatch(const std::v
     for (const auto & request_session : request_batch)
     {
         LOG_TRACE(log, "Push request {}", request_session.toSimpleString());
-        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.create_time, request_session.request));
+        entries.push_back(serializeKeeperRequest(request_session));
     }
     /// append_entries write request
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);

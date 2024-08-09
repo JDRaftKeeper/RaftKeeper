@@ -16,12 +16,6 @@
 #include <ZooKeeper/ZooKeeperIO.h>
 
 
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
-#endif
-
-
 using namespace nuraft;
 
 namespace RK
@@ -38,7 +32,7 @@ struct ReplayLogBatch
 {
     ulong batch_start_index = 0;
     ulong batch_end_index = 0;
-    ptr<std::vector<VersionLogEntry>> log_vec;
+    ptr<std::vector<LogEntryWithVersion>> log_vec;
     ptr<std::vector<ptr<RequestForSession>>> request_vec;
 };
 
@@ -194,57 +188,6 @@ void NuRaftStateMachine::snapThread()
     }
 }
 
-RequestForSession NuRaftStateMachine::parseRequest(nuraft::buffer & data)
-{
-    ReadBufferFromNuRaftBuffer buffer(data);
-    RequestForSession request_for_session;
-    /// TODO unify digital encoding mode
-    readIntBinary(request_for_session.session_id, buffer);
-
-    int32_t length;
-    Coordination::read(length, buffer);
-
-    int32_t xid;
-    Coordination::read(xid, buffer);
-
-    Coordination::OpNum opnum;
-    Coordination::read(opnum, buffer);
-
-    //    bool is_internal;
-    //    Coordination::read(is_internal, buffer);
-
-    request_for_session.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
-    request_for_session.request->xid = xid;
-    request_for_session.request->readImpl(buffer);
-
-    if (!buffer.eof())
-        Coordination::read(request_for_session.create_time, buffer);
-    else /// backward compatibility
-        request_for_session.create_time
-            = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-
-    auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
-    LOG_TRACE(
-        log,
-        "Parsed request session id {}, length {}, xid {}, opnum {}",
-        toHexString(request_for_session.session_id),
-        length,
-        xid,
-        Coordination::toString(opnum));
-
-    return request_for_session;
-}
-
-ptr<buffer> NuRaftStateMachine::serializeRequest(RequestForSession & session_request)
-{
-    WriteBufferFromNuraftBuffer out;
-    /// TODO unify digital encoding mode, see parseRequest
-    writeIntBinary(session_request.session_id, out);
-    session_request.request->write(out);
-    Coordination::write(session_request.create_time, out);
-    return out.getBuffer();
-}
-
 ptr<buffer> NuRaftStateMachine::pre_commit(const ulong log_idx, buffer & data)
 {
     LOG_TRACE(log, "pre commit, log index {}, data size {}", log_idx, data.size());
@@ -322,7 +265,7 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     }
     else
     {
-        auto request_for_session = parseRequest(data);
+        auto request_for_session = deserializeKeeperRequest(data);
         ResponsesForSessions responses_for_sessions;
 
         LOG_TRACE(log, "Commit log index {}, request {}", log_idx, request_for_session.toSimpleString());
@@ -814,7 +757,3 @@ void NuRaftStateMachine::reset()
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif

@@ -41,8 +41,8 @@ TEST(RaftStateMachine, serializeAndParse)
     using namespace std::chrono;
     session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-    ptr<buffer> buf = NuRaftStateMachine::serializeRequest(session_request);
-    RequestForSession session_request_2 = NuRaftStateMachine::parseRequest(*(buf.get()));
+    ptr<buffer> buf = serializeKeeperRequest(session_request);
+    RequestForSession session_request_2 = deserializeKeeperRequest(*(buf.get()));
     if (session_request_2.request->getOpNum() == OpNum::Create)
     {
         ZooKeeperCreateRequest * request_2 = static_cast<ZooKeeperCreateRequest *>(session_request_2.request.get());

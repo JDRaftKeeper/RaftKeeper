@@ -57,8 +57,7 @@ class NuRaftFileLogStore : public nuraft::log_store
          bool force_new = false,
          FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
          UInt64 log_fsync_interval_ = 1000,
-         UInt32 max_log_size_ = LogSegmentStore::MAX_SEGMENT_FILE_SIZE,
-         UInt32 max_segment_count_ = LogSegmentStore::MAX_SEGMENT_COUNT);
+         UInt32 max_log_size_ = LogSegmentStore::MAX_SEGMENT_FILE_SIZE);
 
     ~NuRaftFileLogStore() override;
 
@@ -120,7 +119,7 @@ class NuRaftFileLogStore : public nuraft::log_store
     ptr<std::vector<ptr<log_entry>>> log_entries_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0) override;
 
     /// Same with log_entries_ext, but return log entry with version info.
-    ptr<std::vector<VersionLogEntry>> log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0);
+    ptr<std::vector<LogEntryWithVersion>> log_entries_version_ext(ulong start, ulong end, int64 batch_size_hint_in_bytes = 0);
 
     /**
      * Get the log entry at the specified log index number.
