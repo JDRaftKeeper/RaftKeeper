@@ -399,10 +399,10 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
 }
 
 
-NuRaftLogSegment::LogMeta NuRaftLogSegment::getMeta(UInt64 index) const
+ptr<NuRaftLogSegment::LogMeta> NuRaftLogSegment::getMeta(UInt64 index) const
 {
     if (last_index == first_index - 1 || index > last_index.load(std::memory_order_relaxed) || index < first_index)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Get meta for log {} failed, index out of range [{},{}].", index, first_index, last_index.load(std::memory_order_relaxed));
+        return nullptr;
 
     UInt64 meta_index = index - first_index;
     UInt64 file_offset = offset_term[meta_index].first;
@@ -414,10 +414,10 @@ NuRaftLogSegment::LogMeta NuRaftLogSegment::getMeta(UInt64 index) const
     else
         next_offset = file_size;
 
-    LogMeta meta;
-    meta.offset = file_offset;
-    meta.term = offset_term[meta_index].second;
-    meta.length = next_offset - file_offset;
+    ptr<LogMeta> meta = cs_new<LogMeta>();
+    meta->offset = file_offset;
+    meta->term = offset_term[meta_index].second;
+    meta->length = next_offset - file_offset;
 
     return meta;
 }
@@ -449,22 +449,18 @@ ptr<log_entry> NuRaftLogSegment::loadEntry(const LogMeta & meta) const
 {
     LogEntryHeader header = loadEntryHeader(meta.offset);
 
-    char * entry_str = new char[header.data_length];
-    ssize_t size_read = pread(seg_fd, entry_str, header.data_length, meta.offset + LogEntryHeader::HEADER_SIZE);
+    ptr<buffer> buf = buffer::alloc(header.data_length);
+    ssize_t size_read = pread(seg_fd, buf->data_begin(), header.data_length, meta.offset + LogEntryHeader::HEADER_SIZE);
 
     if (size_read != header.data_length)
         throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", meta.offset, file_name);
 
-    String s(entry_str, header.data_length);
-    LOG_INFO(log, "get: {}" + s);
-
-    if (!verifyCRC32(entry_str, header.data_length, header.data_crc))
+    if (!verifyCRC32(reinterpret_cast<const char *>(buf->data_begin()), header.data_length, header.data_crc))
         throw Exception(ErrorCodes::CORRUPTED_LOG, "Checking CRC32 failed for log segment {}.", file_name);
 
-    auto entry = LogEntryBody::parse(entry_str, header.data_length);
+    auto entry = LogEntryBody::deserialize(buf);
     entry->set_term(header.term);
 
-    delete[] entry_str;
     return entry;
 }
 
@@ -476,8 +472,8 @@ ptr<log_entry> NuRaftLogSegment::getEntry(UInt64 index)
     }
 
     std::shared_lock read_lock(log_mutex);
-    LogMeta meta = getMeta(index);
-    return loadEntry(meta);
+    auto meta = getMeta(index);
+    return meta == nullptr ? nullptr : loadEntry(*meta);
 }
 
 bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)

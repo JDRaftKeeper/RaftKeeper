@@ -138,7 +138,7 @@ ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::pushRequestBatch(const std::v
     for (const auto & request_session : request_batch)
     {
         LOG_TRACE(log, "Push request {}", request_session.toSimpleString());
-        entries.push_back(getZooKeeperLogEntry(request_session.session_id, request_session.create_time, request_session.request));
+        entries.push_back(serializeKeeperRequest(request_session));
     }
     /// append_entries write request
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);

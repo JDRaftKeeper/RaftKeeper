@@ -22,11 +22,11 @@ ptr<buffer> LogEntryBody::serialize(ptr<log_entry> & entry)
     return entry_buf;
 }
 
-ptr<log_entry> LogEntryBody::parse(const char * entry_str, size_t buf_size)
+ptr<log_entry> LogEntryBody::deserialize(ptr<buffer> serialized_entry)
 {
-    nuraft::log_val_type type = static_cast<nuraft::log_val_type>(entry_str[0]);
-    auto data = buffer::alloc(buf_size - 1);
-    data->put_raw(reinterpret_cast<const byte *>(entry_str + 1), buf_size - 1);
+    nuraft::log_val_type type = static_cast<nuraft::log_val_type>(*serialized_entry->data_begin());
+    auto data = buffer::alloc(serialized_entry->size() - 1);
+    data->put_raw(serialized_entry->data_begin() + 1, serialized_entry->size() - 1);
     data->pos(0);
     return cs_new<log_entry>(0, data, type); /// term is set latter
 }

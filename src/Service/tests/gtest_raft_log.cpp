@@ -88,7 +88,7 @@ TEST(RaftLog, parseLogEntrybody)
     ptr<log_entry> log = cs_new<log_entry>(0, data, nuraft::log_val_type::app_log);
 
     ptr<buffer> serialized_log = LogEntryBody::serialize(log);
-    ptr<log_entry> parsed_log = LogEntryBody::parse(reinterpret_cast<const char *>(serialized_log->data_begin()), serialized_log->size());
+    ptr<log_entry> parsed_log = LogEntryBody::deserialize(serialized_log);
 
     ASSERT_EQ(parsed_log->get_val_type(), log->get_val_type());
     ASSERT_EQ(parsed_log->get_buf().get_str(), log->get_buf().get_str());
