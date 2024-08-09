@@ -3,8 +3,8 @@
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
 
-#include <Service/LogEntry.h>
 #include <Service/KeeperUtils.h>
+#include <Service/LogEntry.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/tests/raft_test_common.h>
 
@@ -109,7 +109,7 @@ TEST(RaftLog, appendEntry)
     cleanDirectory(log_dir);
 }
 
-TEST(RaftLog, appendSomeEntry)
+TEST(RaftLog, appendEntries)
 {
     String log_dir(LOG_DIR + "/2");
     cleanDirectory(log_dir);
@@ -153,13 +153,12 @@ TEST(RaftLog, loadLog)
     cleanDirectory(log_dir);
 }
 
-
 TEST(RaftLog, splitSegment)
 {
     String log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200, 10)); //81 byte / log
+    ASSERT_NO_THROW(log_store->init(200)); //81 byte / log
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
@@ -177,7 +176,7 @@ TEST(RaftLog, removeSegment)
     String log_dir(LOG_DIR + "/5");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200, 3));
+    ASSERT_NO_THROW(log_store->init(200));
     //5 segment
     for (int i = 0; i < 10; i++)
     {
@@ -189,16 +188,15 @@ TEST(RaftLog, removeSegment)
 
     //[1,2],[3,4],[5,6],[7，8],[9,open]
     ASSERT_EQ(log_store->getClosedSegments().size(), 4);
-    ASSERT_EQ(log_store->removeSegment(3), 0); //remove first segment[1,2]
+    ASSERT_EQ(log_store->removeSegment(3), 1); //remove first segment[1,2]
     ASSERT_EQ(log_store->getClosedSegments().size(), 3);
     ASSERT_EQ(log_store->firstLogIndex(), 3);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
-    ASSERT_EQ(log_store->removeSegment(), 0); //remove more than MAX_SEGMENT_COUNT segment
-    ASSERT_EQ(log_store->getClosedSegments().size(), 2); //2 finish_segment + 1 open_segment = 3
-    ASSERT_EQ(log_store->firstLogIndex(), 5);
+    ASSERT_EQ(log_store->getClosedSegments().size(), 3); //3 finish_segment + 1 open_segment = 3
+    ASSERT_EQ(log_store->firstLogIndex(), 3);
     ASSERT_EQ(log_store->lastLogIndex(), 10);
     ASSERT_NO_THROW(log_store->close());
-    //cleanDirectory(log_dir);
+    cleanDirectory(log_dir);
 }
 
 TEST(RaftLog, truncateLog)
@@ -206,7 +204,7 @@ TEST(RaftLog, truncateLog)
     String log_dir(LOG_DIR + "/6");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200, 3));
+    ASSERT_NO_THROW(log_store->init(200));
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
@@ -218,7 +216,7 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ(log_store->getClosedSegments().size(), 7);
     ASSERT_EQ(log_store->lastLogIndex(), 16);
 
-    ASSERT_EQ(log_store->truncateLog(15), 0); //truncate open segment
+    ASSERT_TRUE(log_store->truncateLog(15)); //truncate open segment
     ASSERT_EQ(log_store->lastLogIndex(), 15);
 
     ptr<log_entry> log = log_store->getEntry(15);
@@ -229,11 +227,11 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request->data);
 
     ASSERT_EQ(log_store->getClosedSegments().size(), 7);
-    ASSERT_EQ(log_store->truncateLog(13), 0); //truncate close and open segment
+    ASSERT_TRUE(log_store->truncateLog(13)); //truncate close and open segment
     ASSERT_EQ(log_store->getClosedSegments().size(), 6);
     ASSERT_EQ(log_store->lastLogIndex(), 13); //truncate close and open segment
 
-    ASSERT_EQ(log_store->truncateLog(2), 0); //truncate close and open segment
+    ASSERT_TRUE(log_store->truncateLog(2)); //truncate close and open segment
 
     ptr<log_entry> log2 = log_store->getEntry(2);
     ASSERT_EQ(log2->get_term(), 1);
@@ -242,7 +240,7 @@ TEST(RaftLog, truncateLog)
     ASSERT_EQ("/ck/table/table1", zk_create_request2->path);
     ASSERT_EQ("CREATE TABLE table1;", zk_create_request2->data);
 
-    ASSERT_EQ(log_store->truncateLog(1), 0); //truncate close and open segment
+    ASSERT_TRUE(log_store->truncateLog(1)); //truncate close and open segment
 
     ptr<log_entry> log3 = log_store->getEntry(1);
     ASSERT_EQ(log3->get_term(), 1);
@@ -321,15 +319,15 @@ TEST(RaftLog, writeAt)
     auto zk_request2 = getZookeeperCreateRequest(log2);
     ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->data);
+    cleanDirectory(log_dir);
 }
-
 
 TEST(RaftLog, compact)
 {
     String log_dir(LOG_DIR + "/10");
     cleanDirectory(log_dir);
     ptr<NuRaftFileLogStore> file_store
-        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC, 1000, static_cast<UInt32>(200), static_cast<UInt32>(3));
+        = cs_new<NuRaftFileLogStore>(log_dir, true, FsyncMode::FSYNC, 1000, static_cast<UInt32>(200));
 
     UInt64 term = 1;
     String key("/ck/table/table1");
@@ -368,6 +366,7 @@ TEST(RaftLog, compact)
     auto zk_request2 = getZookeeperCreateRequest(log2);
     ASSERT_EQ("/ck/table/table22222222222233312222221", zk_request2->path);
     ASSERT_EQ("CREATE TABLE table22222222221111123222222222333;", zk_request2->data);
+    cleanDirectory(log_dir);
 }
 
 TEST(RaftLog, getEntry)
@@ -375,7 +374,7 @@ TEST(RaftLog, getEntry)
     String log_dir(LOG_DIR + "/7");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(100, 3));
+    ASSERT_NO_THROW(log_store->init(100));
     UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
@@ -405,7 +404,7 @@ TEST(RaftLog, getEntries)
     String log_dir(LOG_DIR + "/8");
     cleanDirectory(log_dir);
     auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(250, 3)); //69 * 4 = 276
+    ASSERT_NO_THROW(log_store->init(250)); //69 * 4 = 276
     for (int i = 0; i < 8; i++)
     {
         UInt64 term = 1;

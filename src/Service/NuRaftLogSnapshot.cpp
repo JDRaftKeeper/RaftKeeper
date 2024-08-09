@@ -21,11 +21,6 @@
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wformat-nonliteral"
-#endif
-
 
 namespace RK
 {
@@ -974,7 +969,3 @@ size_t KeeperSnapshotManager::removeSnapshots()
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif

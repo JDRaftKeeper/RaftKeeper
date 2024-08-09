@@ -72,9 +72,6 @@ public:
     /// get entry by index, return null if not exist.
     ptr<log_entry> getEntry(UInt64 index);
 
-    /// get entry's term by index
-    [[maybe_unused]] UInt64 getTerm(UInt64 index) const;
-
     /// Truncate segment from tail to last_index_kept.
     /// Return true if some logs are removed.
     /// This method will re-open the segment file if it is a closed one.
@@ -136,11 +133,11 @@ private:
     void closeFileIfNeeded();
 
     /// get log entry meta
-    void getMeta(UInt64 index, LogMeta & meta) const;
+    LogMeta getMeta(UInt64 index) const;
 
     /// load log entry
-    void loadLogEntry(int fd, off_t offset, LogEntryHeader & header, ptr<log_entry> & entry) const;
-    void loadLogEntryHeader(int fd, off_t offset, LogEntryHeader & header) const;
+    ptr<log_entry> loadEntry(const LogMeta & meta) const;
+    LogEntryHeader loadEntryHeader(off_t offset) const;
 
     static constexpr size_t MAGIC_AND_VERSION_SIZE = 9;
 
@@ -197,7 +194,6 @@ public:
     using Segments = std::vector<ptr<NuRaftLogSegment>>;
 
     static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; //1G, 0.3K/Log, 3M logs
-    static constexpr UInt32 MAX_SEGMENT_COUNT = 50; //50G
     static constexpr size_t LOAD_THREAD_NUM = 8;
 
     explicit LogSegmentStore(const String & log_dir_)
@@ -210,7 +206,7 @@ public:
     static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false);
 
     /// Init log store, will create dir if not exist
-    void init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE, UInt32 max_segment_count_ = MAX_SEGMENT_COUNT);
+    void init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE);
 
     void close();
     /// Return last flushed log index
@@ -234,17 +230,18 @@ public:
 
     /// Remove segments from storage's head, logs in [1, first_index_kept) will be discarded, usually invoked when compaction.
     /// return number of segments removed
-    int removeSegment();
     int removeSegment(UInt64 first_index_kept);
 
     /// Delete uncommitted logs from storage's tail, (last_index_kept, infinity) will be discarded
     /// Return true if some logs are removed
     bool truncateLog(UInt64 last_index_kept);
 
-    int reset(UInt64 next_log_index);
-
-    /// get closed segments
-    Segments & getClosedSegments() { return closed_segments; }
+    /// get closed segments, only for tests
+    Segments getClosedSegments()
+    {
+        std::shared_lock read_lock(seg_mutex);
+        return closed_segments;
+    }
 
     /// get file format version
     LogVersion getVersion(UInt64 index);
@@ -269,9 +266,6 @@ private:
 
     /// max segment file size
     UInt32 max_segment_file_size;
-
-    /// max segment count
-    UInt32 max_segment_count;
 
     Poco::Logger * log;
 

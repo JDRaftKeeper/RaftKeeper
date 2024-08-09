@@ -13,6 +13,7 @@
 namespace RK
 {
 
+/// Serialize ZooKeeper request to log
 nuraft::ptr<nuraft::buffer> getZooKeeperLogEntry(int64_t session_id, int64_t time, const Coordination::ZooKeeperRequestPtr & request);
 nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
 

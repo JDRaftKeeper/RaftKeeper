@@ -9,14 +9,6 @@
 #include <Service/KeeperStore.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wsuggest-destructor-override"
-#    pragma clang diagnostic ignored "-Wheader-hygiene"
-#endif
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
 #include <ZooKeeper/IKeeper.h>
 
 
@@ -34,8 +26,10 @@ static constexpr UInt32 SAVE_BATCH_SIZE = 10000;
 using NumToACLMap = std::unordered_map<uint64_t, Coordination::ACLs>;
 using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
 using SessionAndTimeout = std::unordered_map<int64_t, int64_t>;
+
 using StringMap = std::unordered_map<String, String>;
 using IntMap = std::unordered_map<String, int64_t>;
+
 using BucketEdges = KeeperStore::BucketEdges;
 using BucketNodes = KeeperStore::BucketNodes;
 
@@ -112,8 +106,6 @@ UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
 String serializeKeeperNode(const String & path, const ptr<KeeperNode> & node, SnapshotVersion version);
 ptr<KeeperNodeWithPath> parseKeeperNode(const String & buf, SnapshotVersion version);
 
-
-/// ----- For snapshot version 2 -----
 
 /// save batch data in snapshot object
 std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch);

@@ -13,10 +13,6 @@
 #include <Service/LogEntry.h>
 #include <Service/NuRaftLogSegment.h>
 
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wformat-nonliteral"
-#endif
 
 namespace RK
 {
@@ -57,8 +53,6 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_)
     , log(&(Poco::Logger::get("NuRaftLogSegment")))
     , version(CURRENT_LOG_VERSION)
 {
-    LOG_INFO(log, "create new log segment, first index {}", first_index);
-
     Poco::DateTime now;
     create_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
 
@@ -66,6 +60,8 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_)
 
     file_name = getOpenFileName();
     String full_path = getOpenPath();
+
+    LOG_INFO(log, "Creating new log segment {}", file_name);
 
     if (Poco::File(full_path).exists())
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Try to create a log segment but file {} already exists.", full_path);
@@ -89,6 +85,7 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_,
     : log_dir(log_dir_)
     , first_index(first_index_)
     , last_index(first_index_ - 1)
+    , is_open(true)
     , file_name(file_name_)
     , create_time(create_time_)
     , log(&(Poco::Logger::get("NuRaftLogSegment")))
@@ -179,7 +176,7 @@ void NuRaftLogSegment::writeHeader()
     if (write(seg_fd, &version_uint8, 1) != 1)
         throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot write version to {}", file_name);
 
-    file_size.fetch_add(sizeof(uint64_t) + sizeof(uint8_t), std::memory_order_release);
+    file_size.fetch_add(MAGIC_AND_VERSION_SIZE, std::memory_order_release);
 }
 
 void NuRaftLogSegment::load()
@@ -201,8 +198,7 @@ void NuRaftLogSegment::load()
     UInt64 last_index_read = first_index - 1;
     for (; entry_off < file_size_read;)
     {
-        LogEntryHeader header;
-        loadLogEntryHeader(seg_fd, entry_off, header);
+        LogEntryHeader header = loadEntryHeader(entry_off);
 
         const UInt64 log_entry_len = sizeof(LogEntryHeader) + header.data_length;
 
@@ -349,12 +345,11 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
     LogEntryHeader header;
     struct iovec vec[2];
 
+    ptr<buffer> entry_buf;
+    char * data_in_buf;
     {
         if (!is_open || seg_fd  == -1)
             throw Exception(ErrorCodes::LOGICAL_ERROR, "Append log but segment {} is not open.", file_name);
-
-        ptr<buffer> entry_buf;
-        char * data_in_buf;
 
         entry_buf = LogEntryBody::serialize(entry);
         data_in_buf = reinterpret_cast<char *>(entry_buf->data_begin());
@@ -404,13 +399,13 @@ UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> &
 }
 
 
-void NuRaftLogSegment::getMeta(UInt64 index, LogMeta & meta) const
+NuRaftLogSegment::LogMeta NuRaftLogSegment::getMeta(UInt64 index) const
 {
     if (last_index == first_index - 1 || index > last_index.load(std::memory_order_relaxed) || index < first_index)
         throw Exception(ErrorCodes::LOGICAL_ERROR, "Get meta for log {} failed, index out of range [{},{}].", index, first_index, last_index.load(std::memory_order_relaxed));
 
     UInt64 meta_index = index - first_index;
-    UInt64 entry_offset = offset_term[meta_index].first;
+    UInt64 file_offset = offset_term[meta_index].first;
 
     UInt64 next_offset;
 
@@ -419,17 +414,20 @@ void NuRaftLogSegment::getMeta(UInt64 index, LogMeta & meta) const
     else
         next_offset = file_size;
 
-    meta.offset = entry_offset;
+    LogMeta meta;
+    meta.offset = file_offset;
     meta.term = offset_term[meta_index].second;
-    meta.length = next_offset - entry_offset;
+    meta.length = next_offset - file_offset;
+
+    return meta;
 }
 
-void NuRaftLogSegment::loadLogEntryHeader(int fd, off_t offset, LogEntryHeader & header) const
+LogEntryHeader NuRaftLogSegment::loadEntryHeader(off_t offset) const
 {
     ptr<buffer> buf = buffer::alloc(LogEntryHeader::HEADER_SIZE);
     buf->pos(0);
 
-    ssize_t size = pread(fd, buf->data(), LogEntryHeader::HEADER_SIZE, offset);
+    ssize_t size = pread(seg_fd, buf->data(), LogEntryHeader::HEADER_SIZE, offset);
 
     if (size != LogEntryHeader::HEADER_SIZE)
         throwFromErrno(ErrorCodes::CANNOT_READ_FROM_FILE_DESCRIPTOR, "Fail to read header of log segment {}", file_name);
@@ -437,30 +435,37 @@ void NuRaftLogSegment::loadLogEntryHeader(int fd, off_t offset, LogEntryHeader &
     buffer_serializer bs(buf);
     bs.pos(0);
 
+    LogEntryHeader header;
     header.term = bs.get_u64();
     header.index = bs.get_u64();
 
     header.data_length = bs.get_u32();
     header.data_crc = bs.get_u32();
+
+    return header;
 }
 
-void NuRaftLogSegment::loadLogEntry(int fd, off_t offset, LogEntryHeader & header, ptr<log_entry> & entry) const
+ptr<log_entry> NuRaftLogSegment::loadEntry(const LogMeta & meta) const
 {
-    loadLogEntryHeader(fd, offset, header);
+    LogEntryHeader header = loadEntryHeader(meta.offset);
 
     char * entry_str = new char[header.data_length];
-    ssize_t ret = pread(fd, entry_str, header.data_length, offset + LogEntryHeader::HEADER_SIZE);
+    ssize_t size_read = pread(seg_fd, entry_str, header.data_length, meta.offset + LogEntryHeader::HEADER_SIZE);
 
-    if (ret != header.data_length)
-        throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", offset, file_name);
+    if (size_read != header.data_length)
+        throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", meta.offset, file_name);
+
+    String s(entry_str, header.data_length);
+    LOG_INFO(log, "get: {}" + s);
 
     if (!verifyCRC32(entry_str, header.data_length, header.data_crc))
         throw Exception(ErrorCodes::CORRUPTED_LOG, "Checking CRC32 failed for log segment {}.", file_name);
 
-    entry = LogEntryBody::parse(entry_str, header.data_length);
+    auto entry = LogEntryBody::parse(entry_str, header.data_length);
     entry->set_term(header.term);
 
     delete[] entry_str;
+    return entry;
 }
 
 ptr<log_entry> NuRaftLogSegment::getEntry(UInt64 index)
@@ -471,21 +476,8 @@ ptr<log_entry> NuRaftLogSegment::getEntry(UInt64 index)
     }
 
     std::shared_lock read_lock(log_mutex);
-    LogMeta meta;
-    getMeta(index, meta);
-
-    ptr<log_entry> entry;
-    LogEntryHeader header;
-    loadLogEntry(seg_fd, meta.offset, header, entry);
-
-    return entry;
-}
-
-[[maybe_unused]] UInt64 NuRaftLogSegment::getTerm(UInt64 index) const
-{
-    LogMeta meta;
-    getMeta(index, meta);
-    return meta.term;
+    LogMeta meta = getMeta(index);
+    return loadEntry(meta);
 }
 
 bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
@@ -549,7 +541,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     if (ftruncate(seg_fd, file_size_to_keep) != 0)
         throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to truncate log segment {}", file_name);
 
-    LOG_INFO(log, "Truncate file {} descriptor {}, from {} to size {}", getOpenPath(), seg_fd, file_size, file_size_to_keep);
+    LOG_INFO(log, "Truncate file {} with fd {}, from {} to size {}", file_name, seg_fd, file_size_to_keep, file_size);
 
     /// seek fd
     off_t ret_off = lseek(seg_fd, file_size_to_keep, SEEK_SET);
@@ -573,16 +565,11 @@ ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool 
     return segment_store;
 }
 
-void LogSegmentStore::init(UInt32 max_segment_file_size_, UInt32 max_segment_count_)
+void LogSegmentStore::init(UInt32 max_segment_file_size_)
 {
-    LOG_INFO(
-        log,
-        "Initializing log segment store, max segment file size {} bytes, max segment count {}.",
-        max_segment_file_size_,
-        max_segment_count_);
+    LOG_INFO(log, "Initializing log segment store, max segment file size {} bytes.", max_segment_file_size_);
 
     max_segment_file_size = max_segment_file_size_;
-    max_segment_count = max_segment_count_;
 
     Poco::File(log_dir).createDirectories();
 
@@ -648,7 +635,7 @@ ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index)
     UInt64 last_index = last_log_index.load(std::memory_order_acquire);
 
     /// No log
-    if (first_index < last_index)
+    if (first_index > last_index)
         return nullptr;
 
     if (index < first_index || index > last_index)
@@ -790,34 +777,6 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
     return to_be_removed.size();
 }
 
-
-int LogSegmentStore::removeSegment()
-{
-    std::lock_guard write_lock(seg_mutex);
-    size_t count = closed_segments.size() + 1 - max_segment_count;
-
-    if (count <= 0)
-        return 0;
-
-    std::vector<ptr<NuRaftLogSegment>> to_removed_segments;
-    std::sort(closed_segments.begin(), closed_segments.end(), compareSegment);
-
-    for (size_t i = 0; i < count; i++)
-    {
-        ptr<NuRaftLogSegment> & segment = *(closed_segments.begin());
-        to_removed_segments.push_back(segment);
-        first_log_index.store(segment->lastIndex() + 1, std::memory_order_release);
-        closed_segments.erase(closed_segments.begin());
-    }
-
-    for (auto & to_removed : to_removed_segments)
-    {
-        LOG_INFO(log, "Removing file for log segment {}", to_removed->getFileName());
-        to_removed->remove();
-    }
-    return count;
-}
-
 bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
 {
     if (last_log_index.load(std::memory_order_acquire) <= last_index_kept)
@@ -898,43 +857,6 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
     return true;
 }
 
-int LogSegmentStore::reset(UInt64 next_log_index)
-{
-    if (next_log_index <= 0)
-    {
-        /// LOG_ERROR << "Invalid next_log_index=" << next_log_index << " path: " << log_dir;
-        return EINVAL;
-    }
-
-    std::vector<ptr<NuRaftLogSegment>> popped;
-    std::unique_lock write_lock(seg_mutex);
-
-    popped.reserve(closed_segments.size());
-
-    for (auto & segment : closed_segments)
-    {
-        popped.push_back(segment);
-    }
-
-    closed_segments.clear();
-
-    if (open_segment)
-    {
-        popped.push_back(open_segment);
-        open_segment = nullptr;
-    }
-
-    first_log_index.store(next_log_index, std::memory_order_release);
-    last_log_index.store(next_log_index - 1, std::memory_order_release);
-
-    write_lock.unlock();
-    for (auto & i : popped)
-    {
-        i = nullptr;
-    }
-    return 0;
-}
-
 void LogSegmentStore::loadSegmentMetaData()
 {
     Poco::File file_dir(log_dir);
@@ -994,7 +916,7 @@ void LogSegmentStore::loadSegmentMetaData()
     /// check segment
     /// last_log_index = 0;
 
-    ptr<NuRaftLogSegment> prev_seg = nullptr;
+    ptr<NuRaftLogSegment> prev_seg;
     ptr<NuRaftLogSegment> segment;
 
     for (auto it = closed_segments.begin(); it != closed_segments.end();)
@@ -1045,7 +967,7 @@ void LogSegmentStore::loadSegments()
     size_t thread_num = std::min(closed_segments.size(), LOAD_THREAD_NUM);
     ThreadPool load_thread_pool(thread_num);
 
-    for (size_t thread_id = 0; thread_id < LOAD_THREAD_NUM; thread_id++)
+    for (size_t thread_id = 0; thread_id < thread_num; thread_id++)
     {
         load_thread_pool.trySchedule([this, thread_id, thread_num]
         {
@@ -1062,7 +984,7 @@ void LogSegmentStore::loadSegments()
         });
     }
 
-    /// Update last_log_index
+    /// Update last_log_index from closed segments
     if (!closed_segments.empty())
         last_log_index = closed_segments.back()->lastIndex();
 
@@ -1096,7 +1018,3 @@ void LogSegmentStore::loadSegments()
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
