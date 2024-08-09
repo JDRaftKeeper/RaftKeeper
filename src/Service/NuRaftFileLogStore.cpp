@@ -60,8 +60,7 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     bool force_new,
     FsyncMode log_fsync_mode_,
     UInt64 log_fsync_interval_,
-    UInt32 max_log_size_,
-    UInt32 max_segment_count_)
+    UInt32 max_log_size_)
     : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
 {
     log = &(Poco::Logger::get("FileLogStore"));
@@ -74,7 +73,7 @@ NuRaftFileLogStore::NuRaftFileLogStore(
     }
 
     segment_store = LogSegmentStore::getInstance(log_dir, force_new);
-    segment_store->init(max_log_size_, max_segment_count_);
+    segment_store->init(max_log_size_);
 
     if (segment_store->lastLogIndex() < 1)
         /// no log entry exists, return a dummy constant entry with value set to null and term set to  zero

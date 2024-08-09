@@ -9,11 +9,6 @@
 #include <Service/WriteBufferFromNuraftBuffer.h>
 #include <ZooKeeper/ZooKeeperIO.h>
 
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wformat-nonliteral"
-#endif
-
 namespace RK
 {
 
@@ -587,7 +582,3 @@ void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif

@@ -16,12 +16,6 @@
 #include <ZooKeeper/ZooKeeperIO.h>
 
 
-#ifdef __clang__
-#    pragma clang diagnostic push
-#    pragma clang diagnostic ignored "-Wzero-as-null-pointer-constant"
-#endif
-
-
 using namespace nuraft;
 
 namespace RK
@@ -814,7 +808,3 @@ void NuRaftStateMachine::reset()
 }
 
 }
-
-#ifdef __clang__
-#    pragma clang diagnostic pop
-#endif
