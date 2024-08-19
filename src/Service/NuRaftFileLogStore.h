@@ -26,9 +26,7 @@ public:
     ptr<log_entry> getEntry(const UInt64 & index);
 
     /// put log into the queue
-    void putEntry(UInt64 & index, ptr<log_entry> & entry);
-
-    [[maybe_unused]] void putEntryOrClear(UInt64 & index, ptr<log_entry> & entry);
+    void putEntry(UInt64 & index, const ptr<log_entry> & entry);
 
     /// clean all log
     void clear();

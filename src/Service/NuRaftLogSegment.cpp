@@ -340,7 +340,7 @@ void NuRaftLogSegment::remove()
         f.remove();
 }
 
-UInt64 NuRaftLogSegment::appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index)
+UInt64 NuRaftLogSegment::appendEntry(const ptr<log_entry> & entry, std::atomic<UInt64> & last_log_index)
 {
     LogEntryHeader header;
     struct iovec vec[2];
@@ -663,14 +663,14 @@ LogVersion LogSegmentStore::getVersion(UInt64 index)
     return seg->getVersion();
 }
 
-UInt64 LogSegmentStore::appendEntry(ptr<log_entry> entry)
+UInt64 LogSegmentStore::appendEntry(const ptr<log_entry> & entry)
 {
     openNewSegmentIfNeeded();
     std::shared_lock read_lock(seg_mutex);
     return open_segment->appendEntry(entry, last_log_index);
 }
 
-UInt64 LogSegmentStore::writeAt(UInt64 index, ptr<log_entry> entry)
+UInt64 LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> & entry)
 {
     truncateLog(index - 1);
     if (index == lastLogIndex() + 1)

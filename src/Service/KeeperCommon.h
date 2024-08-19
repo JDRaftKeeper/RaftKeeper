@@ -31,7 +31,7 @@ using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
 struct RequestId;
 
-/// Attached session id to request
+/// Attached session id and forwarding info to request
 struct RequestForSession
 {
     int64_t session_id;
@@ -107,4 +107,5 @@ bool isSessionRequest(Coordination::OpNum opnum);
 bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request);
 
 bool isNewSessionRequest(Coordination::OpNum opnum);
+
 }

@@ -23,7 +23,7 @@ namespace ErrorCodes
     extern const int INVALID_CONFIG_PARAMETER;
 }
 
-String checkAndGetSuperdigest(const String & user_and_digest)
+String checkAndGetSuperDigest(const String & user_and_digest)
 {
     if (user_and_digest.empty())
         return "";
@@ -32,18 +32,17 @@ String checkAndGetSuperdigest(const String & user_and_digest)
     boost::split(scheme_and_id, user_and_digest, [](char c) { return c == ':'; });
     if (scheme_and_id.size() != 2 || scheme_and_id[0] != "super")
         throw Exception(
-            ErrorCodes::INVALID_CONFIG_PARAMETER, "Incorrect superdigest in keeper_server config. Must be 'super:base64string'");
+            ErrorCodes::INVALID_CONFIG_PARAMETER, "Incorrect super digest in keeper_server config. Must be 'super:base64string'");
 
     return user_and_digest;
 }
 
-ptr<buffer> serializeKeeperRequest(const RequestForSession & session_request)
+ptr<buffer> serializeKeeperRequest(const RequestForSession & request)
 {
     WriteBufferFromNuraftBuffer out;
-    /// TODO unify digital encoding mode, see deserializeKeeperRequest
-    writeIntBinary(session_request.session_id, out);
-    session_request.request->write(out);
-    Coordination::write(session_request.create_time, out);
+    writeIntBinary(request.session_id, out);
+    request.request->write(out);
+    Coordination::write(request.create_time, out);
     return out.getBuffer();
 }
 
@@ -51,7 +50,6 @@ RequestForSession deserializeKeeperRequest(nuraft::buffer & data)
 {
     ReadBufferFromNuRaftBuffer buffer(data);
     RequestForSession request_for_session;
-    /// TODO unify digital encoding mode
     readIntBinary(request_for_session.session_id, buffer);
 
     int32_t length;
@@ -76,22 +74,20 @@ RequestForSession deserializeKeeperRequest(nuraft::buffer & data)
         request_for_session.create_time
             = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-    auto * log = &(Poco::Logger::get("NuRaftStateMachine"));
-    LOG_TRACE(
-        log,
-        "Parsed request session id {}, length {}, xid {}, opnum {}",
-        toHexString(request_for_session.session_id),
-        length,
-        xid,
-        Coordination::toString(opnum));
-
     return request_for_session;
 }
 
-ptr<log_entry> makeClone(const ptr<log_entry> & entry)
+ptr<log_entry> cloneLogEntry(const ptr<log_entry> & entry)
 {
-    ptr<log_entry> clone = cs_new<log_entry>(entry->get_term(), buffer::clone(entry->get_buf()), entry->get_val_type());
-    return clone;
+    ptr<log_entry> cloned = cs_new<log_entry>(
+        entry->get_term(),
+        buffer::clone(entry->get_buf()),
+        entry->get_val_type(),
+        entry->get_timestamp(),
+        entry->has_crc32(),
+        entry->get_crc32(),
+        false);
+    return cloned;
 }
 
 String getBaseName(const String & path)
