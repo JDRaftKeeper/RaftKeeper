@@ -18,7 +18,7 @@ namespace RK
 nuraft::ptr<nuraft::buffer> serializeKeeperRequest(const RequestForSession & request);
 RequestForSession deserializeKeeperRequest(nuraft::buffer & data);
 
-nuraft::ptr<nuraft::log_entry> makeClone(const nuraft::ptr<nuraft::log_entry> & entry);
+nuraft::ptr<nuraft::log_entry> cloneLogEntry(const nuraft::ptr<nuraft::log_entry> & entry);
 
 /// Parent of a path, for example: got '/a/b' from '/a/b/c'
 String getParentPath(const String & path);
@@ -28,7 +28,7 @@ String getBaseName(const String & path);
 String base64Encode(const String & decoded);
 String getSHA1(const String & userdata);
 String generateDigest(const String & userdata);
-String checkAndGetSuperdigest(const String & user_and_digest);
+String checkAndGetSuperDigest(const String & user_and_digest);
 
 inline int readUInt32(nuraft::ptr<std::fstream> & fs, UInt32 & x)
 {

@@ -67,7 +67,7 @@ public:
     LogVersion getVersion() const { return version; }
 
     /// serialize entry, and append to open segment, return appended log index
-    UInt64 appendEntry(ptr<log_entry> entry, std::atomic<UInt64> & last_log_index);
+    UInt64 appendEntry(const ptr<log_entry> & entry, std::atomic<UInt64> & last_log_index);
 
     /// get entry by index, return null if not exist.
     ptr<log_entry> getEntry(UInt64 index);
@@ -219,10 +219,10 @@ public:
     UInt64 lastLogIndex() { return last_log_index.load(std::memory_order_acquire); }
 
     /// Append entry to log store
-    UInt64 appendEntry(ptr<log_entry> entry);
+    UInt64 appendEntry(const ptr<log_entry> & entry);
 
     /// First truncate log whose index is large than or equals with index of entry, then append it.
-    UInt64 writeAt(UInt64 index, ptr<log_entry> entry);
+    UInt64 writeAt(UInt64 index, const ptr<log_entry> & entry);
     ptr<log_entry> getEntry(UInt64 index);
 
     /// Just for test, collection entries in [start_index, end_index]

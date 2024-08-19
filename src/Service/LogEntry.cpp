@@ -7,7 +7,7 @@ using nuraft::byte;
 using nuraft::cs_new;
 
 /// Add entry type to the log entry
-ptr<buffer> LogEntryBody::serialize(ptr<log_entry> & entry)
+ptr<buffer> LogEntryBody::serialize(const ptr<log_entry> & entry)
 {
     ptr<buffer> entry_buf;
     ptr<buffer> data = entry->get_buf_ptr();
@@ -22,7 +22,7 @@ ptr<buffer> LogEntryBody::serialize(ptr<log_entry> & entry)
     return entry_buf;
 }
 
-ptr<log_entry> LogEntryBody::deserialize(ptr<buffer> serialized_entry)
+ptr<log_entry> LogEntryBody::deserialize(const ptr<buffer> & serialized_entry)
 {
     nuraft::log_val_type type = static_cast<nuraft::log_val_type>(*serialized_entry->data_begin());
     auto data = buffer::alloc(serialized_entry->size() - 1);

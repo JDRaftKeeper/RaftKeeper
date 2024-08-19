@@ -23,26 +23,13 @@ ptr<log_entry> LogEntryQueue::getEntry(const UInt64 & index)
     return nullptr;
 }
 
-void LogEntryQueue::putEntry(UInt64 & index, ptr<log_entry> & entry)
+void LogEntryQueue::putEntry(UInt64 & index, const ptr<log_entry> & entry)
 {
     LOG_TRACE(log, "put entry {}, index {}, batch {}", index, index & (MAX_VECTOR_SIZE - 1), batch_index);
     std::lock_guard write_lock(queue_mutex);
     entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
     batch_index = std::max(batch_index, index >> BIT_SIZE);
     max_index = std::max(max_index, index);
-}
-
-[[maybe_unused]] void LogEntryQueue::putEntryOrClear(UInt64 & index, ptr<log_entry> & entry)
-{
-    std::lock_guard write_lock(queue_mutex);
-    if (index >> BIT_SIZE == batch_index || index >> BIT_SIZE == batch_index - 1)
-    {
-        entry_vec[index & (MAX_VECTOR_SIZE - 1)] = entry;
-        max_index = index;
-        return;
-    }
-    /// next cycle
-    clear();
 }
 
 void LogEntryQueue::clear()
@@ -137,18 +124,17 @@ ulong NuRaftFileLogStore::start_index() const
 ptr<log_entry> NuRaftFileLogStore::last_entry() const
 {
     if (last_log_entry)
-        return makeClone(last_log_entry);
-    else
-        return nullptr;
+        return cloneLogEntry(last_log_entry);
+    return cs_new<log_entry>(0, nuraft::buffer::alloc(0));
 }
 
 ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 {
-    ptr<log_entry> clone = makeClone(entry);
+    ptr<log_entry> cloned = cloneLogEntry(entry);
     UInt64 log_index = segment_store->appendEntry(entry);
-    log_queue.putEntry(log_index, clone);
+    log_queue.putEntry(log_index, cloned);
 
-    last_log_entry = clone;
+    last_log_entry = cloned;
 
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
         parallel_fsync_event->set();
@@ -209,7 +195,6 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start
     ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
 
     int64 get_size = 0;
-    int64 entry_size;
 
     for (auto i = start; i < end; i++)
     {
@@ -217,7 +202,7 @@ ptr<std::vector<ptr<log_entry>>> NuRaftFileLogStore::log_entries_ext(ulong start
         if (!entry)
             return nullptr;
 
-        entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
+        int64_t entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
 
         if (batch_size_hint_in_bytes > 0 && get_size + entry_size > batch_size_hint_in_bytes)
             break;
@@ -234,7 +219,6 @@ ptr<std::vector<LogEntryWithVersion>> NuRaftFileLogStore::log_entries_version_ex
     ptr<std::vector<LogEntryWithVersion>> ret = cs_new<std::vector<LogEntryWithVersion>>();
 
     int64 get_size = 0;
-    int64 entry_size;
 
     for (auto i = start; i < end; i++)
     {
@@ -242,7 +226,7 @@ ptr<std::vector<LogEntryWithVersion>> NuRaftFileLogStore::log_entries_version_ex
         if (!entry)
             return nullptr;
 
-        entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
+        int64 entry_size = entry->get_buf().size() + sizeof(ulong) + sizeof(char);
 
         if (batch_size_hint_in_bytes > 0 && get_size + entry_size > batch_size_hint_in_bytes)
             break;
@@ -256,7 +240,7 @@ ptr<std::vector<LogEntryWithVersion>> NuRaftFileLogStore::log_entries_version_ex
 
 ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 {
-    ptr<nuraft::log_entry> res = log_queue.getEntry(index);
+    auto res = log_queue.getEntry(index);
     if (res)
     {
         LOG_TRACE(log, "Get log {} from queue", index);
@@ -266,15 +250,14 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
         LOG_TRACE(log, "Get log {} from disk", index);
         res = segment_store->getEntry(index);
     }
-    return res ? makeClone(res) : nullptr;
+    return res ? cloneLogEntry(res) : nullptr;
 }
 
 ulong NuRaftFileLogStore::term_at(ulong index)
 {
     if (entry_at(index))
         return entry_at(index)->get_term();
-    else
-        return 0;
+    return 0;
 }
 
 ptr<buffer> NuRaftFileLogStore::pack(ulong index, int32 cnt)

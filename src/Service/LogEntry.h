@@ -37,8 +37,8 @@ struct LogEntryHeader
 class LogEntryBody
 {
 public:
-    static ptr<buffer> serialize(ptr<log_entry> & entry);
-    static ptr<log_entry> deserialize(ptr<buffer> serialized_entry);
+    static ptr<buffer> serialize(const ptr<log_entry> & entry);
+    static ptr<log_entry> deserialize(const ptr<buffer> & serialized_entry);
 };
 
 }

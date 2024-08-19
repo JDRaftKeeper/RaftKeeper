@@ -44,7 +44,7 @@ KeeperServer::KeeperServer(
         new_session_id_callback_mutex,
         new_session_id_callback,
         state_manager->load_log_store(),
-        checkAndGetSuperdigest(settings->super_digest),
+        checkAndGetSuperDigest(settings->super_digest),
         MAX_OBJECT_NODE_SIZE,
         request_processor_);
 
