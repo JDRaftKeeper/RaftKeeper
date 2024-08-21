@@ -205,7 +205,7 @@ void NuRaftLogSegment::load()
         if (entry_off + log_entry_len > file_size_read)
             throw Exception(ErrorCodes::CORRUPTED_LOG, "Corrupted log segment file {}.", file_name);
 
-        offset_term.push_back(std::make_pair(entry_off, header.term));
+        offsets.push_back(entry_off);
         ++last_index_read;
         entry_off += log_entry_len;
 
@@ -378,7 +378,7 @@ UInt64 NuRaftLogSegment::appendEntry(const ptr<log_entry> & entry, std::atomic<U
         if (size_written != static_cast<ssize_t>(vec[0].iov_len + vec[1].iov_len))
             throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to append log entry to {}", file_name);
 
-        offset_term.push_back(std::make_pair(file_size.load(std::memory_order_relaxed), entry->get_term()));
+        offsets.push_back(file_size.load(std::memory_order_relaxed));
         file_size.fetch_add(LogEntryHeader::HEADER_SIZE + header.data_length, std::memory_order_release);
 
         last_index.fetch_add(1, std::memory_order_release);
@@ -399,30 +399,16 @@ UInt64 NuRaftLogSegment::appendEntry(const ptr<log_entry> & entry, std::atomic<U
 }
 
 
-ptr<NuRaftLogSegment::LogMeta> NuRaftLogSegment::getMeta(UInt64 index) const
+int64_t NuRaftLogSegment::getEntryOffset(UInt64 index) const
 {
     if (last_index == first_index - 1 || index > last_index.load(std::memory_order_relaxed) || index < first_index)
-        return nullptr;
+        return -1;
 
-    UInt64 meta_index = index - first_index;
-    UInt64 file_offset = offset_term[meta_index].first;
-
-    UInt64 next_offset;
-
-    if (index < last_index.load(std::memory_order_relaxed))
-        next_offset = offset_term[meta_index + 1].first;
-    else
-        next_offset = file_size;
-
-    ptr<LogMeta> meta = cs_new<LogMeta>();
-    meta->offset = file_offset;
-    meta->term = offset_term[meta_index].second;
-    meta->length = next_offset - file_offset;
-
-    return meta;
+    UInt64 inner_index = index - first_index;
+    return offsets[inner_index];
 }
 
-LogEntryHeader NuRaftLogSegment::loadEntryHeader(off_t offset) const
+LogEntryHeader NuRaftLogSegment::loadEntryHeader(int64_t offset) const
 {
     ptr<buffer> buf = buffer::alloc(LogEntryHeader::HEADER_SIZE);
     buf->pos(0);
@@ -445,15 +431,15 @@ LogEntryHeader NuRaftLogSegment::loadEntryHeader(off_t offset) const
     return header;
 }
 
-ptr<log_entry> NuRaftLogSegment::loadEntry(const LogMeta & meta) const
+ptr<log_entry> NuRaftLogSegment::loadEntry(int64_t offset) const
 {
-    LogEntryHeader header = loadEntryHeader(meta.offset);
+    LogEntryHeader header = loadEntryHeader(offset);
 
     ptr<buffer> buf = buffer::alloc(header.data_length);
-    ssize_t size_read = pread(seg_fd, buf->data_begin(), header.data_length, meta.offset + LogEntryHeader::HEADER_SIZE);
+    ssize_t size_read = pread(seg_fd, buf->data_begin(), header.data_length, offset + LogEntryHeader::HEADER_SIZE);
 
     if (size_read != header.data_length)
-        throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", meta.offset, file_name);
+        throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Fail to read log entry with offset {} from log segment {}", offset, file_name);
 
     if (!verifyCRC32(reinterpret_cast<const char *>(buf->data_begin()), header.data_length, header.data_crc))
         throw Exception(ErrorCodes::CORRUPTED_LOG, "Checking CRC32 failed for log segment {}.", file_name);
@@ -472,14 +458,14 @@ ptr<log_entry> NuRaftLogSegment::getEntry(UInt64 index)
     }
 
     std::shared_lock read_lock(log_mutex);
-    auto meta = getMeta(index);
-    return meta == nullptr ? nullptr : loadEntry(*meta);
+    auto offset = getEntryOffset(index);
+    return offset == -1 ? nullptr : loadEntry(offset);
 }
 
 bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
 {
-    UInt64 file_size_to_keep = 0;
-    UInt64 first_log_offset_to_truncate = 0;
+    UInt64 file_size_to_keep;
+    UInt64 first_log_offset_to_truncate;
 
     /// Truncate on a full segment need to rename back to open segment again,
     /// because the node may crash before truncate.
@@ -519,7 +505,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
         }
 
         first_log_offset_to_truncate = last_index_kept + 1 - first_index;
-        file_size_to_keep = offset_term[first_log_offset_to_truncate].first;
+        file_size_to_keep = offsets[first_log_offset_to_truncate];
 
         LOG_INFO(
             log,
@@ -546,7 +532,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
         throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to seek to {} for log segment {}", file_size_to_keep, file_name);
 
     std::lock_guard write_lock(log_mutex);
-    offset_term.resize(first_log_offset_to_truncate);
+    offsets.resize(first_log_offset_to_truncate);
     last_index.store(last_index_kept, std::memory_order_release);
     file_size = file_size_to_keep;
 
