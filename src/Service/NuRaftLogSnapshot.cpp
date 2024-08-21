@@ -31,12 +31,13 @@ namespace ErrorCodes
     extern const int UNKNOWN_FORMAT_VERSION;
     extern const int SNAPSHOT_OBJECT_NOT_EXISTS;
     extern const int SNAPSHOT_NOT_EXISTS;
+    extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
+    extern const int INVALID_SNAPSHOT_FILE_NAME;
 }
 
 using nuraft::cs_new;
-using Poco::NumberFormatter;
 
-void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path)
+void KeeperSnapshotStore::getObjectPath(ulong object_id, String & obj_path) const
 {
     SnapObject s_obj(curr_time.c_str(), last_log_term, last_log_index, object_id);
     obj_path = snap_dir + "/" + s_obj.getObjectName();
@@ -66,7 +67,7 @@ size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
     return getObjectIdx(out->getFileName());
 }
 
-size_t KeeperSnapshotStore::serializeDataTreeAsync(SnapTask & snap_task)
+size_t KeeperSnapshotStore::serializeDataTreeAsync(SnapTask & snap_task) const
 {
     std::shared_ptr<WriteBufferFromFile> out;
     ptr<SnapshotBatchBody> batch;
@@ -153,7 +154,7 @@ void KeeperSnapshotStore::serializeNodeV2(
 uint32_t KeeperSnapshotStore::serializeNodeAsync(
     ptr<WriteBufferFromFile> & out,
     ptr<SnapshotBatchBody> & batch,
-    BucketNodes & bucket_nodes)
+    BucketNodes & bucket_nodes) const
 {
     uint64_t processed = 0;
     uint32_t checksum = 0;
@@ -408,7 +409,6 @@ void KeeperSnapshotStore::init(String create_time = "")
 void KeeperSnapshotStore::parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head)
 {
     head.reset();
-    errno = 0;
     if (readUInt32(fs, head.data_length) != 0)
     {
         if (!fs->eof())
@@ -517,7 +517,12 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
     }
 }
 
-void KeeperSnapshotStore::parseBatchBodyV2(KeeperStore & store, const String & body_string, BucketEdges & buckets_edges, BucketNodes & bucket_nodes, SnapshotVersion version_)
+void KeeperSnapshotStore::parseBatchBodyV2(
+    KeeperStore & store,
+    const String & body_string,
+    BucketEdges & buckets_edges,
+    BucketNodes & bucket_nodes,
+    SnapshotVersion version_) const
 {
     ptr<SnapshotBatchBody> batch;
     batch = SnapshotBatchBody::parse(body_string);
@@ -653,21 +658,12 @@ void KeeperSnapshotStore::loadObject(ulong obj_id, ptr<buffer> & buffer)
         {
             buf_size = file_size - offset;
         }
-        errno = 0;
         ssize_t ret = pread(snap_fd, read_buf, buf_size, offset);
+
         if (ret < 0)
-        {
-            LOG_ERROR(
-                log,
-                "Read object failed, path {}, offset {}, length {}, ret {}, erron {}, error:{}",
-                obj_path,
-                offset,
-                buf_size,
-                ret,
-                errno,
-                strerror(errno));
-            break;
-        }
+            throwFromErrno(
+                ErrorCodes::CORRUPTED_SNAPSHOT, "Fail to read snapshot file {}, offset {}, length {}", obj_path, offset, buf_size);
+
         buffer->put_raw(reinterpret_cast<nuraft::byte *>(read_buf), buf_size);
         offset += buf_size;
     }
@@ -706,16 +702,7 @@ void KeeperSnapshotStore::saveObject(ulong obj_id, buffer & buffer)
         ssize_t ret = pwrite(snap_fd, buffer.get_raw(buf_size), buf_size, offset);
         if (ret < 0)
         {
-            LOG_ERROR(
-                log,
-                "Write object failed, path {}, offset {}, length {}, ret {}, erron {}, error:{}",
-                obj_path,
-                offset,
-                buf_size,
-                ret,
-                errno,
-                strerror(errno));
-            break;
+            throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to write a snapshot file {}", obj_path);
         }
         offset += buf_size;
     }
@@ -863,12 +850,12 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
     if (!file_dir.exists())
         return 0;
 
-    std::vector<String> file_vec;
-    file_dir.list(file_vec);
+    std::vector<String> files;
+    file_dir.list(files);
 
-    for (const auto & file : file_vec)
+    for (const auto & file : files)
     {
-        if (file.find("snapshot_") == file.npos)
+        if (!file.starts_with("snapshot_"))
         {
             LOG_WARNING(log, "Skip non-snapshot file {}", file);
             continue;
@@ -876,14 +863,11 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
 
         SnapObject s_obj;
         if (!s_obj.parseInfoFromObjectName(file))
-        {
-            LOG_ERROR(log, "Can't parse object info from file name {}", file);
-            continue;
-        }
+            throw Exception(ErrorCodes::INVALID_SNAPSHOT_FILE_NAME, "Invalid snapshot object file name {}", file);
 
         auto key = getSnapshotStoreMapKey(s_obj);
 
-        if (snapshots.find(key) == snapshots.end())
+        if (!snapshots.contains(key))
         {
             ptr<nuraft::cluster_config> config = cs_new<nuraft::cluster_config>(s_obj.log_last_index, s_obj.log_last_index - 1);
             nuraft::snapshot meta(s_obj.log_last_index, s_obj.log_last_term, config);
@@ -891,10 +875,12 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
             snap_store->init(s_obj.create_time);
             snapshots[key] = snap_store;
         }
+
         String full_path = snap_dir + "/" + file;
         LOG_INFO(log, "Load filename {}, term {}, index {}, object id {}", file, s_obj.log_last_term, s_obj.log_last_index, s_obj.object_id);
         snapshots[key]->addObjectPath(s_obj.object_id, full_path);
     }
+
     LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
     return snapshots.size();
 }
@@ -933,12 +919,11 @@ size_t KeeperSnapshotManager::removeSnapshots()
                     LOG_INFO(log, "Skip no snapshot file {}", file);
                     continue;
                 }
+
                 SnapObject s_obj;
                 if (!s_obj.parseInfoFromObjectName(file))
-                {
-                    LOG_ERROR(log, "Can't parse object info from file name {}", file);
                     continue;
-                }
+
                 auto key = getSnapshotStoreMapKey(s_obj);
                 if (remove_term_log_index == key)
                 {

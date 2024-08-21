@@ -1,8 +1,11 @@
+#include <Service/NuRaftLogSegment.h>
+
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
+#include <charconv>
 
 #include <Poco/File.h>
 
@@ -11,7 +14,6 @@
 #include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
-#include <Service/NuRaftLogSegment.h>
 
 
 namespace RK
@@ -26,6 +28,7 @@ namespace ErrorCodes
     extern const int CANNOT_OPEN_FILE;
     extern const int FILE_DOESNT_EXIST;
     extern const int CORRUPTED_LOG;
+    extern const int INVALID_LOG_SEGMENT_FILE_NAME;
 }
 
 using namespace nuraft;
@@ -40,7 +43,7 @@ using namespace nuraft;
     return rc;
 }
 
-bool compareSegment(ptr<NuRaftLogSegment> & lhs, ptr<NuRaftLogSegment> & rhs)
+bool compareSegment(const ptr<NuRaftLogSegment> & lhs, const ptr<NuRaftLogSegment> & rhs)
 {
     return lhs->firstIndex() < rhs->firstIndex();
 }
@@ -50,8 +53,8 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_)
     , first_index(first_index_)
     , last_index(first_index_ - 1)
     , is_open(true)
-    , log(&(Poco::Logger::get("NuRaftLogSegment")))
     , version(CURRENT_LOG_VERSION)
+    , log(&(Poco::Logger::get("NuRaftLogSegment")))
 {
     Poco::DateTime now;
     create_time = Poco::DateTimeFormatter::format(now, "%Y%m%d%H%M%S");
@@ -77,6 +80,7 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_,
     , last_index(last_index_)
     , file_name(file_name_)
     , create_time(create_time_)
+    , version(LogVersion::UNKNOWN)
     , log(&(Poco::Logger::get("NuRaftLogSegment")))
 {
 }
@@ -88,6 +92,7 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_,
     , is_open(true)
     , file_name(file_name_)
     , create_time(create_time_)
+    , version(LogVersion::UNKNOWN)
     , log(&(Poco::Logger::get("NuRaftLogSegment")))
 {
 }
@@ -611,7 +616,7 @@ void LogSegmentStore::openNewSegmentIfNeeded()
     open_segment->writeHeader();
 }
 
-ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index)
+ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index) const
 {
     UInt64 first_index = first_log_index.load(std::memory_order_acquire);
     UInt64 last_index = last_log_index.load(std::memory_order_acquire);
@@ -633,7 +638,7 @@ ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index)
     }
     else
     {
-        for (auto & segment : closed_segments)
+        for (const auto & segment : closed_segments)
         {
             if (index >= segment->firstIndex() && index <= segment->lastIndex())
                 seg = segment;
@@ -666,7 +671,7 @@ UInt64 LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> & entry)
     return -1;
 }
 
-ptr<log_entry> LogSegmentStore::getEntry(UInt64 index)
+ptr<log_entry> LogSegmentStore::getEntry(UInt64 index) const
 {
     std::shared_lock read_lock(seg_mutex);
     ptr<NuRaftLogSegment> seg = getSegment(index);
@@ -675,7 +680,7 @@ ptr<log_entry> LogSegmentStore::getEntry(UInt64 index)
     return seg->getEntry(index);
 }
 
-void LogSegmentStore::getEntries(UInt64 start_index, UInt64 end_index, ptr<std::vector<ptr<log_entry>>> & entries)
+void LogSegmentStore::getEntries(UInt64 start_index, UInt64 end_index, const ptr<std::vector<ptr<log_entry>>> & entries)
 {
     if (entries == nullptr)
     {
@@ -722,7 +727,7 @@ int LogSegmentStore::removeSegment(UInt64 first_index_kept)
                     if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
                         last_log_index.store(segment->lastIndex(), std::memory_order_release);
                 }
-                it++;
+                ++it;
             }
         }
 
@@ -788,10 +793,10 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
         else if (last_index_kept >= segment->firstIndex() && last_index_kept <= segment->lastIndex())
         {
             last_segment = segment;
-            it++;
+            ++it;
         }
         else
-            it++;
+            ++it;
     }
 
     /// remove open segment if needed
@@ -839,6 +844,39 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
     return true;
 }
 
+bool parseSegmentFileName(const String & file_name, UInt64 & first_index, UInt64 & last_index, String & create_time, bool & is_open)
+{
+    auto tryReadUInt64Text = [] (const String & str, UInt64 & num)
+    {
+        auto [_, ec] = std::from_chars(str.data(), str.data() + str.size(), num);
+        return ec == std::errc();
+    };
+
+    Strings tokens;
+    splitInto<'_'>(tokens, file_name);
+
+    if (tokens.size() != 4)
+        return false;
+
+    if (!tryReadUInt64Text(tokens[1], first_index))
+        return false;
+
+    if (tokens[2] == "open")
+    {
+        is_open = true;
+    }
+    else
+    {
+        if (!tryReadUInt64Text(tokens[2], last_index))
+            return false;
+        is_open = true;
+    }
+
+    create_time = std::move(tokens[3]);
+
+    return true;
+}
+
 void LogSegmentStore::loadSegmentMetaData()
 {
     Poco::File file_dir(log_dir);
@@ -848,35 +886,34 @@ void LogSegmentStore::loadSegmentMetaData()
     std::vector<String> files;
     file_dir.list(files);
 
-    for (const auto & file_name : files)
+    for (const auto & file : files)
     {
-        if (file_name.find("log_") == String::npos)
-            continue;
-
-        LOG_INFO(log, "Find log segment file {}", file_name);
-
-        int match;
-        UInt64 first_index = 0;
-        UInt64 last_index = 0;
-        char create_time[128];
-
-        /// Closed log segment
-        match = sscanf(file_name.c_str(), NuRaftLogSegment::LOG_FINISH_FILE_NAME, &first_index, &last_index, create_time);
-        if (match == 3)
+        if (!file.starts_with("log_"))
         {
-            ptr<NuRaftLogSegment> segment = cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file_name, String(create_time));
-            closed_segments.push_back(segment);
+            LOG_WARNING(log, "Skip non-log-segment file {}", file);
             continue;
         }
 
-        /// Open log segment
-        match = sscanf(file_name.c_str(), NuRaftLogSegment::LOG_OPEN_FILE_NAME, &first_index, create_time);
-        if (match == 2)
+        LOG_INFO(log, "Find log segment file {}", file);
+
+        UInt64 first_index;
+        UInt64 last_index;
+        String create_time;
+        bool is_open_segment;
+
+        if (!parseSegmentFileName(file, first_index, last_index, create_time, is_open_segment))
+            throw Exception(ErrorCodes::INVALID_LOG_SEGMENT_FILE_NAME, "Invalid log segment fine name {}", file);
+
+        if (is_open_segment)
         {
             if (open_segment)
                 throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Find more than one open segment in {}", log_dir);
-            open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file_name, String(create_time));
-            continue;
+            open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file, String(create_time));
+        }
+        else
+        {
+            ptr<NuRaftLogSegment> segment = cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file, String(create_time));
+            closed_segments.push_back(segment);
         }
     }
 

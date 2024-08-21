@@ -6,14 +6,13 @@ namespace RK
 using nuraft::byte;
 using nuraft::cs_new;
 
-/// Add entry type to the log entry
+/// Add log entry type to head
 ptr<buffer> LogEntryBody::serialize(const ptr<log_entry> & entry)
 {
-    ptr<buffer> entry_buf;
-    ptr<buffer> data = entry->get_buf_ptr();
+    auto data = entry->get_buf_ptr();
     data->pos(0);
 
-    entry_buf = buffer::alloc(sizeof(char) + data->size());
+    auto entry_buf = buffer::alloc(sizeof(char) + data->size());
     entry_buf->put((static_cast<byte>(entry->get_val_type())));
 
     entry_buf->put(*data);
@@ -24,11 +23,13 @@ ptr<buffer> LogEntryBody::serialize(const ptr<log_entry> & entry)
 
 ptr<log_entry> LogEntryBody::deserialize(const ptr<buffer> & serialized_entry)
 {
-    nuraft::log_val_type type = static_cast<nuraft::log_val_type>(*serialized_entry->data_begin());
+    auto type = static_cast<nuraft::log_val_type>(*serialized_entry->data_begin());
     auto data = buffer::alloc(serialized_entry->size() - 1);
+
     data->put_raw(serialized_entry->data_begin() + 1, serialized_entry->size() - 1);
     data->pos(0);
-    return cs_new<log_entry>(0, data, type); /// term is set latter
+
+    return cs_new<log_entry>(0, data, type); /// TODO term is set latter, it is not an intuitive way
 }
 
 }
