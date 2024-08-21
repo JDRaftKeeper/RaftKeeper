@@ -393,7 +393,7 @@ size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
     return total_obj_count;
 }
 
-void KeeperSnapshotStore::init(String create_time = "")
+void KeeperSnapshotStore::init(const String & create_time)
 {
     if (create_time.empty())
     {
@@ -439,7 +439,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
     size_t read_size = 0;
     SnapshotBatchHeader header;
     UInt32 checksum = 0;
-    SnapshotVersion version_from_obj = SnapshotVersion::None;
+    SnapshotVersion version_from_obj = SnapshotVersion::UNKNOWN;
 
     while (!snap_fs->eof())
     {
@@ -482,7 +482,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
         }
         else
         {
-            if (version_from_obj == SnapshotVersion::None)
+            if (version_from_obj == SnapshotVersion::UNKNOWN)
             {
                 version_from_obj = SnapshotVersion::V0;
                 LOG_INFO(log, "snapshot has no version, set to V0", obj_path);

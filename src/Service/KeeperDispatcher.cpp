@@ -18,7 +18,6 @@ namespace ErrorCodes
 }
 
 namespace fs = std::filesystem;
-using Poco::NumberFormatter;
 
 KeeperDispatcher::KeeperDispatcher()
     : configuration_and_settings(std::make_shared<Settings>())
@@ -190,7 +189,7 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
     {
         std::shared_lock<std::shared_mutex> read_lock(response_callbacks_mutex);
         /// session is expired by server
-        if (user_response_callbacks.count(session_id) == 0)
+        if (!user_response_callbacks.contains(session_id))
             return false;
     }
 

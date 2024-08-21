@@ -7,8 +7,6 @@
 #include <Poco/Logger.h>
 
 #include <Common/IO/Operators.h>
-#include <Common/IO/WriteBufferFromString.h>
-#include <common/logger_useful.h>
 
 #include <Service/SessionExpiryQueue.h>
 #include <Service/formatHex.h>

@@ -266,8 +266,6 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, nura
     else
     {
         auto request_for_session = deserializeKeeperRequest(data);
-        ResponsesForSessions responses_for_sessions;
-
         LOG_TRACE(log, "Commit log index {}, request {}", log_idx, request_for_session.toSimpleString());
 
         if (request_processor)

@@ -29,8 +29,8 @@ String toString(SnapshotVersion version)
             return "v1";
         case SnapshotVersion::V2:
             return "v2";
-        case SnapshotVersion::None:
-            return "none";
+        case SnapshotVersion::UNKNOWN:
+            return "unknown";
     }
 }
 
@@ -71,7 +71,7 @@ ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotVer
     return out;
 }
 
-int openFileForRead(String & path)
+int openFileForRead(const String & path)
 {
     int snap_fd = ::open(path.c_str(), O_RDWR);
     if (snap_fd < 0)
@@ -284,7 +284,7 @@ void serializeAclsV2(const NumToACLMap & acl_map, String path, UInt32 save_batch
     return 1;
 }
 
-void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, const SnapshotVersion version, String & path)
+void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, SnapshotVersion version, String & path)
 {
     Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
     auto out = openFileAndWriteHeader(path, version);

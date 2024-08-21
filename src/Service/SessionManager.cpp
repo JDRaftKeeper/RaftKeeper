@@ -1,5 +1,7 @@
 #include <Service/SessionManager.h>
 
+#include <common/logger_useful.h>
+
 namespace RK
 {
 
