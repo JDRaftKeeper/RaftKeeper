@@ -54,6 +54,7 @@ struct SnapObject
 {
     /// create_time, last_log_index, object_id
     static constexpr char SNAPSHOT_FILE_NAME[] = "snapshot_{}_{}_{}";
+
     /// create_time, last_log_term, last_log_index, object_id
     static constexpr char SNAPSHOT_FILE_NAME_V1[] = "snapshot_{}_{}_{}_{}";
 
@@ -62,7 +63,7 @@ struct SnapObject
     UInt64 log_last_index;
     UInt64 object_id;
 
-    SnapObject(String _create_time = "", UInt64 _log_last_term = 1, UInt64 _log_last_index = 1, UInt64 _object_id = 1)
+    explicit SnapObject(const String & _create_time = "", UInt64 _log_last_term = 1, UInt64 _log_last_index = 1, UInt64 _object_id = 1)
         :create_time(_create_time), log_last_term(_log_last_term), log_last_index(_log_last_index), object_id(_object_id)
     {
     }
@@ -74,33 +75,32 @@ struct SnapObject
 
     bool parseInfoFromObjectName(const String & object_name)
     {
-        auto tryReadUint64Text = [] (const String & str, UInt64 & num)
+        auto tryReadUInt64Text = [] (const String & str, UInt64 & num)
         {
             auto [_, ec] = std::from_chars(str.data(), str.data() + str.size(), num);
             return ec == std::errc();
         };
 
         Strings tokens;
-
         splitInto<'_'>(tokens, object_name);
 
         if (tokens.size() == 4)
         {
-            if (!tryReadUint64Text(tokens[2], log_last_index))
+            if (!tryReadUInt64Text(tokens[2], log_last_index))
                 return false;
 
-            if (!tryReadUint64Text(tokens[3], object_id))
+            if (!tryReadUInt64Text(tokens[3], object_id))
                 return false;
         }
         else if (tokens.size() == 5)
         {
-            if (!tryReadUint64Text(tokens[2], log_last_term))
+            if (!tryReadUInt64Text(tokens[2], log_last_term))
                 return false;
 
-            if (!tryReadUint64Text(tokens[3], log_last_index))
+            if (!tryReadUInt64Text(tokens[3], log_last_index))
                 return false;
 
-            if (!tryReadUint64Text(tokens[4], object_id))
+            if (!tryReadUInt64Text(tokens[4], object_id))
                 return false;
         }
         else
@@ -199,7 +199,7 @@ private:
     size_t createObjectsAsyncImpl(SnapTask & snap_task);
 
     /// get path of an object
-    void getObjectPath(ulong object_id, String & path);
+    void getObjectPath(ulong object_id, String & path) const;
 
     /// Parse an snapshot object. We should take the version from snapshot in general.
     void parseObject(KeeperStore & store, String obj_path, BucketEdges &, BucketNodes &);
@@ -209,13 +209,13 @@ private:
     void parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
     /// Parse a batch
-    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, BucketNodes &, SnapshotVersion version_);
+    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, BucketNodes &, SnapshotVersion version_) const;
 
     /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
 
     /// For async snapshot
-    size_t serializeDataTreeAsync(SnapTask & snap_task);
+    size_t serializeDataTreeAsync(SnapTask & snap_task) const;
 
     /// For snapshot version v2
     void serializeNodeV2(
@@ -230,7 +230,7 @@ private:
     uint32_t serializeNodeAsync(
         ptr<WriteBufferFromFile> & out,
         ptr<SnapshotBatchBody> & batch,
-        BucketNodes & nodes);
+        BucketNodes & bucket_nodes) const;
 
     /// Append node to batch version v2
     inline static void

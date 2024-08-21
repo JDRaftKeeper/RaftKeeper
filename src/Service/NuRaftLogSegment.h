@@ -25,6 +25,8 @@ enum class LogVersion : uint8_t
 {
     V0 = 0,
     V1 = 1, /// with ctime, mtime, magic and version
+
+    UNKNOWN = 255
 };
 
 /// Attach version to log entry
@@ -89,18 +91,6 @@ public:
     /// Segment file name, see LOG_FINISH_FILE_NAME and LOG_OPEN_FILE_NAME
     String getFileName();
 
-#ifdef __APPLE__
-    /// log_start_index, log_end_index, create_time
-    static constexpr char LOG_FINISH_FILE_NAME[] = "log_%llu_%llu_%s";
-    /// log_start_index, create_time
-    static constexpr char LOG_OPEN_FILE_NAME[] = "log_%llu_open_%s";
-#else
-    /// log_start_index, log_end_index, create_time
-    static constexpr char LOG_FINISH_FILE_NAME[] = "log_%lu_%lu_%s";
-    /// log_start_index, create_time
-    static constexpr char LOG_OPEN_FILE_NAME[] = "log_%lu_open_%s";
-#endif
-
 private:
     /// invoked when create new segment
     String getOpenFileName();
@@ -156,8 +146,6 @@ private:
     /// segment file size
     std::atomic<UInt64> file_size = 0;
 
-    Poco::Logger * log;
-
     /// global mutex
     mutable std::shared_mutex log_mutex;
 
@@ -165,12 +153,14 @@ private:
     /// Will load all log entry offset in file into memory when starting.
     std::vector<int64_t> offsets;
 
-    /// file format version, default V1
+    /// file format version, default is V1
     LogVersion version;
+
+    Poco::Logger * log;
 };
 
 /**
- * LogSegmentStore manages log segments and it use segmented append-only file, all data
+ * LogSegmentStore manages log segments and it uses segmented append-only file, all data
  * in disk, all index in memory. Append one log entry, only cause one disk write, every
  * disk write will call fsync().
  *
@@ -178,21 +168,24 @@ private:
  *      log_1_1000_create_time: closed segment
  *      log_open_1001_create_time: open segment
  */
-class LogSegmentStore
+class LogSegmentStore final
 {
 public:
     using Segments = std::vector<ptr<NuRaftLogSegment>>;
 
-    static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; //1G, 0.3K/Log, 3M logs
+    static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; /// 1GB, 0.3K/Log, 3M logs
     static constexpr size_t LOAD_THREAD_NUM = 8;
 
     explicit LogSegmentStore(const String & log_dir_)
-        : log_dir(log_dir_), first_log_index(1), last_log_index(0), log(&(Poco::Logger::get("LogSegmentStore")))
+        : log_dir(log_dir_)
+        , first_log_index(1)
+        , last_log_index(0)
+        , max_segment_file_size(MAX_SEGMENT_FILE_SIZE)
+        , log(&Poco::Logger::get("LogSegmentStore"))
     {
         LOG_INFO(log, "Create LogSegmentStore {}.", log_dir_);
     }
 
-    virtual ~LogSegmentStore() = default;
     static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false);
 
     /// Init log store, will create dir if not exist
@@ -203,20 +196,20 @@ public:
     UInt64 flush();
 
     /// first log index in whole log store
-    UInt64 firstLogIndex() { return first_log_index.load(std::memory_order_acquire); }
+    UInt64 firstLogIndex() const { return first_log_index.load(std::memory_order_acquire); }
 
     /// last log index in whole log store
-    UInt64 lastLogIndex() { return last_log_index.load(std::memory_order_acquire); }
+    UInt64 lastLogIndex() const { return last_log_index.load(std::memory_order_acquire); }
 
     /// Append entry to log store
     UInt64 appendEntry(const ptr<log_entry> & entry);
 
-    /// First truncate log whose index is large than or equals with index of entry, then append it.
+    /// First truncate log whose index is larger than or equals with index of entry, then append it.
     UInt64 writeAt(UInt64 index, const ptr<log_entry> & entry);
-    ptr<log_entry> getEntry(UInt64 index);
+    ptr<log_entry> getEntry(UInt64 index) const;
 
     /// Just for test, collection entries in [start_index, end_index]
-    void getEntries(UInt64 start_index, UInt64 end_index, ptr<std::vector<ptr<log_entry>>> & entries);
+    void getEntries(UInt64 start_index, UInt64 end_index, const ptr<std::vector<ptr<log_entry>>> & entries);
 
     /// Remove segments from storage's head, logs in [1, first_index_kept) will be discarded, usually invoked when compaction.
     /// return number of segments removed
@@ -245,7 +238,7 @@ private:
     void loadSegments();
 
     /// find segment by log index, return null if not found
-    ptr<NuRaftLogSegment> getSegment(UInt64 log_index);
+    ptr<NuRaftLogSegment> getSegment(UInt64 log_index) const;
 
     /// file log store directory
     String log_dir;
