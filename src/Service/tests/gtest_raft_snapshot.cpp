@@ -331,9 +331,9 @@ TEST(RaftSnapshot, parseAndSerializeKeeperNode)
         ASSERT_EQ(*parsed->node, *node);
     };
 
-    test(V0);
-    test(V1);
-    test(V2);
+    test(SnapshotVersion::V0);
+    test(SnapshotVersion::V1);
+    test(SnapshotVersion::V2);
 }
 
 TEST(RaftSnapshot, createSnapshot_1)
@@ -624,7 +624,7 @@ void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version
     ASSERT_TRUE(snap_mgr.parseSnapshot(meta, new_store));
 
     /// 4. compare store and new_store
-    bool compare_acl = version1 >= V1 && version2 >= V1;
+    bool compare_acl = version1 >= SnapshotVersion::V1 && version2 >= SnapshotVersion::V1;
     compareKeeperStore(store, new_store, compare_acl);
 
     /// 5. create snapshot with version2
@@ -642,22 +642,22 @@ void parseSnapshot(const SnapshotVersion version1, const SnapshotVersion version
 
 TEST(RaftSnapshot, parseSnapshot)
 {
-    parseSnapshot(V0, V0);
+    parseSnapshot(SnapshotVersion::V0, SnapshotVersion::V0);
     sleep(1); /// snapshot_create_interval is 1
 
-    parseSnapshot(V1, V1);
+    parseSnapshot(SnapshotVersion::V1, SnapshotVersion::V1);
     sleep(1);
 
-    parseSnapshot(V0, V1);
+    parseSnapshot(SnapshotVersion::V0, SnapshotVersion::V1);
     sleep(1);
 
-    parseSnapshot(V0, V2);
+    parseSnapshot(SnapshotVersion::V0, SnapshotVersion::V2);
     sleep(1);
 
-    parseSnapshot(V1, V2);
+    parseSnapshot(SnapshotVersion::V1, SnapshotVersion::V2);
     sleep(1);
 
-    parseSnapshot(V2, V1);
+    parseSnapshot(SnapshotVersion::V2, SnapshotVersion::V1);
     sleep(1);
 }
 

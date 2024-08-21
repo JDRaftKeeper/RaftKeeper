@@ -517,7 +517,7 @@ void RequestProcessor::shutdown()
     }
 }
 
-void RequestProcessor::commit(RequestForSession request)
+void RequestProcessor::commit(const RequestForSession & request)
 {
     if (!shutdown_called)
     {

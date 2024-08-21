@@ -1,5 +1,10 @@
 #include <Service/Metrics.h>
+
 #include <algorithm>
+
+#include <Common/Exception.h>
+#include <common/logger_useful.h>
+
 
 namespace RK
 {
@@ -99,7 +104,7 @@ void BasicSummary::add(RK::UInt64 value)
     {
     }
 
-    count ++;
+    ++count;
     sum += value;
 }
 

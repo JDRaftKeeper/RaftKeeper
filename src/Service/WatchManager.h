@@ -7,7 +7,6 @@
 #include <Poco/Logger.h>
 
 #include <Service/KeeperCommon.h>
-#include <Service/SessionExpiryQueue.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 

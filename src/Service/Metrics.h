@@ -1,14 +1,13 @@
 #pragma once
 
-#include <common/types.h>
 #include <array>
 #include <atomic>
-#include <random>
-#include <Poco/Logger.h>
-#include <common/logger_useful.h>
-#include <unordered_map>
 #include <map>
-#include <Common/Exception.h>
+#include <random>
+
+#include <Poco/Logger.h>
+
+#include <common/types.h>
 
 
 namespace RK

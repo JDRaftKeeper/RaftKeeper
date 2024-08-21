@@ -24,7 +24,7 @@ public:
 
     void shutdown();
 
-    void commit(RequestForSession request);
+    void commit(const RequestForSession & request);
 
     /// Invoked when fail to forward request to leader or append entry.
     void onError(bool accepted, nuraft::cmd_result_code error_code, int64_t session_id, Coordination::XID xid, Coordination::OpNum opnum);
@@ -35,7 +35,7 @@ public:
         std::shared_ptr<KeeperDispatcher> keeper_dispatcher_,
         UInt64 operation_timeout_ms_);
 
-    size_t commitQueueSize() { return committed_queue.size(); }
+    size_t commitQueueSize() const { return committed_queue.size(); }
 
 private:
     void run();

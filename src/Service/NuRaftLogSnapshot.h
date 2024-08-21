@@ -164,7 +164,7 @@ public:
     size_t createObjectsAsync(SnapTask & snap_task);
 
     /// initialize a snapshot store
-    void init(String create_time);
+    void init(const String & create_time  = "");
 
     /// Load the latest snapshot object.
     void loadLatestSnapshot(KeeperStore & store);
