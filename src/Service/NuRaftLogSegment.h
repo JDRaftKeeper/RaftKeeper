@@ -102,18 +102,6 @@ public:
 #endif
 
 private:
-    /// log entry metadata in segment, when initializing
-    /// load all log entry metadata in memory, see offset_term.
-    struct LogMeta
-    {
-        /// offset in segment file
-        off_t offset;
-        /// calculate by current offset and next log offset
-        size_t length;
-        /// log term
-        UInt64 term;
-    };
-
     /// invoked when create new segment
     String getOpenFileName();
     String getOpenPath();
@@ -132,12 +120,13 @@ private:
     /// close file, throw exception if failed
     void closeFileIfNeeded();
 
-    /// get log entry meta
-    ptr<LogMeta> getMeta(UInt64 index) const;
+    /// get offset in file for log of index.
+    /// return -1 if index out of range.
+    int64_t getEntryOffset(UInt64 index) const;
 
     /// load log entry
-    ptr<log_entry> loadEntry(const LogMeta & meta) const;
-    LogEntryHeader loadEntryHeader(off_t offset) const;
+    ptr<log_entry> loadEntry(int64_t offset) const;
+    LogEntryHeader loadEntryHeader(int64_t offset) const;
 
     static constexpr size_t MAGIC_AND_VERSION_SIZE = 9;
 
@@ -172,8 +161,9 @@ private:
     /// global mutex
     mutable std::shared_mutex log_mutex;
 
-    /// log entry metadata, when initializing, load all log entry metadata in memory
-    std::vector<std::pair<UInt64 /*offset*/, UInt64 /*term*/>> offset_term;
+    /// The file offset for the log of the start_index + index of vector.
+    /// Will load all log entry offset in file into memory when starting.
+    std::vector<int64_t> offsets;
 
     /// file format version, default V1
     LogVersion version;
