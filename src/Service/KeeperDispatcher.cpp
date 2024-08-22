@@ -152,7 +152,7 @@ void KeeperDispatcher::invokeResponseCallBack(int64_t session_id, const Coordina
 
 void KeeperDispatcher::invokeForwardResponseCallBack(ForwardClientId client_id, ForwardResponsePtr response)
 {
-    std::lock_guard lock(forward_response_callbacks_mutex);
+    std::shared_lock<std::shared_mutex> read_lock(forward_response_callbacks_mutex);
     auto forward_response_writer = forward_response_callbacks.find(client_id);
     if (forward_response_writer == forward_response_callbacks.end())
         return;
@@ -406,7 +406,7 @@ void KeeperDispatcher::unregisterUserResponseCallBackWithoutLock(int64_t session
 
 void KeeperDispatcher::registerForwarderResponseCallBack(ForwardClientId client_id, ForwardResponseCallback callback)
 {
-    std::lock_guard lock(forward_response_callbacks_mutex);
+    std::unique_lock<std::shared_mutex> write_lock(forward_response_callbacks_mutex);
 
     if (forward_response_callbacks.contains(client_id))
     {
@@ -426,7 +426,7 @@ void KeeperDispatcher::registerForwarderResponseCallBack(ForwardClientId client_
 
 void KeeperDispatcher::unRegisterForwarderResponseCallBack(ForwardClientId client_id)
 {
-    std::lock_guard lock(forward_response_callbacks_mutex);
+    std::unique_lock<std::shared_mutex> write_lock(forward_response_callbacks_mutex);
     auto forward_response_writer = forward_response_callbacks.find(client_id);
     if (forward_response_writer == forward_response_callbacks.end())
         return;

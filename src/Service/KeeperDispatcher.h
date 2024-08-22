@@ -64,7 +64,7 @@ private:
     using ForwardResponseCallbacks = std::unordered_map<ForwardClientId, ForwardResponseCallback, PairHash>;
 
     ForwardResponseCallbacks forward_response_callbacks;
-    std::mutex forward_response_callbacks_mutex;
+    std::shared_mutex forward_response_callbacks_mutex;
 
     using UpdateConfigurationQueue = ConcurrentBoundedQueue<ConfigUpdateAction>;
     /// More than 1k updates is definitely misconfiguration.
