@@ -7,7 +7,7 @@
 #include <Service/ACLMap.h>
 #include <Service/SessionManager.h>
 #include <Service/WatchManager.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Service/LockFreeConcurrentBoundedQueue.h>
 #include <Service/KeeperCommon.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/IKeeper.h>
@@ -187,7 +187,7 @@ public:
     static constexpr int DATA_TREE_BUCKET_NUM = 16;
     using DataTree = KeeperNodeMap<KeeperNode, DATA_TREE_BUCKET_NUM>;
 
-    using KeeperResponsesQueue = ThreadSafeQueue<ResponseForSession>;
+    using KeeperResponsesQueue = LockFreeConcurrentBoundedQueue<ResponseForSession>;
 
     using SessionAndAuth = std::unordered_map<int64_t, Coordination::AuthIDs>;
     using Ephemerals = std::unordered_map<int64_t, std::unordered_set<String>>;
@@ -203,7 +203,7 @@ public:
 
     /// process request
     void processRequest(
-        ThreadSafeQueue<ResponseForSession> & responses_queue,
+        KeeperResponsesQueue & responses_queue,
         const RequestForSession & request_for_session,
         std::optional<int64_t> new_last_zxid = {}, /// empty when we are converting zookeeper log to raftkeeper data.
         bool check_acl = true,
@@ -422,7 +422,7 @@ public:
 
 private:
     int64_t fetchAndGetZxid() { return zxid++; }
-    void cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response);
+    void cleanEphemeralNodes(int64_t session_id, KeeperResponsesQueue & responses_queue, bool ignore_response);
 
     /// data tree
     DataTree data_tree;

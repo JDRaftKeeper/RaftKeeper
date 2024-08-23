@@ -14,7 +14,7 @@ namespace ErrorCodes
 }
 
 static inline void set_response(
-    ThreadSafeQueue<ResponseForSession> & responses_queue,
+    KeeperStore::KeeperResponsesQueue & responses_queue,
     const ResponsesForSessions & responses,
     bool ignore_response)
 {
@@ -26,7 +26,7 @@ static inline void set_response(
 }
 
 static inline void set_response(
-    ThreadSafeQueue<ResponseForSession> & responses_queue,
+    KeeperStore::KeeperResponsesQueue & responses_queue,
     const ResponseForSession & response,
     bool ignore_response)
 {
@@ -1193,7 +1193,7 @@ StoreRequestFactory::StoreRequestFactory()
 
 
 void KeeperStore::processRequest(
-    ThreadSafeQueue<ResponseForSession> & responses_queue,
+    KeeperResponsesQueue & responses_queue,
     const RequestForSession & request_for_session,
     std::optional<int64_t> new_last_zxid,
     bool check_acl,
@@ -1453,7 +1453,7 @@ void KeeperStore::buildBucketChildren(const std::vector<BucketEdges> & all_objec
     }
 }
 
-void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<ResponseForSession> & responses_queue, bool ignore_response)
+void KeeperStore::cleanEphemeralNodes(int64_t session_id, KeeperResponsesQueue & responses_queue, bool ignore_response)
 {
     LOG_DEBUG(log, "Clean ephemeral nodes for session {}", toHexString(session_id));
 

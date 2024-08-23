@@ -70,7 +70,7 @@ private:
     Context & global_context;
     std::shared_ptr<KeeperDispatcher> keeper_dispatcher;
 
-    ThreadSafeForwardResponseQueuePtr responses;
+    ForwardResponseQueuePtr responses;
 
     std::mutex send_response_mutex;
     bool socket_writable_event_registered = false;

@@ -206,7 +206,7 @@ ACLs getACL(KeeperStore & storage, const String key)
     storage.processRequest(responses_queue, {request, 1, time}, {}, /* check_acl = */ true, /*ignore_response*/ false);
 
     ResponseForSession responses;
-    responses_queue.tryPop(responses);
+    responses_queue.pop(responses);
     return dynamic_cast<Coordination::ZooKeeperGetACLResponse &>(*responses.response).acl;
 }
 

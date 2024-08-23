@@ -11,6 +11,7 @@
 #include <Service/KeeperServer.h>
 #include <Service/RequestProcessor.h>
 #include <Service/RequestsQueue.h>
+#include <Service/ThreadSafeQueue.h>
 
 
 namespace RK

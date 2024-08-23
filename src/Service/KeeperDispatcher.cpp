@@ -1,10 +1,7 @@
-#include <Poco/NumberFormatter.h>
-
 #include <Common/checkStackSize.h>
 #include <Common/setThreadName.h>
 
 #include <Service/KeeperDispatcher.h>
-#include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/formatHex.h>
 #include <Service/Metrics.h>
 

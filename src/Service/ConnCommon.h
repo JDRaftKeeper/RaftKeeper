@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 #include <Service/Context.h>
-#include <Service/ThreadSafeQueue.h>
+#include <Service/LockFreeConcurrentBoundedQueue.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <Service/ForwardResponse.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -57,11 +57,11 @@ struct ConnectRequest
 struct SocketInterruptablePollWrapper;
 using SocketInterruptablePollWrapperPtr = std::unique_ptr<SocketInterruptablePollWrapper>;
 
-using ThreadSafeResponseQueue = ThreadSafeQueue<Coordination::ZooKeeperResponsePtr>;
-using ThreadSafeResponseQueuePtr = std::unique_ptr<ThreadSafeResponseQueue>;
+using ResponseQueue = LockFreeConcurrentBoundedQueue<Coordination::ZooKeeperResponsePtr>;
+using ResponseQueuePtr = std::unique_ptr<ResponseQueue>;
 
-using ThreadSafeForwardResponseQueue = ThreadSafeQueue<ForwardResponsePtr>;
-using ThreadSafeForwardResponseQueuePtr = std::unique_ptr<ThreadSafeForwardResponseQueue>;
+using ForwardResponseQueue = LockFreeConcurrentBoundedQueue<ForwardResponsePtr>;
+using ForwardResponseQueuePtr = std::unique_ptr<ForwardResponseQueue>;
 
 struct LastOp;
 using LastOpMultiVersion = MultiVersion<LastOp>;
