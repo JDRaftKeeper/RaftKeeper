@@ -150,20 +150,6 @@ void KeeperServer::handleRemoteSession(int64_t session_id, int64_t expiration_ti
     state_machine->getStore().handleRemoteSession(session_id, expiration_time);
 }
 
-[[maybe_unused]] int64_t KeeperServer::getSessionTimeout(int64_t session_id)
-{
-    LOG_DEBUG(log, "New session timeout for {}", session_id);
-    if (state_machine->getStore().containsSession(session_id))
-    {
-        return state_machine->getStore().getSessionAndTimeOut().find(session_id)->second;
-    }
-    else
-    {
-        LOG_WARNING(log, "Not found session timeout for {}", session_id);
-        return -1;
-    }
-}
-
 bool KeeperServer::isLeader() const
 {
     return raft_instance->is_leader();

@@ -144,12 +144,12 @@ ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 
 void NuRaftFileLogStore::write_at(ulong index, ptr<log_entry> & entry)
 {
-    if (segment_store->writeAt(index, entry) == index)
-        log_queue.clear();
+    segment_store->writeAt(index, entry);
 
+    log_queue.clear();
     last_log_entry = entry;
 
-    /// notify parallel fsync thread
+    /// log store file fsync
     if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL && entry->get_val_type() != log_val_type::app_log)
         parallel_fsync_event->set();
 
@@ -255,8 +255,8 @@ ptr<log_entry> NuRaftFileLogStore::entry_at(ulong index)
 
 ulong NuRaftFileLogStore::term_at(ulong index)
 {
-    if (entry_at(index))
-        return entry_at(index)->get_term();
+    if (auto entry = entry_at(index))
+        return entry->get_term();
     return 0;
 }
 

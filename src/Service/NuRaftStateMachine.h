@@ -232,9 +232,6 @@ public:
 
     KeeperStore & getStore() { return store; }
 
-    /// process read request
-    [[maybe_unused]] void processReadRequest(const RequestForSession & request_for_session);
-
     /// get expired session
     std::vector<int64_t> getDeadSessions();
 

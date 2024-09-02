@@ -1,11 +1,11 @@
 #include <Service/NuRaftLogSegment.h>
 
+#include <charconv>
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
-#include <charconv>
 
 #include <Poco/File.h>
 
@@ -32,16 +32,6 @@ namespace ErrorCodes
 }
 
 using namespace nuraft;
-
-[[maybe_unused]] int ftruncateUninterrupted(int fd, off_t length)
-{
-    int rc;
-    do
-    {
-        rc = ftruncate(fd, length);
-    } while (rc == -1 && errno == EINTR);
-    return rc;
-}
 
 bool compareSegment(const ptr<NuRaftLogSegment> & lhs, const ptr<NuRaftLogSegment> & rhs)
 {
@@ -661,14 +651,13 @@ UInt64 LogSegmentStore::appendEntry(const ptr<log_entry> & entry)
     return open_segment->appendEntry(entry, last_log_index);
 }
 
-UInt64 LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> & entry)
+void LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> & entry)
 {
     truncateLog(index - 1);
     if (index == lastLogIndex() + 1)
-        return appendEntry(entry);
-
-    LOG_WARNING(log, "writeAt log index {} failed, firstLogIndex {}, lastLogIndex {}.", index, firstLogIndex(), lastLogIndex());
-    return -1;
+        appendEntry(entry);
+    else
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Fail to write log at {}, log store index range [{}, {}].", index, firstLogIndex(), lastLogIndex());
 }
 
 ptr<log_entry> LogSegmentStore::getEntry(UInt64 index) const
@@ -680,18 +669,15 @@ ptr<log_entry> LogSegmentStore::getEntry(UInt64 index) const
     return seg->getEntry(index);
 }
 
-void LogSegmentStore::getEntries(UInt64 start_index, UInt64 end_index, const ptr<std::vector<ptr<log_entry>>> & entries)
+std::vector<ptr<log_entry>> LogSegmentStore::getEntries(UInt64 start_index, UInt64 end_index) const
 {
-    if (entries == nullptr)
-    {
-        LOG_ERROR(log, "Entry vector is nullptr.");
-        return;
-    }
+    std::vector<ptr<log_entry>> entries;
     for (UInt64 index = start_index; index <= end_index; index++)
     {
         auto entry_pt = getEntry(index);
-        entries->push_back(entry_pt);
+        entries.push_back(entry_pt);
     }
+    return entries;
 }
 
 int LogSegmentStore::removeSegment(UInt64 first_index_kept)
@@ -813,9 +799,6 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
         }
     }
 
-    if (!last_segment)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Not found a segment to truncate, last_index_kept {}.", last_index_kept);
-
     /// remove files
     for (auto & to_removed : to_removed_segments)
     {
@@ -824,20 +807,23 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
         to_removed = nullptr;
     }
 
-    bool is_open_before_truncate = last_segment->isOpen();
-    bool removed_something = last_segment->truncate(last_index_kept);
-
-    if (!removed_something && last_segment->lastIndex() != last_index_kept)
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate log to last_index_kept {}, but nothing removed from log segment {}.", last_index_kept, last_segment->getFileName());
-
-    if (!is_open_before_truncate && !last_segment->isOpen())
-        throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate a closed log segment {}, but the truncated log segment is not open.", last_segment->getFileName());
-
-    if (!is_open_before_truncate)
+    if (last_segment)
     {
-        open_segment = last_segment;
-        if (!closed_segments.empty())
-            closed_segments.erase(closed_segments.end() - 1);
+        bool is_open_before_truncate = last_segment->isOpen();
+        bool removed_something = last_segment->truncate(last_index_kept);
+
+        if (!removed_something && last_segment->lastIndex() != last_index_kept)
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate log to last_index_kept {}, but nothing removed from log segment {}.", last_index_kept, last_segment->getFileName());
+
+        if (!is_open_before_truncate && !last_segment->isOpen())
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Truncate a closed log segment {}, but the truncated log segment is not open.", last_segment->getFileName());
+
+        if (!is_open_before_truncate)
+        {
+            open_segment = last_segment;
+            if (!closed_segments.empty())
+                closed_segments.erase(closed_segments.end() - 1);
+        }
     }
 
     last_log_index.store(last_index_kept, std::memory_order_release);

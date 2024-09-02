@@ -375,12 +375,6 @@ void KeeperDispatcher::unRegisterSessionResponseCallbackWithoutLock(int64_t id)
         session_response_callbacks.erase(it);
 }
 
-[[maybe_unused]] void KeeperDispatcher::registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
-{
-    std::unique_lock<std::shared_mutex> write_lock(response_callbacks_mutex);
-    registerUserResponseCallBackWithoutLock(session_id, callback, is_reconnected);
-}
-
 void KeeperDispatcher::registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected)
 {
     if (session_id == 0)

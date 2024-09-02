@@ -205,11 +205,11 @@ public:
     UInt64 appendEntry(const ptr<log_entry> & entry);
 
     /// First truncate log whose index is larger than or equals with index of entry, then append it.
-    UInt64 writeAt(UInt64 index, const ptr<log_entry> & entry);
+    void writeAt(UInt64 index, const ptr<log_entry> & entry);
     ptr<log_entry> getEntry(UInt64 index) const;
 
-    /// Just for test, collection entries in [start_index, end_index]
-    void getEntries(UInt64 start_index, UInt64 end_index, const ptr<std::vector<ptr<log_entry>>> & entries);
+    /// Just for test
+    std::vector<ptr<log_entry>> getEntries(UInt64 start_index, UInt64 end_index) const;
 
     /// Remove segments from storage's head, logs in [1, first_index_kept) will be discarded, usually invoked when compaction.
     /// return number of segments removed
@@ -219,7 +219,7 @@ public:
     /// Return true if some logs are removed
     bool truncateLog(UInt64 last_index_kept);
 
-    /// get closed segments, only for tests
+    /// Just for tests
     Segments getClosedSegments()
     {
         std::shared_lock read_lock(seg_mutex);
@@ -232,8 +232,10 @@ public:
 private:
     /// open a new segment, invoked when init
     void openNewSegmentIfNeeded();
+
     /// list segments, invoked when init
     void loadSegmentMetaData();
+
     /// load listed segments, invoked when init
     void loadSegments();
 
