@@ -40,10 +40,6 @@ public:
     /// it will update the snapshot itself.
     void handleRemoteSession(int64_t session_id, int64_t expiration_time);
 
-    /// Get the initialized timeout for a session.
-    /// Return initialized timeout, or -1 if session not exist.
-    [[maybe_unused]] int64_t getSessionTimeout(int64_t session_id);
-
     /// will invoke waitInit
     void startup();
 

@@ -412,12 +412,10 @@ TEST(RaftLog, getEntries)
         String data("CREATE TABLE table1;");
         ASSERT_EQ(appendEntry(log_store, term, key, data), i + 1);
     }
-    ptr<std::vector<ptr<log_entry>>> ret = cs_new<std::vector<ptr<log_entry>>>();
-    log_store->getEntries(1, 3, ret);
-    ASSERT_EQ(ret->size(), 3);
-    ret->clear();
-    log_store->getEntries(4, 8, ret);
-    ASSERT_EQ(ret->size(), 5);
+    std::vector<ptr<log_entry>> ret = log_store->getEntries(1, 3);
+    ASSERT_EQ(ret.size(), 3);
+    ret = log_store->getEntries(4, 8);
+    ASSERT_EQ(ret.size(), 5);
     log_store->close();
     cleanDirectory(log_dir);
 }

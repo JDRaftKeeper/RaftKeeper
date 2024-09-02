@@ -285,11 +285,6 @@ nuraft::ptr<nuraft::buffer> NuRaftStateMachine::commit(const ulong log_idx, buff
     return commit(log_idx, data, false);
 }
 
-[[maybe_unused]] void NuRaftStateMachine::processReadRequest(const RequestForSession & request_for_session)
-{
-    store.processRequest(responses_queue, request_for_session);
-}
-
 std::vector<int64_t> NuRaftStateMachine::getDeadSessions()
 {
     return store.getDeadSessions();

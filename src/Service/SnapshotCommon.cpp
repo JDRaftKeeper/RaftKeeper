@@ -229,60 +229,6 @@ void serializeAclsV2(const NumToACLMap & acl_map, String path, UInt32 save_batch
     LOG_INFO(log, "Finish create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
 }
 
-[[maybe_unused]] size_t serializeEphemeralsV2(KeeperStore::Ephemerals & ephemerals, std::mutex & mutex, String path, UInt32 save_batch_size)
-{
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    LOG_INFO(log, "Begin create snapshot ephemeral object, node size {}, path {}", ephemerals.size(), path);
-
-    ptr<SnapshotBatchBody> batch;
-
-    std::lock_guard lock(mutex);
-
-    if (ephemerals.empty())
-    {
-        LOG_INFO(log, "Ephemeral nodes size is 0");
-        return 0;
-    }
-
-    auto out = cs_new<WriteBufferFromFile>(path);
-    uint64_t index = 0;
-    for (auto & ephemeral_it : ephemerals)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                saveBatchV2(out, batch);
-            }
-            batch = cs_new<SnapshotBatchBody>();
-            batch->type = SnapshotBatchType::SNAPSHOT_TYPE_DATA_EPHEMERAL;
-        }
-
-        /// append to batch
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(ephemeral_it.first, buf);
-        Coordination::write(ephemeral_it.second.size(), buf);
-
-        for (const auto & node_path : ephemeral_it.second)
-        {
-            Coordination::write(node_path, buf);
-        }
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        batch->add(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    saveBatchV2(out, batch);
-    out->close();
-    return 1;
-}
 
 void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, SnapshotVersion version, String & path)
 {

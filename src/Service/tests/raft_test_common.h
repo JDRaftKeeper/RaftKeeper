@@ -19,7 +19,7 @@ public:
 };
 
 static const String LOG_DIR = "./test_raft_log";
-[[maybe_unused]] static const String SNAP_DIR = "./test_raft_snapshot";
+static const String SNAP_DIR = "./test_raft_snapshot";
 
 void cleanAll();
 void cleanDirectory(const String & log_dir, bool remove_dir = true);

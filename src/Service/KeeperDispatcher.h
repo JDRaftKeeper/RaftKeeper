@@ -129,7 +129,6 @@ public:
     void unRegisterForwarderResponseCallBack(ForwardClientId client_id);
 
     /// Register response callback for user request
-    [[maybe_unused]] void registerUserResponseCallBack(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     void registerUserResponseCallBackWithoutLock(int64_t session_id, ZooKeeperResponseCallback callback, bool is_reconnected = false);
     void unregisterUserResponseCallBack(int64_t session_id);
     void unregisterUserResponseCallBackWithoutLock(int64_t session_id);
