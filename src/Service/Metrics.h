@@ -15,7 +15,7 @@ namespace RK
 
 inline UInt64 getCurrentTimeMilliseconds()
 {
-    return duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    return duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 };
 
 

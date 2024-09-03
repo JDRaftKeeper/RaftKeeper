@@ -170,7 +170,7 @@ bool KeeperDispatcher::pushSessionRequest(const Coordination::ZooKeeperRequestPt
     request_info.session_id = internal_id;
 
     using namespace std::chrono;
-    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    request_info.create_time = getCurrentTimeMilliseconds();
 
     LOG_TRACE(
         log,
@@ -198,7 +198,7 @@ bool KeeperDispatcher::pushRequest(const Coordination::ZooKeeperRequestPtr & req
     request_info.session_id = session_id;
 
     using namespace std::chrono;
-    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    request_info.create_time = getCurrentTimeMilliseconds();
 
     LOG_TRACE(log, "Push user request #{}#{}#{}", toHexString(session_id), request->xid, Coordination::toString(request->getOpNum()));
     /// Put close requests without timeouts
@@ -220,7 +220,7 @@ bool KeeperDispatcher::pushForwardRequest(size_t server_id, size_t client_id, Fo
     RequestForSession && request_info = request->requestForSession();
 
     using namespace std::chrono;
-    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    request_info.create_time = getCurrentTimeMilliseconds();
 
     request_info.server_id = server_id;
     request_info.client_id = client_id;
@@ -460,7 +460,7 @@ void KeeperDispatcher::deadSessionCleanThread()
                     request_info.session_id = dead_session;
                     // request_info.is_internal = true;
                     using namespace std::chrono;
-                    request_info.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+                    request_info.create_time = getCurrentTimeMilliseconds();
                     {
                         std::lock_guard lock(push_request_mutex);
                         if (!requests_queue->push(std::move(request_info)))
