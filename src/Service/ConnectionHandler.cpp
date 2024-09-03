@@ -687,19 +687,33 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
         && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::Close)
     {
-        Int64 elapsed = Poco::Timestamp().epochMicroseconds() / 1000 - response->request_created_time_ms;
+        auto current_time = getCurrentTimeMilliseconds();
+        Int64 elapsed = current_time - response->request_created_time_ms;
+        if (elapsed < 0)
         {
-            conn_stats.updateLatency(elapsed);
-            if (unlikely(elapsed > 10000))
-                LOG_WARNING(
-                    log,
-                    "Slow request detected #{}#{}#{}, time costs {}ms, please take care.",
-                    toHexString(session_id.load()),
-                    response->xid,
-                    Coordination::toString(response->getOpNum()),
-                    elapsed);
+            LOG_WARNING(
+                log,
+                "Request #{}#{}#{} finish time {} is before than created time {}, please take care.",
+                toHexString(session_id.load()),
+                response->xid,
+                Coordination::toString(response->getOpNum()),
+                current_time,
+                response->request_created_time_ms);
+            elapsed = 0;
         }
+
+        conn_stats.updateLatency(elapsed);
+        if (unlikely(elapsed > 10000))
+            LOG_WARNING(
+                log,
+                "Slow request detected #{}#{}#{}, time costs {}ms, please take care.",
+                toHexString(session_id.load()),
+                response->xid,
+                Coordination::toString(response->getOpNum()),
+                elapsed);
+
         keeper_dispatcher->updateKeeperStatLatency(elapsed);
+
 
         last_op.set(std::make_unique<LastOp>(LastOp{
             .name = Coordination::toString(response->getOpNum()),

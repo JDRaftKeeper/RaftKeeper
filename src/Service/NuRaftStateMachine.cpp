@@ -147,7 +147,7 @@ ptr<RequestForSession> NuRaftStateMachine::createRequestSession(ptr<log_entry> &
     request_for_session->request->readImpl(buffer);
 
     if (buffer.eof())
-        request_for_session->create_time = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+        request_for_session->create_time = getCurrentTimeMilliseconds();
     else
         Coordination::read(request_for_session->create_time, buffer);
 
