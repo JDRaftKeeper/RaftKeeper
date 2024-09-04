@@ -1,9 +1,9 @@
-#include "ConnectionHandler.h"
+#include <algorithm>
 
 #include <Poco/Net/NetException.h>
-
 #include <Common/Stopwatch.h>
 
+#include <Service/ConnectionHandler.h>
 #include <Service/FourLetterCommand.h>
 #include <Service/formatHex.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -687,20 +687,11 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
     if (response->xid != Coordination::WATCH_XID && response->getOpNum() != Coordination::OpNum::Heartbeat
         && response->getOpNum() != Coordination::OpNum::SetWatches && response->getOpNum() != Coordination::OpNum::Close)
     {
-        auto current_time = getCurrentTimeMilliseconds();
-        Int64 elapsed = current_time - response->request_created_time_ms;
-        if (elapsed < 0)
-        {
-            LOG_WARNING(
-                log,
-                "Request #{}#{}#{} finish time {} is before than created time {}, please take care.",
-                toHexString(session_id.load()),
-                response->xid,
-                Coordination::toString(response->getOpNum()),
-                current_time,
-                response->request_created_time_ms);
-            elapsed = 0;
-        }
+        const auto current_time = getCurrentTimeMilliseconds();
+        // Use std::chrono::steady_clock to calculate elapsed time.
+        // If current_time is earlier than create_time, assume current_time is incorrect and set elapsed to zero.
+        // Otherwise, calculate the elapsed time.
+        Int64 elapsed = current_time < response->request_created_time_ms ? 0 : current_time - response->request_created_time_ms;
 
         conn_stats.updateLatency(elapsed);
         if (unlikely(elapsed > 10000))
