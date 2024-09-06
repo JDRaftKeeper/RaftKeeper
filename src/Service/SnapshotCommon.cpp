@@ -3,6 +3,7 @@
 #include <Common/Exception.h>
 #include <Common/IO/WriteHelpers.h>
 
+#include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
 #include <Service/ReadBufferFromNuRaftBuffer.h>
 #include <Service/SnapshotCommon.h>

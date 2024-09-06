@@ -307,7 +307,6 @@ def test_cmd_conf(started_cluster):
         assert result["startup_timeout"] == "6000000"
 
         assert result["raft_logs_level"] == "debug"
-        assert result["rotate_log_storage_interval"] == "100000"
         assert result["log_fsync_mode"] == "fsync_parallel"
 
         assert result["log_fsync_interval"] == "1000"

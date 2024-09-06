@@ -8,6 +8,7 @@
 #include <Poco/Thread.h>
 #include <Poco/Util/ServerApplication.h>
 
+#include <Common/IO/ReadBufferFromString.h>
 #include <Common/IO/WriteBufferFromString.h>
 #include <Network/SocketAcceptor.h>
 #include <Network/SocketNotification.h>
@@ -62,7 +63,6 @@ public:
     void onSocketError(const Notification &);
 
     /// current connection statistics
-    ConnectionStats getConnectionStats() const;
     void dumpStats(WriteBufferFromOwnString & buf, bool brief);
 
     /// reset current connection statistics

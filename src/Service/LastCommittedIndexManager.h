@@ -38,7 +38,7 @@ private:
     UInt64 static constexpr PERSIST_INTERVAL_US = 100 * 1000;
     std::string_view static constexpr FILE_NAME = "last_committed_index.bin";
 
-    ThreadFromGlobalPool persist_thread;
+    ThreadFromGlobalPool bg_persist_thread;
     std::atomic<bool> is_shut_down{false};
 
     String persist_file_name;

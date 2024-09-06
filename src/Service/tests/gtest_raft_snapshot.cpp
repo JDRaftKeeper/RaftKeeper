@@ -20,26 +20,36 @@ namespace RK
 
 ptr<buffer> createSessionLog(int64_t session_timeout_ms)
 {
-    auto entry = buffer::alloc(sizeof(int64_t));
-    nuraft::buffer_serializer bs(entry);
-    bs.put_i64(session_timeout_ms);
-    return entry;
+    auto request = cs_new<ZooKeeperNewSessionRequest>();
+    request->xid = 1;
+    request->session_timeout_ms = session_timeout_ms;
+    request->internal_id = 1;
+    RequestForSession request_info;
+    request_info.request = request;
+    request_info.session_id = 1;
+    request_info.create_time = getCurrentTimeMilliseconds();
+    ptr<buffer> buf = serializeKeeperRequest(request_info);
+    return buf;
 }
 
 ptr<buffer> updateSessionLog(int64_t session_id, int64_t session_timeout_ms)
 {
-    auto entry = buffer::alloc(sizeof(int64_t) + sizeof(int64_t));
-    nuraft::buffer_serializer bs(entry);
-
-    bs.put_i64(session_id);
-    bs.put_i64(session_timeout_ms);
-    return entry;
+    auto request = cs_new<ZooKeeperUpdateSessionRequest>();
+    request->xid = 1;
+    request->session_timeout_ms = session_timeout_ms;
+    request->session_id = session_id;
+    RequestForSession request_info;
+    request_info.request = request;
+    request_info.session_id = session_id;
+    request_info.create_time = getCurrentTimeMilliseconds();
+    ptr<buffer> buf = serializeKeeperRequest(request_info);
+    return buf;
 }
 
 ptr<buffer> closeSessionLog(int64_t session_id)
 {
-    Coordination::ZooKeeperRequestPtr request = Coordination::ZooKeeperRequestFactory::instance().get(Coordination::OpNum::Close);
-    request->xid = Coordination::CLOSE_XID;
+    ZooKeeperRequestPtr request = ZooKeeperRequestFactory::instance().get(OpNum::Close);
+    request->xid = CLOSE_XID;
     RequestForSession request_info;
     request_info.request = request;
     request_info.session_id = session_id;
@@ -761,7 +771,7 @@ void createSnapshotWithFuzzyLog(bool async_snapshot)
 
     LOG_INFO(log, "create snapshot with fuzzy log complete");
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000)); /// wait for last committed index persistence.
 
     KeeperResponsesQueue ano_queue;
     ptr<NuRaftFileLogStore> ano_store = cs_new<NuRaftFileLogStore>(log_dir, false, FsyncMode::FSYNC);

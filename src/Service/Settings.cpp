@@ -82,7 +82,6 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
 
         String log_level = config.getString(get_key("raft_logs_level"), "information");
         raft_logs_level = parseNuRaftLogLevel(log_level);
-        rotate_log_storage_interval = config.getUInt(get_key("rotate_log_storage_interval"), 100000);
         nuraft_thread_size = config.getUInt(get_key("nuraft_thread_size"), getNumberOfPhysicalCPUCores());
         fresh_log_gap = config.getUInt(get_key("fresh_log_gap"), 200);
         configuration_change_tries_count = config.getUInt(get_key("configuration_change_tries_count"), 30);
@@ -117,7 +116,6 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->startup_timeout = 6000000;
 
     settings->raft_logs_level = NuRaftLogLevel::RAFT_LOG_INFORMATION;
-    settings->rotate_log_storage_interval = 100000;
     settings->nuraft_thread_size = getNumberOfPhysicalCPUCores();
     settings->fresh_log_gap = 200;
     settings->configuration_change_tries_count = 30;
@@ -214,8 +212,6 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     writeText("raft_logs_level=", buf);
     writeText(nuRaftLogLevelToString(raft_settings->raft_logs_level), buf);
     buf.write('\n');
-    writeText("rotate_log_storage_interval=", buf);
-    write_int(raft_settings->rotate_log_storage_interval);
 
     writeText("log_fsync_mode=", buf);
     writeText(FsyncModeNS::toString(raft_settings->log_fsync_mode), buf);

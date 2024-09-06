@@ -327,10 +327,10 @@ public:
     bool saveSnapshotObject(snapshot & meta, ulong obj_id, buffer & buffer);
 
     /// whether snapshot exists
-    bool existSnapshot(const snapshot & meta);
+    bool existSnapshot(const snapshot & meta) const;
 
     /// whether snapshot object exists
-    bool existSnapshotObject(const snapshot & meta, ulong obj_id);
+    bool existSnapshotObject(const snapshot & meta, ulong obj_id) const;
 
     /// load snapshot object, invoked when leader should send snapshot to others.
     bool loadSnapshotObject(const snapshot & meta, ulong obj_id, ptr<buffer> & buffer);

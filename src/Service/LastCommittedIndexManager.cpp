@@ -18,10 +18,6 @@ namespace ErrorCodes
     extern const int CANNOT_SEEK_THROUGH_FILE;
 }
 
-inline UInt64 getCurrentTimeMicroseconds()
-{
-    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-}
 
 LastCommittedIndexManager::LastCommittedIndexManager(const String & log_dir) : log(&Poco::Logger::get("LastCommittedIndexManager"))
 {
@@ -35,7 +31,7 @@ LastCommittedIndexManager::LastCommittedIndexManager(const String & log_dir) : l
         throwFromErrno("Failed to open committed log index file", ErrorCodes::CANNOT_OPEN_FILE);
 
     previous_persist_time = getCurrentTimeMicroseconds();
-    persist_thread = ThreadFromGlobalPool([this] { persistThread(); });
+    bg_persist_thread = ThreadFromGlobalPool([this] { persistThread(); });
 }
 
 LastCommittedIndexManager::~LastCommittedIndexManager()
@@ -117,7 +113,7 @@ void LastCommittedIndexManager::shutDown()
     if (!is_shut_down)
     {
         is_shut_down = true;
-        persist_thread.join();
+        bg_persist_thread.join();
 
         ::close(persist_file_fd);
     }

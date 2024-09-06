@@ -8,7 +8,6 @@
 #include <Poco/Environment.h>
 #include <Poco/Path.h>
 #include <Poco/String.h>
-#include "Common/StringUtils.h"
 #include <Common/config_version.h>
 #include <Common/getCurrentProcessFDCount.h>
 #include <Common/getMaxFileDescriptorCount.h>
@@ -258,7 +257,7 @@ String MonitorCommand::run()
     print(ret, "watch_count", state_machine.getTotalWatchesCount());
     print(ret, "ephemerals_count", state_machine.getTotalEphemeralNodesCount());
     print(ret, "approximate_data_size", state_machine.getApproximateDataSize());
-    print(ret, "in_snapshot", state_machine.getSnapshoting());
+    print(ret, "in_snapshot", state_machine.isCreatingSnapshot());
 
 #if defined(__linux__) || defined(__APPLE__)
     print(ret, "open_file_descriptor_count", getCurrentProcessFDCount());
