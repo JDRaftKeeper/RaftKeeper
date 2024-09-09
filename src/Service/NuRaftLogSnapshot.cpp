@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include <common/find_symbols.h>
-
 #include <Poco/DateTime.h>
 #include <Poco/DateTimeFormatter.h>
 #include <Poco/File.h>
@@ -15,6 +13,7 @@
 #include <Common/Exception.h>
 #include <Common/Stopwatch.h>
 
+#include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
 #include <Service/NuRaftLogSnapshot.h>
 #include <Service/ReadBufferFromNuRaftBuffer.h>
@@ -776,12 +775,12 @@ bool KeeperSnapshotManager::receiveSnapshotMeta(snapshot & meta)
     return true;
 }
 
-bool KeeperSnapshotManager::existSnapshot(const snapshot & meta)
+bool KeeperSnapshotManager::existSnapshot(const snapshot & meta) const
 {
     return snapshots.find(getSnapshotStoreMapKey(meta)) != snapshots.end();
 }
 
-bool KeeperSnapshotManager::existSnapshotObject(const snapshot & meta, ulong obj_id)
+bool KeeperSnapshotManager::existSnapshotObject(const snapshot & meta, ulong obj_id) const
 {
     auto it = snapshots.find(getSnapshotStoreMapKey(meta));
     if (it == snapshots.end())

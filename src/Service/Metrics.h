@@ -13,11 +13,6 @@
 namespace RK
 {
 
-inline UInt64 getCurrentTimeMilliseconds()
-{
-    return duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-};
-
 
 /**
  * Uses the reservoir sampling algorithm to sample statistical values

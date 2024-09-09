@@ -120,7 +120,7 @@ void RequestForwarder::runSend(RunnerId runner_id)
             }
 
             session_sync_time_watch.restart();
-            session_sync_idx++;
+            ++session_sync_idx;
         }
     }
 }

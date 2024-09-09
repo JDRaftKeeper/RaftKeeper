@@ -4,6 +4,7 @@
 #include <Poco/Net/StreamSocket.h>
 #include <Poco/Thread.h>
 
+#include <Common/IO/ReadBufferFromString.h>
 #include <Network/SocketAcceptor.h>
 #include <Network/SocketNotification.h>
 #include <Network/SocketReactor.h>

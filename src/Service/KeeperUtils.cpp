@@ -46,11 +46,11 @@ ptr<buffer> serializeKeeperRequest(const RequestForSession & request)
     return out.getBuffer();
 }
 
-RequestForSession deserializeKeeperRequest(nuraft::buffer & data)
+ptr<RequestForSession> deserializeKeeperRequest(nuraft::buffer & data)
 {
+    ptr<RequestForSession> request = cs_new<RequestForSession>();
     ReadBufferFromNuRaftBuffer buffer(data);
-    RequestForSession request_for_session;
-    readIntBinary(request_for_session.session_id, buffer);
+    readIntBinary(request->session_id, buffer);
 
     int32_t length;
     Coordination::read(length, buffer);
@@ -64,17 +64,13 @@ RequestForSession deserializeKeeperRequest(nuraft::buffer & data)
     //    bool is_internal;
     //    Coordination::read(is_internal, buffer);
 
-    request_for_session.request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
-    request_for_session.request->xid = xid;
-    request_for_session.request->readImpl(buffer);
+    request->request = Coordination::ZooKeeperRequestFactory::instance().get(opnum);
+    request->request->xid = xid;
+    request->request->readImpl(buffer);
 
-    if (!buffer.eof())
-        Coordination::read(request_for_session.create_time, buffer);
-    else /// backward compatibility
-        request_for_session.create_time
-            = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    Coordination::read(request->create_time, buffer);
 
-    return request_for_session;
+    return request;
 }
 
 ptr<log_entry> cloneLogEntry(const ptr<log_entry> & entry)

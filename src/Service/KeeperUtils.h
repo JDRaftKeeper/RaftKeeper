@@ -1,22 +1,29 @@
 #pragma once
 
 #include <fstream>
-#include <time.h>
-#include <Service/Crc32.h>
 #include <ZooKeeper/IKeeper.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <libnuraft/log_entry.hxx>
 #include <libnuraft/nuraft.hxx>
-#include <common/logger_useful.h>
 #include <Service/KeeperCommon.h>
 
 
 namespace RK
 {
 
+inline UInt64 getCurrentTimeMilliseconds()
+{
+    return duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+inline UInt64 getCurrentTimeMicroseconds()
+{
+    return duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 /// Serialize and deserialize ZooKeeper request to log
 nuraft::ptr<nuraft::buffer> serializeKeeperRequest(const RequestForSession & request);
-RequestForSession deserializeKeeperRequest(nuraft::buffer & data);
+nuraft::ptr<RequestForSession> deserializeKeeperRequest(nuraft::buffer & data);
 
 nuraft::ptr<nuraft::log_entry> cloneLogEntry(const nuraft::ptr<nuraft::log_entry> & entry);
 

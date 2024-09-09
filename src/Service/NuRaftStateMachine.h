@@ -1,10 +1,7 @@
 #pragma once
 
 #include <atomic>
-#include <cassert>
 #include <mutex>
-#include <string.h>
-#include <time.h>
 #include <unordered_map>
 
 #include <common/types.h>
@@ -180,7 +177,7 @@ public:
     void save_logical_snp_obj(snapshot & s, ulong & obj_id, buffer & data, bool is_first_obj, bool is_last_obj) override;
 
     /// whether snapshot object exists.
-    bool existSnapshotObject(snapshot & s, ulong obj_id);
+    bool existSnapshotObject(snapshot & s, ulong obj_id) const;
 
     /**
      * Apply received snapshot to state machine. Note that you should reset the state machine first.
@@ -209,7 +206,7 @@ public:
      * Get the latest snapshot instance.
      *
      * This API will be invoked at the initialization of Raft server,
-     * so that the last last snapshot should be durable for server restart,
+     * so that the last snapshot should be durable for server restart,
      * if you want to avoid unnecessary catch-up.
      *
      * @return Pointer to the latest snapshot.
@@ -219,7 +216,7 @@ public:
     ulong last_commit_index() override { return last_committed_idx; }
 
     /// get persisted last committed index
-    ulong getLastCommittedIndex()
+    ulong getLastCommittedIndex() const
     {
         return committed_log_manager->get();
     }
@@ -233,7 +230,7 @@ public:
     KeeperStore & getStore() { return store; }
 
     /// get expired session
-    std::vector<int64_t> getDeadSessions();
+    std::vector<int64_t> getDeadSessions() const;
 
     /// for 4lw commands
     int64_t getLastProcessedZxid() const;
@@ -267,7 +264,7 @@ public:
     bool containsSession(int64_t session_id) const;
 
     /// whether a snapshot creating is in progress.
-    bool getSnapshoting() const
+    bool isCreatingSnapshot() const
     {
         return in_snapshot;
     }
@@ -279,19 +276,11 @@ private:
     /// Used when apply_snapshot.
     void reset();
 
-    ptr<RequestForSession> createRequestSession(ptr<log_entry> & entry);
-
     /// Asynchronously snapshot creating thread.
     /// Now it is not used.
     void snapThread();
 
-    /// Only contains session_id
-    static bool isNewSessionRequest(nuraft::buffer & data);
 
-    /// Contains session_id and timeout
-    static bool isUpdateSessionRequest(nuraft::buffer & data);
-
-    Poco::Logger * log;
     /// raft related settings
     RaftSettingsPtr raft_settings;
 
@@ -327,13 +316,15 @@ private:
     std::atomic_bool snap_task_ready{false};
     std::atomic_uint64_t snap_start_time;
 
-    ThreadFromGlobalPool snap_thread;
+    ThreadFromGlobalPool bg_snap_thread;
 
     std::shared_ptr<SnapTask> snap_task;
     std::atomic<bool> shutdown_called{false};
 
     std::mutex & new_session_id_callback_mutex;
     std::unordered_map<int64_t, ptr<std::condition_variable>> & new_session_id_callback;
+
+    Poco::Logger * log;
 };
 
 }

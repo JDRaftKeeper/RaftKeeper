@@ -193,7 +193,6 @@ max_stored_snapshots=5
 shutdown_timeout=5000
 startup_timeout=6000000
 raft_logs_level=information
-rotate_log_storage_interval=100000
 log_fsync_mode=fsync_parallel
 log_fsync_interval=1000
 nuraft_thread_size=16

@@ -135,10 +135,10 @@ ptr<nuraft::cmd_result<ptr<buffer>>> KeeperServer::pushRequestBatch(const std::v
 {
     LOG_DEBUG(log, "Push batch requests of size {}", request_batch.size());
     std::vector<ptr<buffer>> entries;
-    for (const auto & request_session : request_batch)
+    for (const auto & request : request_batch)
     {
-        LOG_TRACE(log, "Push request {}", request_session.toSimpleString());
-        entries.push_back(serializeKeeperRequest(request_session));
+        LOG_TRACE(log, "Push request {}", request.toSimpleString());
+        entries.push_back(serializeKeeperRequest(request));
     }
     /// append_entries write request
     ptr<nuraft::cmd_result<ptr<buffer>>> result = raft_instance->append_entries(entries);
