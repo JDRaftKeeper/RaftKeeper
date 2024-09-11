@@ -56,7 +56,7 @@
         <!-- Processor parallel, default is CPU core size, for container is cgroup limit size, note that it is not lower than 4. -->
         <!-- <parallel></parallel> -->
 
-        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp" -->
+        <!-- 4lwd command white list, default "conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp,jmst,jmpg,jmep,jmfp,jmdp" -->
         <!-- <four_letter_word_white_list></four_letter_word_white_list> -->
 
         <!-- Super digest for root user, default is empty string.

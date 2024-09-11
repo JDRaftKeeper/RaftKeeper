@@ -318,3 +318,146 @@ whether the snapshot is done.
 ```
 3751957612
 ```
+
+#### jmst
+
+Dump Jemalloc statistics. Note that this is only useful when you Jemalloc is enabled.
+
+Jemalloc is disabled when:
+1. RaftKeeper is build with sanitizers
+2. your OS is not linux or freebsd
+3. RaftKeeper is build with ENABLE_JEMALLOC=OFF
+
+```
+___ Begin jemalloc statistics ___
+Version: "5.2.1-0-gea6b3e973b477b8061e0076bb257dbd7f3faa756"
+Build-time option settings
+  config.cache_oblivious: true
+  config.debug: true
+  config.fill: true
+  config.lazy_lock: false
+  config.malloc_conf: "percpu_arena:percpu,oversize_threshold:0,muzzy_decay_ms:10000"
+  config.opt_safety_checks: true
+  config.prof: true
+  config.prof_libgcc: false
+  config.prof_libunwind: true
+  config.stats: true
+  config.utrace: false
+  config.xmalloc: false
+Run-time option settings
+  opt.abort: true
+  opt.abort_conf: true
+  opt.confirm_conf: false
+  opt.retain: true
+  opt.dss: "secondary"
+  opt.narenas: 96
+  opt.percpu_arena: "percpu"
+  opt.oversize_threshold: 0
+  opt.metadata_thp: "disabled"
+  opt.background_thread: false (background_thread: true)
+  opt.dirty_decay_ms: 10000 (arenas.dirty_decay_ms: 10000)
+  opt.muzzy_decay_ms: 10000 (arenas.muzzy_decay_ms: 10000)
+  opt.lg_extent_max_active_fit: 6
+  opt.junk: "true"
+  opt.zero: false
+  opt.tcache: true
+  opt.lg_tcache_max: 15
+  opt.thp: "default"
+  opt.prof: false
+  opt.prof_prefix: "jeprof"
+  opt.prof_active: true (prof.active: false)
+  opt.prof_thread_active_init: true (prof.thread_active_init: false)
+  opt.lg_prof_sample: 19 (prof.lg_sample: 0)
+  opt.prof_accum: false
+  opt.lg_prof_interval: -1
+  opt.prof_gdump: false
+  opt.prof_final: false
+  opt.prof_leak: false
+  opt.stats_print: false
+  opt.stats_print_opts: ""
+Profiling settings
+  prof.thread_active_init: false
+  prof.active: false
+  prof.gdump: false
+  prof.interval: 0
+  prof.lg_sample: 0
+Arenas: 96
+Quantum size: 16
+Page size: 4096
+Maximum thread-cached size class: 32768
+Number of bin size classes: 36
+Number of thread-cache bin size classes: 41
+Number of large size classes: 196
+Allocated: 15939680, active: 17014784, metadata: 11315328 (n_thp 0), resident: 35680256, mapped: 79454208, retained: 49520640
+Background threads: 4, num_runs: 8, run_interval: 2502654625 ns
+                           n_lock_ops (#/sec)       n_waiting (#/sec)      n_spin_acq (#/sec)  n_owner_switch (#/sec)   total_wait_ns   (#/sec)     max_wait_ns  max_n_thds
+background_thread                  25       2               0       0               0       0              20       1               0         0               0           0
+ctl                                 3       0               0       0               0       0               2       0               0         0               0           0
+prof                                0       0               0       0               0       0               0       0               0         0               0           0
+Merged arenas stats:
+assigned threads: 21
+uptime: 12720046886
+dss allocation precedence: "N/A"
+decaying:  time       npages       sweeps     madvises       purged
+   dirty:   N/A           11            2            3         1921
+   muzzy:   N/A         1921            0            0            0
+                            allocated         nmalloc (#/sec)         ndalloc (#/sec)       nrequests   (#/sec)           nfill   (#/sec)          nflush   (#/sec)
+small:                        4065376           20734    1727             328      27            7078       589             280        23               8         0
+large:                       11874304              50       4              17       1              50         4              50         4               0         0
+total:                       15939680           20784    1732             345      28            7128       594             330        27               8         0
+
+active:                      17014784
+mapped:                      79454208
+retained:                    49520640
+base:                        10697088
+internal:                      618240
+metadata_thp:                       0
+tcache_bytes:                 2450904
+resident:                    35680256
+abandoned_vm:                       0
+extent_avail:                       1
+                           n_lock_ops (#/sec)       n_waiting (#/sec)      n_spin_acq (#/sec)  n_owner_switch (#/sec)   total_wait_ns   (#/sec)     max_wait_ns  max_n_thds
+
+...
+
+--- End jemalloc statistics ---
+```
+
+#### jmpg
+
+Purge unused Jemalloc memory. 
+
+```
+ok
+```
+
+#### jmep
+
+Enable Jemalloc profiling. 
+
+```
+ok
+```
+
+But if you get the following error message, you should start RaftKeeper with env variable `MALLOC_CONF=background_thread:true,prof:true`:
+
+```
+RaftKeeper was started without enabling profiling for jemalloc. To use jemalloc's profiler, following env variable should be set: MALLOC_CONF=background_thread:true,prof:true
+```
+
+#### jmfp
+
+Flush Jemalloc profiling to file and return the file name. The file name patten is `/tmp/jemalloc_raftkeeper.{pid}.{id}.heap`.
+
+```
+/tmp/jemalloc_raftkeeper.3737249.1.heap
+```
+
+#### jmdp
+
+Please do not forget to disable Jemalloc profiling when you complete the memory analysis to avoid performance regression.
+
+```
+ok
+```
+

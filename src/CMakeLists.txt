@@ -25,7 +25,7 @@ list (APPEND rk_common_io_sources ${CONFIG_BUILD})
 list (APPEND rk_common_io_headers ${CONFIG_VERSION} ${CONFIG_COMMON})
 
 add_library(rk_common_io ${rk_common_io_headers} ${rk_common_io_sources})
-target_link_libraries(rk_common_io PUBLIC ${NURAFT_LIBRARY})
+target_link_libraries(rk_common_io PUBLIC ${NURAFT_LIBRARY} jemalloc)
 
 add_library (rk_malloc OBJECT Common/malloc.cpp)
 set_source_files_properties(Common/malloc.cpp PROPERTIES COMPILE_FLAGS "-fno-builtin")
