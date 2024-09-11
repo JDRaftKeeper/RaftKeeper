@@ -708,7 +708,7 @@ Dwarf::Attribute Dwarf::readAttribute(const CompilationUnit & cu,
         case DW_FORM_ref_sup4:
         case DW_FORM_ref_sup8:
         case DW_FORM_strp_sup:
-            SAFE_CHECK(false, "Unexpected DWARF5 supplimentary object files");
+            SAFE_CHECK(false, "Unexpected DWARF5 supplementary object files");
 
         default:
             SAFE_CHECK(false, "invalid attribute form");
