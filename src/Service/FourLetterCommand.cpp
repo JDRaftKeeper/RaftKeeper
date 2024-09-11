@@ -149,6 +149,7 @@ void FourLetterCommandFactory::registerCommands(KeeperDispatcher & keeper_dispat
         FourLetterCommandPtr uptime_command = std::make_shared<UpTimeCommand>(keeper_dispatcher);
         factory.registerCommand(uptime_command);
 
+#if USE_JEMALLOC
         FourLetterCommandPtr jemalloc_dump_stats = std::make_shared<JemallocDumpStats>(keeper_dispatcher);
         factory.registerCommand(jemalloc_dump_stats);
 
@@ -163,6 +164,7 @@ void FourLetterCommandFactory::registerCommands(KeeperDispatcher & keeper_dispat
 
         FourLetterCommandPtr jemalloc_purge_arenas = std::make_shared<JemallocPurgeUnusedArenas>(keeper_dispatcher);
         factory.registerCommand(jemalloc_purge_arenas);
+#endif
 
         factory.initializeWhiteList(keeper_dispatcher);
         factory.setInitialize(true);
@@ -488,7 +490,7 @@ String LogInfoCommand::run()
     KeeperLogInfo log_info = keeper_dispatcher.getKeeperLogInfo();
     StringBuffer ret;
 
-    auto append = [&ret] (String key, uint64_t value) -> void
+    auto append = [&ret] (const String & key, uint64_t value) -> void
     {
         writeText(key, ret);
         writeText("\t", ret);
