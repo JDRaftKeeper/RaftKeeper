@@ -11,7 +11,7 @@
 #include <Common/CurrentMetrics.h>
 #include <Network/SocketAcceptor.h>
 #include <Common/config_version.h>
-#include <Common/getExecutablePath.h>
+#include <Common/Jemalloc.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
 #include <common/ErrorHandlers.h>
 
@@ -95,6 +95,10 @@ int Server::run()
 
 int Server::main(const std::vector<std::string> & /*args*/)
 {
+#if USE_JEMALLOC
+    setJemallocBackgroundThreads(true);
+#endif
+
     static ServerErrorHandler error_handler;
     Poco::ErrorHandler::set(&error_handler);
     Poco::Logger * log = &logger();

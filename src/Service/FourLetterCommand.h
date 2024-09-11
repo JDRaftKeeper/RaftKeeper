@@ -1,13 +1,11 @@
 #pragma once
 
-#include <sstream>
 #include <string>
 #include <unordered_map>
 
 #include <Common/IO/WriteBufferFromString.h>
 #include <Service/KeeperDispatcher.h>
 
-#include <Common/config_version.h>
 
 namespace RK
 {
@@ -45,7 +43,7 @@ public:
     ///represent '*' which is used in white list
     static constexpr int32_t WHITE_LIST_ALL = 0;
 
-    bool isKnown(int32_t code);
+    bool isKnown(int32_t code) const;
     bool isEnabled(int32_t code);
 
     FourLetterCommandPtr get(int32_t code);
@@ -364,5 +362,68 @@ struct UpTimeCommand : public IFourLetterCommand
     String run() override;
     ~UpTimeCommand() override = default;
 };
+
+
+#if USE_JEMALLOC
+struct JemallocDumpStats : public IFourLetterCommand
+{
+    explicit JemallocDumpStats(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "jmst"; }
+    String run() override;
+    ~JemallocDumpStats() override = default;
+};
+
+struct JemallocFlushProfile : public IFourLetterCommand
+{
+    explicit JemallocFlushProfile(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "jmfp"; }
+    String run() override;
+    ~JemallocFlushProfile() override = default;
+};
+
+struct JemallocEnableProfile : public IFourLetterCommand
+{
+    explicit JemallocEnableProfile(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "jmep"; }
+    String run() override;
+    ~JemallocEnableProfile() override = default;
+};
+
+struct JemallocDisableProfile : public IFourLetterCommand
+{
+    explicit JemallocDisableProfile(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "jmdp"; }
+    String run() override;
+    ~JemallocDisableProfile() override = default;
+};
+
+struct JemallocPurgeUnusedArenas : public IFourLetterCommand
+{
+    explicit JemallocPurgeUnusedArenas(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "jmpg"; }
+    String run() override;
+    ~JemallocPurgeUnusedArenas() override = default;
+};
+#endif
 
 }

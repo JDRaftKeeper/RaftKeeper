@@ -15,6 +15,11 @@
 
 #include <unistd.h>
 
+#if USE_JEMALLOC
+#include <Common/Jemalloc.h>
+#include <jemalloc/jemalloc.h>
+#endif
+
 namespace RK
 {
 namespace ErrorCodes
@@ -59,7 +64,7 @@ void FourLetterCommandFactory::checkInitialization() const
         throw Exception("Four letter command  not initialized", ErrorCodes::LOGICAL_ERROR);
 }
 
-bool FourLetterCommandFactory::isKnown(int32_t code)
+bool FourLetterCommandFactory::isKnown(int32_t code) const
 {
     checkInitialization();
     return commands.contains(code);
@@ -143,6 +148,21 @@ void FourLetterCommandFactory::registerCommands(KeeperDispatcher & keeper_dispat
 
         FourLetterCommandPtr uptime_command = std::make_shared<UpTimeCommand>(keeper_dispatcher);
         factory.registerCommand(uptime_command);
+
+        FourLetterCommandPtr jemalloc_dump_stats = std::make_shared<JemallocDumpStats>(keeper_dispatcher);
+        factory.registerCommand(jemalloc_dump_stats);
+
+        FourLetterCommandPtr jemalloc_flush_profile = std::make_shared<JemallocFlushProfile>(keeper_dispatcher);
+        factory.registerCommand(jemalloc_flush_profile);
+
+        FourLetterCommandPtr jemalloc_enable_stats = std::make_shared<JemallocEnableProfile>(keeper_dispatcher);
+        factory.registerCommand(jemalloc_enable_stats);
+
+        FourLetterCommandPtr jemalloc_disable_stats = std::make_shared<JemallocDisableProfile>(keeper_dispatcher);
+        factory.registerCommand(jemalloc_disable_stats);
+
+        FourLetterCommandPtr jemalloc_purge_arenas = std::make_shared<JemallocPurgeUnusedArenas>(keeper_dispatcher);
+        factory.registerCommand(jemalloc_purge_arenas);
 
         factory.initializeWhiteList(keeper_dispatcher);
         factory.setInitialize(true);
@@ -495,5 +515,65 @@ String UpTimeCommand::run()
 {
     return std::to_string(keeper_dispatcher.uptimeFromStartup() / 1000 / 1000);
 }
+
+#if USE_JEMALLOC
+
+void printToString(void * output, const char * data)
+{
+    std::string * output_data = reinterpret_cast<std::string *>(output);
+    *output_data += std::string(data);
+}
+
+String JemallocDumpStats::run()
+{
+    std::string output;
+    malloc_stats_print(printToString, &output, nullptr);
+    return output;
+}
+
+String JemallocFlushProfile::run()
+{
+    try
+    {
+        return flushJemallocProfile("/tmp/jemalloc_raftkeeper");
+    }
+    catch (Exception & e)
+    {
+        return e.message();
+    }
+}
+
+String JemallocEnableProfile::run()
+{
+    try
+    {
+        setJemallocProfileActive(true);
+        return "ok";
+    }
+    catch (Exception & e)
+    {
+        return e.message();
+    }
+}
+
+String JemallocDisableProfile::run()
+{
+    try
+    {
+        setJemallocProfileActive(false);
+        return "ok";
+    }
+    catch (Exception & e)
+    {
+        return e.message();
+    }
+}
+
+String JemallocPurgeUnusedArenas::run()
+{
+    purgeJemallocArenas();
+    return "ok";
+}
+#endif
 
 }
