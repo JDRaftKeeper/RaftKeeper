@@ -90,6 +90,7 @@ if (WEVERYTHING)
     no_warning(vla)
     no_warning(weak-template-vtables)
     no_warning(weak-vtables)
+    no_warning(thread-safety-negative) # experimental flag, too many false positives
 
     # XXX: libstdc++ has some of these for 3way compare
     if (NOT USE_LIBCXX)
