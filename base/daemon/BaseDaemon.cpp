@@ -736,7 +736,7 @@ void BaseDaemon::initializeTerminationAndSignalProcessing()
     std::string executable_path = getExecutablePath();
 
     if (!executable_path.empty())
-        stored_binary_hash = RK::Elf(executable_path).getBinaryHash();
+        stored_binary_hash = RK::Elf(executable_path).getStoredBinaryHash();
 #endif
 }
 
