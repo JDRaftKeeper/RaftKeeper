@@ -95,13 +95,13 @@ int Server::run()
 
 int Server::main(const std::vector<std::string> & /*args*/)
 {
-#if USE_JEMALLOC
-    setJemallocBackgroundThreads(true);
-#endif
-
     static ServerErrorHandler error_handler;
     Poco::ErrorHandler::set(&error_handler);
     Poco::Logger * log = &logger();
+
+#if USE_JEMALLOC
+    setJemallocBackgroundThreads(true);
+#endif
 
 #if !defined(NDEBUG) || !defined(__OPTIMIZE__)
     LOG_WARNING(log, "Server was built in debug mode. It will work slowly.");
