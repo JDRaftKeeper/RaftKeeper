@@ -321,12 +321,12 @@ whether the snapshot is done.
 
 #### jmst
 
-Dump Jemalloc statistics. Note that this is only useful when you Jemalloc is enabled.
+Dump Jemalloc statistics. Note that this only works when you Jemalloc is enabled.
 
-Jemalloc is disabled when:
-1. RaftKeeper is build with sanitizers
-2. your OS is not linux or freebsd
-3. RaftKeeper is build with ENABLE_JEMALLOC=OFF
+Jemalloc is enabled when:
+1. RaftKeeper is not built with sanitizers
+2. and built with ENABLE_JEMALLOC=ON (default is ON)
+3. and your OS is linux or freebsd
 
 ```
 ___ Begin jemalloc statistics ___
@@ -425,7 +425,7 @@ extent_avail:                       1
 
 #### jmpg
 
-Purge unused Jemalloc memory. 
+Purge unused Jemalloc memory. This will release some memory back to the system.
 
 ```
 ok
@@ -433,21 +433,25 @@ ok
 
 #### jmep
 
-Enable Jemalloc profiling. 
+You can analyze the memory usage by Jemalloc with the following steps:
+1. `jmep`: to start the memory analysis.
+2. `jmfp`: to flush the profiling to a tmp file, you can execute it multiple times to get multiple profiling and then diff it.
+3. `jmdp`: to stop the memory analysis.
 
-```
-ok
-```
-
-But if you get the following error message, you should start RaftKeeper with env variable `MALLOC_CONF=background_thread:true,prof:true`:
-
+Please note that before you start Jemalloc profiling, you should make sure that the RaftKeeper is started with env variable `MALLOC_CONF=background_thread:true,prof:true`,
+else you will get the following error:
 ```
 RaftKeeper was started without enabling profiling for jemalloc. To use jemalloc's profiler, following env variable should be set: MALLOC_CONF=background_thread:true,prof:true
 ```
 
+Command `jmep` will enable Jemalloc profiling.
+```
+ok
+```
+
 #### jmfp
 
-Flush Jemalloc profiling to file and return the file name. The file name patten is `/tmp/jemalloc_raftkeeper.{pid}.{id}.heap`.
+Flush the profiling to a tmp file and return the file name. The file name patten is `/tmp/jemalloc_raftkeeper.{pid}.{id}.heap`.
 
 ```
 /tmp/jemalloc_raftkeeper.3737249.1.heap
@@ -460,4 +464,3 @@ Please do not forget to disable Jemalloc profiling when you complete the memory 
 ```
 ok
 ```
-
