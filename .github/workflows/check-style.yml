@@ -1,0 +1,20 @@
+name: Check Style
+
+on: # yamllint disable-line rule:truthy
+  workflow_call:
+
+env:
+  REPORT_DIR: /tmp/reports
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
+
+      - name: Check style
+        working-directory: ${{ github.workspace }}/tests/ci
+        run: python3 code_style_check.py | tee style-report.log

@@ -1,0 +1,32 @@
+name: Unit Test
+
+on: # yamllint disable-line rule:truthy
+  workflow_call:
+    inputs:
+      test_type: # only integration or unit
+        required: true
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout the repository
+        if: always()
+        uses: actions/checkout@v3
+
+      - name: pip install PyGithub
+        if: always()
+        run: pip install PyGithub
+
+      - name: Download test report files
+        if: always()
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ inputs.test_type }}-test-report-*
+          merge-multiple: true
+          path: build/test/${{ inputs.test_type }}/
+
+      - name: Comment test report on PR
+        if: always()
+        run: if [ -n "$(ls -A build/test/${{ inputs.test_type }}/ 2>/dev/null)" ]; then python3 .github/workflows/report.py build/test/${{ inputs.test_type }}/ ${{ inputs.test_type }}; fi

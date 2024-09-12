@@ -1,0 +1,48 @@
+name: Build
+
+on: # yamllint disable-line rule:truthy
+  workflow_call:
+    inputs:
+      build_type:
+        required: true
+        type: string
+      sanitize:
+        required: true
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Prepare environment
+        run: bash .github/workflows/prepare-env.sh 14
+
+      - name: Generate Makefile
+        run: |
+          export CC=`which clang` CXX=`which clang++`
+          SANITIZE_OPTION=$(python3 .github/workflows/translate_sanitize_to_ck_build_option.py ${{ inputs.sanitize }})
+          if [ "$SANITIZE_OPTION" != "none" ]; then
+            cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{ inputs.build_type }} -DSANITIZE=$SANITIZE_OPTION
+          else
+            cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{ inputs.build_type }}
+          fi
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/build
+        run: ninja -j 10
+
+      - name: Upload RaftKeeper binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: raftkeeper-binary-${{ inputs.sanitize}}
+          path: build/programs/raftkeeper
+
+      - name: Upload unit test binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-binary-${{ inputs.sanitize}}
+          path: build/src/rk_unit_tests

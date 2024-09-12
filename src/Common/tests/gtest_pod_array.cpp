@@ -73,7 +73,7 @@ struct ItemWithSize
     char v[size] {};
 };
 
-TEST(Common, PODInsertElementSizeNotMultipleOfLeftPadding)
+TEST(Common, PODArrayInsertWithIllegalPadding)
 {
     using ItemWith24Size = ItemWithSize<24>;
     PaddedPODArray<ItemWith24Size> arr1_initially_empty;
