@@ -36,86 +36,124 @@ env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: RelWithDebInfo
 
-# Cancel the previous wf run in PRs.
+# Cancel the previous workflow run in this PR.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   check-style:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install tools
-        run: sudo apt-get update && sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
-
-      - name: Check style
-        working-directory: ${{github.workspace}}/tests/ci
-        run: python3 code_style_check.py
-
-      - name: print info
-        run: echo ${{github.workspace}} && echo ${{runner.temp}} && echo ${{runner.workspace}}
+    uses: ./.github/workflows/check-style.yml
 
   build:
-    runs-on: ubuntu-22.04
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: RelWithDebInfo
+      sanitize: none
     needs: check-style
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          submodules: recursive
 
-      - name: Install tools
-        run: sudo apt install -y ninja-build ccache
-
-      - name: Generate Makefile
-        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-
-      - name: Build
-        working-directory: ${{github.workspace}}/build
-        run: ninja -j 10
-
-      - name: Upload raftkeeper binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: raftkeeper-binary
-          path: build/programs/raftkeeper
-
-      - name: Upload unit test binary
-        uses: actions/upload-artifact@v3
-        with:
-          name: unit-test-binary
-          path: build/src/rk_unit_tests
-
-  run-unit-tests:
-    runs-on: ubuntu-22.04
+  unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    with:
+      sanitize: none
     needs: build
-    steps:
-      - name: Download unit test binary
-        uses: actions/download-artifact@v3
-        with:
-          name: unit-test-binary
-          path: build/src/
 
-      - name: Run unit Tests
-        working-directory: ${{github.workspace}}/build
-        run: sudo chmod 755 ./src/rk_unit_tests && ./src/rk_unit_tests --gtest_color=yes
-
-  run-integration-tests:
-    runs-on: ubuntu-22.04
+  integration-test:
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      sanitize: none
     needs: build
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Download raftkeeper binary
-        uses: actions/download-artifact@v3
-        with:
-          name: raftkeeper-binary
-          path: build/programs/
+  build-tsan:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: RelWithDebInfo
+      sanitize: tsan
+    needs: check-style
 
-      - name: Add executable privileges
-        run: sudo chmod 755 ${{github.workspace}}/build/programs/raftkeeper
+  tsan-unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    with:
+      sanitize: tsan
+    needs: build-tsan
 
-      - name: Run integration Tests
-        working-directory: ${{github.workspace}}/tests/integration
-        run: bash ${{github.workspace}}/.github/workflows/run-integration-test.sh ${{github.workspace}}/tests/integration
+  tsan-integration-test:
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      sanitize: tsan
+    needs: build-tsan
+
+  build-asan:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: RelWithDebInfo
+      sanitize: asan
+    needs: check-style
+
+  asan-unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    with:
+      sanitize: asan
+    needs: build-asan
+
+  asan-integration-test:
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      sanitize: asan
+    needs: build-asan
+
+  build-msan:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: RelWithDebInfo
+      sanitize: msan
+    needs: check-style
+
+  msan-unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    with:
+      sanitize: msan
+    needs: build-msan
+
+  msan-integration-test:
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      sanitize: msan
+    needs: build-msan
+
+  build-ubsan:
+    uses: ./.github/workflows/build.yml
+    with:
+      build_type: RelWithDebInfo
+      sanitize: ubsan
+    needs: check-style
+
+  ubsan-unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    with:
+      sanitize: ubsan
+    needs: build-ubsan
+
+  ubsan-integration-test:
+    uses: ./.github/workflows/integration-test.yml
+    with:
+      sanitize: ubsan
+    needs: build-ubsan
+
+  unit-test-report:
+    if: always()
+    uses: ./.github/workflows/report.yml
+    with:
+      test_type: unit
+    needs: [unit-test, tsan-unit-test, asan-unit-test, msan-unit-test, ubsan-unit-test]
+
+  integration-test-report:
+    if: always()
+    uses: ./.github/workflows/report.yml
+    with:
+      test_type: integration
+    needs: [integration-test, tsan-integration-test, asan-integration-test, msan-integration-test, ubsan-integration-test]
+
+  macos-build-and-unit-test:
+    uses: ./.github/workflows/macos.yml
+    needs: check-style

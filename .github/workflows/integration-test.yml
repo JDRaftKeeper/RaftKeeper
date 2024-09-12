@@ -1,0 +1,34 @@
+name: Test
+
+on: # yamllint disable-line rule:truthy
+  workflow_call:
+    inputs:
+      sanitize:
+        required: true
+        type: string
+
+jobs:
+  run:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: raftkeeper-binary-${{ inputs.sanitize }}
+          path: build/programs/
+
+      - name: Add executable privileges
+        run: sudo chmod 755 build/programs/raftkeeper
+
+      - name: Run integration Tests
+        run: bash .github/workflows/run-integration-test.sh tests/integration --junitxml=integration-test-report-${{ inputs.sanitize }}.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report-${{ inputs.sanitize }}.xml
+          path: tests/integration/integration-test-report-${{ inputs.sanitize }}.xml
