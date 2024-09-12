@@ -1,0 +1,116 @@
+name: pull-request
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+      - "**/benchmark/**"
+      - "version.txt"
+      - "build.sh"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    paths-ignore:
+      - "**.md"
+      - "**/docs/**"
+      - "**/LICENSE"
+      - "**/NOTICE"
+      - "**/benchmark/**"
+      - "version.txt"
+      - "build.sh"
+
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "Pull request#"
+        required: false
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: RelWithDebInfo
+
+jobs:
+  check-style:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt install -y shellcheck libxml2-utils git python3-pip pylint yamllint && pip3 install codespell
+
+      - name: Check style
+        working-directory: ${{github.workspace}}/tests/ci
+        run: python3 code_style_check.py
+
+      - name: print info
+        run: echo ${{github.workspace}} && echo ${{runner.temp}} && echo ${{runner.workspace}}
+
+  build:
+    runs-on: ubuntu-22.04
+    needs: check-style
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+
+      - name: Install tools
+        run: sudo apt install -y ninja-build ccache
+
+      - name: Generate Makefile
+        run: export CC=`which clang` CXX=`which clang++` && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+      - name: Build
+        working-directory: ${{github.workspace}}/build
+        run: ninja -j 10
+
+      - name: Upload raftkeeper binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: raftkeeper-binary
+          path: build/programs/raftkeeper
+
+      - name: Upload unit test binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: unit-test-binary
+          path: build/src/rk_unit_tests
+
+  run-unit-tests:
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - name: Download unit test binary
+        uses: actions/download-artifact@v3
+        with:
+          name: unit-test-binary
+          path: build/src/
+
+      - name: Run unit Tests
+        working-directory: ${{github.workspace}}/build
+        run: sudo chmod 755 ./src/rk_unit_tests && ./src/rk_unit_tests --gtest_color=yes
+
+  run-integration-tests:
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download raftkeeper binary
+        uses: actions/download-artifact@v3
+        with:
+          name: raftkeeper-binary
+          path: build/programs/
+
+      - name: Add executable privileges
+        run: sudo chmod 755 ${{github.workspace}}/build/programs/raftkeeper
+
+      - name: Run integration Tests
+        working-directory: ${{github.workspace}}/tests/integration
+        run: bash ${{github.workspace}}/.github/workflows/run-integration-test.sh ${{github.workspace}}/tests/integration
