@@ -141,14 +141,14 @@ jobs:
     needs: build-ubsan
 
   unit-test-report:
-    if: always()
+    if: always() && github.event_name == 'pull_request'
     uses: ./.github/workflows/report.yml
     with:
       test_type: unit
     needs: [unit-test, tsan-unit-test, asan-unit-test, msan-unit-test, ubsan-unit-test]
 
   integration-test-report:
-    if: always()
+    if: always() && github.event_name == 'pull_request'
     uses: ./.github/workflows/report.yml
     with:
       test_type: integration
