@@ -5,12 +5,9 @@ llvm_priority=300
 
 sudo apt install -y ninja-build ccache
 
-# install llvm
-wget https://apt.llvm.org/llvm.sh
-
 # Check if the desired LLVM version is already installed
 if ! llvm-config-${llvm_version} --version &>/dev/null; then
-  sudo ./llvm.sh ${llvm_version} all
+  sudo curl -sL https://apt.llvm.org/llvm.sh | sudo bash -s -- 18 all
 else
   echo "LLVM ${llvm_version} is already installed."
 fi
