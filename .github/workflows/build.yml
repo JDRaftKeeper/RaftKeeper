@@ -19,7 +19,7 @@ jobs:
           submodules: recursive
 
       - name: Prepare environment
-        run: bash .github/workflows/prepare-env.sh 14
+        run: bash .github/workflows/prepare-env.sh 17
 
       - name: Generate Makefile
         run: |
