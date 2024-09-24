@@ -6,8 +6,14 @@ llvm_priority=300
 sudo apt install -y ninja-build ccache
 
 # install llvm
-#wget https://apt.llvm.org/llvm.sh
-#chmod 755 llvm.sh && sudo ./llvm.sh ${llvm_version} all
+wget https://apt.llvm.org/llvm.sh
+
+# Check if the desired LLVM version is already installed
+if ! llvm-config-${llvm_version} --version &>/dev/null; then
+  sudo ./llvm.sh ${llvm_version} all
+else
+  echo "LLVM ${llvm_version} is already installed."
+fi
 
 # make clang as default compiler
 sudo update-alternatives --install /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-${llvm_version} ${llvm_priority}
