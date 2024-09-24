@@ -78,7 +78,7 @@ NuRaftStateMachine::NuRaftStateMachine(
             log,
             "Previous last commit idx {} is less than the last committed idx {} from snapshot, skip replaying logs.",
             previous_last_commit_id,
-            last_committed_idx);
+            last_committed_idx.load());
     }
     else
     {
@@ -331,7 +331,7 @@ bool NuRaftStateMachine::applySnapshotImpl(snapshot & s)
     if (succeed)
     {
         last_committed_idx = s.get_last_log_idx();
-        LOG_INFO(log, "Applied snapshot, now the last log index is {}", last_committed_idx);
+        LOG_INFO(log, "Applied snapshot, now the last log index is {}", last_committed_idx.load());
     }
     return succeed;
 }
@@ -394,7 +394,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 if (batch_end_index > last_index_in_store + 1)
                     batch_end_index = last_index_in_store + 1;
 
-                LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index, batch_end_index);
+                LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index.load(), batch_end_index.load());
 
                 ReplayLogBatch batch;
                 batch.log_entries
@@ -408,7 +408,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 {
                     if (entry_with_version.entry->get_val_type() != nuraft::log_val_type::app_log)
                     {
-                        LOG_DEBUG(thread_log, "Found non app nuraft log(type {}), ignore it", entry_with_version.entry->get_val_type());
+                        LOG_DEBUG(thread_log, "Found non app nuraft log(type {}), ignore it", fmt::underlying(entry_with_version.entry->get_val_type()));
                         batch.requests->push_back(nullptr);
                     }
                     else
@@ -419,7 +419,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                     }
                 }
 
-                LOG_INFO(thread_log, "Finish to load batch [{}, {})", batch_start_index, batch_end_index);
+                LOG_INFO(thread_log, "Finish to load batch [{}, {})", batch_start_index.load(), batch_end_index.load());
                 log_queue.push(batch);
                 batch_start_index.store(batch_end_index);
             }

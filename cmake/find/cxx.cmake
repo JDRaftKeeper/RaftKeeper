@@ -48,6 +48,17 @@ if (NOT USE_INTERNAL_LIBCXX_LIBRARY)
 endif ()
 
 if (NOT HAVE_LIBCXX AND NOT MISSING_INTERNAL_LIBCXX_LIBRARY)
+    set(LIBCXX_SOURCE_DIR "${RaftKeeper_SOURCE_DIR}/contrib/llvm-project/libcxx")
+
+    set(_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS ON)
+    set(_LIBCPP_PSTL_CPU_BACKEND_SERIAL ON)
+    set(_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION ON)
+
+    configure_file("${LIBCXX_SOURCE_DIR}/include/__config_site.in" "${CMAKE_CURRENT_BINARY_DIR}/include/__config_site" @ONLY)
+    set(CONFIG_SITE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+    message("CONFIG_SITE_DIR ${CONFIG_SITE_DIR}")
+    include_directories(${CONFIG_SITE_DIR})
+
     set (LIBCXX_LIBRARY cxx)
     set (LIBCXXABI_LIBRARY cxxabi)
     add_subdirectory(contrib/libcxxabi-cmake)

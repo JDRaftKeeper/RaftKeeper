@@ -12,7 +12,7 @@ String ErrorRequest::toString() const
         xid,
         Coordination::toString(opnum),
         accepted,
-        error_code);
+        fmt::underlying(error_code));
 }
 
 RequestId ErrorRequest::getRequestId() const

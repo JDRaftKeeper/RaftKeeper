@@ -828,7 +828,7 @@ inline void skipWhitespaceIfAny(ReadBuffer & buf, bool one_line = false)
   * (type is cut to base class, 'message' replaced by 'displayText', and stack trace is appended to 'message')
   * Some additional message could be appended to exception (example: you could add information about from where it was received).
   */
-Exception readException(ReadBuffer & buf, const String & additional_message = "", bool remote_exception = false);
+Exception readException(ReadBuffer & buf, const String & additional_message = "");
 void readAndThrowException(ReadBuffer & buf, const String & additional_message = "");
 
 

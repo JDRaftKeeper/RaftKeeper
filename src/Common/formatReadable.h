@@ -33,24 +33,10 @@ struct ReadableSize
 };
 
 /// See https://fmt.dev/latest/api.html#formatting-user-defined-types
-template <>
-struct fmt::formatter<ReadableSize>
-{
-    constexpr auto parse(format_parse_context & ctx)
-    {
-        auto it = ctx.begin();
-        auto end = ctx.end();
-
-        /// Only support {}.
-        if (it != end && *it != '}')
-            throw format_error("invalid format");
-
-        return it;
-    }
-
-    template <typename FormatContext>
-    auto format(const ReadableSize & size, FormatContext & ctx)
-    {
-        return format_to(ctx.out(), "{}", formatReadableSizeWithBinarySuffix(size.value));
+template <typename T>
+struct fmt::formatter<T, std::enable_if_t<std::is_base_of_v<ReadableSize, T>, char>> :
+    fmt::formatter<std::string> {
+    auto format(const ReadableSize& size, format_context& ctx) const {
+        return formatter<std::string>::format(formatReadableSizeWithBinarySuffix(size.value), ctx);
     }
 };

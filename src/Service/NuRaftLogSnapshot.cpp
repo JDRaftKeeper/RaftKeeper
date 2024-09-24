@@ -466,7 +466,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
             read_size += 1;
             LOG_DEBUG(log, "Got snapshot file header with version {}", toString(version_from_obj));
             if (version_from_obj > CURRENT_SNAPSHOT_VERSION)
-                throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", version_from_obj);
+                throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", toString(version_from_obj));
         }
         else if (isSnapshotFileTail(magic))
         {
@@ -897,7 +897,7 @@ size_t KeeperSnapshotManager::removeSnapshots()
 {
     Int64 remove_count = static_cast<Int64>(snapshots.size()) - static_cast<Int64>(keep_max_snapshot_count);
 
-    LOG_INFO(log, "There are {} snapshots, we will try to move {remove_count} of them", snapshots.size(), remove_count);
+    LOG_INFO(log, "There are {} snapshots, we will try to move {} of them", snapshots.size(), remove_count);
 
     while (remove_count > 0)
     {
