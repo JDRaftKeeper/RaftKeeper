@@ -22,12 +22,6 @@
 [submodule "contrib/libxml2"]
 	path = contrib/libxml2
 	url = https://github.com/GNOME/libxml2.git
-[submodule "contrib/libcxx"]
-	path = contrib/libcxx
-	url = https://github.com/ClickHouse-Extras/libcxx.git
-[submodule "contrib/libcxxabi"]
-	path = contrib/libcxxabi
-	url = https://github.com/ClickHouse-Extras/libcxxabi.git
 [submodule "contrib/libunwind"]
 	path = contrib/libunwind
 	url = https://github.com/ClickHouse-Extras/libunwind.git
