@@ -7,18 +7,20 @@ from github_utils import comment_on_pr
 # Report to PR comment
 def report(report_dir, report_type):
     content = None
-    title = None
+    title_prefix = None
 
     if report_type == 'unit':
-        title = f"Unit test report"
+        title_prefix = f"Unit test report"
     elif report_type == 'integration':
-        title = f"Integration test report"
+        title_prefix = f"Integration test report"
     else:
         raise ValueError('Integration test report not available')
 
-    content = generate_report(report_dir, title)
+    title_prefix_copy = title_prefix
+    content = generate_report(report_dir, title_prefix)
     if content is not None:
-        comment_on_pr(content, title)
+        comment_on_pr(content, title_prefix_copy)
+
 
 if __name__ == "__main__":
     report(sys.argv[1], sys.argv[2])
