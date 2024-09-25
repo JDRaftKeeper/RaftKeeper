@@ -12,13 +12,17 @@
 #include <filesystem>
 #include <sstream>
 #include <unordered_map>
+#include <libunwind.h>
 
 #if !defined(ARCADIA_BUILD)
 #    include <Common/config.h>
 #endif
 
-#if USE_UNWIND
-#    include <libunwind.h>
+#if defined(OS_DARWIN)
+/// This header contains functions like `backtrace` and `backtrace_symbols`
+/// Which will be used for stack unwinding on Mac.
+/// Read: https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/backtrace.3.html
+#include "execinfo.h"
 #endif
 
 std::string signalToErrorMessage(int sig, const siginfo_t & info, const ucontext_t & context)
@@ -294,10 +298,12 @@ StackTrace::StackTrace(NoCapture)
 void StackTrace::tryCapture()
 {
     size = 0;
-#if USE_UNWIND
+#if defined(OS_DARWIN)
+    size = backtrace(frame_pointers.data(), capacity);
+#else
     size = unw_backtrace(frame_pointers.data(), capacity);
-    __msan_unpoison(frame_pointers.data(), size * sizeof(frame_pointers[0]));
 #endif
+    __msan_unpoison(frame_pointers.data(), size * sizeof(frame_pointers[0]));
 }
 
 size_t StackTrace::getSize() const
