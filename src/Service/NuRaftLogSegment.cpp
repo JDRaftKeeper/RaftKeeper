@@ -14,6 +14,7 @@
 #include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
+#include <Service/KeeperCommon.h>
 
 
 namespace RK
@@ -388,7 +389,7 @@ UInt64 NuRaftLogSegment::appendEntry(const ptr<log_entry> & entry, std::atomic<U
         header.data_length,
         header.data_crc,
         file_size.load(),
-        fmt::underlying(entry->get_val_type()));
+        toString(entry->get_val_type()));
 
     return header.index;
 }

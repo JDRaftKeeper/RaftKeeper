@@ -408,7 +408,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
                 {
                     if (entry_with_version.entry->get_val_type() != nuraft::log_val_type::app_log)
                     {
-                        LOG_DEBUG(thread_log, "Found non app nuraft log(type {}), ignore it", fmt::underlying(entry_with_version.entry->get_val_type()));
+                        LOG_DEBUG(thread_log, "Found non app nuraft log(type {}), ignore it", toString(entry_with_version.entry->get_val_type()));
                         batch.requests->push_back(nullptr);
                     }
                     else

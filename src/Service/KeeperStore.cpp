@@ -1019,7 +1019,7 @@ struct StoreRequestMultiTxn final : public StoreRequest
             }
             else
                 throw RK::Exception(
-                    ErrorCodes::BAD_ARGUMENTS, "Illegal command as part of multi ZooKeeper request {}", fmt::underlying(sub_zk_request->getOpNum()));
+                    ErrorCodes::BAD_ARGUMENTS, "Illegal command as part of multi ZooKeeper request {}", toString(sub_zk_request->getOpNum()));
         }
     }
 
@@ -1154,7 +1154,7 @@ public:
     void registerRequest(Coordination::OpNum op_num, Creator creator)
     {
         if (!op_num_to_request.try_emplace(op_num, creator).second)
-            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Request with op num {} already registered", fmt::underlying(op_num));
+            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Request with op num {} already registered", toString(op_num));
     }
 
 private:

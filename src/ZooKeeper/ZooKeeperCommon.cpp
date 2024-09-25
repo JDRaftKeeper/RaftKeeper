@@ -343,7 +343,7 @@ void ZooKeeperErrorResponse::readImpl(ReadBuffer & in)
     Coordination::read(read_error, in);
 
     if (read_error != error)
-        throw Exception(fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", fmt::underlying(read_error), fmt::underlying(error)),
+        throw Exception(fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", errorMessage(read_error), errorMessage(error)),
             Error::ZMARSHALLINGERROR);
 }
 
