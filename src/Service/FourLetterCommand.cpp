@@ -45,9 +45,10 @@ String IFourLetterCommand::toName(int32_t code)
 
 int32_t IFourLetterCommand::toCode(const String & name)
 {
-    int32_t res = *reinterpret_cast<const int32_t *>(name.data());
+    int32_t res;
+    std::memcpy(&res, name.data(), sizeof(res));
     /// keep consistent with Coordination::read method by changing big endian to little endian.
-    return __builtin_bswap32(res);
+    return std::byteswap(res);
 }
 
 IFourLetterCommand::~IFourLetterCommand() = default;
