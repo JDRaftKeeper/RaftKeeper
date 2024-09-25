@@ -35,7 +35,7 @@ void ZooKeeperResponse::writeNoCopy(WriteBufferFromOwnString & out) const
     String & result = out.str();
 
     // write data length at begin of string
-    int32_t len = __builtin_bswap32(static_cast<int32_t>(result.size() - pre_size - sizeof(int32_t)));
+    int32_t len = std::byteswap(static_cast<int32_t>(result.size() - pre_size - sizeof(int32_t)));
     memcpy(result.data() + pre_size, reinterpret_cast<const char *>(&len), sizeof(int32_t));
 }
 

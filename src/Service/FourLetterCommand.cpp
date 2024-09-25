@@ -39,7 +39,7 @@ int32_t IFourLetterCommand::code()
 
 String IFourLetterCommand::toName(int32_t code)
 {
-    int reverted_code = __builtin_bswap32(code);
+    int reverted_code = std::byteswap(code);
     return String(reinterpret_cast<char *>(&reverted_code), 4);
 }
 
