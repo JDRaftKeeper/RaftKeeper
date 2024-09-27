@@ -33,7 +33,7 @@ We really appreciate the excellent work of the ClickHouse and NuRaft teams.
 
 ### Build on Ubuntu
 
-Requirement: Ubuntu 20.04+, Clang 13+(17 is recommended), Cmake 3.20+
+Requirement: Ubuntu 20.04+, Clang 17+, Cmake 3.20+
 ```
 # install tools
 sudo apt-get install cmake llvm-17

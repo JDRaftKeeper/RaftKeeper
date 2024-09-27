@@ -4,7 +4,7 @@ RaftKeeper supports build on Linux and Mac OX.
 
 ### Build on Ubuntu
 
-Requirement: Ubuntu 20.04+, Clang 13+, Cmake 3.12+
+Requirement: Ubuntu 20.04+, Clang 17+, Cmake 3.12+
 ```
 # install tools
 sudo apt-get install cmake llvm-17
@@ -20,7 +20,7 @@ cd RaftKeeper && /bin/bash build.sh
 
 ### Build on macOS
 
-Requirement: macOS 10.15+, Clang 13+, Cmake 3.20+
+Requirement: macOS 10.15+, Clang 17+, Cmake 3.20+
 
 ```
 # install tools
