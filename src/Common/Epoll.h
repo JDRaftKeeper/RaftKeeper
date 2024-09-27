@@ -2,8 +2,7 @@
 #if defined(OS_LINUX)
 
 #include <sys/epoll.h>
-#include <vector>
-#include <boost/noncopyable.hpp>
+#include <functional>
 #include <Poco/Logger.h>
 
 namespace RK

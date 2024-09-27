@@ -39,15 +39,16 @@ int32_t IFourLetterCommand::code()
 
 String IFourLetterCommand::toName(int32_t code)
 {
-    int reverted_code = __builtin_bswap32(code);
+    int reverted_code = std::byteswap(code);
     return String(reinterpret_cast<char *>(&reverted_code), 4);
 }
 
 int32_t IFourLetterCommand::toCode(const String & name)
 {
-    int32_t res = *reinterpret_cast<const int32_t *>(name.data());
+    int32_t res;
+    std::memcpy(&res, name.data(), sizeof(res));
     /// keep consistent with Coordination::read method by changing big endian to little endian.
-    return __builtin_bswap32(res);
+    return std::byteswap(res);
 }
 
 IFourLetterCommand::~IFourLetterCommand() = default;

@@ -15,9 +15,9 @@ set(USE_INTERNAL_LIBCXX_LIBRARY_DEFAULT ON)
 option (USE_INTERNAL_LIBCXX_LIBRARY "Disable to use system libcxx and libcxxabi libraries instead of bundled"
     ${USE_INTERNAL_LIBCXX_LIBRARY_DEFAULT})
 
-if(NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/libcxx/CMakeLists.txt")
+if(NOT EXISTS "${RaftKeeper_SOURCE_DIR}/contrib/llvm-project/libcxx")
     if (USE_INTERNAL_LIBCXX_LIBRARY)
-        message(WARNING "submodule contrib/libcxx is missing. to fix try run: \n git submodule update --init --recursive")
+        message(WARNING "submodule contrib/llvm-project is missing. to fix try run: \n git submodule update --init --recursive")
         message (${RECONFIGURE_MESSAGE_LEVEL} "Can't find internal libcxx")
         set(USE_INTERNAL_LIBCXX_LIBRARY 0)
     endif()
@@ -29,7 +29,6 @@ set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_LIBCPP_DEBUG=0") # More 
 
 if (NOT USE_INTERNAL_LIBCXX_LIBRARY)
     find_library (LIBCXX_LIBRARY c++)
-    find_library (LIBCXXFS_LIBRARY c++fs)
     find_library (LIBCXXABI_LIBRARY c++abi)
 
     if(LIBCXX_LIBRARY AND LIBCXXABI_LIBRARY) # c++fs is now a part of the libc++
@@ -38,16 +37,23 @@ if (NOT USE_INTERNAL_LIBCXX_LIBRARY)
         message (${RECONFIGURE_MESSAGE_LEVEL} "Can't find system libcxx")
     endif()
 
-    if(NOT LIBCXXFS_LIBRARY)
-        set(LIBCXXFS_LIBRARY ${LIBCXX_LIBRARY})
-    endif()
-
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 
     target_link_libraries(global-libs INTERFACE ${EXCEPTION_HANDLING_LIBRARY})
 endif ()
 
 if (NOT HAVE_LIBCXX AND NOT MISSING_INTERNAL_LIBCXX_LIBRARY)
+    set(LIBCXX_SOURCE_DIR "${RaftKeeper_SOURCE_DIR}/contrib/llvm-project/libcxx")
+
+    set(_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS ON)
+    set(_LIBCPP_PSTL_CPU_BACKEND_SERIAL ON)
+    set(_LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION ON)
+
+    configure_file("${LIBCXX_SOURCE_DIR}/include/__config_site.in" "${CMAKE_CURRENT_BINARY_DIR}/include/__config_site" @ONLY)
+    set(CONFIG_SITE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
+    message("CONFIG_SITE_DIR ${CONFIG_SITE_DIR}")
+    include_directories(${CONFIG_SITE_DIR})
+
     set (LIBCXX_LIBRARY cxx)
     set (LIBCXXABI_LIBRARY cxxabi)
     add_subdirectory(contrib/libcxxabi-cmake)
@@ -60,10 +66,9 @@ if (NOT HAVE_LIBCXX AND NOT MISSING_INTERNAL_LIBCXX_LIBRARY)
 endif ()
 
 if (HAVE_LIBCXX)
-    target_link_libraries(global-libs INTERFACE ${LIBCXX_LIBRARY} ${LIBCXXABI_LIBRARY} ${LIBCXXFS_LIBRARY})
+    target_link_libraries(global-libs INTERFACE ${LIBCXX_LIBRARY} ${LIBCXXABI_LIBRARY})
 
     message (STATUS "Using libcxx: ${LIBCXX_LIBRARY}")
-    message (STATUS "Using libcxxfs: ${LIBCXXFS_LIBRARY}")
     message (STATUS "Using libcxxabi: ${LIBCXXABI_LIBRARY}")
 else()
     target_link_libraries(global-libs INTERFACE -l:libstdc++.a -l:libstdc++fs.a) # Always link these libraries as static

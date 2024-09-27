@@ -13,6 +13,11 @@ namespace
     template <typename T, typename... Ts> constexpr auto firstArg(T && x, Ts &&...) { return std::forward<T>(x); }
 }
 
+template<typename... Args>
+std::string logFormat(const std::string& fmt, Args&&... args) {
+    std::string formatted_string = fmt::format(fmt::runtime(std::string_view(fmt.data(), fmt.size())), std::forward<Args>(args)...);
+    return formatted_string;
+}
 
 /// Logs a message to a specified logger with that level.
 /// If more than one argument is provided,
@@ -24,7 +29,7 @@ namespace
 {                                                                                 \
     if ((logger)->is((PRIORITY)))                                                 \
     {                                                                             \
-        std::string formatted_message = numArgs(__VA_ARGS__) > 1 ? fmt::format(__VA_ARGS__) : firstArg(__VA_ARGS__); \
+        std::string formatted_message = numArgs(__VA_ARGS__) > 1 ? logFormat(__VA_ARGS__) : firstArg(__VA_ARGS__); \
         if (auto channel = (logger)->getChannel())                                \
         {                                                                         \
             std::string file_function;                                            \

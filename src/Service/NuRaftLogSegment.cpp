@@ -14,6 +14,7 @@
 #include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
+#include <Service/KeeperCommon.h>
 
 
 namespace RK
@@ -387,8 +388,8 @@ UInt64 NuRaftLogSegment::appendEntry(const ptr<log_entry> & entry, std::atomic<U
         header.index,
         header.data_length,
         header.data_crc,
-        file_size,
-        entry->get_val_type());
+        file_size.load(),
+        toString(entry->get_val_type()));
 
     return header.index;
 }
@@ -472,7 +473,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
                 log,
                 "Truncate a closed segment, should re-open it. Current first index {}, last index {}, rename file from {} to {}.",
                 first_index,
-                last_index,
+                last_index.load(),
                 getClosedFileName(),
                 getOpenFileName());
 
@@ -494,7 +495,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
         std::lock_guard write_lock(log_mutex);
         if (last_index <= last_index_kept)
         {
-            LOG_INFO(log, "Log segment {} truncates nothing, last_index {}, last_index_kept {}", file_name, last_index, last_index_kept);
+            LOG_INFO(log, "Log segment {} truncates nothing, last_index {}, last_index_kept {}", file_name, last_index.load(), last_index_kept);
             reopen_closed_segment();
             return false;
         }
@@ -508,7 +509,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
             file_name,
             first_log_offset_to_truncate,
             first_index,
-            last_index,
+            last_index.load(),
             last_index_kept,
             file_size_to_keep);
     }
@@ -518,7 +519,7 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     if (ftruncate(seg_fd, file_size_to_keep) != 0)
         throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Fail to truncate log segment {}", file_name);
 
-    LOG_INFO(log, "Truncate file {} with fd {}, from {} to size {}", file_name, seg_fd, file_size_to_keep, file_size);
+    LOG_INFO(log, "Truncate file {} with fd {}, from {} to size {}", file_name, seg_fd, file_size_to_keep, file_size.load());
 
     /// seek fd
     off_t ret_off = lseek(seg_fd, file_size_to_keep, SEEK_SET);

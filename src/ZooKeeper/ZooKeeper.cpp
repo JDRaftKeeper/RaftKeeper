@@ -11,6 +11,7 @@
 #include "common/logger_useful.h"
 
 #include <Poco/Net/NetException.h>
+#include <fmt/ranges.h>
 
 
 #define ZOOKEEPER_CONNECTION_TIMEOUT_MS 1000

@@ -12,7 +12,7 @@ String ErrorRequest::toString() const
         xid,
         Coordination::toString(opnum),
         accepted,
-        error_code);
+        RK::toString(error_code));
 }
 
 RequestId ErrorRequest::getRequestId() const

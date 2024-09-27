@@ -270,7 +270,8 @@ struct StoreRequestCreate final : public StoreRequest
             response.error = Coordination::Error::ZNONODE;
             return {response_ptr, undo};
         }
-        else if (parent->is_ephemeral)
+
+        if (parent->is_ephemeral)
         {
             response.error = Coordination::Error::ZNOCHILDRENFOREPHEMERALS;
             return {response_ptr, undo};
@@ -1018,7 +1019,7 @@ struct StoreRequestMultiTxn final : public StoreRequest
             }
             else
                 throw RK::Exception(
-                    ErrorCodes::BAD_ARGUMENTS, "Illegal command as part of multi ZooKeeper request {}", sub_zk_request->getOpNum());
+                    ErrorCodes::BAD_ARGUMENTS, "Illegal command as part of multi ZooKeeper request {}", toString(sub_zk_request->getOpNum()));
         }
     }
 
@@ -1153,7 +1154,7 @@ public:
     void registerRequest(Coordination::OpNum op_num, Creator creator)
     {
         if (!op_num_to_request.try_emplace(op_num, creator).second)
-            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Request with op num {} already registered", op_num);
+            throw RK::Exception(ErrorCodes::LOGICAL_ERROR, "Request with op num {} already registered", toString(op_num));
     }
 
 private:
@@ -1205,7 +1206,7 @@ void KeeperStore::processRequest(
     {
         if (zxid >= *new_last_zxid)
             throw Exception(
-                ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid);
+                ErrorCodes::LOGICAL_ERROR, "Got new ZXID {} smaller or equal than current {}. It's a bug", *new_last_zxid, zxid.load());
         zxid = *new_last_zxid;
     }
 

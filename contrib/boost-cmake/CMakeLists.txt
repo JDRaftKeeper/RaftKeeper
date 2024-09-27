@@ -116,6 +116,7 @@ if (NOT EXTERNAL_BOOST_FOUND)
     )
 
     add_library (_boost_program_options ${SRCS_PROGRAM_OPTIONS})
+    target_compile_definitions (_boost_program_options PUBLIC BOOST_NO_CXX98_FUNCTION_BASE=1)
     add_library (boost::program_options ALIAS _boost_program_options)
     target_include_directories (_boost_program_options SYSTEM BEFORE PUBLIC ${LIBRARY_DIR})
 

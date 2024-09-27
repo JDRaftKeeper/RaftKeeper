@@ -15,6 +15,7 @@ set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
+include (cmake/find/unwind.cmake)
 include (cmake/find/cxx.cmake)
 
 add_library(global-group INTERFACE)

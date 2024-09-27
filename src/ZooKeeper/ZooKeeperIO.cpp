@@ -5,30 +5,30 @@ namespace Coordination
 
 void write(size_t x, WriteBuffer & out)
 {
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
     writeBinary(x, out);
 }
 
 void write(int64_t x, WriteBuffer & out)
 {
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
     writeBinary(x, out);
 }
 #ifdef __APPLE__
 void write(uint64_t x, WriteBuffer & out)
 {
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
     writeBinary(x, out);
 }
 #endif
 void write(int32_t x, WriteBuffer & out)
 {
-    x = __builtin_bswap32(x);
+    x = std::byteswap(x);
     writeBinary(x, out);
 }
 void write(uint32_t x, WriteBuffer & out)
 {
-    x = __builtin_bswap32(x);
+    x = std::byteswap(x);
     writeBinary(x, out);
 }
 void write(int8_t x, WriteBuffer & out)
@@ -99,31 +99,31 @@ void write(const CompactStrings & strings, WriteBuffer & out)
 void read(size_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
 }
 
 void read(int64_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
 }
 #ifdef __APPLE__
 void read(uint64_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
-    x = __builtin_bswap64(x);
+    x = std::byteswap(x);
 }
 #endif
 
 void read(int32_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
-    x = __builtin_bswap32(x);
+    x = std::byteswap(x);
 }
 void read(uint32_t & x, ReadBuffer & in)
 {
     readBinary(x, in);
-    x = __builtin_bswap32(x);
+    x = std::byteswap(x);
 }
 
 void read(uint8_t & x, ReadBuffer & in)

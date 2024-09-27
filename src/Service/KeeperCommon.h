@@ -87,11 +87,47 @@ struct RequestId
     };
 };
 
+using nuraft::cmd_result_code;
+inline String toString(const cmd_result_code & code)
+{
+    switch (code) {
+        case cmd_result_code::OK:
+            return "OK";
+        case cmd_result_code::CANCELLED:
+            return "CANCELLED";
+        case cmd_result_code::TIMEOUT:
+            return "TIMEOUT";
+        case cmd_result_code::NOT_LEADER:
+            return "NOT_LEADER";
+        case cmd_result_code::BAD_REQUEST:
+            return "BAD_REQUEST";
+        case cmd_result_code::SERVER_ALREADY_EXISTS:
+            return "SERVER_ALREADY_EXISTS";
+        case cmd_result_code::CONFIG_CHANGING:
+            return "CONFIG_CHANGING";
+        case cmd_result_code::SERVER_IS_JOINING:
+            return "SERVER_IS_JOINING";
+        case cmd_result_code::SERVER_NOT_FOUND:
+            return "SERVER_NOT_FOUND";
+        case cmd_result_code::CANNOT_REMOVE_LEADER:
+            return "CANNOT_REMOVE_LEADER";
+        case cmd_result_code::SERVER_IS_LEAVING:
+            return "SERVER_IS_LEAVING";
+        case cmd_result_code::TERM_MISMATCH:
+            return "TERM_MISMATCH";
+        case cmd_result_code::RESULT_NOT_EXIST_YET:
+            return "RESULT_NOT_EXIST_YET";
+        case cmd_result_code::FAILED:
+            return "FAILED";
+    }
+    return "Unknown value: {}" + std::to_string(code);
+}
+
 /// Simple error request info.
 struct ErrorRequest
 {
     bool accepted;
-    nuraft::cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
+    cmd_result_code error_code; /// TODO new error code instead of NuRaft error code
     int64_t session_id; /// For new session request, this is internal_id, for there is no session_id right now.
     Coordination::XID xid;
     Coordination::OpNum opnum;
@@ -107,5 +143,26 @@ bool isSessionRequest(Coordination::OpNum opnum);
 bool isSessionRequest(const Coordination::ZooKeeperRequestPtr & request);
 
 bool isNewSessionRequest(Coordination::OpNum opnum);
+
+using nuraft::log_val_type;
+inline std::string toString(const log_val_type & log_type)
+{
+    switch (log_type)
+    {
+        case log_val_type::app_log:
+            return "app_log";
+        case log_val_type::conf:
+            return "conf";
+        case log_val_type::cluster_server:
+            return "cluster_server";
+        case log_val_type::log_pack:
+            return "log_pack";
+        case log_val_type::snp_sync_req:
+            return "snp_sync_req";
+        case log_val_type::custom:
+            return "custom";
+    }
+    return "Unknown value: {}" + std::to_string(log_type);
+}
 
 }

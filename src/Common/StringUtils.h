@@ -4,7 +4,7 @@
 #include <cstring>
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
+#include <algorithm>
 
 
 namespace detail

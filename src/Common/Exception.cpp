@@ -2,7 +2,6 @@
 
 #include <string.h>
 #include <cxxabi.h>
-#include <cstdlib>
 #include <Poco/String.h>
 #include <common/logger_useful.h>
 #include <Common/IO/WriteHelpers.h>
@@ -50,55 +49,31 @@ void handle_error_code([[maybe_unused]] const std::string & msg, int code)
     ErrorCodes::increment(code);
 }
 
-Exception::Exception(const std::string & msg, int code, bool remote_)
+Exception::Exception(const std::string & msg, int code)
     : Poco::Exception(msg, code)
-    , remote(remote_)
 {
+    trace = StackTrace();
     handle_error_code(msg, code);
 }
 
 Exception::Exception(const std::string & msg, const Exception & nested, int code)
     : Poco::Exception(msg, nested, code)
 {
+    trace = StackTrace();
     handle_error_code(msg, code);
 }
 
-Exception::Exception(CreateFromPocoTag, const Poco::Exception & exc)
-    : Poco::Exception(exc.displayText(), ErrorCodes::POCO_EXCEPTION)
-{
-#ifdef STD_EXCEPTION_HAS_STACK_TRACE
-    set_stack_trace(exc.get_stack_trace_frames(), exc.get_stack_trace_size());
-#endif
-}
-
-Exception::Exception(CreateFromSTDTag, const std::exception & exc)
-    : Poco::Exception(demangle(typeid(exc).name()) + ": " + String(exc.what()), ErrorCodes::STD_EXCEPTION)
-{
-#ifdef STD_EXCEPTION_HAS_STACK_TRACE
-    set_stack_trace(exc.get_stack_trace_frames(), exc.get_stack_trace_size());
-#endif
-}
-
-
 std::string getExceptionStackTraceString(const std::exception & e)
 {
-#ifdef STD_EXCEPTION_HAS_STACK_TRACE
-    return StackTrace::toString(e.get_stack_trace_frames(), 0, e.get_stack_trace_size());
-#else
     if (const auto * db_exception = dynamic_cast<const Exception *>(&e))
         return db_exception->getStackTraceString();
     return {};
-#endif
 }
 
 
 std::string Exception::getStackTraceString() const
 {
-#ifdef STD_EXCEPTION_HAS_STACK_TRACE
-    return StackTrace::toString(get_stack_trace_frames(), 0, get_stack_trace_size());
-#else
-    return trace.toString();
-#endif
+    return trace ? trace->toString() : "";
 }
 
 void throwFromErrno(const std::string & s, int code, int the_errno)
@@ -139,10 +114,10 @@ void tryLogCurrentException(Poco::Logger * logger, const std::string & start_of_
 
 static void getNoSpaceLeftInfoMessage(std::filesystem::path path, std::string & msg)
 {
-    path = std::filesystem::absolute(path);
+    path = absolute(path);
     /// It's possible to get ENOSPC for non existent file (e.g. if there are no free inodes and creat() fails)
     /// So try to get info for existent parent directory.
-    while (!std::filesystem::exists(path) && path.has_relative_path())
+    while (!exists(path) && path.has_relative_path())
         path = path.parent_path();
 
     auto fs = getStatVFS(path);

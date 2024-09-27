@@ -35,7 +35,7 @@ void ZooKeeperResponse::writeNoCopy(WriteBufferFromOwnString & out) const
     String & result = out.str();
 
     // write data length at begin of string
-    int32_t len = __builtin_bswap32(static_cast<int32_t>(result.size() - pre_size - sizeof(int32_t)));
+    int32_t len = std::byteswap(static_cast<int32_t>(result.size() - pre_size - sizeof(int32_t)));
     memcpy(result.data() + pre_size, reinterpret_cast<const char *>(&len), sizeof(int32_t));
 }
 
@@ -343,7 +343,7 @@ void ZooKeeperErrorResponse::readImpl(ReadBuffer & in)
     Coordination::read(read_error, in);
 
     if (read_error != error)
-        throw Exception(fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", read_error, error),
+        throw Exception(fmt::format("Error code in ErrorResponse ({}) doesn't match error code in header ({})", errorMessage(read_error), errorMessage(error)),
             Error::ZMARSHALLINGERROR);
 }
 

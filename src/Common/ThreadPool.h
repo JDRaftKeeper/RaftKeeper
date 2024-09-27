@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <list>
-#include <mutex>
+#include <exception>
 #include <optional>
 #include <queue>
 #include <thread>

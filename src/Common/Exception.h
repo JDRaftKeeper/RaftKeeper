@@ -2,15 +2,18 @@
 
 #include <cerrno>
 #include <vector>
-#include <memory>
 
-#include <Poco/Version.h>
 #include <Poco/Exception.h>
+#include <exception>
+#include <string_view>
+#include <optional>
+#include <libunwind.h>
 
 #include <common/errnoToString.h>
 #include <Common/StackTrace.h>
 
 #include <fmt/format.h>
+
 
 #if !defined(NDEBUG) || defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || defined(MEMORY_SANITIZER) || defined(UNDEFINED_BEHAVIOR_SANITIZER)
 #define ABORT_ON_LOGICAL_ERROR
@@ -26,7 +29,7 @@ class Exception : public Poco::Exception
 {
 public:
     Exception() = default;
-    Exception(const std::string & msg, int code, bool remote_ = false);
+    Exception(const std::string & msg, int code);
     Exception(const std::string & msg, const Exception & nested, int code);
 
     Exception(int code, const std::string & message)
@@ -35,15 +38,12 @@ public:
 
     // Format message with fmt::format, like the logging functions.
     template <typename ...Args>
-    Exception(int code, const std::string & fmt, Args&&... args)
-        : Exception(fmt::format(fmt, std::forward<Args>(args)...), code)
+    Exception(int code, std::string_view fmt, Args&&... args)
+        : Exception(fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...), code)
     {}
 
     struct CreateFromPocoTag {};
     struct CreateFromSTDTag {};
-
-    Exception(CreateFromPocoTag, const Poco::Exception & exc);
-    Exception(CreateFromSTDTag, const std::exception & exc);
 
     Exception * clone() const override { return new Exception(*this); }
     void rethrow() const override { throw *this; }
@@ -52,9 +52,9 @@ public:
 
     /// Add something to the existing message.
     template <typename ...Args>
-    void addMessage(const std::string& format, Args&&... args)
+    void addMessage(std::string_view fmt, Args&&... args)
     {
-        extendedMessage(fmt::format(format, std::forward<Args>(args)...));
+        extendedMessage(fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...));
     }
 
     void addMessage(const std::string& message)
@@ -62,17 +62,10 @@ public:
         extendedMessage(message);
     }
 
-    /// Used to distinguish local exceptions from the one that was received from remote node.
-    void setRemoteException(bool remote_ = true) { remote = remote_; }
-    bool isRemoteException() const { return remote; }
-
     std::string getStackTraceString() const;
 
 private:
-#ifndef STD_EXCEPTION_HAS_STACK_TRACE
-    StackTrace trace;
-#endif
-    bool remote = false;
+    std::optional<StackTrace> trace;
 
     const char * className() const throw() override { return "RK::Exception"; }
 };
@@ -114,8 +107,8 @@ public:
 
     // Format message with fmt::format, like the logging functions.
     template <typename ...Args>
-    ParsingException(int code, const std::string & fmt, Args&&... args)
-        : Exception(fmt::format(fmt, std::forward<Args>(args)...), code)
+    ParsingException(int code, std::string_view fmt, Args&&... args)
+        : Exception(fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...), code)
     {}
 
 
@@ -141,9 +134,9 @@ using Exceptions = std::vector<std::exception_ptr>;
 
 
 template <typename ...Args>
-void throwFromErrno(int code, const std::string & fmt, Args&&... args)
+void throwFromErrno(int code, std::string_view fmt, Args&&... args)
 {
-    throw ErrnoException(fmt::format(fmt, std::forward<Args>(args)...) + ", " + errnoToString(code, errno), code, errno);
+    throw ErrnoException(fmt::format(fmt::runtime(fmt), std::forward<Args>(args)...) + ", " + errnoToString(code, errno), code, errno);
 }
 
 [[noreturn]] void throwFromErrno(const std::string & s, int code, int the_errno = errno);
