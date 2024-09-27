@@ -7,7 +7,7 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif ()
 
 if (COMPILER_CLANG)
-    set (CLANG_MINIMUM_VERSION 13)
+    set (CLANG_MINIMUM_VERSION 17)
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS ${CLANG_MINIMUM_VERSION})
         message (FATAL_ERROR "Clang version must be at least ${CLANG_MINIMUM_VERSION}.")
     endif ()
