@@ -157,8 +157,8 @@ TEST(RaftLog, splitSegment)
 {
     String log_dir(LOG_DIR + "/4");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200)); //81 byte / log
+    auto log_store = LogSegmentStore::getInstance(log_dir, true, 200); //81 byte / log
+    ASSERT_NO_THROW(log_store->init());
     for (int i = 0; i < 12; i++)
     {
         UInt64 term = 1;
@@ -175,8 +175,8 @@ TEST(RaftLog, removeSegment)
 {
     String log_dir(LOG_DIR + "/5");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200));
+    auto log_store = LogSegmentStore::getInstance(log_dir, true, 200);
+    ASSERT_NO_THROW(log_store->init());
     //5 segment
     for (int i = 0; i < 10; i++)
     {
@@ -203,8 +203,8 @@ TEST(RaftLog, truncateLog)
 {
     String log_dir(LOG_DIR + "/6");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(200));
+    auto log_store = LogSegmentStore::getInstance(log_dir, true, 200);
+    ASSERT_NO_THROW(log_store->init());
     //8 segment, index 1-16
     for (int i = 0; i < 16; i++)
     {
@@ -373,8 +373,8 @@ TEST(RaftLog, getEntry)
 {
     String log_dir(LOG_DIR + "/7");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(100));
+    auto log_store = LogSegmentStore::getInstance(log_dir, true, 100);
+    ASSERT_NO_THROW(log_store->init());
     UInt64 term = 1;
     String key("/ck/table/table1");
     String data("CREATE TABLE table1;");
@@ -403,8 +403,8 @@ TEST(RaftLog, getEntries)
 {
     String log_dir(LOG_DIR + "/8");
     cleanDirectory(log_dir);
-    auto log_store = LogSegmentStore::getInstance(log_dir, true);
-    ASSERT_NO_THROW(log_store->init(250)); //69 * 4 = 276
+    auto log_store = LogSegmentStore::getInstance(log_dir, true, 250);  //69 * 4 = 276
+    ASSERT_NO_THROW(log_store->init());
     for (int i = 0; i < 8; i++)
     {
         UInt64 term = 1;

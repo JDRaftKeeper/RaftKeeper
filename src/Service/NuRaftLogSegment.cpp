@@ -535,19 +535,17 @@ bool NuRaftLogSegment::truncate(const UInt64 last_index_kept)
     return true;
 }
 
-ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool force_new)
+ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool force_new, UInt32 max_log_segment_file_size_)
 {
     static ptr<LogSegmentStore> segment_store;
     if (segment_store == nullptr || force_new)
-        segment_store = cs_new<LogSegmentStore>(log_dir_);
+        segment_store = cs_new<LogSegmentStore>(log_dir_, max_log_segment_file_size_);
     return segment_store;
 }
 
-void LogSegmentStore::init(UInt32 max_segment_file_size_)
+void LogSegmentStore::init()
 {
-    LOG_INFO(log, "Initializing log segment store, max segment file size {} bytes.", max_segment_file_size_);
-
-    max_segment_file_size = max_segment_file_size_;
+    LOG_INFO(log, "Initializing log segment store with directory {}", log_dir);
 
     Poco::File(log_dir).createDirectories();
 
@@ -588,7 +586,7 @@ void LogSegmentStore::openNewSegmentIfNeeded()
 {
     {
         std::shared_lock read_lock(seg_mutex);
-        if (open_segment && open_segment->getFileSize() <= max_segment_file_size && open_segment->getVersion() >= CURRENT_LOG_VERSION)
+        if (open_segment && open_segment->getFileSize() <= max_log_segment_file_size && open_segment->getVersion() >= CURRENT_LOG_VERSION)
             return;
     }
 
@@ -854,9 +852,9 @@ bool parseSegmentFileName(const String & file_name, UInt64 & first_index, UInt64
     }
     else
     {
+        is_open = false;
         if (!tryReadUInt64Text(tokens[2], last_index))
             return false;
-        is_open = true;
     }
 
     create_time = std::move(tokens[3]);

@@ -160,7 +160,7 @@ private:
 };
 
 /**
- * LogSegmentStore manages log segments and it uses segmented append-only file, all data
+ * LogSegmentStore manages log segments, it uses segmented append-only file, all data
  * in disk, all index in memory. Append one log entry, only cause one disk write, every
  * disk write will call fsync().
  *
@@ -173,23 +173,22 @@ class LogSegmentStore final
 public:
     using Segments = std::vector<ptr<NuRaftLogSegment>>;
 
-    static constexpr UInt32 MAX_SEGMENT_FILE_SIZE = 1000 * 1024 * 1024; /// 1GB, 0.3K/Log, 3M logs
+    static constexpr UInt64 MAX_LOG_SEGMENT_FILE_SIZE = 1024 * 1024 * 1024; /// 1GB, 0.3K/Log, 3M logs
     static constexpr size_t LOAD_THREAD_NUM = 8;
 
-    explicit LogSegmentStore(const String & log_dir_)
+    explicit LogSegmentStore(const String & log_dir_, UInt64 max_log_segment_file_size_ = MAX_LOG_SEGMENT_FILE_SIZE)
         : log_dir(log_dir_)
         , first_log_index(1)
         , last_log_index(0)
-        , max_segment_file_size(MAX_SEGMENT_FILE_SIZE)
+        , max_log_segment_file_size(max_log_segment_file_size_)
         , log(&Poco::Logger::get("LogSegmentStore"))
     {
-        LOG_INFO(log, "Create LogSegmentStore {}.", log_dir_);
     }
 
-    static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false);
+    static ptr<LogSegmentStore> getInstance(const String & log_dir, bool force_new = false, UInt32 max_log_segment_file_size_ = MAX_LOG_SEGMENT_FILE_SIZE);
 
     /// Init log store, will create dir if not exist
-    void init(UInt32 max_segment_file_size_ = MAX_SEGMENT_FILE_SIZE);
+    void init();
 
     void close();
     /// Return last flushed log index
@@ -250,7 +249,7 @@ private:
     std::atomic<UInt64> last_log_index;
 
     /// max segment file size
-    UInt32 max_segment_file_size;
+    UInt32 max_log_segment_file_size;
 
     Poco::Logger * log;
 

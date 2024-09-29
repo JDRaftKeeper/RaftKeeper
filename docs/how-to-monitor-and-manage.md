@@ -195,6 +195,7 @@ startup_timeout=6000000
 raft_logs_level=information
 log_fsync_mode=fsync_parallel
 log_fsync_interval=1000
+max_log_segment_file_size=1073741824
 nuraft_thread_size=16
 fresh_log_gap=200
 ```

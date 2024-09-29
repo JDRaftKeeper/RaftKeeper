@@ -310,6 +310,7 @@ def test_cmd_conf(started_cluster):
         assert result["log_fsync_mode"] == "fsync_parallel"
 
         assert result["log_fsync_interval"] == "1000"
+        assert result["max_log_segment_file_size"] == "1073741824"
         assert result["nuraft_thread_size"] == "32"
         assert result["fresh_log_gap"] == "200"
 

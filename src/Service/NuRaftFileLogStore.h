@@ -1,8 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <map>
-#include <mutex>
 #include <Service/NuRaftLogSegment.h>
 #include <Service/Settings.h>
 #include <libnuraft/nuraft.hxx>
@@ -55,7 +53,7 @@ class NuRaftFileLogStore : public nuraft::log_store
          bool force_new = false,
          FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
          UInt64 log_fsync_interval_ = 1000,
-         UInt32 max_log_size_ = LogSegmentStore::MAX_SEGMENT_FILE_SIZE);
+         UInt64 max_log_segment_file_size_ = LogSegmentStore::MAX_LOG_SEGMENT_FILE_SIZE);
 
     ~NuRaftFileLogStore() override;
 
@@ -192,8 +190,6 @@ private:
     /// Thread used to flush log, only used in FSYNC_PARALLEL mode
     void fsyncThread();
 
-    Poco::Logger * log;
-
     /// Used to operate log in the store
     ptr<LogSegmentStore> segment_store;
 
@@ -224,6 +220,8 @@ private:
     nuraft::ptr<nuraft::raft_server> raft_instance;
 
     std::atomic<bool> shutdown_called{false};
+
+    Poco::Logger * log;
 };
 
 }

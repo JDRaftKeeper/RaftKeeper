@@ -24,6 +24,7 @@
             <max_session_timeout_ms>80000</max_session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
+            <max_log_segment_file_size>100</max_log_segment_file_size>
         </raft_settings>
 
         <cluster>

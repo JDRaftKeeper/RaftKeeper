@@ -133,6 +133,9 @@
 
             <!-- If log_fsync_mode is fsync_batch, will fsync log after x appending entries, default value is 1000. -->
             <!-- <log_fsync_interval>1000</log_fsync_interval> -->
+
+            <!-- Max single log segment file size, default is 1G. -->
+            <!-- <max_log_segment_file_size>1073741824</max_log_segment_file_size> -->
         </raft_settings>
 
         <!-- If you want a RaftKeeper cluster, you can uncomment this and configure it carefully -->
