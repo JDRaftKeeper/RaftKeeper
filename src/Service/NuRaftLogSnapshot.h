@@ -260,8 +260,9 @@ private:
 
     std::map<ulong, String> objects_path;
 
-    /// Except snapshot object counts, read from object1
-    std::optional<UInt32> load_objects_count;
+    /// Loaded snapshot object count which is read from object1
+    /// Added from RaftKeeper v2.2.0
+    std::optional<UInt32> loaded_objects_count;
 
     std::vector<BucketEdges> all_objects_edges;
     std::vector<BucketNodes> all_objects_nodes;

@@ -547,8 +547,8 @@ void KeeperSnapshotStore::parseBatchBodyV2(
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
             LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
-            load_objects_count.reset();
-            parseBatchIntMapV2(store, load_objects_count, *batch, version_);
+            loaded_objects_count.reset();
+            parseBatchIntMapV2(store, loaded_objects_count, *batch, version_);
             LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.getZxid(), store.getSessionIDCounter());
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
@@ -568,7 +568,7 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     if (objects_path.begin()->first != 1 || objects_path.rbegin()->first != objects_cnt)
     {
         throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
-        "Load snapshot objects error, except 1 ~ {} objects, got {} ~ {} objects",
+        "Loading snapshot objects error, expecting 1 ~ {} objects, got {} ~ {} objects",
         objects_cnt, objects_path.begin()->first, objects_path.rbegin()->first);
     }
 
@@ -602,11 +602,11 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     thread_pool.wait();
     LOG_INFO(log, "Parsing snapshot objects costs {}ms", watch.elapsedMilliseconds());
 
-    if (load_objects_count && *load_objects_count != objects_path.size())
+    if (loaded_objects_count && *loaded_objects_count != objects_path.size())
     {
         throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
-            "Parsing snapshot objects error, except {} objects, got {} objects",
-            *load_objects_count, objects_path.size());
+            "Loading snapshot objects error, expecting {} objects, got {} objects",
+            *loaded_objects_count, objects_path.size());
     }
 
     LOG_INFO(log, "Building data tree from snapshot objects");
