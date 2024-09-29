@@ -9,6 +9,8 @@
 #include <Service/tests/raft_test_common.h>
 #include <gtest/gtest.h>
 #include <libnuraft/nuraft.hxx>
+#include <filesystem>
+
 
 using namespace nuraft;
 using namespace RK;
@@ -17,6 +19,11 @@ using namespace Coordination;
 
 namespace RK
 {
+
+namespace ErrorCodes
+{
+    extern const int SNAPSHOT_OBJECT_INCOMPLETE;
+}
 
 ptr<buffer> createSessionLog(int64_t session_timeout_ms)
 {
@@ -669,6 +676,122 @@ TEST(RaftSnapshot, parseSnapshot)
 
     parseSnapshot(SnapshotVersion::V2, SnapshotVersion::V1);
     sleep(1);
+}
+
+TEST(RaftSnapshot, parseIncompleteSnapshot)
+{
+    String snap_dir(SNAP_DIR + "/5");
+    cleanDirectory(snap_dir);
+
+    KeeperSnapshotManager snap_mgr(snap_dir, 3, 100);
+    ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
+
+    RaftSettingsPtr raft_settings(RaftSettings::getDefault());
+    KeeperStore store(raft_settings->dead_session_check_period_ms);
+
+    /// 1. build keeper store
+
+    /// session 1
+    store.getSessionID(3000);
+
+    addAuth(store, 1, "digest", "user1:password1"); /// set acl to session
+    for (int i = 1; i <= 1024; i++)
+    {
+        String key = std::to_string(i);
+        String value = "table_" + key;
+
+        if (i == 1020)
+        {
+            ACLs acls;
+            ACL acl1;
+            acl1.permissions = ACL::All;
+            acl1.scheme = "digest";
+            acl1.id = "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=";
+
+            ACL acl2;
+            acl2.permissions = ACL::All;
+            acl2.scheme = "digest";
+            acl2.id = "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=";
+            acls.emplace_back(std::move(acl1));
+            acls.emplace_back(std::move(acl2));
+
+            /// set vector acl to "/1020" node
+            setACLNode(store, key, value, acls);
+        }
+        else if (i == 1022)
+        {
+            /// set read permission to "/1022" node
+            setACLNode(store, key, value, ACL::Read, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI=");
+        }
+        else if (i == 1024)
+        {
+            /// Set a password different from session 1
+            setACLNode(store, key, value, ACL::All, "digest", "user1:CGujN0OWj2wmttV5NJgM2ja68PQ=");
+        }
+        else if (i % 2)
+            setNode(store, key, value);
+        else
+            setACLNode(store, key, value, ACL::All, "digest", "user1:XDkd2dsEuhc9ImU3q8pa8UOdtpI="); /// set acl to even number node
+    }
+
+    for (int i = 0; i < 1024; i++)
+    {
+        String key = std::to_string(i);
+        String value = "table_" + key;
+
+        /// create EphemeralNode to even number, session 1 auth is "digest", "user1:password1"
+        setEphemeralNode(store, "/2/" + key, value);
+    }
+
+    setEphemeralNode(store, "/1020/test112", "test211"); /// Success, parent acls Include (ACL::All, "digest", "user1:password1")
+    setEphemeralNode(store, "/1022/test112", "test211"); /// Failure, no permission
+    setEphemeralNode(store, "/1024/test113", "test311"); /// Failure, different password
+
+    /// session 2
+    store.getSessionID(3000);
+
+    /// session 3
+    store.getSessionID(6000);
+
+    for (size_t i = 0; i < 10000; ++i)
+    {
+        store.getSessionID(6000);
+    }
+
+    ASSERT_EQ(store.getNodesCount(), 2050); /// Include "/" node
+
+    /// 2. create snapshot
+
+    snapshot meta(1, 1, config);
+    size_t object_size = snap_mgr.createSnapshot(meta, store, store.getZxid(), store.getSessionIDCounter(), SnapshotVersion::V2);
+
+    /// Normal node objects、Sessions、Others(int_map)、ACL_MAP
+    ASSERT_EQ(object_size, 21 + 3);
+
+    /// 3. load the snapshot into new_store
+    KeeperStore new_store(raft_settings->dead_session_check_period_ms);
+    auto s = snap_mgr.getSnapshots().find(getSnapshotStoreMapKey(meta))->second;
+    auto object_paths =  s->getObjectPaths();
+
+    for (size_t obj_idx = 2; obj_idx <= 24; obj_idx ++)
+    {
+        std::filesystem::remove(object_paths[obj_idx]);
+    }
+
+    snap_mgr.loadSnapshotMetas();
+
+    try
+    {
+        snap_mgr.parseSnapshot(meta, new_store);
+        FAIL() << "Expected RK::Exception to be thrown.";
+    }
+    catch (const RK::Exception & e)
+    {
+        ASSERT_EQ(e.code(), ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE);
+    }
+    catch (...) {
+        FAIL() << "Unexpected exception type thrown.";
+    }
 }
 
 void createSnapshotWithFuzzyLog(bool async_snapshot)

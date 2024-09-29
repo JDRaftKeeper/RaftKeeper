@@ -496,7 +496,7 @@ void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
     }
 }
 
-void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion /*version*/)
+void parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_count, SnapshotBatchBody & batch, SnapshotVersion /*version*/)
 {
     IntMap int_map;
     for (size_t i = 0; i < batch.size(); i++)
@@ -518,13 +518,17 @@ void parseBatchIntMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
         }
         int_map[key] = value;
     }
-    if (int_map.find("ZXID") != int_map.end())
+    if (int_map.contains("ZXID"))
     {
         store.setZxid(int_map["ZXID"]);
     }
-    if (int_map.find("SESSIONID") != int_map.end())
+    if (int_map.contains("SESSIONID"))
     {
         store.setSessionIDCounter(int_map["SESSIONID"]);
+    }
+    if (int_map.contains("OBJECTCOUNT"))
+    {
+        object_count = int_map["OBJECTCOUNT"];
     }
 }
 
