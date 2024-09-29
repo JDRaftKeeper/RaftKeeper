@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <fmt/format.h>
 #include <fcntl.h>
 #include <filesystem>
 #include <stdio.h>
@@ -12,6 +11,7 @@
 
 #include <Common/Exception.h>
 #include <Common/Stopwatch.h>
+#include <fmt/format.h>
 
 #include <Service/Crc32.h>
 #include <Service/KeeperUtils.h>
@@ -32,6 +32,7 @@ namespace ErrorCodes
     extern const int SNAPSHOT_NOT_EXISTS;
     extern const int CANNOT_WRITE_TO_FILE_DESCRIPTOR;
     extern const int INVALID_SNAPSHOT_FILE_NAME;
+    extern const int SNAPSHOT_OBJECT_INCOMPLETE;
 }
 
 using nuraft::cs_new;
@@ -277,6 +278,8 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
     int_map["ZXID"] = next_zxid;
     /// Next session id
     int_map["SESSIONID"] = next_session_id;
+    /// Object count
+    int_map["OBJECTCOUNT"] = total_obj_count;
 
     String map_path;
     getObjectPath(1, map_path);
@@ -350,6 +353,8 @@ size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
     int_map["ZXID"] = snap_task.next_zxid;
     /// Next session id
     int_map["SESSIONID"] = snap_task.next_session_id;
+    /// Object count
+    int_map["OBJECTCOUNT"] = total_obj_count;
 
     String map_path;
     getObjectPath(1, map_path);
@@ -521,7 +526,7 @@ void KeeperSnapshotStore::parseBatchBodyV2(
     const String & body_string,
     BucketEdges & buckets_edges,
     BucketNodes & bucket_nodes,
-    SnapshotVersion version_) const
+    SnapshotVersion version_)
 {
     ptr<SnapshotBatchBody> batch;
     batch = SnapshotBatchBody::parse(body_string);
@@ -542,7 +547,8 @@ void KeeperSnapshotStore::parseBatchBodyV2(
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
             LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
-            parseBatchIntMapV2(store, *batch, version_);
+            load_objects_count.reset();
+            parseBatchIntMapV2(store, load_objects_count, *batch, version_);
             LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.getZxid(), store.getSessionIDCounter());
             break;
         case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
@@ -555,7 +561,17 @@ void KeeperSnapshotStore::parseBatchBodyV2(
 
 void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 {
-    auto objects_cnt = objects_path.size();
+    size_t objects_cnt = objects_path.size();
+
+    // The object IDs are consecutive starting from 1,
+    // so the first number must be 1, and the last number must be the total count.
+    if (objects_path.begin()->first != 1 || objects_path.rbegin()->first != objects_cnt)
+    {
+        throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
+        "Load snapshot objects error, except 1 ~ {} objects, got {} ~ {} objects",
+        objects_cnt, objects_path.begin()->first, objects_path.rbegin()->first);
+    }
+
     ThreadPool thread_pool(SNAPSHOT_THREAD_NUM);
 
     all_objects_edges = std::vector<BucketEdges>(objects_cnt);
@@ -585,6 +601,13 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
 
     thread_pool.wait();
     LOG_INFO(log, "Parsing snapshot objects costs {}ms", watch.elapsedMilliseconds());
+
+    if (load_objects_count && *load_objects_count != objects_path.size())
+    {
+        throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
+            "Parsing snapshot objects error, except {} objects, got {} objects",
+            *load_objects_count, objects_path.size());
+    }
 
     LOG_INFO(log, "Building data tree from snapshot objects");
     watch.restart();
@@ -844,6 +867,8 @@ bool KeeperSnapshotManager::parseSnapshot(const snapshot & meta, KeeperStore & s
 
 size_t KeeperSnapshotManager::loadSnapshotMetas()
 {
+    snapshots.clear();
+
     Poco::File file_dir(snap_dir);
 
     if (!file_dir.exists())

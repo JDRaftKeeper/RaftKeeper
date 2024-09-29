@@ -191,6 +191,8 @@ public:
 
     SnapshotVersion version;
 
+    std::map<ulong, String> getObjectPaths() const { return objects_path; }
+
 private:
     /// For snapshot version v2
     size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
@@ -209,7 +211,7 @@ private:
     void parseBatchHeader(ptr<std::fstream> fs, SnapshotBatchHeader & head);
 
     /// Parse a batch
-    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, BucketNodes &, SnapshotVersion version_) const;
+    void parseBatchBodyV2(KeeperStore & store, const String &, BucketEdges &, BucketNodes &, SnapshotVersion version_);
 
     /// For snapshot version v2
     size_t serializeDataTreeV2(KeeperStore & storage);
@@ -257,6 +259,9 @@ private:
     UInt64 last_log_term;
 
     std::map<ulong, String> objects_path;
+
+    /// Except snapshot object counts, read from object1
+    std::optional<UInt32> load_objects_count;
 
     std::vector<BucketEdges> all_objects_edges;
     std::vector<BucketNodes> all_objects_nodes;
@@ -346,6 +351,8 @@ public:
 
     /// remove outdated snapshots, after invoked at mast keep_max_snapshot_count remains.
     size_t removeSnapshots();
+
+    const KeeperSnapshotStoreMap & getSnapshots() const { return snapshots; }
 
 private:
     /// snapshot directory
