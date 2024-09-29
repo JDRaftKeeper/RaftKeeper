@@ -88,6 +88,7 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         max_batch_size = config.getUInt(get_key("max_batch_size"), 1000);
         log_fsync_mode = FsyncModeNS::parseFsyncMode(config.getString(get_key("log_fsync_mode"), "fsync_parallel"));
         log_fsync_interval = config.getUInt(get_key("log_fsync_interval"), 1000);
+        max_log_segment_file_size = config.getUInt(get_key("max_log_segment_file_size"), 1073741824);
         async_snapshot = config.getBool(get_key("async_snapshot"), true);
     }
     catch (Exception & e)
@@ -121,6 +122,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->configuration_change_tries_count = 30;
     settings->max_batch_size = 1000;
     settings->log_fsync_interval = 1000;
+    settings->max_log_segment_file_size = 1073741824;
     settings->log_fsync_mode = FsyncMode::FSYNC_PARALLEL;
     settings->async_snapshot = true;
 
@@ -222,6 +224,9 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     buf.write('\n');
     writeText("log_fsync_interval=", buf);
     write_int(raft_settings->log_fsync_interval);
+    buf.write('\n');
+    writeText("max_log_segment_file_size=", buf);
+    write_int(raft_settings->max_log_segment_file_size);
 
     writeText("nuraft_thread_size=", buf);
     write_int(raft_settings->nuraft_thread_size);

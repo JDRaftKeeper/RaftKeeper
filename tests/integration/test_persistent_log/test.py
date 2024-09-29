@@ -31,6 +31,27 @@ def started_cluster():
         cluster.shutdown()
 
 
+def test_open_and_closed_log_segment(started_cluster):
+    node_zk = None
+    try:
+        node_zk = node.get_fake_zk(session_timeout=120)
+
+        node_zk.create("/test_open_and_closed_log_segment", b"")
+        # Will generate some closed log segment files and an opened one
+        for i in range(10):
+            node_zk.create("/test_open_and_closed_log_segment/node" + str(i), b"")
+
+        close_zk_clients([node_zk])
+
+        node.restart_raftkeeper(kill=True)
+        node.wait_for_join_cluster()
+
+        # test node can successfully start
+        node_zk = node.get_fake_zk(session_timeout=120)
+    finally:
+        close_zk_clients([node_zk])
+
+
 def test_state_after_restart(started_cluster):
     node_zk = node_zk2 = None
     try:
@@ -133,3 +154,4 @@ def test_ephemeral_after_restart(started_cluster):
                 assert node_zk2.get("/test_ephemeral_after_restart/node" + str(i))[0] == strs[i]
     finally:
         close_zk_clients([node_zk, node_zk2])
+

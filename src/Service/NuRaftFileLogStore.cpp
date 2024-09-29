@@ -1,6 +1,3 @@
-#include <memory>
-#include <unistd.h>
-#include <Service/LogEntry.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Common/setThreadName.h>
 
@@ -42,25 +39,13 @@ void LogEntryQueue::clear()
         i = nullptr;
 }
 
-NuRaftFileLogStore::NuRaftFileLogStore(
-    const String & log_dir,
-    bool force_new,
-    FsyncMode log_fsync_mode_,
-    UInt64 log_fsync_interval_,
-    UInt32 max_log_size_)
-    : log_fsync_mode(log_fsync_mode_), log_fsync_interval(log_fsync_interval_)
+NuRaftFileLogStore::NuRaftFileLogStore( const String & log_dir, bool force_new, FsyncMode log_fsync_mode_, UInt64 log_fsync_interval_, UInt64 max_log_segment_file_size_)
+    : log_fsync_mode(log_fsync_mode_)
+    , log_fsync_interval(log_fsync_interval_)
+    , log(&Poco::Logger::get("FileLogStore"))
 {
-    log = &(Poco::Logger::get("FileLogStore"));
-
-    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
-    {
-        parallel_fsync_event = std::make_shared<Poco::Event>();
-
-        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
-    }
-
-    segment_store = LogSegmentStore::getInstance(log_dir, force_new);
-    segment_store->init(max_log_size_);
+    segment_store = LogSegmentStore::getInstance(log_dir, force_new, max_log_segment_file_size_);
+    segment_store->init();
 
     if (segment_store->lastLogIndex() < 1)
         /// no log entry exists, return a dummy constant entry with value set to null and term set to  zero
@@ -69,6 +54,12 @@ NuRaftFileLogStore::NuRaftFileLogStore(
         last_log_entry = segment_store->getEntry(segment_store->lastLogIndex());
 
     disk_last_durable_index = segment_store->lastLogIndex();
+
+    if (log_fsync_mode == FsyncMode::FSYNC_PARALLEL)
+    {
+        parallel_fsync_event = std::make_shared<Poco::Event>();
+        fsync_thread = ThreadFromGlobalPool([this] { fsyncThread(); });
+    }
 }
 
 void NuRaftFileLogStore::shutdown()
@@ -99,8 +90,7 @@ void NuRaftFileLogStore::fsyncThread()
     {
         parallel_fsync_event->wait();
 
-        UInt64 last_flush_index = segment_store->flush();
-        if (last_flush_index)
+        if (UInt64 last_flush_index = segment_store->flush())
         {
             disk_last_durable_index = last_flush_index;
             if (raft_instance) /// For test
@@ -130,7 +120,7 @@ ptr<log_entry> NuRaftFileLogStore::last_entry() const
 
 ulong NuRaftFileLogStore::append(ptr<log_entry> & entry)
 {
-    ptr<log_entry> cloned = cloneLogEntry(entry);
+    const ptr<log_entry> cloned = cloneLogEntry(entry);
     UInt64 log_index = segment_store->appendEntry(entry);
     log_queue.putEntry(log_index, cloned);
 

@@ -1,15 +1,9 @@
 #pragma once
 
-#include <fstream>
-
-#include <Poco/Util/LayeredConfiguration.h>
-
 #include <Common/StringUtils.h>
 #include <common/logger_useful.h>
-#include <libnuraft/buffer.hxx>
 #include <libnuraft/nuraft.hxx>
 
-#include <Service/KeeperCommon.h>
 #include <Service/NuRaftFileLogStore.h>
 #include <Service/Settings.h>
 
@@ -97,11 +91,11 @@ private:
      */
     mutable std::mutex cluster_config_mutex;
 
-
 protected:
-    Poco::Logger * log;
     String srv_state_file;
     String cluster_config_file;
+
+    Poco::Logger * log;
 };
 
 }

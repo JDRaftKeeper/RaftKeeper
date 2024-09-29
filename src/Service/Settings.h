@@ -11,7 +11,7 @@ namespace RK
 {
 
 /// Raft log fsync mode.
-enum FsyncMode
+enum class FsyncMode
 {
     /// The leader can do log replication and log persisting in parallel, thus it can reduce the latency of write operation path.
     /// In this mode data is safety.
@@ -110,6 +110,8 @@ struct RaftSettings
     FsyncMode log_fsync_mode;
     /// How many logs do once fsync when async_fsync is false
     UInt64 log_fsync_interval;
+    /// We store logs in multiple file, this setting represent the max single log segment file size in bytes.
+    UInt64 max_log_segment_file_size;
     /// Whether async snapshot
     bool async_snapshot;
 

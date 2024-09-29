@@ -7,7 +7,7 @@
 namespace RK
 {
 
-enum NuRaftLogLevel
+enum class NuRaftLogLevel
 {
     RAFT_LOG_FATAL = 1,
     RAFT_LOG_ERROR,
@@ -30,8 +30,8 @@ Poco::Message::Priority toPocoLogLevel(NuRaftLogLevel level);
 class LoggerWrapper : public nuraft::logger
 {
 private:
-    static inline const int LEVEL_MAX = static_cast<int>(RAFT_LOG_TRACE);
-    static inline const int LEVEL_MIN = static_cast<int>(RAFT_LOG_FATAL);
+    static inline const int LEVEL_MAX = static_cast<int>(NuRaftLogLevel::RAFT_LOG_TRACE);
+    static inline const int LEVEL_MIN = static_cast<int>(NuRaftLogLevel::RAFT_LOG_FATAL);
 
 public:
     LoggerWrapper(const String & name, NuRaftLogLevel level_) : log(&Poco::Logger::get(name)), nuraft_log_level(level_)
@@ -53,7 +53,7 @@ public:
         log->setLevel(toPocoLogLevel(static_cast<NuRaftLogLevel>(nuraft_log_level)));
     }
 
-    int get_level() override { return static_cast<int>(nuraft_log_level); }
+    int get_level() override { return static_cast<int>(nuraft_log_level.load()); }
 
 private:
     Poco::Logger * log;
