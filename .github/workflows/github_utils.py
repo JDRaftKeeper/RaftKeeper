@@ -42,7 +42,7 @@ MimMH9yrRcCe068VlvqN+AsTTpkpceJT52dV5iXuEm1DoYgvhvD19MMlW/QmOY8w
 private_key = private_key_part_1 + private_key_part_2
 
 def comment_on_pr(content, title):
-    print("content:", content)
+    print(f"content: {content}, title: {title}")
     if content is None:
         raise Exception("Content is required")
 
@@ -68,18 +68,16 @@ def comment_on_pr(content, title):
     comments = pull_request.get_issue_comments()
 
     # Check if a comment by raftkeepeer-robot[bot] exists
-    comment_found = False
     for comment in comments:
-        print("find comment:", comment)
-        if comment.user.login == "raftkeepeer-robot[bot]" and title in comment.body:
+        # print(f"find comment for {comment.user.login}")
+        # print(f"comment body: {comment.body}")
+        if comment.user.login == "raftkeeper-robot[bot]" and title in comment.body:
             # Update the existing comment
             comment.edit(content)
-            comment_found = True
-            break
+            return
 
     # If not, create a new comment
-    if not comment_found:
-        pull_request.create_issue_comment(content)
+    pull_request.create_issue_comment(content)
 
 
 def get_artifact_url(artifact_name):

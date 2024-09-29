@@ -16,10 +16,9 @@ def report(report_dir, report_type):
     else:
         raise ValueError('Integration test report not available')
 
-    title_prefix_copy = title_prefix
     content = generate_report(report_dir, title_prefix)
     if content is not None:
-        comment_on_pr(content, title_prefix_copy)
+        comment_on_pr(content, title_prefix)
 
 
 if __name__ == "__main__":
