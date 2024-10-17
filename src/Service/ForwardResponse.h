@@ -3,6 +3,7 @@
 #include <ZooKeeper/ZooKeeperIO.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
 #include <libnuraft/async.hxx>
+#include <Service/formatHex.h>
 
 namespace RK
 {
@@ -152,9 +153,8 @@ struct ForwardUserRequestResponse : public ForwardResponse
 
     String toString() const override
     {
-        return "ForwardType: " + RK::toString(forwardType()) + ", accepted " + std::to_string(accepted) + " error_code "
-            + std::to_string(error_code) + " session " + std::to_string(session_id) + " xid " + std::to_string(xid) + " opnum "
-            + Coordination::toString(opnum);
+        return fmt::format("#{}#{}#{}#{}, accepted {}, error_code {}", RK::toString(forwardType()),
+            toHexString(session_id), xid, Coordination::toString(opnum), accepted, error_code);
     }
 };
 

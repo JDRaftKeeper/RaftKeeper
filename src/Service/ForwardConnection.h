@@ -23,7 +23,8 @@ public:
         , client_id(client_id_)
         , endpoint(endpoint_)
         , socket_timeout(socket_timeout_)
-        , log(&Poco::Logger::get("ForwardConnection"))
+        , log(&Poco::Logger::get(fmt::format("ForwardConnection#{}#{}#{}",
+            my_server_id, client_id, endpoint)))
     {
     }
 

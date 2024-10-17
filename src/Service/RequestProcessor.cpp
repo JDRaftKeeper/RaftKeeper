@@ -123,7 +123,7 @@ void RequestProcessor::moveRequestToPendingQueue(RunnerId runner_id)
     }
 }
 
-bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue)
+bool RequestProcessor::shouldProcessCommittedRequest(RequestForSession & committed_request, bool & found_in_pending_queue)
 {
     bool has_read_request = false;
     bool found_error = false;
@@ -160,6 +160,7 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
     if (first_pending_request.request->xid == committed_request.request->xid)
     {
         found_in_pending_queue = true;
+        committed_request.create_time = first_pending_request.create_time;
         std::unique_lock lk(mutex);
         if (error_request_ids.contains(first_pending_request.getRequestId()))
         {
@@ -167,28 +168,26 @@ bool RequestProcessor::shouldProcessCommittedRequest(const RequestForSession & c
         }
         return true;
     }
+
+    found_in_pending_queue = false;
+    /// Session of the previous committed(write) request is not same with the current,
+    /// which means a write_request(session_1) -> request(session_2) sequence.
+    if (first_pending_request.request->isReadRequest())
+    {
+        LOG_DEBUG(log, "Found read request, We should terminate the processing of committed(write) requests.");
+        has_read_request = true;
+    }
     else
     {
-        found_in_pending_queue = false;
-        /// Session of the previous committed(write) request is not same with the current,
-        /// which means a write_request(session_1) -> request(session_2) sequence.
-        if (first_pending_request.request->isReadRequest())
         {
-            LOG_DEBUG(log, "Found read request, We should terminate the processing of committed(write) requests.");
-            has_read_request = true;
+            std::unique_lock lk(mutex);
+            found_error = error_request_ids.contains(first_pending_request.getRequestId());
         }
-        else
-        {
-            {
-                std::unique_lock lk(mutex);
-                found_error = error_request_ids.contains(first_pending_request.getRequestId());
-            }
 
-            if (found_error)
-                LOG_WARNING(log, "Found error request, We should terminate the processing of committed(write) requests.");
-            else
-                process_not_in_pending_queue();
-        }
+        if (found_error)
+            LOG_WARNING(log, "Found error request, We should terminate the processing of committed(write) requests.");
+        else
+            process_not_in_pending_queue();
     }
 
     return !has_read_request && !found_error;

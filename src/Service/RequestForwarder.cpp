@@ -2,6 +2,7 @@
 #include <Service/RequestForwarder.h>
 #include <Service/Context.h>
 #include <Common/setThreadName.h>
+#include <fmt/ranges.h>
 
 namespace RK
 {
@@ -60,9 +61,8 @@ void RequestForwarder::runSend(RunnerId runner_id)
 
                 ForwardRequestPtr forward_request = ForwardRequestFactory::instance().convertFromRequest(request_for_session);
                 forward_request->send_time = clock::now();
+                forward_request_queue[runner_id]->push(forward_request);
                 connection->send(forward_request);
-
-                forward_request_queue[runner_id]->push(std::move(forward_request));
             }
             catch (...)
             {
@@ -103,8 +103,8 @@ void RequestForwarder::runSend(RunnerId runner_id)
                         {
                             ForwardRequestPtr forward_request = std::make_shared<ForwardSyncSessionsRequest>(std::move(session_to_expiration_time));
                             forward_request->send_time = clock::now();
+                            forward_request_queue[runner_id]->push(forward_request);
                             connection->send(forward_request);
-                            forward_request_queue[runner_id]->push(std::move(forward_request));
                         }
                     }
                     else
@@ -156,8 +156,9 @@ void RequestForwarder::runReceive(RunnerId runner_id)
                 {
                     LOG_DEBUG(
                         log,
-                        "Earliest request {} deadline {}, now {}",
+                        "Earliest request {} in runner {} deadline {}, now {}",
                         earliest_request->toString(),
+                        runner_id,
                         to_microseconds(earliest_request_deadline.time_since_epoch()),
                         to_microseconds(now.time_since_epoch()));
 
@@ -260,10 +261,18 @@ bool RequestForwarder::removeFromQueue(RunnerId runner_id, ForwardResponsePtr fo
 
 void RequestForwarder::processResponse(RunnerId runner_id, ForwardResponsePtr forward_response_ptr)
 {
-    bool found = removeFromQueue(runner_id, forward_response_ptr);
-
-    if (!found || forward_response_ptr->accepted)
+    if (!removeFromQueue(runner_id, forward_response_ptr))
+    {
+        LOG_WARNING(log, "Not found request in runner {} for forward response {}, current request_queue size {}, detail {}",
+            runner_id, forward_response_ptr->toString(), forward_request_queue[runner_id]->size());
         return;
+    }
+
+    if (forward_response_ptr->accepted)
+    {
+        LOG_DEBUG(log, "Receive a forward response {} for runner {}.", forward_response_ptr->toString(), runner_id);
+        return;
+    }
 
     /// common request
     LOG_ERROR(log, "Receive failed forward response {}", forward_response_ptr->toString());

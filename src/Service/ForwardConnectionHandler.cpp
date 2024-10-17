@@ -236,6 +236,7 @@ void ForwardConnectionHandler::processUserOrSessionRequest(ForwardRequestPtr req
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
     request->readImpl(body);
+    LOG_DEBUG(log, "Receive forward request {} from server {} client {}", request->toString(), server_id, client_id);
     keeper_dispatcher->pushForwardRequest(server_id, client_id, request);
 }
 
@@ -351,7 +352,7 @@ void ForwardConnectionHandler::onSocketError(const Notification &)
 
 void ForwardConnectionHandler::sendResponse(ForwardResponsePtr response)
 {
-    LOG_TRACE(log, "Send response {}", response->toString());
+    LOG_DEBUG(log, "Send forward response {} to server {} client {}.", response->toString(), server_id, client_id);
 
     {
         /// Lock to avoid data condition which will lead response leak

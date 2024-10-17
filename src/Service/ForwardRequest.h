@@ -97,7 +97,7 @@ struct ForwardNewSessionRequest : public ForwardRequest
     String toString() const override
     {
         auto * request_ptr = dynamic_cast<ZooKeeperNewSessionRequest *>(request.get());
-        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request_ptr->internal_id, request_ptr->session_timeout_ms);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), toHexString(request_ptr->internal_id), request_ptr->session_timeout_ms);
     }
 };
 
@@ -117,7 +117,7 @@ struct ForwardUpdateSessionRequest : public ForwardRequest
     String toString() const override
     {
         auto * request_ptr = dynamic_cast<ZooKeeperUpdateSessionRequest *>(request.get());
-        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request_ptr->session_id, request_ptr->session_timeout_ms);
+        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), toHexString(request_ptr->session_id), request_ptr->session_timeout_ms);
     }
 };
 
@@ -136,7 +136,8 @@ struct ForwardUserRequest : public ForwardRequest
 
     String toString() const override
     {
-        return fmt::format("#{}#{}#{}", RK::toString(forwardType()), request.session_id, request.request->xid);
+        return fmt::format("#{}#{}#{}#{}", RK::toString(forwardType()), toHexString(request.session_id)
+            , request.request->xid, Coordination::toString(request.request->getOpNum()));
     }
 };
 
