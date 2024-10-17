@@ -24,7 +24,7 @@ void ForwardConnection::connect()
     {
         try
         {
-            LOG_TRACE(log, "Try connect forward server {}", endpoint);
+            LOG_INFO(log, "Try connect forward server {}", endpoint);
 
             /// Reset the state of previous attempt.
             socket = Poco::Net::StreamSocket();
@@ -45,7 +45,7 @@ void ForwardConnection::connect()
                 throw Exception(ErrorCodes::RAFT_FORWARD_ERROR, "Handshake with {} failed", endpoint);
 
             connected = true;
-            LOG_TRACE(log, "Connect to {} success", endpoint);
+            LOG_INFO(log, "Connect to forward server success, peerAddress: {} localAddress: {}.", socket.peerAddress().toString(), socket.address().toString());
             break;
         }
         catch (...)
@@ -71,7 +71,7 @@ void ForwardConnection::disconnect()
 
 void ForwardConnection::send(ForwardRequestPtr request)
 {
-    LOG_TRACE(log, "Forward request {} to endpoint {}", request->toString(), endpoint);
+    LOG_DEBUG(log, "Forward request {} to leader {}", request->toString(), endpoint);
 
     if (unlikely(!connected))
         connect();
@@ -127,6 +127,7 @@ void ForwardConnection::receive(ForwardResponsePtr & response)
         }
 
         response->readImpl(*in);
+        LOG_DEBUG(log, "Receive forward response {} from {} done", response->toString(), endpoint);
     }
     catch (Exception & e)
     {

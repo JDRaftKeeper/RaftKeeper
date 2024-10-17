@@ -650,7 +650,8 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_DEBUG(log, "Push a response of session {} to IO sending queue. {}", toHexString(session_id.load()), response->toString());
+    LOG_DEBUG(log, "Push a response #{}#{}#{} error {} to IO sending queue.",
+        toHexString(session_id.load()), response->xid, Coordination::toString(response->getOpNum()), errorMessage(response->error));
     updateStats(response);
 
     /// Lock to avoid data condition which will lead response leak
@@ -697,10 +698,12 @@ void ConnectionHandler::updateStats(const Coordination::ZooKeeperResponsePtr & r
         if (unlikely(elapsed > 10000))
             LOG_WARNING(
                 log,
-                "Slow request detected #{}#{}#{}, time costs {}ms, please take care.",
+                "Slow request detected #{}#{}#{}, current_time {}, create_time {}, time costs {}ms, please take care.",
                 toHexString(session_id.load()),
                 response->xid,
                 Coordination::toString(response->getOpNum()),
+                current_time,
+                response->request_created_time_ms,
                 elapsed);
 
         keeper_dispatcher->updateKeeperStatLatency(elapsed);

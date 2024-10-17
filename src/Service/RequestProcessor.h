@@ -58,7 +58,7 @@ private:
     /// We can handle zxid as a continuous stream of committed(write) requests at once.
     /// However, if we encounter a read request or an erroneous request,
     /// we need to interrupt the processing.
-    bool shouldProcessCommittedRequest(const RequestForSession & committed_request, bool & found_in_pending_queue);
+    bool shouldProcessCommittedRequest(RequestForSession & committed_request, bool & found_in_pending_queue);
 
     using RequestForSessions = std::vector<RequestForSession>;
 
