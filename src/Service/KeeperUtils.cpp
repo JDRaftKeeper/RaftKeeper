@@ -42,7 +42,7 @@ ptr<buffer> serializeKeeperRequest(const RequestForSession & request)
     WriteBufferFromNuraftBuffer out;
     writeIntBinary(request.session_id, out);
     request.request->write(out);
-    Coordination::write(request.create_time, out);
+    Coordination::write(request.process_time, out);
     return out.getBuffer();
 }
 
@@ -68,7 +68,7 @@ ptr<RequestForSession> deserializeKeeperRequest(nuraft::buffer & data)
     request->request->xid = xid;
     request->request->readImpl(buffer);
 
-    Coordination::read(request->create_time, buffer);
+    Coordination::read(request->process_time, buffer);
 
     return request;
 }

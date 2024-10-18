@@ -38,8 +38,8 @@ TEST(RaftStateMachine, serializeAndParse)
     request->acls = default_acls;
     session_request.request = request;
 
-    using namespace std::chrono;
-    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = getCurrentTimeMilliseconds();
+    session_request.process_time = getCurrentWallTimeMilliseconds();
 
     ptr<buffer> buf = serializeKeeperRequest(session_request);
     ptr<RequestForSession> session_request_2 = deserializeKeeperRequest(*(buf.get()));
