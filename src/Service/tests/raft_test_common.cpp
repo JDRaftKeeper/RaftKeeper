@@ -158,8 +158,8 @@ void createZNodeLog(NuRaftStateMachine & machine, const String & key, const Stri
     request->acls = default_acls;
     request->xid = 1;
 
-    using namespace std::chrono;
-    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = getCurrentTimeMilliseconds();
+    session_request.process_time = getCurrentWallTimeMilliseconds();
 
     ptr<buffer> buf = serializeKeeperRequest(session_request);
     //LOG_INFO(log, "index {}", index);
@@ -197,8 +197,8 @@ void setZNode(NuRaftStateMachine & machine, const String & key, const String & d
     //request->is_sequential = false;
     //request->acls = default_acls;
 
-    using namespace std::chrono;
-    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = getCurrentTimeMilliseconds();
+    session_request.process_time = getCurrentWallTimeMilliseconds();
 
     ptr<buffer> buf = serializeKeeperRequest(session_request);
     machine.commit(index, *(buf.get()));
@@ -220,8 +220,8 @@ void removeZNode(NuRaftStateMachine & machine, const String & key)
     session_request.request = request;
     request->path = key;
 
-    using namespace std::chrono;
-    session_request.create_time = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    session_request.create_time = getCurrentTimeMilliseconds();
+    session_request.process_time = getCurrentWallTimeMilliseconds();
 
     ptr<buffer> buf = serializeKeeperRequest(session_request);
     machine.commit(index, *(buf.get()));

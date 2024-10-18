@@ -263,14 +263,13 @@ void RequestForwarder::processResponse(RunnerId runner_id, ForwardResponsePtr fo
 {
     if (!removeFromQueue(runner_id, forward_response_ptr))
     {
-        LOG_WARNING(log, "Not found request in runner {} for forward response {}, current request_queue size {}, detail {}",
-            runner_id, forward_response_ptr->toString(), forward_request_queue[runner_id]->size());
+        LOG_WARNING(log, "Not found request in runner {} for forward response {}", runner_id, forward_response_ptr->toString());
         return;
     }
 
     if (forward_response_ptr->accepted)
     {
-        LOG_DEBUG(log, "Receive a forward response {} for runner {}.", forward_response_ptr->toString(), runner_id);
+        LOG_DEBUG(log, "Receive a forward response {} for runner {}", forward_response_ptr->toString(), runner_id);
         return;
     }
 

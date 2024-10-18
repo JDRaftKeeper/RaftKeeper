@@ -1291,7 +1291,7 @@ void KeeperStore::processRequest(
     if (zk_request->getOpNum() == Coordination::OpNum::Heartbeat)
     {
         StoreRequestPtr store_request = StoreRequestFactory::instance().get(zk_request);
-        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.process_time);
         response->xid = zk_request->xid;
         response->zxid = zxid;
         LOG_TRACE(log, "heart beat for session {}", toHexString(session_id));
@@ -1300,7 +1300,7 @@ void KeeperStore::processRequest(
     else if (zk_request->getOpNum() == Coordination::OpNum::SetWatches)
     {
         StoreRequestPtr store_request = StoreRequestFactory::instance().get(zk_request);
-        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.create_time);
+        auto [response, _] = store_request->process(*this, zxid, session_id, request_for_session.process_time);
         response->xid = zk_request->xid;
         response->zxid = zxid;
 
@@ -1333,7 +1333,7 @@ void KeeperStore::processRequest(
         }
         else
         {
-            response = store_request->process(*this, zxid, session_id, request_for_session.create_time).first;
+            response = store_request->process(*this, zxid, session_id, request_for_session.process_time).first;
         }
 
         response->request_created_time_ms = request_for_session.create_time;

@@ -37,8 +37,11 @@ struct RequestForSession
     int64_t session_id;
     Coordination::ZooKeeperRequestPtr request;
 
-    /// measured in millisecond
+    /// When request create, millisecond count since system start up, used for calculate request duration
     int64_t create_time{};
+
+    /// When leader append write request, millisecond count since 1970-1-1, used for node stat ctime and mtime.
+    int64_t process_time{};
 
     /// for forward request
     int32_t server_id{-1};

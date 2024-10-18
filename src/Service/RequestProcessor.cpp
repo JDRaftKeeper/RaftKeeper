@@ -246,8 +246,7 @@ void RequestProcessor::processCommittedRequest(size_t count)
                 /// apply request
                 applyRequest(committed_request);
                 committed_queue.pop();
-                auto current_time = getCurrentTimeMilliseconds();
-                Metrics::getMetrics().update_latency->add(current_time - committed_request.create_time);
+                Metrics::getMetrics().update_latency->add(getCurrentTimeMilliseconds() - committed_request.create_time);
 
                 /// remove request from pending queue
                 auto & pending_requests_for_session = my_pending_requests[committed_request.session_id];

@@ -47,6 +47,7 @@ void RequestAccumulator::run()
 
         if (pop_success)
         {
+            request_for_session.process_time = getCurrentWallTimeMilliseconds();
             to_append_batch.emplace_back(request_for_session);
 
             if (to_append_batch.size() >= max_batch_size)

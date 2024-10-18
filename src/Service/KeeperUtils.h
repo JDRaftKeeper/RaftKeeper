@@ -21,6 +21,11 @@ inline UInt64 getCurrentTimeMicroseconds()
     return duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
+inline UInt64 getCurrentWallTimeMilliseconds()
+{
+    return duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
 /// Serialize and deserialize ZooKeeper request to log
 nuraft::ptr<nuraft::buffer> serializeKeeperRequest(const RequestForSession & request);
 nuraft::ptr<RequestForSession> deserializeKeeperRequest(nuraft::buffer & data);
