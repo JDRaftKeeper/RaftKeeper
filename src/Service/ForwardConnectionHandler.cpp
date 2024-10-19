@@ -236,7 +236,7 @@ void ForwardConnectionHandler::processUserOrSessionRequest(ForwardRequestPtr req
 {
     ReadBufferFromMemory body(req_body_buf->begin(), req_body_buf->used());
     request->readImpl(body);
-    LOG_DEBUG(log, "Receive forward request {} from server {} client {}", request->toString(), server_id, client_id);
+    LOG_DEBUG(log, "Received forward request {} from server {} client {}", request->toString(), server_id, client_id);
     keeper_dispatcher->pushForwardRequest(server_id, client_id, request);
 }
 
