@@ -650,8 +650,9 @@ void ConnectionHandler::sendSessionResponseToClient(const Coordination::ZooKeepe
 
 void ConnectionHandler::pushUserResponseToSendingQueue(const Coordination::ZooKeeperResponsePtr & response)
 {
-    LOG_DEBUG(log, "Push a response #{}#{}#{} error {} to IO sending queue.",
-        toHexString(session_id.load()), response->xid, Coordination::toString(response->getOpNum()), errorMessage(response->error));
+    LOG_DEBUG(log, "Push response #{}#{}#{} with error '{}' to IO sending queue.", toHexString(session_id.load()),
+        response->xid, Coordination::toString(response->getOpNum()), errorMessage(response->error));
+
     updateStats(response);
 
     /// Lock to avoid data condition which will lead response leak
