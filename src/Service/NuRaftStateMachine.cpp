@@ -366,7 +366,7 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
     if (to < last_index_in_store)
     {
-        LOG_WARNING(log, "The last log index in log store is {} which is lower than 'to' {}, adjust to it.", last_index_in_store, to);
+        LOG_WARNING(log, "The last log index in log store is {} which is larger than 'to' {}, adjust to it.", last_index_in_store, to);
         last_index_in_store = to;
     }
 
