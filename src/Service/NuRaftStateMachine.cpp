@@ -364,11 +364,11 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
     if (from < first_index_in_store)
         throw Exception(ErrorCodes::GAP_BETWEEN_SNAPSHOT_AND_LOG, "There is log gap between snapshot and log store, {} / {}", from, first_index_in_store);
 
+    if (to > last_index_in_store)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Last committed index is large than last log index in logstore, {} / {}", to, last_index_in_store);
+
     if (to < last_index_in_store)
-    {
-        LOG_WARNING(log, "The last log index in log store is {} which is larger than 'to' {}, adjust to it.", last_index_in_store, to);
-        last_index_in_store = to;
-    }
+        LOG_WARNING(log, "The last log index in log store is {} which is larger than 'to' {}, which maybe caused by not all logs are committed in last running or the latest committed index is not persisted.", last_index_in_store, to);
 
     /// [ batch_start_index, batch_end_index )
     std::atomic<ulong> batch_start_index = from;
@@ -378,10 +378,10 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
     /// Loading and applying asynchronously
     auto load_thread = ThreadFromGlobalPool(
-        [last_index_in_store, &log_queue, &batch_start_index, &batch_end_index, &log_store_]
+        [to, &log_queue, &batch_start_index, &batch_end_index, &log_store_]
         {
             Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-            while (batch_start_index < last_index_in_store)
+            while (batch_start_index < to)
             {
                 while (log_queue.size() > 10)
                 {
@@ -391,8 +391,8 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
 
                 /// 0.3 * 10000 = 3M
                 batch_end_index = batch_start_index + 10000;
-                if (batch_end_index > last_index_in_store + 1)
-                    batch_end_index = last_index_in_store + 1;
+                if (batch_end_index > to + 1)
+                    batch_end_index = to + 1;
 
                 LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index.load(), batch_end_index.load());
 
@@ -426,9 +426,9 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
         });
 
     /// Apply loaded logs
-    while (!log_queue.empty() || batch_start_index < last_index_in_store)
+    while (!log_queue.empty() || batch_start_index < to)
     {
-        while (log_queue.empty() && batch_start_index != last_index_in_store)
+        while (log_queue.empty() && batch_start_index != to)
         {
             LOG_DEBUG(log, "Sleep 100ms to wait for log loading");
             usleep(100000);
