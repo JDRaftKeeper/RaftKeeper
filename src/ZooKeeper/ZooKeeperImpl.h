@@ -181,6 +181,8 @@ public:
 
     void finalize()  override { finalize(false, false); }
 
+    void excuteRequest(const ZooKeeperRequestPtr & request, ResponseCallback callback);
+
 private:
     String root_path;
     ACLs default_acls;
