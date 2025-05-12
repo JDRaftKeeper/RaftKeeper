@@ -181,15 +181,29 @@ static void * getCallerAddress(const ucontext_t & context)
 {
 #if defined(__x86_64__)
     /// Get the address at the time the signal was raised from the RIP (x86-64)
-#    if defined(__FreeBSD__)
+#    if defined(OS_FREEBSD)
     return reinterpret_cast<void *>(context.uc_mcontext.mc_rip);
-#    elif defined(__APPLE__)
+#    elif defined(OS_DARWIN)
     return reinterpret_cast<void *>(context.uc_mcontext->__ss.__rip);
 #    else
     return reinterpret_cast<void *>(context.uc_mcontext.gregs[REG_RIP]);
 #    endif
+#elif defined(OS_DARWIN) && defined(__aarch64__)
+    return reinterpret_cast<void *>(context.uc_mcontext->__ss.__pc);
+#elif defined(OS_FREEBSD) && defined(__aarch64__)
+    return reinterpret_cast<void *>(context.uc_mcontext.mc_gpregs.gp_elr);
 #elif defined(__aarch64__)
     return reinterpret_cast<void *>(context.uc_mcontext.pc);
+#elif defined(__powerpc64__) && defined(__linux__)
+    return reinterpret_cast<void *>(context.uc_mcontext.gp_regs[PT_NIP]);
+#elif defined(__powerpc64__) && defined(__FreeBSD__)
+    return reinterpret_cast<void *>(context.uc_mcontext.mc_srr0);
+#elif defined(__riscv)
+    return reinterpret_cast<void *>(context.uc_mcontext.__gregs[REG_PC]);
+#elif defined(__s390x__)
+    return reinterpret_cast<void *>(context.uc_mcontext.psw.addr);
+#elif defined(__loongarch64)
+    return reinterpret_cast<void *>(context.uc_mcontext.__pc);
 #else
     return nullptr;
 #endif
