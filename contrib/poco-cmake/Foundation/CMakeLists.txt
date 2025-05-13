@@ -16,6 +16,7 @@ add_library(Poco::Foundation::ZLIB ALIAS _poco_foundation_zlib)
 set(SRCS_PCRE
         ${LIBRARY_DIR}/Foundation/src/pcre2_auto_possess.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_chartables.c
+        ${LIBRARY_DIR}/Foundation/src/pcre2_chkdint.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_compile.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_config.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_context.c
@@ -39,7 +40,6 @@ set(SRCS_PCRE
         ${LIBRARY_DIR}/Foundation/src/pcre2_substring.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_tables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_ucd.c
-        ${LIBRARY_DIR}/Foundation/src/pcre2_ucptables.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_valid_utf.c
         ${LIBRARY_DIR}/Foundation/src/pcre2_xclass.c
         )
@@ -49,22 +49,34 @@ add_library(Poco::Foundation::PCRE ALIAS _poco_foundation_pcre)
 
 target_compile_options(_poco_foundation_pcre PRIVATE -Wno-sign-compare)
 
+set(SRCS_UTF8PROC
+        ${LIBRARY_DIR}/Foundation/src/utf8proc.c
+)
+
+add_library(_poco_foundation_utf8proc ${SRCS_UTF8PROC})
+add_library(Poco::Foundation::UTF8PROC ALIAS _poco_foundation_utf8proc)
+
 # Foundation
 
 set(SRCS
+        ${LIBRARY_DIR}/Foundation/src/ASCIIEncoding.cpp
         ${LIBRARY_DIR}/Foundation/src/AbstractObserver.cpp
         ${LIBRARY_DIR}/Foundation/src/ActiveDispatcher.cpp
+        ${LIBRARY_DIR}/Foundation/src/ActiveThreadPool.cpp
         ${LIBRARY_DIR}/Foundation/src/ArchiveStrategy.cpp
         ${LIBRARY_DIR}/Foundation/src/Ascii.cpp
-        ${LIBRARY_DIR}/Foundation/src/ASCIIEncoding.cpp
         ${LIBRARY_DIR}/Foundation/src/AsyncChannel.cpp
+        ${LIBRARY_DIR}/Foundation/src/AsyncNotificationCenter.cpp
         ${LIBRARY_DIR}/Foundation/src/AtomicCounter.cpp
+        ${LIBRARY_DIR}/Foundation/src/AtomicFlag.cpp
         ${LIBRARY_DIR}/Foundation/src/Base32Decoder.cpp
         ${LIBRARY_DIR}/Foundation/src/Base32Encoder.cpp
         ${LIBRARY_DIR}/Foundation/src/Base64Decoder.cpp
         ${LIBRARY_DIR}/Foundation/src/Base64Encoder.cpp
         ${LIBRARY_DIR}/Foundation/src/BinaryReader.cpp
         ${LIBRARY_DIR}/Foundation/src/BinaryWriter.cpp
+        ${LIBRARY_DIR}/Foundation/src/BufferedBidirectionalStreamBuf.cpp
+        ${LIBRARY_DIR}/Foundation/src/BufferedStreamBuf.cpp
         ${LIBRARY_DIR}/Foundation/src/Bugcheck.cpp
         ${LIBRARY_DIR}/Foundation/src/ByteOrder.cpp
         ${LIBRARY_DIR}/Foundation/src/Channel.cpp
@@ -74,6 +86,8 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/Configurable.cpp
         ${LIBRARY_DIR}/Foundation/src/ConsoleChannel.cpp
         ${LIBRARY_DIR}/Foundation/src/CountingStream.cpp
+        ${LIBRARY_DIR}/Foundation/src/DataURIStream.cpp
+        ${LIBRARY_DIR}/Foundation/src/DataURIStreamFactory.cpp
         ${LIBRARY_DIR}/Foundation/src/DateTime.cpp
         ${LIBRARY_DIR}/Foundation/src/DateTimeFormat.cpp
         ${LIBRARY_DIR}/Foundation/src/DateTimeFormatter.cpp
@@ -93,20 +107,22 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/EventChannel.cpp
         ${LIBRARY_DIR}/Foundation/src/Exception.cpp
         ${LIBRARY_DIR}/Foundation/src/FIFOBufferStream.cpp
+        ${LIBRARY_DIR}/Foundation/src/FPEnvironment.cpp
         ${LIBRARY_DIR}/Foundation/src/File.cpp
         ${LIBRARY_DIR}/Foundation/src/FileChannel.cpp
         ${LIBRARY_DIR}/Foundation/src/FileStream.cpp
         ${LIBRARY_DIR}/Foundation/src/FileStreamFactory.cpp
+        ${LIBRARY_DIR}/Foundation/src/FileStreamRWLock.cpp
         ${LIBRARY_DIR}/Foundation/src/Format.cpp
         ${LIBRARY_DIR}/Foundation/src/Formatter.cpp
         ${LIBRARY_DIR}/Foundation/src/FormattingChannel.cpp
-        ${LIBRARY_DIR}/Foundation/src/FPEnvironment.cpp
         ${LIBRARY_DIR}/Foundation/src/Glob.cpp
         ${LIBRARY_DIR}/Foundation/src/Hash.cpp
         ${LIBRARY_DIR}/Foundation/src/HashStatistic.cpp
         ${LIBRARY_DIR}/Foundation/src/HexBinaryDecoder.cpp
         ${LIBRARY_DIR}/Foundation/src/HexBinaryEncoder.cpp
         ${LIBRARY_DIR}/Foundation/src/InflatingStream.cpp
+        ${LIBRARY_DIR}/Foundation/src/JSONFormatter.cpp
         ${LIBRARY_DIR}/Foundation/src/JSONString.cpp
         ${LIBRARY_DIR}/Foundation/src/Latin1Encoding.cpp
         ${LIBRARY_DIR}/Foundation/src/Latin2Encoding.cpp
@@ -114,13 +130,13 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/LineEndingConverter.cpp
         ${LIBRARY_DIR}/Foundation/src/LocalDateTime.cpp
         ${LIBRARY_DIR}/Foundation/src/LogFile.cpp
+        ${LIBRARY_DIR}/Foundation/src/LogStream.cpp
         ${LIBRARY_DIR}/Foundation/src/Logger.cpp
         ${LIBRARY_DIR}/Foundation/src/LoggingFactory.cpp
         ${LIBRARY_DIR}/Foundation/src/LoggingRegistry.cpp
-        ${LIBRARY_DIR}/Foundation/src/LogStream.cpp
-        ${LIBRARY_DIR}/Foundation/src/Manifest.cpp
         ${LIBRARY_DIR}/Foundation/src/MD4Engine.cpp
         ${LIBRARY_DIR}/Foundation/src/MD5Engine.cpp
+        ${LIBRARY_DIR}/Foundation/src/Manifest.cpp
         ${LIBRARY_DIR}/Foundation/src/MemoryPool.cpp
         ${LIBRARY_DIR}/Foundation/src/MemoryStream.cpp
         ${LIBRARY_DIR}/Foundation/src/Message.cpp
@@ -136,6 +152,7 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/NumberFormatter.cpp
         ${LIBRARY_DIR}/Foundation/src/NumberParser.cpp
         ${LIBRARY_DIR}/Foundation/src/NumericString.cpp
+        ${LIBRARY_DIR}/Foundation/src/PIDFile.cpp
         ${LIBRARY_DIR}/Foundation/src/Path.cpp
         ${LIBRARY_DIR}/Foundation/src/PatternFormatter.cpp
         ${LIBRARY_DIR}/Foundation/src/Pipe.cpp
@@ -143,16 +160,18 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/PipeStream.cpp
         ${LIBRARY_DIR}/Foundation/src/PriorityNotificationQueue.cpp
         ${LIBRARY_DIR}/Foundation/src/Process.cpp
+        ${LIBRARY_DIR}/Foundation/src/ProcessRunner.cpp
         ${LIBRARY_DIR}/Foundation/src/PurgeStrategy.cpp
+        ${LIBRARY_DIR}/Foundation/src/RWLock.cpp
         ${LIBRARY_DIR}/Foundation/src/Random.cpp
         ${LIBRARY_DIR}/Foundation/src/RandomStream.cpp
         ${LIBRARY_DIR}/Foundation/src/RefCountedObject.cpp
         ${LIBRARY_DIR}/Foundation/src/RegularExpression.cpp
         ${LIBRARY_DIR}/Foundation/src/RotateStrategy.cpp
         ${LIBRARY_DIR}/Foundation/src/Runnable.cpp
-        ${LIBRARY_DIR}/Foundation/src/RWLock.cpp
-        ${LIBRARY_DIR}/Foundation/src/Semaphore.cpp
         ${LIBRARY_DIR}/Foundation/src/SHA1Engine.cpp
+        ${LIBRARY_DIR}/Foundation/src/SHA2Engine.cpp
+        ${LIBRARY_DIR}/Foundation/src/Semaphore.cpp
         ${LIBRARY_DIR}/Foundation/src/SharedLibrary.cpp
         ${LIBRARY_DIR}/Foundation/src/SharedMemory.cpp
         ${LIBRARY_DIR}/Foundation/src/SignalHandler.cpp
@@ -187,8 +206,6 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/Timestamp.cpp
         ${LIBRARY_DIR}/Foundation/src/Timezone.cpp
         ${LIBRARY_DIR}/Foundation/src/Token.cpp
-        ${LIBRARY_DIR}/Foundation/src/Unicode.cpp
-        ${LIBRARY_DIR}/Foundation/src/UnicodeConverter.cpp
         ${LIBRARY_DIR}/Foundation/src/URI.cpp
         ${LIBRARY_DIR}/Foundation/src/URIStreamFactory.cpp
         ${LIBRARY_DIR}/Foundation/src/URIStreamOpener.cpp
@@ -198,16 +215,20 @@ set(SRCS
         ${LIBRARY_DIR}/Foundation/src/UTF8String.cpp
         ${LIBRARY_DIR}/Foundation/src/UUID.cpp
         ${LIBRARY_DIR}/Foundation/src/UUIDGenerator.cpp
+        ${LIBRARY_DIR}/Foundation/src/UnbufferedStreamBuf.cpp
+        ${LIBRARY_DIR}/Foundation/src/Unicode.cpp
+        ${LIBRARY_DIR}/Foundation/src/UnicodeConverter.cpp
         ${LIBRARY_DIR}/Foundation/src/Var.cpp
         ${LIBRARY_DIR}/Foundation/src/VarHolder.cpp
         ${LIBRARY_DIR}/Foundation/src/VarIterator.cpp
+        ${LIBRARY_DIR}/Foundation/src/VarVisitor.cpp
         ${LIBRARY_DIR}/Foundation/src/Void.cpp
         ${LIBRARY_DIR}/Foundation/src/Windows1250Encoding.cpp
         ${LIBRARY_DIR}/Foundation/src/Windows1251Encoding.cpp
         ${LIBRARY_DIR}/Foundation/src/Windows1252Encoding.cpp
         )
 
-list(REMOVE_ITEM SRCS ${SRCS_PCRE} ${SRCS_ZLIB})
+list(REMOVE_ITEM SRCS ${SRCS_PCRE} ${SRCS_ZLIB} ${SRCS_UTF8PROC})
 
 add_library(_poco_foundation ${SRCS})
 add_library(Poco::Foundation ALIAS _poco_foundation)
@@ -237,4 +258,4 @@ target_compile_definitions(_poco_foundation
         )
 target_include_directories(_poco_foundation SYSTEM PUBLIC ${LIBRARY_DIR}/Foundation/include)
 target_include_directories(_poco_foundation PRIVATE ${LIBRARY_DIR}/Foundation/src)
-target_link_libraries(_poco_foundation PRIVATE Poco::Foundation::PCRE Poco::Foundation::ZLIB)
+target_link_libraries(_poco_foundation PRIVATE Poco::Foundation::PCRE Poco::Foundation::ZLIB Poco::Foundation::UTF8PROC)
