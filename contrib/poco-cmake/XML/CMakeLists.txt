@@ -85,6 +85,10 @@ set (SRCS
 add_library (_poco_xml ${SRCS})
 add_library (Poco::XML ALIAS _poco_xml)
 
+target_compile_definitions(_poco_xml
+        PUBLIC XML_DTD XML_GE
+        PRIVATE XML_NS HAVE_EXPAT_CONFIG_H)
+
 target_compile_options (_poco_xml PRIVATE -Wno-old-style-cast)
 target_include_directories (_poco_xml SYSTEM PUBLIC ${LIBRARY_DIR}/XML/include)
 target_link_libraries (_poco_xml PUBLIC Poco::Foundation)
