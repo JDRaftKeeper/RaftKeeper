@@ -93,7 +93,7 @@ public:
     uint64_t createSnapshot();
 
     /// Return NuRaft log related information.
-    KeeperLogInfo getKeeperLogInfo();
+    KeeperLogInfo getKeeperLogInfo() const;
 
     /// Send request to become leader. Return true if scheduled task, or false.
     bool requestLeader();
