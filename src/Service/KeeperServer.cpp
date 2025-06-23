@@ -128,16 +128,18 @@ void KeeperServer::shutdown()
 
     raft_instance->shutdown();
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
-    state_machine->shutdown();
 
-    LOG_INFO(log, "Creating snapshot on exit.");
     if (create_snapshot_on_exit)
     {
-        if (settings->raft_settings->async_snapshot)
-            settings->raft_settings->async_snapshot = false;
-        raft_instance->create_snapshot();
+        if (!state_machine->isCreatingSnapshot())
+        {
+            LOG_INFO(log, "Creating snapshot on exit.");
+            if (settings->raft_settings->async_snapshot)
+                settings->raft_settings->async_snapshot = false;
+            raft_instance->create_snapshot();
+        }
     }
-
+    state_machine->shutdown();
     LOG_INFO(log, "Shut down NuRaft core done!");
 }
 
@@ -405,7 +407,7 @@ uint64_t KeeperServer::createSnapshot()
     return log_idx;
 }
 
-KeeperLogInfo KeeperServer::getKeeperLogInfo()
+KeeperLogInfo KeeperServer::getKeeperLogInfo() const
 {
     KeeperLogInfo log_info;
     auto log_store = state_manager->load_log_store();
