@@ -30,6 +30,7 @@ KeeperServer::KeeperServer(
     : my_id(settings_->my_id)
     , settings(settings_)
     , config(config_)
+    , create_snapshot_on_exit(settings_->create_snapshot_on_exit)
     , log(&(Poco::Logger::get("KeeperServer")))
 {
     state_manager = cs_new<NuRaftStateManager>(my_id, config, settings_);
@@ -110,7 +111,7 @@ void KeeperServer::startup()
         dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).setRaftServer(raft_instance);
 }
 
-int32 KeeperServer::getLeader()
+int32 KeeperServer::getLeader() const
 {
     return raft_instance->get_leader();
 }
@@ -125,8 +126,17 @@ void KeeperServer::shutdown()
     if (state_manager->load_log_store())
         state_manager->load_log_store()->flush();
 
+    raft_instance->shutdown();
     dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
     state_machine->shutdown();
+
+    LOG_INFO(log, "Creating snapshot on exit.");
+    if (create_snapshot_on_exit)
+    {
+        if (settings->raft_settings->async_snapshot)
+            settings->raft_settings->async_snapshot = false;
+        raft_instance->create_snapshot();
+    }
 
     LOG_INFO(log, "Shut down NuRaft core done!");
 }

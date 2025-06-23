@@ -169,6 +169,10 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     writeText("snapshot_create_interval=", buf);
     write_int(snapshot_create_interval);
 
+    writeText("create_snapshot_on_exit=", buf);
+    writeText(create_snapshot_on_exit ? "true" : "false", buf);
+    buf.write('\n');
+
     writeText("four_letter_word_white_list=", buf);
     writeText(four_letter_word_white_list, buf);
     buf.write('\n');
@@ -252,6 +256,8 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
 
     ret->snapshot_create_interval = config.getUInt("keeper.snapshot_create_interval", 3600);
     ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1U);
+
+    ret->create_snapshot_on_exit = config.getUInt("keeper.create_snapshot_on_exit", true);
 
     ret->super_digest = config.getString("keeper.superdigest", "");
 

@@ -905,7 +905,7 @@ size_t KeeperSnapshotManager::loadSnapshotMetas()
         snapshots[key]->addObjectPath(s_obj.object_id, full_path);
     }
 
-    LOG_INFO(log, "Load snapshot metas {} from snapshot directory {}", snapshots.size(), snap_dir);
+    LOG_INFO(log, "Loaded {} snapshot metas from snapshot directory {}", snapshots.size(), snap_dir);
     return snapshots.size();
 }
 

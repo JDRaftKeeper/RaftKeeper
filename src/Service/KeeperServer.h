@@ -58,7 +58,7 @@ public:
     nuraft::ptr<NuRaftStateMachine> getKeeperStateMachine() const { return state_machine; }
 
     /// get current leader
-    int32_t getLeader();
+    int32_t getLeader() const;
 
     /// Whether is leader, just invoke API from NuRaft.
     bool isLeader() const;
@@ -129,6 +129,8 @@ private:
 
     /// configurations
     const Poco::Util::AbstractConfiguration & config;
+
+    bool create_snapshot_on_exit;
 
     Poco::Logger * log;
 
