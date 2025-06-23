@@ -176,6 +176,7 @@ host=lf06-ch-000335-raftkeeper-0-0
 internal_port=8103
 parallel=16
 snapshot_create_interval=3600
+create_snapshot_on_exit=true
 four_letter_word_white_list=conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp
 log_dir=/data/jdolap/raft_service/raft_log
 snapshot_dir=/data/jdolap/raft_service/raft_snapshot

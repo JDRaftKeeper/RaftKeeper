@@ -282,7 +282,9 @@ def test_cmd_conf(started_cluster):
 
         assert result["internal_port"] == "8103"
         assert result["parallel"] == "16"
+
         assert result["snapshot_create_interval"] == "10000"
+        assert result["create_snapshot_on_exit"] == "true"
 
         assert result["four_letter_word_white_list"] == "*"
 

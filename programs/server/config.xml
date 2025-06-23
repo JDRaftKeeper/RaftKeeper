@@ -53,6 +53,9 @@
         <!-- Max snapshot interval in second. -->
         <!-- <snapshot_create_interval>3600</snapshot_create_interval> -->
 
+        <!-- Create snapshot on exit. -->
+        <!-- <create_snapshot_on_exit>true</create_snapshot_on_exit> -->
+
         <!-- Processor parallel, default is CPU core size, for container is cgroup limit size, note that it is not lower than 4. -->
         <!-- <parallel></parallel> -->
 

@@ -2,10 +2,8 @@
 
 #include <Service/LoggerWrapper.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
-#include <Poco/Message.h>
 #include <Poco/Util/AbstractConfiguration.h>
 #include <Common/IO/WriteBufferFromString.h>
-#include <common/defines.h>
 
 namespace RK
 {
@@ -47,6 +45,8 @@ struct Settings
 
     String log_dir;
     String snapshot_dir;
+
+    bool create_snapshot_on_exit;
 
     uint32_t snapshot_create_interval;
     int32_t parallel;
