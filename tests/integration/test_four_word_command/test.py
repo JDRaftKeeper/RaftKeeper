@@ -698,3 +698,35 @@ def test_cmd_rqld(started_cluster):
                     + " does not become leader after 30s, maybe there is something wrong."
                 )
         assert node.is_leader()
+
+
+def test_cmd_ydld(started_cluster):
+    wait_nodes()
+
+    leader = None
+    for node in [node1, node3]:
+        if node.is_leader():
+            leader = node
+            break
+
+    assert leader is not None
+
+    data = leader.send_4lw_cmd(cmd="ydld")
+    assert data == "Sent yield leadership request."
+
+    print("ydld output -------------------------------------")
+    print(data)
+
+    if leader.is_leader():
+        # pull wait to become follower
+        retry = 0
+        # TODO not a restrict way
+        while leader.is_leader() and retry < 30:
+            time.sleep(1)
+            retry += 1
+        if retry == 30:
+            print(
+                leader.name
+                + " does not become follower after 30s, maybe there is something wrong."
+            )
+    assert not leader.is_leader()

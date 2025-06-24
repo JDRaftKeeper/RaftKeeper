@@ -10,7 +10,7 @@
 namespace RK
 {
 struct IFourLetterCommand;
-using FourLetterCommandPtr = std::shared_ptr<RK::IFourLetterCommand>;
+using FourLetterCommandPtr = std::shared_ptr<IFourLetterCommand>;
 
 /// Just like zookeeper Four Letter Words commands, CH Keeper responds to a small set of commands.
 /// Each command is composed of four letters, these commands are useful to monitor and issue system problems.
@@ -18,7 +18,7 @@ using FourLetterCommandPtr = std::shared_ptr<RK::IFourLetterCommand>;
 struct IFourLetterCommand
 {
 public:
-    using StringBuffer = RK::WriteBufferFromOwnString;
+    using StringBuffer = WriteBufferFromOwnString;
     explicit IFourLetterCommand(KeeperDispatcher & keeper_dispatcher_);
 
     virtual String name() = 0;
@@ -72,7 +72,7 @@ private:
  * just that the server process is active and bound to the specified client port.
  * Use "stat" for details on state wrt quorum and client connection information.
  */
-struct RuokCommand : public IFourLetterCommand
+struct RuokCommand : IFourLetterCommand
 {
     explicit RuokCommand(KeeperDispatcher & keeper_dispatcher_) : IFourLetterCommand(keeper_dispatcher_) { }
 
@@ -103,7 +103,7 @@ struct RuokCommand : public IFourLetterCommand
  * zk_synced_followers  2              - only exposed by the Leader
  * zk_pending_syncs 0                  - only exposed by the Leader
  */
-struct MonitorCommand : public IFourLetterCommand
+struct MonitorCommand : IFourLetterCommand
 {
     explicit MonitorCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -115,7 +115,7 @@ struct MonitorCommand : public IFourLetterCommand
     ~MonitorCommand() override = default;
 };
 
-struct StatResetCommand : public IFourLetterCommand
+struct StatResetCommand : IFourLetterCommand
 {
     explicit StatResetCommand(KeeperDispatcher & keeper_dispatcher_) :
         IFourLetterCommand(keeper_dispatcher_)
@@ -129,7 +129,7 @@ struct StatResetCommand : public IFourLetterCommand
 
 /// A command that does not do anything except reply to client with predefined message.
 ///It is used to inform clients who execute none white listed four letter word commands.
-struct NopCommand : public IFourLetterCommand
+struct NopCommand : IFourLetterCommand
 {
     explicit NopCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -141,7 +141,7 @@ struct NopCommand : public IFourLetterCommand
     ~NopCommand() override = default;
 };
 
-struct ConfCommand : public IFourLetterCommand
+struct ConfCommand : IFourLetterCommand
 {
     explicit ConfCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -155,7 +155,7 @@ struct ConfCommand : public IFourLetterCommand
 
 /// List full connection/session details for all clients connected to this server.
 /// Includes information on numbers of packets received/sent, session id, operation latencies, last operation performed, etc...
-struct ConsCommand : public IFourLetterCommand
+struct ConsCommand : IFourLetterCommand
 {
     explicit ConsCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -168,7 +168,7 @@ struct ConsCommand : public IFourLetterCommand
 };
 
 /// Reset connection/session statistics for all connections.
-struct RestConnStatsCommand : public IFourLetterCommand
+struct RestConnStatsCommand : IFourLetterCommand
 {
     explicit RestConnStatsCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -181,7 +181,7 @@ struct RestConnStatsCommand : public IFourLetterCommand
 };
 
 /// Lists full details for the server.
-struct ServerStatCommand : public IFourLetterCommand
+struct ServerStatCommand : IFourLetterCommand
 {
     explicit ServerStatCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -194,7 +194,7 @@ struct ServerStatCommand : public IFourLetterCommand
 };
 
 /// Lists brief details for the server and connected clients.
-struct StatCommand : public IFourLetterCommand
+struct StatCommand : IFourLetterCommand
 {
     explicit StatCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -207,7 +207,7 @@ struct StatCommand : public IFourLetterCommand
 };
 
 /// Lists brief information on watches for the server.
-struct BriefWatchCommand : public IFourLetterCommand
+struct BriefWatchCommand : IFourLetterCommand
 {
     explicit BriefWatchCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -222,7 +222,7 @@ struct BriefWatchCommand : public IFourLetterCommand
 /// Lists detailed information on watches for the server, by session.
 /// This outputs a list of sessions(connections) with associated watches (paths).
 /// Note, depending on the number of watches this operation may be expensive (ie impact server performance), use it carefully.
-struct WatchCommand : public IFourLetterCommand
+struct WatchCommand : IFourLetterCommand
 {
     explicit WatchCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -237,7 +237,7 @@ struct WatchCommand : public IFourLetterCommand
 /// Lists detailed information on watches for the server, by path.
 /// This outputs a list of paths (znodes) with associated sessions.
 /// Note, depending on the number of watches this operation may be expensive (ie impact server performance), use it carefully.
-struct WatchByPathCommand : public IFourLetterCommand
+struct WatchByPathCommand : IFourLetterCommand
 {
     explicit WatchByPathCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -250,7 +250,7 @@ struct WatchByPathCommand : public IFourLetterCommand
 };
 
 /// Lists the outstanding sessions and ephemeral nodes. This only works on the leader.
-struct DumpCommand : public IFourLetterCommand
+struct DumpCommand : IFourLetterCommand
 {
     explicit DumpCommand(KeeperDispatcher & keeper_dispatcher_):
         IFourLetterCommand(keeper_dispatcher_)
@@ -263,7 +263,7 @@ struct DumpCommand : public IFourLetterCommand
 };
 
 /// Print details about serving environment
-struct EnviCommand : public IFourLetterCommand
+struct EnviCommand : IFourLetterCommand
 {
     explicit EnviCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -276,7 +276,7 @@ struct EnviCommand : public IFourLetterCommand
 };
 
 /// Shows the total size of snapshot and log files in bytes
-struct DataSizeCommand : public IFourLetterCommand
+struct DataSizeCommand : IFourLetterCommand
 {
     explicit DataSizeCommand(KeeperDispatcher & keeper_dispatcher_):
         IFourLetterCommand(keeper_dispatcher_)
@@ -290,7 +290,7 @@ struct DataSizeCommand : public IFourLetterCommand
 
 /// Tests if server is running in read-only mode.
 /// The server will respond with "ro" if in read-only mode or "rw" if not in read-only mode.
-struct IsReadOnlyCommand : public IFourLetterCommand
+struct IsReadOnlyCommand : IFourLetterCommand
 {
     explicit IsReadOnlyCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -303,7 +303,7 @@ struct IsReadOnlyCommand : public IFourLetterCommand
 };
 
 /// Create snapshot manually
-struct CreateSnapshotCommand : public IFourLetterCommand
+struct CreateSnapshotCommand : IFourLetterCommand
 {
     explicit CreateSnapshotCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -325,7 +325,7 @@ struct CreateSnapshotCommand : public IFourLetterCommand
  *     target_committed_log_idx 101
  *     last_snapshot_idx    50
  */
-struct LogInfoCommand : public IFourLetterCommand
+struct LogInfoCommand : IFourLetterCommand
 {
     explicit LogInfoCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -338,7 +338,7 @@ struct LogInfoCommand : public IFourLetterCommand
 };
 
 /// Request to be leader.
-struct RequestLeaderCommand : public IFourLetterCommand
+struct RequestLeaderCommand : IFourLetterCommand
 {
     explicit RequestLeaderCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -350,8 +350,21 @@ struct RequestLeaderCommand : public IFourLetterCommand
     ~RequestLeaderCommand() override = default;
 };
 
+/// Yield leader.
+struct YieldLeaderCommand : IFourLetterCommand
+{
+    explicit YieldLeaderCommand(KeeperDispatcher & keeper_dispatcher_)
+        : IFourLetterCommand(keeper_dispatcher_)
+    {
+    }
+
+    String name() override { return "ydld"; }
+    String run() override;
+    ~YieldLeaderCommand() override = default;
+};
+
 /// process startup time in second
-struct UpTimeCommand : public IFourLetterCommand
+struct UpTimeCommand : IFourLetterCommand
 {
     explicit UpTimeCommand(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -365,7 +378,7 @@ struct UpTimeCommand : public IFourLetterCommand
 
 
 #if USE_JEMALLOC
-struct JemallocDumpStats : public IFourLetterCommand
+struct JemallocDumpStats : IFourLetterCommand
 {
     explicit JemallocDumpStats(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -377,7 +390,7 @@ struct JemallocDumpStats : public IFourLetterCommand
     ~JemallocDumpStats() override = default;
 };
 
-struct JemallocFlushProfile : public IFourLetterCommand
+struct JemallocFlushProfile : IFourLetterCommand
 {
     explicit JemallocFlushProfile(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -389,7 +402,7 @@ struct JemallocFlushProfile : public IFourLetterCommand
     ~JemallocFlushProfile() override = default;
 };
 
-struct JemallocEnableProfile : public IFourLetterCommand
+struct JemallocEnableProfile : IFourLetterCommand
 {
     explicit JemallocEnableProfile(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -401,7 +414,7 @@ struct JemallocEnableProfile : public IFourLetterCommand
     ~JemallocEnableProfile() override = default;
 };
 
-struct JemallocDisableProfile : public IFourLetterCommand
+struct JemallocDisableProfile : IFourLetterCommand
 {
     explicit JemallocDisableProfile(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)
@@ -413,7 +426,7 @@ struct JemallocDisableProfile : public IFourLetterCommand
     ~JemallocDisableProfile() override = default;
 };
 
-struct JemallocPurgeUnusedArenas : public IFourLetterCommand
+struct JemallocPurgeUnusedArenas : IFourLetterCommand
 {
     explicit JemallocPurgeUnusedArenas(KeeperDispatcher & keeper_dispatcher_)
         : IFourLetterCommand(keeper_dispatcher_)

@@ -133,7 +133,7 @@ const String Settings::DEFAULT_FOUR_LETTER_WORD_CMD =
 #if USE_JEMALLOC
 "jmst,jmpg,jmep,jmfp,jmdp,"
 #endif
-"conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp";
+"conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,ydld,uptm,csnp";
 
 Settings::Settings() : my_id(NOT_EXIST), port(NOT_EXIST), standalone_keeper(false), raft_settings(RaftSettings::getDefault())
 {

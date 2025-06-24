@@ -208,6 +208,9 @@ public:
     /// Request to be leader
     bool requestLeader() { return server->requestLeader(); }
 
+    /// Yield leader
+    void yieldLeader() { server->requestLeader(); }
+
     /// Return process start time in us.
     int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }
 
