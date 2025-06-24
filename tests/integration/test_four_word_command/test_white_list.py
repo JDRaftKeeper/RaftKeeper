@@ -7,13 +7,13 @@ from helpers.cluster_service import RaftKeeperCluster
 
 cluster = RaftKeeperCluster(__file__, name="test_keeper_4lw_white_list")
 node1 = cluster.add_instance('node1',
-                             main_configs=['configs/keeper_config_with_white_list.xml', 'configs/logs_conf.xml'],
+                             main_configs=['configs/keeper_config_with_white_list.xml'],
                              stay_alive=True)
 node2 = cluster.add_instance('node2',
-                             main_configs=['configs/keeper_config_without_white_list.xml', 'configs/logs_conf.xml'],
+                             main_configs=['configs/keeper_config_without_white_list.xml'],
                              stay_alive=True)
 node3 = cluster.add_instance('node3',
-                             main_configs=['configs/keeper_config_with_white_list_all.xml', 'configs/logs_conf.xml'],
+                             main_configs=['configs/keeper_config_with_white_list_all.xml'],
                              stay_alive=True)
 
 

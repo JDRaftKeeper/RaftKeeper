@@ -9,9 +9,9 @@ from helpers.network import PartitionManager
 from helpers.utils import close_zk_clients
 
 cluster1 = RaftKeeperCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/log_conf.xml'],
+node1 = cluster1.add_instance('node1', main_configs=['configs/enable_keeper1.xml'],
                               stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/log_conf.xml'],
+node2 = cluster1.add_instance('node2', main_configs=['configs/enable_keeper2.xml'],
                               stay_alive=True)
 
 

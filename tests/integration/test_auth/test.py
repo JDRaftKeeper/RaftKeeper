@@ -7,7 +7,7 @@ from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_client
 
 cluster = RaftKeeperCluster(__file__)
-node = cluster.add_instance('node', main_configs=['configs/keeper.xml', 'configs/logs_conf.xml'], with_zookeeper=True,
+node = cluster.add_instance('node', main_configs=['configs/keeper.xml'], with_zookeeper=True,
                             stay_alive=True)
 
 
