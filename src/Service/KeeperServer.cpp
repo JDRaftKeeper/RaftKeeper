@@ -435,6 +435,11 @@ bool KeeperServer::requestLeader()
     return isLeader() || raft_instance->request_leadership();
 }
 
+void KeeperServer::yieldLeader()
+{
+    raft_instance->yield_leadership();
+}
+
 void KeeperServer::registerForWardListener(UpdateForwardListener forward_listener)
 {
     std::unique_lock lock(forward_listener_mutex);

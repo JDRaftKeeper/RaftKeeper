@@ -177,7 +177,7 @@ internal_port=8103
 parallel=16
 snapshot_create_interval=3600
 create_snapshot_on_exit=true
-four_letter_word_white_list=conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,uptm,csnp
+four_letter_word_white_list=conf,cons,crst,envi,ruok,srst,srvr,stat,wchs,dirs,mntr,isro,lgif,rqld,ydld,uptm,csnp
 log_dir=/data/jdolap/raft_service/raft_log
 snapshot_dir=/data/jdolap/raft_service/raft_snapshot
 max_session_timeout_ms=3600000
@@ -310,6 +310,16 @@ already leader the outcome is same as the request is sent.
 
 ```
 Sent leadership request to leader.
+```
+
+#### ydld
+Request to yield leadership and become follower. If the server receiving the request is leader, 
+it will pause write operations first, wait until the successor (current leader can never be successor) 
+finishes the catch-up of the latest log, and then resign. The successor will be chosen automatically.
+If the server is follower it will do nothing. The command always response `Sent yield leadership request.`
+
+```
+Sent yield leadership request.
 ```
 
 #### csnp

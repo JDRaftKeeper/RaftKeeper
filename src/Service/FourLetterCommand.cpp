@@ -147,6 +147,9 @@ void FourLetterCommandFactory::registerCommands(KeeperDispatcher & keeper_dispat
         FourLetterCommandPtr request_leader_command = std::make_shared<RequestLeaderCommand>(keeper_dispatcher);
         factory.registerCommand(request_leader_command);
 
+        FourLetterCommandPtr yield_leader_command = std::make_shared<YieldLeaderCommand>(keeper_dispatcher);
+        factory.registerCommand(yield_leader_command);
+
         FourLetterCommandPtr uptime_command = std::make_shared<UpTimeCommand>(keeper_dispatcher);
         factory.registerCommand(uptime_command);
 
@@ -512,6 +515,12 @@ String LogInfoCommand::run()
 String RequestLeaderCommand::run()
 {
     return keeper_dispatcher.requestLeader() ? "Sent leadership request to leader." : "Failed to send leadership request to leader.";
+}
+
+String YieldLeaderCommand::run()
+{
+    keeper_dispatcher.yieldLeader();
+    return  "Sent yield leadership request.";
 }
 
 String UpTimeCommand::run()

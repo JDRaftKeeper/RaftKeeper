@@ -98,6 +98,8 @@ public:
     /// Send request to become leader. Return true if scheduled task, or false.
     bool requestLeader();
 
+    void yieldLeader();
+
     void registerForWardListener(UpdateForwardListener forward_listener);
 
     int32_t myId() const { return my_id; }
