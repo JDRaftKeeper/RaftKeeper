@@ -9,6 +9,8 @@
         <stdout>/var/log/raftkeeper-server/stdout.log</stdout>
     </logger>
     <keeper>
+        <log_dir>/var/lib/raftkeeper/data/raft_log</log_dir>
+        <snapshot_dir>/var/lib/raftkeeper/data/raft_snapshot</snapshot_dir>
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>
             <election_timeout_lower_bound_ms>3000</election_timeout_lower_bound_ms>
