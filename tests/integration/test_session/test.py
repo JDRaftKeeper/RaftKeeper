@@ -5,11 +5,11 @@ from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_client
 
 cluster = RaftKeeperCluster(__file__)
-node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml', 'configs/logs_conf.xml'],
+node1 = cluster.add_instance('node1', main_configs=['configs/enable_keeper1.xml'],
                              stay_alive=True)
-node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml', 'configs/logs_conf.xml'],
+node2 = cluster.add_instance('node2', main_configs=['configs/enable_keeper2.xml'],
                              stay_alive=True)
-node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml', 'configs/logs_conf.xml'],
+node3 = cluster.add_instance('node3', main_configs=['configs/enable_keeper3.xml'],
                              stay_alive=True)
 
 from kazoo.client import KazooClient
