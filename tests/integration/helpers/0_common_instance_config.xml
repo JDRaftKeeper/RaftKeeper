@@ -10,6 +10,7 @@
     </logger>
     <keeper>
         <raft_settings>
+            <raft_logs_level>debug</raft_logs_level>
             <election_timeout_lower_bound_ms>3000</election_timeout_lower_bound_ms>
             <election_timeout_upper_bound_ms>5000</election_timeout_upper_bound_ms>
         </raft_settings>
