@@ -2,19 +2,9 @@
     <keeper>
         <my_id>3</my_id>
         <host>node3</host>
-        <log_dir>/var/lib/raftkeeper/data/raft_log</log_dir>
-        <snapshot_dir>/var/lib/raftkeeper/data/raft_snapshot</snapshot_dir>
-        <snapshot_create_interval>86400</snapshot_create_interval>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
-        <internal_port>8103</internal_port>
-        <parallel>16</parallel>
+        <create_snapshot_on_exit>0</create_snapshot_on_exit>
         <raft_settings>
-            <raft_logs_level>debug</raft_logs_level>
-            <max_session_timeout_ms>10000</max_session_timeout_ms>
-            <operation_timeout_ms>1000</operation_timeout_ms>
             <snapshot_distance>30</snapshot_distance>
-            <min_session_timeout_ms>1000</min_session_timeout_ms>
             <async_snapshot>false</async_snapshot>
         </raft_settings>
 
@@ -22,19 +12,15 @@
             <server>
                 <id>1</id>
                 <host>node1</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
             <server>
                 <id>2</id>
                 <host>node2</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
             <server>
                 <id>3</id>
                 <host>node3</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
-
         </cluster>
     </keeper>
 

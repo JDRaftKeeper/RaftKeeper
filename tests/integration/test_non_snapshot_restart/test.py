@@ -8,11 +8,11 @@ from helpers.cluster_service import RaftKeeperCluster
 from helpers.utils import close_zk_clients
 
 cluster1 = RaftKeeperCluster(__file__)
-node1 = cluster1.add_instance('node1', main_configs=['configs/enable_service_keeper1.xml'],
+node1 = cluster1.add_instance('node1', main_configs=['configs/keeper1.xml'],
                               stay_alive=True)
-node2 = cluster1.add_instance('node2', main_configs=['configs/enable_service_keeper2.xml'],
+node2 = cluster1.add_instance('node2', main_configs=['configs/keeper2.xml'],
                               stay_alive=True)
-node3 = cluster1.add_instance('node3', main_configs=['configs/enable_service_keeper3.xml'],
+node3 = cluster1.add_instance('node3', main_configs=['configs/keeper3.xml'],
                               stay_alive=True)
 
 
@@ -20,15 +20,9 @@ node3 = cluster1.add_instance('node3', main_configs=['configs/enable_service_kee
 def started_cluster():
     try:
         cluster1.start()
-
         yield cluster1
-
     finally:
         cluster1.shutdown()
-
-
-def smaller_exception(ex):
-    return '\n'.join(str(ex).split('\n')[0:2])
 
 
 def wait_node(node):
@@ -78,34 +72,34 @@ def dump_states(zk1, d, path="/"):
         dump_states(zk1, d, os.path.join(path, children))
 
 
-def test_restart(started_cluster):
+def test_non_snapshot_restart(started_cluster):
     fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
     try:
-        fake_zks[0].create("/test_restart_node", b"hello")
+        fake_zks[0].create("/test_non_snapshot_restart", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.create("/test_restart_node/" + str(i), b"hello")
+            fake_zk.create("/test_non_snapshot_restart/" + str(i), b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.set("/test_restart_node/" + str(i), b"hello_new")
+            fake_zk.set("/test_non_snapshot_restart/" + str(i), b"hello_new")
 
-        fake_zks[1].create("/test_restart_node1", b"hello")
+        fake_zks[1].create("/test_non_snapshot_restart1", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.create("/test_restart_node1/" + str(i), b"hello")
+            fake_zk.create("/test_non_snapshot_restart1/" + str(i), b"hello")
 
-        fake_zks[2].create("/test_restart_node2", b"hello")
+        fake_zks[2].create("/test_non_snapshot_restart2", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
             t = fake_zk.transaction()
-            t.create("/test_restart_node2/q" + str(i))
+            t.create("/test_non_snapshot_restart2/q" + str(i))
             # delete a not exist node
-            t.delete("/test_restart_node2/a" + str(i))
-            t.create("/test_restart_node2/x" + str(i))
+            t.delete("/test_non_snapshot_restart2/a" + str(i))
+            t.create("/test_non_snapshot_restart2/x" + str(i))
             t.commit()
 
         fake_zk = random.choice(fake_zks)
@@ -131,14 +125,14 @@ def test_restart(started_cluster):
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node/" + str(i))[0] == b"hello_new"
+            assert fake_zk.get("/test_non_snapshot_restart/" + str(i))[0] == b"hello_new"
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
+            assert fake_zk.get("/test_non_snapshot_restart1/" + str(i))[0] == b"hello"
 
         fake_zk = random.choice(fake_zks)
-        children = fake_zk.get_children("/test_restart_node2")
+        children = fake_zk.get_children("/test_non_snapshot_restart2")
 
         assert children == []
 
