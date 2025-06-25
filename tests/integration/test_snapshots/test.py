@@ -32,8 +32,8 @@ def started_cluster():
 @pytest.mark.parametrize(
     'node',
     [
-        cluster.add_instance('node1', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
-        cluster.add_instance('node2', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+        cluster.add_instance('node1', main_configs=['configs/keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node2', main_configs=['configs/keeper_async_snapshot.xml'], with_zookeeper=True, stay_alive=True)
     ]
 )
 def test_state_after_restart(started_cluster, node):
@@ -54,7 +54,7 @@ def test_state_after_restart(started_cluster, node):
             else:
                 existing_children.append("node" + str(i))
 
-        node.restart_raftkeeper(kill=True)
+        node.restart_raftkeeper()
         node.wait_for_join_cluster()
 
         node_zk2 = node.get_fake_zk()
@@ -77,8 +77,8 @@ def test_state_after_restart(started_cluster, node):
 @pytest.mark.parametrize(
     'node',
     [
-        cluster.add_instance('node3', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
-        cluster.add_instance('node4', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+        cluster.add_instance('node3', main_configs=['configs/keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node4', main_configs=['configs/keeper_async_snapshot.xml'], with_zookeeper=True, stay_alive=True)
     ]
 )
 def test_ephemeral_after_restart(started_cluster, node):
@@ -100,7 +100,7 @@ def test_ephemeral_after_restart(started_cluster, node):
             else:
                 existing_children.append("node" + str(i))
 
-        node.restart_raftkeeper(kill=True)
+        node.restart_raftkeeper()
         node.wait_for_join_cluster()
 
         node_zk2 = node.get_fake_zk()
@@ -122,8 +122,8 @@ def test_ephemeral_after_restart(started_cluster, node):
 @pytest.mark.parametrize(
     'node',
     [
-        cluster.add_instance('node5', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
-        cluster.add_instance('node6', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+        cluster.add_instance('node5', main_configs=['configs/keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node6', main_configs=['configs/keeper_async_snapshot.xml'], with_zookeeper=True, stay_alive=True)
     ]
 )
 def test_restart_with_no_log(started_cluster, node):
@@ -135,7 +135,7 @@ def test_restart_with_no_log(started_cluster, node):
         node.send_4lw_cmd(cmd="csnp")
         time.sleep(1) # wait for snapshot to be taken
 
-        node.restart_raftkeeper(kill=True)
+        node.restart_raftkeeper()
         node.wait_for_join_cluster()
 
         node_zk2 = node.get_fake_zk()
@@ -145,7 +145,7 @@ def test_restart_with_no_log(started_cluster, node):
 
 
 def get_snapshots(node):
-    files = node.list_path('/snapshot').split()
+    files = node.list_path('/var/lib/raftkeeper/data/raft_snapshot').split()
 
     snapshots = dict()
     for file_name in files:
@@ -162,8 +162,8 @@ def get_snapshots(node):
 @pytest.mark.parametrize(
     'node',
     [
-        cluster.add_instance('node7', main_configs=['configs/enable_keeper.xml'], with_zookeeper=True, stay_alive=True),
-        cluster.add_instance('node8', main_configs=['configs/enable_async_snapshot_keeper.xml'], with_zookeeper=True, stay_alive=True)
+        cluster.add_instance('node7', main_configs=['configs/keeper.xml'], with_zookeeper=True, stay_alive=True),
+        cluster.add_instance('node8', main_configs=['configs/keeper_async_snapshot.xml'], with_zookeeper=True, stay_alive=True)
     ]
 )
 def test_snapshot_clear(started_cluster, node):

@@ -288,8 +288,8 @@ def test_cmd_conf(started_cluster):
 
         assert result["four_letter_word_white_list"] == "*"
 
-        assert result["log_dir"] == "./data/log"
-        assert result["snapshot_dir"] == "./data/snapshot"
+        assert result["log_dir"] == "/var/lib/raftkeeper/data/raft_log"
+        assert result["snapshot_dir"] == "/var/lib/raftkeeper/data/raft_snapshot"
 
         assert result["client_req_timeout_ms"] == result["operation_timeout_ms"]
         assert result["min_session_timeout_ms"] == "1000"

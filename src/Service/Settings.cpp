@@ -257,7 +257,7 @@ SettingsPtr Settings::loadFromConfig(const Poco::Util::AbstractConfiguration & c
     ret->snapshot_create_interval = config.getUInt("keeper.snapshot_create_interval", 3600);
     ret->snapshot_create_interval = std::max(ret->snapshot_create_interval, 1U);
 
-    ret->create_snapshot_on_exit = config.getUInt("keeper.create_snapshot_on_exit", true);
+    ret->create_snapshot_on_exit = config.getBool("keeper.create_snapshot_on_exit", true);
 
     ret->super_digest = config.getString("keeper.superdigest", "");
 

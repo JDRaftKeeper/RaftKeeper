@@ -28,10 +28,6 @@ def started_cluster():
         cluster1.shutdown()
 
 
-def smaller_exception(ex):
-    return '\n'.join(str(ex).split('\n')[0:2])
-
-
 def wait_node(node):
     node.wait_for_join_cluster()
 
@@ -97,32 +93,32 @@ def set_async_snapshot_true():
 
 
 @pytest.mark.parametrize('async_snapshot', [False, True])
-def test_restart(started_cluster, async_snapshot):
+def test_snapshot_restart(started_cluster, async_snapshot):
     if async_snapshot:
         set_async_snapshot_true()
     fake_zks = [get_fake_zk(node) for node in [node1, node2, node3]]
     try:
-        fake_zks[0].create("/test_restart_node", b"hello")
+        fake_zks[0].create("/test_snapshot_restart", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.create("/test_restart_node/" + str(i), b"hello")
+            fake_zk.create("/test_snapshot_restart/" + str(i), b"hello")
 
-        fake_zks[1].create("/test_restart_node1", b"hello")
+        fake_zks[1].create("/test_snapshot_restart1", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            fake_zk.create("/test_restart_node1/" + str(i), b"hello")
+            fake_zk.create("/test_snapshot_restart1/" + str(i), b"hello")
 
-        fake_zks[2].create("/test_restart_node2", b"hello")
+        fake_zks[2].create("/test_snapshot_restart2", b"hello")
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
             t = fake_zk.transaction()
-            t.create("/test_restart_node2/q" + str(i))
+            t.create("/test_snapshot_restart2/q" + str(i))
             # delete not exist node
-            t.delete("/test_restart_node2/a" + str(i))
-            t.create("/test_restart_node2/x" + str(i))
+            t.delete("/test_snapshot_restart2/a" + str(i))
+            t.create("/test_snapshot_restart2/x" + str(i))
             t.commit()
 
         fake_zk = random.choice(fake_zks)
@@ -145,14 +141,14 @@ def test_restart(started_cluster, async_snapshot):
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node/" + str(i))[0] == b"hello"
+            assert fake_zk.get("/test_snapshot_restart/" + str(i))[0] == b"hello"
 
         for i in range(10):
             fake_zk = random.choice(fake_zks)
-            assert fake_zk.get("/test_restart_node1/" + str(i))[0] == b"hello"
+            assert fake_zk.get("/test_snapshot_restart1/" + str(i))[0] == b"hello"
 
         fake_zk = random.choice(fake_zks)
-        children = fake_zk.get_children("/test_restart_node2")
+        children = fake_zk.get_children("/test_snapshot_restart2")
 
         assert children == []
 
