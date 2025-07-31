@@ -2,39 +2,26 @@
     <keeper>
         <my_id>2</my_id>
         <host>node2</host>
-        <snapshot_create_interval>86400</snapshot_create_interval>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
-        <internal_port>8103</internal_port>
-        <parallel>16</parallel>
         <raft_settings>
-            <raft_logs_level>trace</raft_logs_level>
-            <nuraft_thread_size>32</nuraft_thread_size>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
             <max_session_timeout_ms>80000</max_session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
             <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
         </raft_settings>
-
         <cluster>
             <server>
                 <id>1</id>
                 <host>node1</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
             <server>
                 <id>2</id>
                 <host>node2</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
             <server>
                 <id>3</id>
                 <host>node3</host>
-                <forwarding_port>8102</forwarding_port>
             </server>
-
         </cluster>
     </keeper>
-
 </raftkeeper>

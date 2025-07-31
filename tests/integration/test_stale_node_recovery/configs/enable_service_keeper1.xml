@@ -2,10 +2,6 @@
     <keeper>
         <my_id>1</my_id>
         <host>node1</host>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
-        <internal_port>8103</internal_port>
-        <parallel>16</parallel>
         <raft_settings>
             <raft_logs_level>debug</raft_logs_level>
             <election_timeout_lower_bound_ms>3000</election_timeout_lower_bound_ms>

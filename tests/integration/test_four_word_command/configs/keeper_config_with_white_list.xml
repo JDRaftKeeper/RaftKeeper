@@ -1,7 +1,5 @@
 <raftkeeper>
     <keeper>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
         <my_id>1</my_id>
         <host>node1</host>
         <four_letter_word_white_list>ruok, conf</four_letter_word_white_list>
@@ -19,10 +17,5 @@
                 <host>node3</host>
             </server>
         </cluster>
-        <raft_settings>
-            <operation_timeout_ms>1000</operation_timeout_ms>
-            <max_session_timeout_ms>3000</max_session_timeout_ms>
-            <min_session_timeout_ms>1000</min_session_timeout_ms>
-        </raft_settings>
     </keeper>
 </raftkeeper>
