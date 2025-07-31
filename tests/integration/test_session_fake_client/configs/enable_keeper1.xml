@@ -1,11 +1,7 @@
 <raftkeeper>
     <keeper>
-        <port>8101</port>
-        <forwarding_port>8102</forwarding_port>
         <my_id>1</my_id>
         <host>node1</host>
-        <snapshot_create_interval>10000</snapshot_create_interval>
-
         <raft_settings>
             <operation_timeout_ms>1000</operation_timeout_ms>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
@@ -13,7 +9,6 @@
             <snapshot_distance>3000000</snapshot_distance>
             <raft_logs_level>debug</raft_logs_level>
         </raft_settings>
-
         <cluster>
             <server>
                 <id>1</id>

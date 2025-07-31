@@ -1,29 +1,7 @@
 <raftkeeper>
-    <logger>
-        <level>trace</level>
-        <log>/var/log/raftkeeper-server/log.log</log>
-        <errorlog>/var/log/raftkeeper-server/log.err.log</errorlog>
-        <size>1000M</size>
-        <count>10</count>
-        <stderr>/var/log/raftkeeper-server/stderr.log</stderr>
-        <stdout>/var/log/raftkeeper-server/stdout.log</stdout>
-    </logger>
     <keeper>
         <my_id>1</my_id>
         <host>node1</host>
-        <snapshot_create_interval>86400</snapshot_create_interval>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
-        <internal_port>8103</internal_port>
-        <parallel>16</parallel>
-        <raft_settings>
-            <raft_logs_level>debug</raft_logs_level>
-            <nuraft_thread_size>32</nuraft_thread_size>
-            <min_session_timeout_ms>1000</min_session_timeout_ms>
-            <max_session_timeout_ms>80000</max_session_timeout_ms>
-            <operation_timeout_ms>1000</operation_timeout_ms>
-        </raft_settings>
-
         <cluster>
             <server>
                 <id>1</id>
@@ -33,8 +11,6 @@
                 <id>2</id>
                 <host>node2</host>
             </server>
-
         </cluster>
     </keeper>
-
 </raftkeeper>

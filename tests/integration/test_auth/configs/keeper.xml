@@ -2,8 +2,6 @@
     <keeper>
         <my_id>1</my_id>
         <host>node</host>
-        <log_dir>/var/lib/raftkeeper/data/raft_log</log_dir>
-        <snapshot_dir>/var/lib/raftkeeper/data/raft_snapshot</snapshot_dir>
         <superdigest>super:xQJmxLMiHGwaqBvst5y6rkB6HQs=</superdigest>
         <raft_settings>
             <snapshot_distance>75</snapshot_distance>

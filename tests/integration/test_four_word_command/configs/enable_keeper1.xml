@@ -1,7 +1,5 @@
 <raftkeeper>
     <keeper>
-        <port>8101</port>
-        <forwarding_port>8102</forwarding_port>
         <my_id>1</my_id>
         <host>node1</host>
         <snapshot_create_interval>10000</snapshot_create_interval>
@@ -22,19 +20,16 @@
                 <id>1</id>
                 <host>node1</host>
                 <learner>false</learner>
-                <priority>3</priority>
             </server>
             <server>
                 <id>2</id>
                 <host>node2</host>
                 <learner>true</learner>
-                <priority>2</priority>
             </server>
             <server>
                 <id>3</id>
                 <host>node3</host>
                 <learner>true</learner>
-                <priority>1</priority>
             </server>
         </cluster>
     </keeper>

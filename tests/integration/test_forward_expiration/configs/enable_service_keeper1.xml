@@ -2,42 +2,28 @@
     <keeper>
         <my_id>1</my_id>
         <host>node1</host>
-        <snapshot_start_time>7200</snapshot_start_time>
-        <snapshot_create_interval>86400</snapshot_create_interval>
-        <forwarding_port>8102</forwarding_port>
-        <port>8101</port>
-        <internal_port>8103</internal_port>
-        <parallel>16</parallel>
         <raft_settings>
-            <raft_logs_level>debug</raft_logs_level>
-            <nuraft_thread_size>32</nuraft_thread_size>
             <session_timeout_ms>80000</session_timeout_ms>
             <operation_timeout_ms>1000</operation_timeout_ms>
         </raft_settings>
-
         <cluster>
             <server>
                 <id>1</id>
                 <host>node1</host>
-                <forwarding_port>8102</forwarding_port>
                 <priority>1</priority>
                 <learner>true</learner>
             </server>
             <server>
                 <id>2</id>
                 <host>node2</host>
-                <forwarding_port>8102</forwarding_port>
                 <priority>1</priority>
                 <learner>true</learner>
             </server>
             <server>
                 <id>3</id>
                 <host>node3</host>
-                <forwarding_port>8102</forwarding_port>
                 <priority>3</priority>
             </server>
-
         </cluster>
     </keeper>
-
 </raftkeeper>

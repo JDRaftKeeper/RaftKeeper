@@ -1,19 +1,15 @@
 <raftkeeper>
-<keeper>
-    <my_id>1</my_id>
-    <host>node</host>
-    <create_snapshot_on_exit>0</create_snapshot_on_exit>
-    <raft_settings>
-        <snapshot_distance>10</snapshot_distance>
-        <max_stored_snapshots>1</max_stored_snapshots>
-        <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
-        <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
-        <min_session_timeout_ms>1000</min_session_timeout_ms>
-        <async_snapshot>true</async_snapshot>
-    </raft_settings>
-
-    <cluster>
-    </cluster>
-</keeper>
-
+    <keeper>
+        <my_id>1</my_id>
+        <host>node</host>
+        <create_snapshot_on_exit>0</create_snapshot_on_exit>
+        <raft_settings>
+            <snapshot_distance>10</snapshot_distance>
+            <max_stored_snapshots>1</max_stored_snapshots>
+            <election_timeout_lower_bound_ms>1000</election_timeout_lower_bound_ms>
+            <election_timeout_upper_bound_ms>2000</election_timeout_upper_bound_ms>
+            <min_session_timeout_ms>1000</min_session_timeout_ms>
+            <async_snapshot>true</async_snapshot>
+        </raft_settings>
+    </keeper>
 </raftkeeper>

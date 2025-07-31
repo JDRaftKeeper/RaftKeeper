@@ -4,6 +4,7 @@
         <host>node3</host>
         <create_snapshot_on_exit>0</create_snapshot_on_exit>
         <raft_settings>
+            <async_snapshot>false</async_snapshot>
             <snapshot_distance>10</snapshot_distance>
             <min_session_timeout_ms>1000</min_session_timeout_ms>
         </raft_settings>

@@ -209,7 +209,7 @@ public:
     bool requestLeader() { return server->requestLeader(); }
 
     /// Yield leader
-    void yieldLeader() { server->requestLeader(); }
+    void yieldLeader() { server->yieldLeader(); }
 
     /// Return process start time in us.
     int64_t uptimeFromStartup() { return Poco::Timestamp() - uptime; }

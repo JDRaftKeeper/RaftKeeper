@@ -15,13 +15,20 @@ def start_raftkeeper(node):
     node.start_raftkeeper(60)
     node.wait_for_join_cluster()
 
-def set_async_snapshot_true():
+
+def set_async_snapshot(async_snapshot):
+    for index, node in [(1, node1), (2, node2), (3, node3)]:
+        if async_snapshot:
+            node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_keeper{index}.xml', '<async_snapshot>false', '<async_snapshot>true')
+        else:
+            node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_keeper{index}.xml', '<async_snapshot>true', '<async_snapshot>false')
+
+
+def reset_cluster():
     for index, node in [(1, node1), (2, node2), (3, node3)]:
         node.stop_raftkeeper()
-        node.replace_in_config(f'/etc/raftkeeper-server/config.d/enable_keeper{index}.xml', '<async_snapshot>false', '<async_snapshot>true')
         node.exec_in_container(
             ['bash', '-c', 'rm -fr /var/lib/raftkeeper/data/raft_log/* /var/lib/raftkeeper/data/raft_snapshot/*'])
-
     p = Pool(3)
     result = p.map_async(start_raftkeeper, [node1, node2, node3])
     result.wait()
@@ -40,8 +47,8 @@ def started_cluster():
 def test_restart_multinode(started_cluster, async_snapshot):
     node1_zk = node2_zk = node3_zk = None
     try:
-        if async_snapshot:
-            set_async_snapshot_true()
+        reset_cluster()
+        set_async_snapshot(async_snapshot)
 
         node1_zk = node1.get_fake_zk()
         node2_zk = node2.get_fake_zk()
