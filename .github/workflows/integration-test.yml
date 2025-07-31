@@ -23,6 +23,9 @@ jobs:
       - name: Add executable privileges
         run: sudo chmod 755 build/programs/raftkeeper
 
+      - name: Prepare environment # need llvm-symbolizer for sanitizer
+        run: bash .github/workflows/prepare-env.sh 17
+
       - name: Run integration Tests
         run: bash .github/workflows/run-integration-test.sh tests/integration --junitxml=integration-test-report-${{ inputs.sanitize }}.xml
 
