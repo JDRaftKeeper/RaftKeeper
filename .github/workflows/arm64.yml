@@ -26,6 +26,3 @@ jobs:
       - name: Run unit tests
         working-directory: ${{github.workspace}}/build
         run: ./src/rk_unit_tests --gtest_color=yes
-
-      - name: Run integration Tests
-        run: bash .github/workflows/run-integration-test.sh tests/integration

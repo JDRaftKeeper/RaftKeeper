@@ -5,8 +5,8 @@
 /// dedicated object (namely clickhouse_malloc.o), and it will show earlier in the link command
 /// than malloc libs like libjemalloc.a. As a result, these symbols get picked in time right after.
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wredundant-decls"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wredundant-decls"
 extern "C"
 {
     void *malloc(size_t size);
@@ -19,7 +19,7 @@ extern "C"
     void *memalign(size_t alignment, size_t size);
     void *pvalloc(size_t size);
 }
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 
 template<typename T>
 inline void ignore(T x __attribute__((unused)))
@@ -29,6 +29,8 @@ inline void ignore(T x __attribute__((unused)))
 static void dummyFunctionForInterposing() __attribute__((used));
 static void dummyFunctionForInterposing()
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-power-of-two-alignment"
     void* dummy;
     /// Suppression for PVS-Studio and clang-tidy.
     free(nullptr); // -V575 NOLINT
@@ -40,5 +42,6 @@ static void dummyFunctionForInterposing()
     ignore(valloc(0)); // -V575 NOLINT
     ignore(memalign(0, 0)); // -V575 NOLINT
     ignore(pvalloc(0)); // -V575 NOLINT
+#pragma clang diagnostic pop
 }
 #endif
