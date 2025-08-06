@@ -154,6 +154,10 @@ jobs:
       test_type: integration
     needs: [integration-test, tsan-integration-test, asan-integration-test, msan-integration-test, ubsan-integration-test]
 
-  macos-build-and-unit-test:
+  build-and-test-macos:
     uses: ./.github/workflows/macos.yml
+    needs: check-style
+
+  build-and-test-arm64:
+    uses: ./.github/workflows/arm64.yml
     needs: check-style

@@ -1,11 +1,14 @@
-name: Build and Test macOS
+name: Build and Test on macOS
 
 on: # yamllint disable-line rule:truthy
   workflow_call:
 
 jobs:
   run:
-    runs-on: macos-13
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+    runs-on: macos-13-${{ matrix.arch == 'arm64' && 'arm64' || 'latest' }}
     steps:
       - uses: actions/checkout@v3
         with:
