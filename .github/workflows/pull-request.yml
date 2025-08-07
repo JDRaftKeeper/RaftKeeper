@@ -71,13 +71,13 @@ jobs:
       sanitize: tsan
     needs: check-style
 
-  tsan-unit-test:
+  unit-test-tsan:
     uses: ./.github/workflows/unit-test.yml
     with:
       sanitize: tsan
     needs: build-tsan
 
-  tsan-integration-test:
+  integration-test-tsan:
     uses: ./.github/workflows/integration-test.yml
     with:
       sanitize: tsan
@@ -90,13 +90,13 @@ jobs:
       sanitize: asan
     needs: check-style
 
-  asan-unit-test:
+  unit-test-asan:
     uses: ./.github/workflows/unit-test.yml
     with:
       sanitize: asan
     needs: build-asan
 
-  asan-integration-test:
+  integration-test-asan:
     uses: ./.github/workflows/integration-test.yml
     with:
       sanitize: asan
@@ -109,13 +109,13 @@ jobs:
       sanitize: msan
     needs: check-style
 
-  msan-unit-test:
+  unit-test-msan:
     uses: ./.github/workflows/unit-test.yml
     with:
       sanitize: msan
     needs: build-msan
 
-  msan-integration-test:
+  integration-test-msan:
     uses: ./.github/workflows/integration-test.yml
     with:
       sanitize: msan
@@ -128,13 +128,13 @@ jobs:
       sanitize: ubsan
     needs: check-style
 
-  ubsan-unit-test:
+  unit-test-ubsan:
     uses: ./.github/workflows/unit-test.yml
     with:
       sanitize: ubsan
     needs: build-ubsan
 
-  ubsan-integration-test:
+  integration-test-ubsan:
     uses: ./.github/workflows/integration-test.yml
     with:
       sanitize: ubsan
@@ -145,14 +145,14 @@ jobs:
     uses: ./.github/workflows/report.yml
     with:
       test_type: unit
-    needs: [unit-test, tsan-unit-test, asan-unit-test, msan-unit-test, ubsan-unit-test]
+    needs: [unit-test, unit-test-tsan, unit-test-asan, unit-test-msan, unit-test-ubsan]
 
   integration-test-report:
     if: always() && github.event_name == 'pull_request'
     uses: ./.github/workflows/report.yml
     with:
       test_type: integration
-    needs: [integration-test, tsan-integration-test, asan-integration-test, msan-integration-test, ubsan-integration-test]
+    needs: [integration-test, integration-test-tsan, integration-test-asan, integration-test-msan, integration-test-ubsan]
 
   build-and-test-macos:
     uses: ./.github/workflows/macos.yml

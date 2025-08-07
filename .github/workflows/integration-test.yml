@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download binary
         uses: actions/download-artifact@v4
@@ -24,7 +24,7 @@ jobs:
         run: sudo chmod 755 build/programs/raftkeeper
 
       - name: Prepare environment # need llvm-symbolizer for sanitizer
-        run: bash .github/workflows/prepare-env.sh 17
+        run: bash .github/workflows/prepare-env.sh 18
 
       - name: Run integration Tests
         run: bash .github/workflows/run-integration-test.sh tests/integration --junitxml=integration-test-report-${{ inputs.sanitize }}.xml
