@@ -379,7 +379,7 @@ def test_auth_snapshot(started_cluster):
     for i in range(100):
         connection.create(f"/test_snapshot_acl/path{i}", b"data", acl=[make_acl("auth", "", all=True)])
 
-    node.restart_raftkeeper(kill=True)
+    node.restart_raftkeeper()
     node.wait_for_join_cluster()
 
     connection = get_fake_zk()
