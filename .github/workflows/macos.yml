@@ -5,20 +5,21 @@ on: # yamllint disable-line rule:truthy
 
 jobs:
   run:
-    strategy:
-      matrix:
-        arch: [x86_64, arm64]
-    runs-on: macos-13-${{ matrix.arch == 'arm64' && 'arm64' || 'latest' }}
+#    strategy:
+#      matrix:
+#        arch: [x86_64, arm64]
+#    runs-on: macos-14-${{ matrix.arch == 'arm64' && 'arm64' || 'latest' }} # actions is stuck in Github
+    runs-on: macos-14
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Install tools
-        run: brew install ninja ccache cmake llvm@17
+        run: brew install ninja ccache cmake llvm@18
 
       - name: Generate Makefile
-        run: export CC=$(brew --prefix llvm@17)/bin/clang CXX=$(brew --prefix llvm@17)/bin/clang++ && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: export CC=$(brew --prefix llvm@18)/bin/clang CXX=$(brew --prefix llvm@18)/bin/clang++ && cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
       - name: Build
         working-directory: ${{github.workspace}}/build

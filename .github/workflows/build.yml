@@ -14,12 +14,12 @@ jobs:
   run:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Prepare environment
-        run: bash .github/workflows/prepare-env.sh 17
+        run: bash .github/workflows/prepare-env.sh 18
 
       - name: Generate Makefile
         run: |
