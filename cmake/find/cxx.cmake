@@ -51,7 +51,7 @@ if (NOT HAVE_LIBCXX AND NOT MISSING_INTERNAL_LIBCXX_LIBRARY)
 
     configure_file("${LIBCXX_SOURCE_DIR}/include/__config_site.in" "${CMAKE_CURRENT_BINARY_DIR}/include/__config_site" @ONLY)
     set(CONFIG_SITE_DIR "${CMAKE_CURRENT_BINARY_DIR}/include")
-    message("CONFIG_SITE_DIR ${CONFIG_SITE_DIR}")
+    message(STATUS "CONFIG_SITE_DIR: ${CONFIG_SITE_DIR}")
     include_directories(${CONFIG_SITE_DIR})
 
     set (LIBCXX_LIBRARY cxx)
