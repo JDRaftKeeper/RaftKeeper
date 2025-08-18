@@ -1,7 +1,7 @@
-if (SANITIZE OR NOT (ARCH_AMD64 OR ARCH_ARM) OR NOT (OS_LINUX OR OS_FREEBSD OR OS_DARWIN))
+if (SANITIZE OR NOT (ARCH_AMD64 OR ARCH_ARM) OR NOT OS_LINUX)
     if (ENABLE_JEMALLOC)
         message (${RECONFIGURE_MESSAGE_LEVEL}
-                 "jemalloc is disabled implicitly: it doesn't work with sanitizers and can only be used with x86_64 or aarch64 on linux or freebsd.")
+                 "jemalloc is disabled implicitly: it doesn't work with sanitizers and can only be used with x86_64 or aarch64 on linux.")
     endif()
     set (ENABLE_JEMALLOC OFF)
 else()
@@ -15,10 +15,6 @@ if (NOT ENABLE_JEMALLOC)
     message (STATUS "Not using jemalloc")
     return()
 endif ()
-
-if (NOT OS_LINUX)
-    message (WARNING "jemalloc support on non-linux is EXPERIMENTAL")
-endif()
 
 if (OS_LINUX)
     # ThreadPool select job randomly, and there can be some threads that had been
