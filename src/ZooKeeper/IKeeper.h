@@ -376,8 +376,9 @@ struct CheckStatRequest : virtual Request
 {
     String path;
     int32_t version = -1;
-    int32_t cversion = -1;
-    int32_t aversion = -1;
+    /// Full stat to verify. Any field left as -1 is a wildcard. Wire format and semantics
+    /// match ClickHouse Keeper's CheckStat (path + version + Stat).
+    Stat stat_to_check = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
     void addRootPath(const String & root_path) override;
     String getPath() const override { return path; }

@@ -2,7 +2,7 @@ from kazoo.client import KazooClient, Create, GetData, GetChildren, Exists, OPEN
     GetChildren2, Exists, TransactionRequest, Create2
 from kazoo.protocol.paths import _prefix_root
 from kazoo.protocol.serialization import MultiHeader, Transaction, multiheader_struct, int_struct, read_string, \
-    read_buffer, stat_struct, ZnodeStat, write_string, write_buffer
+    read_buffer, stat_struct, ZnodeStat, write_string, write_buffer, Delete, SetData, CheckVersion
 from kazoo.protocol.connection import ReplyHeader
 from kazoo.exceptions import EXCEPTIONS, MarshallingError, NoNodeError
 from kazoo.security import ACL
@@ -246,15 +246,15 @@ class ListRecursive(namedtuple('ListRecursive', 'path max_entries')):
         return children
 
 
-class CheckStat(namedtuple('CheckStat', 'path version cversion aversion')):
+class CheckStat(namedtuple('CheckStat', 'path version stat')):
     type = 504
 
     def serialize(self):
+        # Wire: path + version + full Stat (matches ClickHouse Keeper). Any Stat field == -1 is a wildcard.
         b = bytearray()
         b.extend(write_string(self.path))
         b.extend(int_struct.pack(self.version))
-        b.extend(int_struct.pack(self.cversion))
-        b.extend(int_struct.pack(self.aversion))
+        b.extend(stat_struct.pack(*self.stat))
         return b
 
     @classmethod
@@ -372,13 +372,18 @@ class KeeperFeatureClient(KazooClient):
         self._call(ListRecursive(_prefix_root(self.chroot, path), max_entries), async_result)
         return async_result.get()
 
-    def check_stat(self, path, version=-1, cversion=-1, aversion=-1):
-        """Check a node's version/cversion/aversion (OpNum 504).
+    def check_stat(self, path, version=-1, czxid=-1, mzxid=-1, ctime=-1, mtime=-1,
+                   stat_version=-1, cversion=-1, aversion=-1, ephemeral_owner=-1,
+                   data_length=-1, num_children=-1, pzxid=-1):
+        """Check a node's stat (OpNum 504). `version` is the check version; every Stat field left
+        at -1 is a wildcard. Wire format matches ClickHouse Keeper (path + version + full Stat).
 
         :returns: True on match. Raises on mismatch/missing node.
         """
+        stat = (czxid, mzxid, ctime, mtime, stat_version, cversion, aversion,
+                ephemeral_owner, data_length, num_children, pzxid)
         async_result = self.handler.async_result()
-        self._call(CheckStat(_prefix_root(self.chroot, path), version, cversion, aversion), async_result)
+        self._call(CheckStat(_prefix_root(self.chroot, path), version, stat), async_result)
         return async_result.get()
 
     def list_children_with_stats_and_data(self, path, list_type=0, with_stat=True, with_data=True, watch=None):
@@ -690,6 +695,44 @@ class KeeperFeatureClient(KazooClient):
         """
         return TransactionRequestExt(self)
 
+class TransactionExt(Transaction):
+    """Transaction whose deserialize also understands the ClickHouse-Keeper extension ops
+    (CheckStat/RemoveRecursive/TryRemove) in successful subresponses. Stock kazoo's Transaction
+    checks the header type before the error code, so an ok header with an unknown extension type
+    would silently corrupt the whole result list."""
+
+    @classmethod
+    def deserialize(cls, bytes, offset):
+        header = MultiHeader(None, False, None)
+        results = []
+        response = None
+        while not header.done:
+            if header.type == -1:
+                err = int_struct.unpack_from(bytes, offset)[0]
+                offset += int_struct.size
+                response = EXCEPTIONS[err]()
+            elif header.err:
+                # RaftKeeper reports a failed subresponse via the header err field with the
+                # original op type preserved (ZooKeeper uses type == -1 above); both must parse
+                # to the exception.
+                response = EXCEPTIONS[header.err]()
+            elif header.type == Create.type:
+                response, offset = read_string(bytes, offset)
+            elif header.type == Delete.type:
+                response = True
+            elif header.type == SetData.type:
+                response = ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
+                offset += stat_struct.size
+            elif header.type == CheckVersion.type or header.type == CheckStat.type \
+                    or header.type == RemoveRecursive.type or header.type == TryRemove.type:
+                # CheckStat/RemoveRecursive/TryRemove success bodies are empty.
+                response = True
+            if response:
+                results.append(response)
+            header, offset = MultiHeader.deserialize(bytes, offset)
+        return results
+
+
 class TransactionRequestExt(TransactionRequest):
     """A Zookeeper Transaction Request
 
@@ -727,9 +770,20 @@ class TransactionRequestExt(TransactionRequest):
             CheckIfNotExistsVersion(_prefix_root(self.client.chroot, path), version)
         )
 
+    def commit_async(self):
+        """Use TransactionExt so extension subresponses (CheckStat & co.) parse correctly."""
+        self.committed = True
+        async_object = self.client.handler.async_result()
+        self.client._call(TransactionExt(self.operations), async_object)
+        return async_object
+
     def check_stat(self, path, version=-1, cversion=-1, aversion=-1):
         """Add a CheckStat (OpNum 504) condition to the transaction."""
-        self._add(CheckStat(_prefix_root(self.client.chroot, path), version, cversion, aversion))
+        # CheckStat.stat tuple order: czxid, mzxid, ctime, mtime, version, cversion, aversion,
+        # ephemeralOwner, dataLength, numChildren, pzxid. -1 = wildcard (matches the direct
+        # KeeperFeatureClient.check_stat method).
+        stat = (-1, -1, -1, -1, -1, cversion, aversion, -1, -1, -1, -1)
+        self._add(CheckStat(_prefix_root(self.client.chroot, path), version, stat))
 
     def try_remove(self, path, version=-1):
         """Add a TryRemove (OpNum 505) to the transaction."""

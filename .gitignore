@@ -121,3 +121,6 @@ config-preprocessed.xml
 
 # ignore benchmark target file
 benchmark/target
+
+# CI-only: pre-pulled ClickHouse Keeper image for back-to-back tests
+tests/integration/ch_keeper_image.tar

@@ -157,7 +157,15 @@ Coordination::Stat KeeperNode::statForResponse() const
     Coordination::Stat stat_view;
     stat_view = stat;
     stat_view.numChildren = children.size();
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
+    /// Apache ZooKeeper's cversion counts both child creations and deletions. RaftKeeper stores only
+    /// the create count internally, so reconstruct the ZK-visible value:
+    /// creates*2 - liveChildren = creates + deletes.
     stat_view.cversion = stat.cversion * 2 - stat.numChildren;
+#else
+    /// ClickHouse Keeper reports the raw stored cversion (which itself counts creates, removes and
+    /// child-Set operations - see StoreRequestSet / StoreRequestRemove under the same #else guard).
+#endif
     return stat_view;
 }
 
@@ -287,6 +295,10 @@ struct StoreRequestCreate final : public StoreRequest
                 return {response_ptr, undo};
             }
 
+            /// ponytail: sequential suffix derives from the parent's internal cversion. In ZK mode
+            /// that equals the create count. In ClickHouse mode cversion also counts removes/sets, so
+            /// the suffix stays monotonic (no collisions) but won't equal ClickHouse's dedicated seq
+            /// counter. Exact parity needs a new per-node field -> snapshot-format change; not done.
             auto seq_num = parent->stat.cversion;
 
             std::stringstream seq_num_str; // STYLE_CHECK_ALLOW_STD_STRING_STREAM
@@ -505,12 +517,14 @@ struct StoreRequestRemove final : public StoreRequest
         }
         else if (request.version != -1 && request.version != node->stat.version)
         {
-            response.error = Coordination::Error::ZBADVERSION;
+            /// TryRemove is best-effort (matches ClickHouse Keeper): a version mismatch is a
+            /// silent no-op success, not an error.
+            response.error = request.try_remove ? Coordination::Error::ZOK : Coordination::Error::ZBADVERSION;
         }
         else if (!node->children.empty())
         {
             LOG_TRACE(log, "Parent children begin {}", *node->children.begin());
-            response.error = Coordination::Error::ZNOTEMPTY;
+            response.error = request.try_remove ? Coordination::Error::ZOK : Coordination::Error::ZNOTEMPTY;
         }
         else
         {
@@ -526,6 +540,11 @@ struct StoreRequestRemove final : public StoreRequest
                 pzxid = parent->stat.pzxid;
                 parent->stat.pzxid = zxid;
                 parent->children.erase(child_basename);
+#ifndef COMPATIBLE_MODE_ZOOKEEPER
+                /// ClickHouse Keeper counts removals in the parent's cversion; Apache ZooKeeper's
+                /// value is reconstructed in statForResponse instead, so ZK mode must not bump it here.
+                ++parent->stat.cversion;
+#endif
             }
 
             store.acl_map.removeUsage(prev_node->acl_id);
@@ -550,6 +569,9 @@ struct StoreRequestRemove final : public StoreRequest
                     ++(undo_parent->stat.numChildren);
                     undo_parent->stat.pzxid = pzxid;
                     undo_parent->children.insert(child_basename);
+#ifndef COMPATIBLE_MODE_ZOOKEEPER
+                    --undo_parent->stat.cversion;
+#endif
                 }
             };
             removed = true;
@@ -585,11 +607,18 @@ struct StoreRequestRemoveRecursive final : public StoreRequest
     }
 
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(KeeperStore & store, int64_t zxid, int64_t /*session_id*/, int64_t /* time */) const override
+    process(KeeperStore & store, int64_t zxid, int64_t session_id, int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         auto & request_typed = dynamic_cast<Coordination::ZooKeeperRemoveRecursiveRequest &>(*zk_request);
         auto & response_typed = dynamic_cast<Coordination::ZooKeeperRemoveRecursiveResponse &>(*response);
+
+        /// Removing the root would wipe the whole tree; ClickHouse Keeper rejects it.
+        if (request_typed.path == "/")
+        {
+            response_typed.error = Coordination::Error::ZBADARGUMENTS;
+            return {response, {}};
+        }
 
         auto root_node = store.getNode(request_typed.path);
         if (root_node == nullptr)
@@ -626,6 +655,27 @@ struct StoreRequestRemoveRecursive final : public StoreRequest
             return {response, {}};
         }
 
+        /// Require Delete permission on every node in the subtree, not just the root's parent
+        /// (matches ClickHouse Keeper). Any denied node fails the whole request before any mutation.
+        {
+            std::shared_lock r_lock(store.auth_mutex);
+            auto auth_it = store.session_and_auth.find(session_id);
+            const auto & session_auths
+                = (auth_it != store.session_and_auth.end()) ? auth_it->second : std::vector<Coordination::AuthID>{};
+            for (const auto & path : paths_to_remove)
+            {
+                auto n = store.getNode(path);
+                if (!n)
+                    continue;
+                const auto & node_acls = store.acl_map.convertNumber(n->acl_id);
+                if (!node_acls.empty() && !checkACL(Coordination::ACL::Delete, node_acls, session_auths))
+                {
+                    response_typed.error = Coordination::Error::ZNOAUTH;
+                    return {response, {}};
+                }
+            }
+        }
+
         /// Snapshot every node about to be removed so the operation can be rolled back
         /// (required when RemoveRecursive is a subrequest of a multi transaction).
         /// clone() preserves each node's own children set, so internal parent-child
@@ -653,6 +703,9 @@ struct StoreRequestRemoveRecursive final : public StoreRequest
             root_parent_pzxid = root_parent->stat.pzxid;
             --root_parent->stat.numChildren;
             root_parent->stat.pzxid = zxid;
+#ifndef COMPATIBLE_MODE_ZOOKEEPER
+            ++root_parent->stat.cversion;
+#endif
         }
 
         /// Remove from leaves up. Each node is removed individually via KeeperStore public API.
@@ -698,6 +751,9 @@ struct StoreRequestRemoveRecursive final : public StoreRequest
                     root_parent->children.insert(root_base);
                     ++root_parent->stat.numChildren;
                     root_parent->stat.pzxid = root_parent_pzxid;
+#ifndef COMPATIBLE_MODE_ZOOKEEPER
+                    --root_parent->stat.cversion;
+#endif
                 }
             }
         };
@@ -716,7 +772,7 @@ struct StoreRequestListRecursive final : public StoreRequest
     }
 
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         auto & response_typed = dynamic_cast<Coordination::ZooKeeperListRecursiveResponse &>(*response);
@@ -734,6 +790,9 @@ struct StoreRequestListRecursive final : public StoreRequest
         std::vector<String> all_paths;
         bool stopped = false;
 
+        /// ponytail: traversal stays DFS and max_entries==0 means "unlimited". ClickHouse Keeper uses
+        /// BFS and sends uint32_max (never 0) for unlimited; ZK guarantees no child ordering, so the
+        /// only observable divergence would be an explicit limit of 0, which no real client sends.
         std::function<void(const KeeperNodePtr &, const String &)> collect_recursive
             = [&](const KeeperNodePtr & current, const String & current_path)
         {
@@ -743,6 +802,12 @@ struct StoreRequestListRecursive final : public StoreRequest
                     return;
 
                 String child_path = current_path + "/" + child;
+                auto child_node = store.getNode(child_path);
+
+                /// Skip children (and their subtrees) the session can't read, matching ClickHouse Keeper.
+                if (child_node && !checkACLForNode(store, session_id, child_path, Coordination::ACL::Read))
+                    continue;
+
                 all_paths.push_back(child_path);
 
                 if (request_typed.max_entries > 0
@@ -752,7 +817,6 @@ struct StoreRequestListRecursive final : public StoreRequest
                     return;
                 }
 
-                auto child_node = store.getNode(child_path);
                 if (child_node && !child_node->children.empty())
                     collect_recursive(child_node, child_path);
             }
@@ -864,7 +928,30 @@ struct StoreRequestSet final : public StoreRequest
             response_typed.stat = node->statForResponse();
             response_typed.error = Coordination::Error::ZOK;
 
+#ifdef COMPATIBLE_MODE_ZOOKEEPER
+            /// Apache ZooKeeper does not change the parent's cversion on a child Set.
             undo = [prev_node, &store, path = request_typed.path] { store.addNode(path, prev_node); };
+#else
+            /// ClickHouse Keeper bumps the parent's cversion on a child Set.
+            const bool bump_parent = parent != nullptr && request_typed.path != "/";
+            const int32_t prev_parent_cversion = bump_parent ? parent->stat.cversion : 0;
+            if (bump_parent)
+                ++parent->stat.cversion;
+
+            /// Resolve the parent by path at undo time: a later failed multi may have removed the
+            /// parent and restored it from a clone (see StoreRequestRemoveRecursive), so the node
+            /// object captured here is not necessarily the one in the tree when the undo runs.
+            undo = [prev_node, &store, path = request_typed.path, parent_path = getParentPath(request_typed.path), bump_parent,
+                    prev_parent_cversion]
+            {
+                store.addNode(path, prev_node);
+                if (bump_parent)
+                {
+                    if (auto live_parent = store.getNode(parent_path))
+                        live_parent->stat.cversion = prev_parent_cversion;
+                }
+            };
+#endif
         }
         else
         {
@@ -905,7 +992,7 @@ struct StoreRequestList final : public StoreRequest
     }
 
     std::pair<Coordination::ZooKeeperResponsePtr, Undo>
-    process(KeeperStore & store, int64_t /*zxid*/, int64_t /*session_id*/, int64_t /* time */) const override
+    process(KeeperStore & store, int64_t /*zxid*/, int64_t session_id, int64_t /* time */) const override
     {
         auto response = zk_request->makeResponse();
         auto & request_typed = dynamic_cast<Coordination::ZooKeeperListRequest &>(*zk_request);
@@ -942,10 +1029,28 @@ struct StoreRequestList final : public StoreRequest
 
             response_typed.stat = node->statForResponse();
 
-            auto matches_filter = [&](const auto & child) -> bool
+            /// A plain List (ALL, no stat/data) does not reveal anything secret, so child ACLs are
+            /// not checked. But filtering exposes each child's ephemeral flag, and with_stat/with_data
+            /// expose its stat/data, so those require Read permission on the child — any denied child
+            /// fails the whole request with ZNOAUTH (matches ClickHouse Keeper).
+            const bool need_child_acl = (list_request_type != ALL) || with_stat || with_data;
+
+            auto child_read_allowed = [&](const KeeperNodePtr & child_node) -> bool
             {
-                if (list_request_type == ALL)
+                /// convertNumber (which locks acl_map) must be called before taking auth_mutex, to keep
+                /// the same lock order as checkAuth() and avoid a deadlock.
+                const auto & child_acls = store.acl_map.convertNumber(child_node->acl_id);
+                if (child_acls.empty())
                     return true;
+                std::shared_lock r_lock(store.auth_mutex);
+                auto it = store.session_and_auth.find(session_id);
+                const auto & session_auths
+                    = (it != store.session_and_auth.end()) ? it->second : std::vector<Coordination::AuthID>{};
+                return checkACL(Coordination::ACL::Read, child_acls, session_auths);
+            };
+
+            auto get_child = [&](const String & child) -> KeeperNodePtr
+            {
                 auto child_node = store.getNode(request_typed.path + "/" + child);
                 if (child_node == nullptr)
                 {
@@ -956,26 +1061,45 @@ struct StoreRequestList final : public StoreRequest
                         request_typed.path);
                     std::terminate();
                 }
-                const auto is_ephemeral = child_node->stat.ephemeralOwner != 0;
-                return (is_ephemeral && list_request_type == EPHEMERAL_ONLY) || (!is_ephemeral && list_request_type == PERSISTENT_ONLY);
+                return child_node;
             };
+
+            /// Pre-pass: if this request would reveal any child's stat/data/ephemeral-flag, the session
+            /// needs Read on every such child. A single denied child fails the whole request (ZNOAUTH),
+            /// so check before collecting anything (CompactStrings has no clear()).
+            if (need_child_acl)
+            {
+                for (const auto & child : node->children)
+                {
+                    if (!child_read_allowed(get_child(child)))
+                    {
+                        response->error = Coordination::Error::ZNOAUTH;
+                        return {response, {}};
+                    }
+                }
+            }
 
             response_typed.names.reserve(node->children.size());
             for (const auto & child : node->children)
             {
-                if (!matches_filter(child))
-                    continue;
+                KeeperNodePtr child_node;
+                if (need_child_acl)
+                    child_node = get_child(child);
+
+                if (list_request_type != ALL)
+                {
+                    const auto is_ephemeral = child_node->stat.ephemeralOwner != 0;
+                    if (!((is_ephemeral && list_request_type == EPHEMERAL_ONLY)
+                          || (!is_ephemeral && list_request_type == PERSISTENT_ONLY)))
+                        continue;
+                }
 
                 response_typed.names.push_back(child);
 
-                if (with_stat || with_data)
-                {
-                    auto child_node = store.getNode(request_typed.path + "/" + child);
-                    if (with_stat)
-                        response_typed.stats.push_back(child_node ? child_node->statForResponse() : Coordination::Stat{});
-                    if (with_data)
-                        response_typed.data.push_back(child_node ? child_node->data : String{});
-                }
+                if (with_stat)
+                    response_typed.stats.push_back(child_node->statForResponse());
+                if (with_data)
+                    response_typed.data.push_back(child_node->data);
             }
         }
         else
@@ -1088,15 +1212,31 @@ struct StoreRequestCheckStat final : public StoreRequest
 
         auto node = store.getNode(request_typed.path);
         if (node == nullptr)
+        {
             response->error = Coordination::Error::ZNONODE;
+        }
         else if (request_typed.version != -1 && request_typed.version != node->stat.version)
+        {
             response->error = Coordination::Error::ZBADVERSION;
-        else if (request_typed.cversion != -1 && request_typed.cversion != node->stat.cversion)
-            response->error = Coordination::Error::ZBADVERSION;
-        else if (request_typed.aversion != -1 && request_typed.aversion != node->stat.aversion)
-            response->error = Coordination::Error::ZBADVERSION;
+        }
         else
-            response->error = Coordination::Error::ZOK;
+        {
+            /// Compare the full stat against what the client would have read (statForResponse),
+            /// so CheckStat is self-consistent with Get/List and matches ClickHouse Keeper's
+            /// checkNodeStat. Any field left as -1 is a wildcard.
+            const auto view = node->statForResponse();
+            const auto & v = request_typed.stat_to_check;
+            auto mismatch = [](int64_t want, int64_t have) { return want != -1 && want != have; };
+            if (mismatch(v.czxid, view.czxid) || mismatch(v.mzxid, view.mzxid)
+                || mismatch(v.ctime, view.ctime) || mismatch(v.mtime, view.mtime)
+                || mismatch(v.version, view.version) || mismatch(v.cversion, view.cversion)
+                || mismatch(v.aversion, view.aversion) || mismatch(v.ephemeralOwner, view.ephemeralOwner)
+                || mismatch(v.dataLength, view.dataLength) || mismatch(v.numChildren, view.numChildren)
+                || mismatch(v.pzxid, view.pzxid))
+                response->error = Coordination::Error::ZBADVERSION;
+            else
+                response->error = Coordination::Error::ZOK;
+        }
 
         return {response, {}};
     }
@@ -1166,7 +1306,7 @@ struct StoreRequestSetACL final : public StoreRequest
             node->acl_id = acl_id;
             ++node->stat.aversion;
 
-            response_typed.stat = node->stat;
+            response_typed.stat = node->statForResponse();
             response_typed.error = Coordination::Error::ZOK;
         }
 
@@ -1218,7 +1358,7 @@ struct StoreRequestGetACL final : public StoreRequest
         }
         else
         {
-            response_typed.stat = node->stat;
+            response_typed.stat = node->statForResponse();
             response_typed.acl = store.acl_map.convertNumber(node->acl_id);
         }
 
@@ -1938,6 +2078,13 @@ void KeeperStore::cleanEphemeralNodes(int64_t session_id, ThreadSafeQueue<Respon
             {
                 --parent->stat.numChildren;
                 parent->children.erase(getBaseName(ephemeral_path));
+#ifndef COMPATIBLE_MODE_ZOOKEEPER
+                /// ClickHouse Keeper counts removals in the parent's cversion (as StoreRequestRemove
+                /// does for an explicit delete); an ephemeral expiry must advance it too.
+                /// In ZK mode the visible cversion is reconstructed in statForResponse from
+                /// cversion/numChildren, so the stored value must stay untouched here.
+                ++parent->stat.cversion;
+#endif
             }
             data_tree.erase(ephemeral_path);
 

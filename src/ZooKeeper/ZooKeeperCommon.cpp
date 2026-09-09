@@ -195,16 +195,14 @@ void ZooKeeperCheckStatRequest::writeImpl(WriteBuffer & out) const
 {
     Coordination::write(path, out);
     Coordination::write(version, out);
-    Coordination::write(cversion, out);
-    Coordination::write(aversion, out);
+    Coordination::write(stat_to_check, out);
 }
 
 void ZooKeeperCheckStatRequest::readImpl(ReadBuffer & in)
 {
     Coordination::read(path, in);
     Coordination::read(version, in);
-    Coordination::read(cversion, in);
-    Coordination::read(aversion, in);
+    Coordination::read(stat_to_check, in);
 }
 
 ZooKeeperResponsePtr ZooKeeperCheckStatRequest::makeResponse() const

@@ -64,6 +64,52 @@ jobs:
       sanitize: none
     needs: build
 
+  # The default matrix builds ZooKeeper-compatible mode. Additionally build ClickHouse-compatible
+  # mode (COMPATIBLE_MODE_ZOOKEEPER=OFF) and run the ClickHouse Keeper back-to-back suite against it,
+  # so cversion / extension-op parity is exercised against a real ClickHouse Keeper.
+  integration-test-clickhouse-mode:
+    runs-on: ubuntu-22.04
+    needs: check-style
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare environment
+        run: bash .github/workflows/prepare-env.sh 18
+
+      - name: Generate Makefile (ClickHouse-compatible mode)
+        run: |
+          export CC=`which clang` CXX=`which clang++`
+          cmake -G Ninja -B ./build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCOMPATIBLE_MODE_ZOOKEEPER=OFF
+
+      - name: Build raftkeeper
+        working-directory: ${{ github.workspace }}/build
+        run: ninja -j 10 raftkeeper
+
+      - name: Add executable privileges
+        run: sudo chmod 755 build/programs/raftkeeper
+
+      - name: Pre-pull ClickHouse Keeper image
+        # The docker-in-docker daemon in the runner can't reach Docker Hub; pull on the host (which
+        # can) and save a tarball the test loads into DIND (see _maybe_load_keeper_image).
+        run: |
+          docker pull clickhouse/clickhouse-keeper:latest
+          docker save clickhouse/clickhouse-keeper:latest -o tests/integration/ch_keeper_image.tar
+
+      - name: Run ClickHouse Keeper back-to-back tests
+        # Pass all pytest args as ONE quoted string (see integration-test.yml note). -rs prints skip
+        # reasons so a skipped keeper shows its diagnostics in the log. Runs both the single-node and
+        # 3-node cluster back-to-back suites against the ClickHouse-compatible build.
+        run: bash .github/workflows/run-integration-test.sh tests/integration "test_clickhouse_keeper_back_to_back test_clickhouse_keeper_back_to_back_cluster -rs --junitxml=integration-test-report-clickhouse-mode.xml"
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-report-clickhouse-mode.xml
+          path: tests/integration/integration-test-report-clickhouse-mode.xml
+
   build-tsan:
     uses: ./.github/workflows/build.yml
     with:
