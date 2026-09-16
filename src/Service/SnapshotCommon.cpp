@@ -17,6 +17,7 @@ namespace RK
 namespace ErrorCodes
 {
     extern const int CORRUPTED_SNAPSHOT;
+    extern const int UNKNOWN_FORMAT_VERSION;
 }
 
 using nuraft::cs_new;
@@ -33,9 +34,43 @@ String toString(SnapshotVersion version)
             return "v2";
         case SnapshotVersion::V3:
             return "v3";
+        case SnapshotVersion::V4:
+            return "v4";
         case SnapshotVersion::UNKNOWN:
             return "unknown";
     }
+}
+
+void SnapshotFormat::validate() const
+{
+    if (version > MAX_SNAPSHOT_VERSION)
+        throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", static_cast<uint8_t>(version));
+    if (codec != SnapshotCodec::None && codec != SnapshotCodec::Zstd)
+        throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot codec {}", static_cast<uint8_t>(codec));
+    if (version < SnapshotVersion::V4 && codec != SnapshotFormat(version).codec)
+        throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Snapshot codec does not match legacy version {}", toString(version));
+}
+
+SnapshotFormat readSnapshotFormat(ReadBuffer & in)
+{
+    uint8_t version;
+    readIntBinary(version, in);
+    SnapshotFormat format(static_cast<SnapshotVersion>(version));
+    format.validate();
+    if (format.version >= SnapshotVersion::V4)
+    {
+        uint8_t codec;
+        uint16_t flags;
+        uint32_t reserved;
+        readIntBinary(codec, in);
+        readIntBinary(flags, in);
+        readIntBinary(reserved, in);
+        format.codec = static_cast<SnapshotCodec>(codec);
+        format.validate();
+        if (flags != 0 || reserved != 0)
+            throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot flags or reserved fields");
+    }
+    return format;
 }
 
 
@@ -67,11 +102,18 @@ int openFileForWrite(const String & path)
     return snap_fd;
 }
 
-ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotVersion version)
+ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotFormat format)
 {
+    format.validate();
     auto out = std::make_shared<WriteBufferFromFile>(path);
     out->write(MAGIC_SNAPSHOT_HEAD.data(), MAGIC_SNAPSHOT_HEAD.size());
-    writeIntBinary(static_cast<uint8_t>(version), *out);
+    writeIntBinary(static_cast<uint8_t>(format.version), *out);
+    if (format.version >= SnapshotVersion::V4)
+    {
+        writeIntBinary(static_cast<uint8_t>(format.codec), *out);
+        writeIntBinary(uint16_t{0}, *out); // flags
+        writeIntBinary(uint32_t{0}, *out); // reserved
+    }
     return out;
 }
 
@@ -156,14 +198,14 @@ ptr<KeeperNodeWithPath>parseKeeperNode(const String & buf, SnapshotVersion versi
 }
 
 
-std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, SnapshotVersion version)
+std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, SnapshotFormat format)
 {
     if (!batch)
         batch = cs_new<SnapshotBatchBody>();
 
     String str_buf = SnapshotBatchBody::serialize(*batch);
 
-    if (version >= SnapshotVersion::V3)
+    if (format.codec == SnapshotCodec::Zstd)
     {
         auto compressed = ZstdLogCodec::compress(str_buf.data(), str_buf.size());
         if (!compressed)
@@ -185,167 +227,157 @@ std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<Snapsh
 }
 
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum, SnapshotVersion version)
+saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum, SnapshotFormat format)
 {
-    auto [save_size, data_crc] = saveBatchV2(out, batch, version);
+    auto [save_size, data_crc] = saveBatchV2(out, batch, format);
     /// rebuild batch
     batch = cs_new<SnapshotBatchBody>();
     return {save_size, updateCheckSum(checksum, data_crc)};
 }
 
-void serializeAclsV2(const NumToACLMap & acl_map, String path, UInt32 save_batch_size, SnapshotVersion version)
+namespace
 {
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
 
-    LOG_INFO(log, "Begin create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
-
-    auto out = openFileAndWriteHeader(path, version);
-    ptr<SnapshotBatchBody> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (const auto & acl_it : acl_map)
+    template <typename Map, typename WriteElement>
+    UInt32 writeMetadataBatches(
+        ptr<WriteBufferFromFile> & out,
+        UInt32 checksum,
+        SnapshotBatchType type,
+        const Map & values,
+        UInt32 save_batch_size,
+        SnapshotFormat format,
+        WriteElement write_element)
     {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
+        if (save_batch_size == 0)
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Snapshot batch size must be positive");
+
+        auto batch = cs_new<SnapshotBatchBody>();
+        batch->type = type;
+        for (const auto & value : values)
         {
-            /// skip flush the first batch
-            if (index != 0)
+            WriteBufferFromOwnString buf;
+            write_element(value, buf);
+            batch->add(buf.str());
+            if (batch->size() == save_batch_size)
             {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-                checksum = new_checksum;
+                checksum = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format).second;
+                batch->type = type;
             }
-            batch = cs_new<SnapshotBatchBody>();
-            batch->type = SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP;
         }
 
-        /// append to batch
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(acl_it.first, buf);
-        Coordination::write(acl_it.second, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        batch->add(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
+        if (batch->size() != 0 || values.empty())
+            checksum = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format).second;
+        return checksum;
     }
 
-    /// flush the last acl batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-    checksum = new_checksum;
+    template <typename Map>
+    UInt32
+    writeMapBatches(ptr<WriteBufferFromFile> & out, UInt32 checksum, const Map & values, UInt32 save_batch_size, SnapshotFormat format)
+    {
+        constexpr auto type
+            = std::is_same_v<Map, IntMap> ? SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP : SnapshotBatchType::SNAPSHOT_TYPE_STRINGMAP;
+        return writeMetadataBatches(
+            out,
+            checksum,
+            type,
+            values,
+            save_batch_size,
+            format,
+            [](const auto & value, WriteBuffer & buf)
+            {
+                Coordination::write(value.first, buf);
+                Coordination::write(value.second, buf);
+            });
+    }
 
-    writeTailAndClose(out, checksum);
-    LOG_INFO(log, "Finish create snapshot acl object, acl size {}, path {}", acl_map.size(), path);
+    UInt32 writeSessionBatches(
+        ptr<WriteBufferFromFile> & out,
+        UInt32 checksum,
+        const SessionAndTimeout & sessions,
+        const SessionAndAuth & auth,
+        UInt32 save_batch_size,
+        SnapshotFormat format)
+    {
+        return writeMetadataBatches(
+            out,
+            checksum,
+            SnapshotBatchType::SNAPSHOT_TYPE_SESSION,
+            sessions,
+            save_batch_size,
+            format,
+            [&auth](const auto & value, WriteBuffer & buf)
+            {
+                Coordination::write(value.first, buf);
+                Coordination::write(value.second, buf);
+                auto it = auth.find(value.first);
+                Coordination::write(it == auth.end() ? Coordination::AuthIDs{} : it->second, buf);
+            });
+    }
+
+    UInt32 writeAclBatches(
+        ptr<WriteBufferFromFile> & out, UInt32 checksum, const NumToACLMap & acls, UInt32 save_batch_size, SnapshotFormat format)
+    {
+        return writeMetadataBatches(
+            out,
+            checksum,
+            SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP,
+            acls,
+            save_batch_size,
+            format,
+            [](const auto & value, WriteBuffer & buf)
+            {
+                Coordination::write(value.first, buf);
+                Coordination::write(value.second, buf);
+            });
+    }
+
 }
 
-
-void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, SnapshotVersion version, String & path)
+void serializeAclsV2(const NumToACLMap & acls, String path, UInt32 save_batch_size, SnapshotFormat format)
 {
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    auto out = openFileAndWriteHeader(path, version);
-    LOG_INFO(log, "Begin create snapshot session object, session size {}, path {}", session_and_timeout.size(), path);
+    auto out = openFileAndWriteHeader(path, format);
+    auto checksum = writeAclBatches(out, 0, acls, save_batch_size, format);
+    writeTailAndClose(out, checksum);
+}
 
-    ptr<SnapshotBatchBody> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (auto && session_it : session_and_timeout)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-                checksum = new_checksum;
-            }
-            batch = cs_new<SnapshotBatchBody>();
-            batch->type = SnapshotBatchType::SNAPSHOT_TYPE_SESSION;
-        }
-
-        /// append to batch
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(session_it.first, buf); //NewSession
-        Coordination::write(session_it.second, buf); //Timeout_ms
-
-        Coordination::AuthIDs ids;
-        if (session_and_auth.count(session_it.first))
-            ids = session_and_auth.at(session_it.first);
-        Coordination::write(ids, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        batch->add(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-    checksum = new_checksum;
+void serializeSessionsV2(
+    SessionAndTimeout & session_and_timeout,
+    SessionAndAuth & session_and_auth,
+    UInt32 save_batch_size,
+    SnapshotFormat format,
+    String & path)
+{
+    auto out = openFileAndWriteHeader(path, format);
+    auto checksum = writeSessionBatches(out, 0, session_and_timeout, session_and_auth, save_batch_size, format);
     writeTailAndClose(out, checksum);
 }
 
 template <typename T>
-void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path)
+void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotFormat format, String & path)
 {
-    Poco::Logger * log = &(Poco::Logger::get("KeeperSnapshotStore"));
-    LOG_INFO(log, "Begin create snapshot map object, map size {}, path {}", snap_map.size(), path);
-
-    auto out = openFileAndWriteHeader(path, version);
-    ptr<SnapshotBatchBody> batch;
-
-    uint64_t index = 0;
-    UInt32 checksum = 0;
-
-    for (auto & it : snap_map)
-    {
-        /// flush and rebuild batch
-        if (index % save_batch_size == 0)
-        {
-            /// skip flush the first batch
-            if (index != 0)
-            {
-                /// write data in batch to file
-                auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-                checksum = new_checksum;
-            }
-
-            batch = cs_new<SnapshotBatchBody>();
-            if constexpr (std::is_same_v<T, StringMap>)
-                batch->type = SnapshotBatchType::SNAPSHOT_TYPE_STRINGMAP;
-            else if constexpr (std::is_same_v<T, IntMap>)
-                batch->type = SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP;
-            else
-                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Only support string and int map.");
-        }
-
-        /// append to batch
-        WriteBufferFromNuraftBuffer buf;
-        Coordination::write(it.first, buf);
-        Coordination::write(it.second, buf);
-
-        ptr<buffer> data = buf.getBuffer();
-        data->pos(0);
-        batch->add(String(reinterpret_cast<char *>(data->data_begin()), data->size()));
-
-        index++;
-    }
-
-    /// flush the last batch
-    auto [_, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
-    checksum = new_checksum;
+    auto out = openFileAndWriteHeader(path, format);
+    auto checksum = writeMapBatches(out, 0, snap_map, save_batch_size, format);
     writeTailAndClose(out, checksum);
 }
 
-template void serializeMapV2<StringMap>(StringMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
-template void serializeMapV2<IntMap>(IntMap & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
+template void serializeMapV2<StringMap>(StringMap & snap_map, UInt32 save_batch_size, SnapshotFormat format, String & path);
+template void serializeMapV2<IntMap>(IntMap & snap_map, UInt32 save_batch_size, SnapshotFormat format, String & path);
+
+void serializeSnapshotMetadata(
+    const IntMap & counters,
+    const SessionAndTimeout & sessions,
+    const SessionAndAuth & auth,
+    const NumToACLMap & acls,
+    UInt32 save_batch_size,
+    SnapshotFormat format,
+    const String & path)
+{
+    auto out = openFileAndWriteHeader(path, format);
+    auto checksum = writeMapBatches(out, 0, counters, save_batch_size, format);
+    checksum = writeSessionBatches(out, checksum, sessions, auth, save_batch_size, format);
+    checksum = writeAclBatches(out, checksum, acls, save_batch_size, format);
+    writeTailAndClose(out, checksum);
+}
 
 void SnapshotBatchBody::add(const String & element)
 {
@@ -381,14 +413,20 @@ ptr<SnapshotBatchBody> SnapshotBatchBody::parse(const String & data)
     ReadBufferFromMemory in(data.c_str(), data.size());
     int32_t type;
     readIntBinary(type, in);
+    if (type < 0 || type > static_cast<int32_t>(SnapshotBatchType::SNAPSHOT_TYPE_ACLMAP))
+        throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Invalid snapshot batch type {}", type);
     batch_body->type = static_cast<SnapshotBatchType>(type);
     int32_t element_count;
     readIntBinary(element_count, in);
+    if (element_count < 0 || static_cast<size_t>(element_count) > in.available() / sizeof(int32_t))
+        throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Invalid snapshot batch element count {}", element_count);
     batch_body->elements.reserve(element_count);
     for (int i = 0; i < element_count; i++)
     {
         int32_t element_size;
         readIntBinary(element_size, in);
+        if (element_size < 0 || static_cast<size_t>(element_size) > in.available())
+            throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Invalid snapshot batch element size {}", element_size);
         String element;
         element.resize(element_size);
         in.readStrict(element.data(), element_size);
@@ -507,7 +545,7 @@ void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, Snapshot
     }
 }
 
-void parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_count, SnapshotBatchBody & batch, SnapshotVersion /*version*/)
+IntMap parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_count, SnapshotBatchBody & batch, SnapshotVersion /*version*/)
 {
     IntMap int_map;
     for (size_t i = 0; i < batch.size(); i++)
@@ -541,6 +579,7 @@ void parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_coun
     {
         object_count = int_map["OBJECTCOUNT"];
     }
+    return int_map;
 }
 
 }

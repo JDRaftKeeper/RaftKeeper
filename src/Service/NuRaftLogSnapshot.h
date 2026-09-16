@@ -1,9 +1,12 @@
 #pragma once
 
-#include <Service/SnapshotCommon.h>
-#include <Service/Metrics.h>
-#include <Common/Stopwatch.h>
+#include <atomic>
 #include <charconv>
+
+#include <Common/Stopwatch.h>
+
+#include <Service/Metrics.h>
+#include <Service/SnapshotCommon.h>
 
 
 namespace RK
@@ -135,13 +138,14 @@ public:
         snapshot & meta,
         UInt32 max_object_node_size_ = MAX_OBJECT_NODE_SIZE,
         UInt32 save_batch_size_ = SAVE_BATCH_SIZE,
-        SnapshotVersion version_ = SnapshotVersion::V2)
-        : version(version_)
+        SnapshotFormat format_ = {})
+        : format(format_)
         , snap_dir(snap_dir_)
         , max_object_node_size(max_object_node_size_)
         , save_batch_size(save_batch_size_)
         , log(&(Poco::Logger::get("KeeperSnapshotStore")))
     {
+        format.validate();
         last_log_index = meta.get_last_log_idx();
         last_log_term = meta.get_last_log_term();
 
@@ -166,8 +170,8 @@ public:
     /// initialize a snapshot store
     void init(const String & create_time  = "");
 
-    /// Load the latest snapshot object.
-    void loadLatestSnapshot(KeeperStore & store);
+    /// Strict conversion loads require counters, object count and an explicit root node.
+    void loadLatestSnapshot(KeeperStore & store, bool require_complete_state = false);
 
     /// load on object of the latest snapshot
     void loadObject(ulong obj_id, ptr<buffer> & buffer);
@@ -189,11 +193,13 @@ public:
     static constexpr int SNAPSHOT_THREAD_NUM = 8;
     static constexpr int IO_BUFFER_SIZE = 16384; /// 16K
 
-    SnapshotVersion version;
+    SnapshotFormat format;
 
     std::map<ulong, String> getObjectPaths() const { return objects_path; }
 
 private:
+    void serializeMetadata(IntMap & counters, SessionAndTimeout & sessions, SessionAndAuth & auth, const NumToACLMap & acls) const;
+
     /// For snapshot version v2
     size_t createObjectsV2(KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0);
 
@@ -263,6 +269,8 @@ private:
     /// Loaded snapshot object count which is read from object1
     /// Added from RaftKeeper v2.2.0
     std::optional<UInt32> loaded_objects_count;
+    std::atomic<bool> loaded_zxid{false};
+    std::atomic<bool> loaded_session_id{false};
 
     std::vector<BucketEdges> all_objects_edges;
     std::vector<BucketNodes> all_objects_nodes;
@@ -315,16 +323,10 @@ public:
 
     ~KeeperSnapshotManager() = default;
 
-    size_t createSnapshotAsync(
-        SnapTask & snap_task,
-        SnapshotVersion version = SnapshotVersion::V2);
+    size_t createSnapshotAsync(SnapTask & snap_task, SnapshotFormat format = {});
 
-    size_t createSnapshot(
-        snapshot & meta,
-        KeeperStore & store,
-        int64_t next_zxid = 0,
-        int64_t next_session_id = 0,
-        SnapshotVersion version = SnapshotVersion::V2);
+    size_t
+    createSnapshot(snapshot & meta, KeeperStore & store, int64_t next_zxid = 0, int64_t next_session_id = 0, SnapshotFormat format = {});
 
     /// save snapshot meta, invoked when we receive an snapshot from leader.
     bool receiveSnapshotMeta(snapshot & meta);

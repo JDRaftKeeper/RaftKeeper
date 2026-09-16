@@ -1,0 +1,11 @@
+<raftkeeper>
+    <keeper>
+        <my_id>1</my_id>
+        <host>node</host>
+        <parallel>4</parallel>
+        <create_snapshot_on_exit>false</create_snapshot_on_exit>
+        <raft_settings>
+            <nuraft_thread_size>4</nuraft_thread_size>
+        </raft_settings>
+    </keeper>
+</raftkeeper>

@@ -7,6 +7,7 @@
             <snapshot_distance>20</snapshot_distance>
             <async_snapshot>false</async_snapshot>
             <snapshot_compression>zstd</snapshot_compression>
+            <snapshot_format_version>2</snapshot_format_version>
         </raft_settings>
     </keeper>
 </raftkeeper>

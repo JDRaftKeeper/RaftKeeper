@@ -59,7 +59,7 @@ size_t KeeperSnapshotStore::serializeDataTreeV2(KeeperStore & storage)
     uint32_t checksum = 0;
 
     serializeNodeV2(out, batch, storage, "/", processed, checksum);
-    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
     checksum = new_checksum;
 
     writeTailAndClose(out, checksum);
@@ -74,7 +74,7 @@ size_t KeeperSnapshotStore::serializeDataTreeAsync(SnapTask & snap_task) const
     ptr<SnapshotBatchBody> batch;
 
     auto checksum = serializeNodeAsync(out, batch, *snap_task.buckets_nodes);
-    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
     checksum = new_checksum;
 
     writeTailAndClose(out, checksum);
@@ -107,7 +107,7 @@ void KeeperSnapshotStore::serializeNodeV2(
         if (obj_id != 0)
         {
             /// flush last batch data
-            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
             checksum = new_checksum;
 
             /// close current object file
@@ -116,11 +116,11 @@ void KeeperSnapshotStore::serializeNodeV2(
             checksum = 0;
         }
         String new_obj_path;
-        /// for there are 4 objects before data objects
-        getObjectPath(obj_id + 4, new_obj_path);
+        /// Data objects follow the metadata objects.
+        getObjectPath(obj_id + format.metadataObjects() + 1, new_obj_path);
 
-        LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + 4, new_obj_path);
-        out = openFileAndWriteHeader(new_obj_path, version);
+        LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + format.metadataObjects() + 1, new_obj_path);
+        out = openFileAndWriteHeader(new_obj_path, format);
     }
 
     /// flush and rebuild batch
@@ -130,7 +130,7 @@ void KeeperSnapshotStore::serializeNodeV2(
         if (processed != 0)
         {
             /// flush data in batch to file
-            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+            auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
             checksum = new_checksum;
         }
         else
@@ -141,7 +141,7 @@ void KeeperSnapshotStore::serializeNodeV2(
     }
 
     LOG_TRACE(log, "Append node path {}", path);
-    appendNodeToBatchV2(batch, path, node_copy, version);
+    appendNodeToBatchV2(batch, path, node_copy, format.version);
     processed++;
 
     String path_with_slash = path;
@@ -171,7 +171,7 @@ uint32_t KeeperSnapshotStore::serializeNodeAsync(
                 if (obj_id != 0)
                 {
                     /// flush last batch data
-                    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+                    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
                     checksum = new_checksum;
 
                     /// close current object file
@@ -180,11 +180,11 @@ uint32_t KeeperSnapshotStore::serializeNodeAsync(
                     checksum = 0;
                 }
                 String new_obj_path;
-                /// for there are 4 objects before data objects
-                getObjectPath(obj_id + 4, new_obj_path);
+                /// Data objects follow the metadata objects.
+                getObjectPath(obj_id + format.metadataObjects() + 1, new_obj_path);
 
-                LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + 4, new_obj_path);
-                out = openFileAndWriteHeader(new_obj_path, version);
+                LOG_INFO(log, "Creating new snapshot object {}, path {}", obj_id + format.metadataObjects() + 1, new_obj_path);
+                out = openFileAndWriteHeader(new_obj_path, format);
             }
 
             /// flush and rebuild batch
@@ -194,7 +194,7 @@ uint32_t KeeperSnapshotStore::serializeNodeAsync(
                 if (processed != 0)
                 {
                     /// flush data in batch to file
-                    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, version);
+                    auto [save_size, new_checksum] = saveBatchAndUpdateCheckSumV2(out, batch, checksum, format);
                     checksum = new_checksum;
                 }
                 else
@@ -205,7 +205,7 @@ uint32_t KeeperSnapshotStore::serializeNodeAsync(
             }
 
             LOG_TRACE(log, "Append node path {}", path);
-            appendNodeToBatchV2(batch, path, node, version);
+            appendNodeToBatchV2(batch, path, node, format.version);
             processed++;
         }
     }
@@ -263,11 +263,11 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
     }
 
     //uint map、Sessions、acls、Normal node objects
-    size_t total_obj_count = data_object_count + 3;
+    size_t total_obj_count = data_object_count + format.metadataObjects();
 
     LOG_INFO(
         log,
-        "Creating snapshot v3 with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
+        "Creating snapshot with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
         data_object_count,
         total_obj_count,
         next_zxid,
@@ -282,37 +282,19 @@ size_t KeeperSnapshotStore::createObjectsV2(KeeperStore & store, int64_t next_zx
     /// Object count
     int_map["OBJECTCOUNT"] = total_obj_count;
 
-    String map_path;
-    getObjectPath(1, map_path);
-    serializeMapV2(int_map, save_batch_size, version, map_path);
-
-    /// 2. Save sessions
-    String session_path;
-    /// object index should start from 1
-    getObjectPath(2, session_path);
-
     auto session_and_timeout = store.getSessionAndTimeOut();
     auto session_and_auth = store.getSessionAndAuth();
-    auto serialized_next_session_id = store.getSessionIDCounter();
-
-    serializeSessionsV2(session_and_timeout, session_and_auth, save_batch_size, version, session_path);
-    LOG_INFO(
-        log,
-        "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-        toHexString(next_session_id),
-        toHexString(serialized_next_session_id));
-
-    /// 3. Save acls
-    String acl_path;
-    /// object index should start from 1
-    getObjectPath(3, acl_path);
-    serializeAclsV2(store.getACLMap().getMapping(), acl_path, save_batch_size, version);
+    serializeMetadata(int_map, session_and_timeout, session_and_auth, store.getACLMap().getMapping());
 
     /// 4. Save data tree
     size_t last_id = serializeDataTreeV2(store);
 
     total_obj_count = last_id;
-    LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
+    LOG_INFO(
+        log,
+        "Creating snapshot real data_object_count {}, total_obj_count {}",
+        total_obj_count - format.metadataObjects(),
+        total_obj_count);
 
     /// add all path to objects_path
     for (size_t i = 1; i < total_obj_count + 1; i++)
@@ -338,11 +320,11 @@ size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
     size_t data_object_count = (snap_task.nodes_count + max_object_node_size -1) / max_object_node_size;
 
     //uint map、Sessions、acls、Normal node objects
-    size_t total_obj_count = data_object_count + 3;
+    size_t total_obj_count = data_object_count + format.metadataObjects();
 
     LOG_INFO(
         log,
-        "Creating async snapshot v3 with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
+        "Creating async snapshot with approximately data_object_count {}, total_obj_count {}, next zxid {}, next session id {}",
         data_object_count,
         total_obj_count,
         snap_task.next_zxid,
@@ -357,35 +339,17 @@ size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
     /// Object count
     int_map["OBJECTCOUNT"] = total_obj_count;
 
-    String map_path;
-    getObjectPath(1, map_path);
-    serializeMapV2(int_map, save_batch_size, version, map_path);
-
-    /// 2. Save sessions
-    String session_path;
-    /// object index should start from 1
-    getObjectPath(2, session_path);
-
-    serializeSessionsV2(snap_task.session_and_timeout, snap_task.session_and_auth, save_batch_size, version, session_path);
-
-    int64_t serialized_next_session_id = snap_task.next_session_id;
-    LOG_INFO(
-        log,
-        "Creating snapshot nex_session_id {}, serialized_next_session_id {}",
-        toHexString(snap_task.next_session_id),
-        toHexString(serialized_next_session_id));
-
-    /// 3. Save acls
-    String acl_path;
-    /// object index should start from 1
-    getObjectPath(3, acl_path);
-    serializeAclsV2(snap_task.acl_map, acl_path, save_batch_size, version);
+    serializeMetadata(int_map, snap_task.session_and_timeout, snap_task.session_and_auth, snap_task.acl_map);
 
     /// 4. Save data tree
     size_t last_id = serializeDataTreeAsync(snap_task);
 
     total_obj_count = last_id;
-    LOG_INFO(log, "Creating snapshot real data_object_count {}, total_obj_count {}", total_obj_count - 3, total_obj_count);
+    LOG_INFO(
+        log,
+        "Creating snapshot real data_object_count {}, total_obj_count {}",
+        total_obj_count - format.metadataObjects(),
+        total_obj_count);
 
     /// add all path to objects_path
     for (size_t i = 1; i < total_obj_count + 1; i++)
@@ -396,6 +360,25 @@ size_t KeeperSnapshotStore::createObjectsAsyncImpl(SnapTask & snap_task)
     }
 
     return total_obj_count;
+}
+
+void KeeperSnapshotStore::serializeMetadata(
+    IntMap & counters, SessionAndTimeout & sessions, SessionAndAuth & auth, const NumToACLMap & acls) const
+{
+    String path;
+    getObjectPath(1, path);
+    if (format.version >= SnapshotVersion::V4)
+    {
+        serializeSnapshotMetadata(counters, sessions, auth, acls, save_batch_size, format, path);
+    }
+    else
+    {
+        serializeMapV2(counters, save_batch_size, format, path);
+        getObjectPath(2, path);
+        serializeSessionsV2(sessions, auth, save_batch_size, format, path);
+        getObjectPath(3, path);
+        serializeAclsV2(acls, path, save_batch_size, format);
+    }
 }
 
 void KeeperSnapshotStore::init(const String & create_time)
@@ -445,6 +428,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
     SnapshotBatchHeader header;
     UInt32 checksum = 0;
     SnapshotVersion version_from_obj = SnapshotVersion::UNKNOWN;
+    SnapshotFormat object_format;
 
     while (!snap_fs->eof())
     {
@@ -467,12 +451,20 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
         read_size += 8;
         if (isSnapshotFileHeader(magic))
         {
-            char * buf = reinterpret_cast<char *>(&version_from_obj);
-            snap_fs->read(buf, sizeof(uint8_t));
-            read_size += 1;
+            char format_bytes[8];
+            if (!snap_fs->read(format_bytes, 1))
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Truncated snapshot version in {}", obj_path);
+            auto version_byte = static_cast<uint8_t>(format_bytes[0]);
+            if (version_byte > static_cast<uint8_t>(MAX_SNAPSHOT_VERSION))
+                throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", version_byte);
+            size_t format_size = version_byte >= static_cast<uint8_t>(SnapshotVersion::V4) ? 8 : 1;
+            if (format_size > 1 && !snap_fs->read(format_bytes + 1, format_size - 1))
+                throw Exception(ErrorCodes::CORRUPTED_SNAPSHOT, "Truncated snapshot format header in {}", obj_path);
+            ReadBufferFromMemory format_buffer(format_bytes, format_size);
+            object_format = readSnapshotFormat(format_buffer);
+            version_from_obj = object_format.version;
+            read_size += format_size;
             LOG_DEBUG(log, "Got snapshot file header with version {}", toString(version_from_obj));
-            if (version_from_obj > MAX_SNAPSHOT_VERSION)
-                throw Exception(ErrorCodes::UNKNOWN_FORMAT_VERSION, "Unsupported snapshot version {}", toString(version_from_obj));
         }
         else if (isSnapshotFileTail(magic))
         {
@@ -490,6 +482,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
             if (version_from_obj == SnapshotVersion::UNKNOWN)
             {
                 version_from_obj = SnapshotVersion::V0;
+                object_format = SnapshotFormat(SnapshotVersion::V0);
                 LOG_INFO(log, "snapshot has no version, set to V0", obj_path);
             }
 
@@ -518,7 +511,7 @@ void KeeperSnapshotStore::parseObject(KeeperStore & store, String obj_path, Buck
             throwFromErrno("Can't read snapshot object file " + obj_path + ", batch crc not match.", ErrorCodes::CORRUPTED_SNAPSHOT);
         }
 
-        if (version_from_obj >= SnapshotVersion::V3)
+        if (object_format.codec == SnapshotCodec::Zstd)
         {
             try
             {
@@ -560,12 +553,16 @@ void KeeperSnapshotStore::parseBatchBodyV2(
             LOG_DEBUG(log, "Parsing batch acl from snapshot, acl count {}", batch->size());
             parseBatchAclMapV2(store, *batch, version_);
             break;
-        case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP:
+        case SnapshotBatchType::SNAPSHOT_TYPE_UINTMAP: {
             LOG_DEBUG(log, "Parsing batch int_map from snapshot, element count {}", batch->size());
-            loaded_objects_count.reset();
-            parseBatchIntMapV2(store, loaded_objects_count, *batch, version_);
+            auto counters = parseBatchIntMapV2(store, loaded_objects_count, *batch, version_);
+            if (counters.contains("ZXID"))
+                loaded_zxid = true;
+            if (counters.contains("SESSIONID"))
+                loaded_session_id = true;
             LOG_DEBUG(log, "Parsed zxid {}, session_id_counter {}", store.getZxid(), store.getSessionIDCounter());
             break;
+        }
         case SnapshotBatchType::SNAPSHOT_TYPE_CONFIG:
         case SnapshotBatchType::SNAPSHOT_TYPE_SERVER:
             break;
@@ -574,13 +571,16 @@ void KeeperSnapshotStore::parseBatchBodyV2(
     }
 }
 
-void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
+void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store, bool require_complete_state)
 {
     size_t objects_cnt = objects_path.size();
+    loaded_objects_count.reset();
+    loaded_zxid = false;
+    loaded_session_id = false;
 
     // The object IDs are consecutive starting from 1,
     // so the first number must be 1, and the last number must be the total count.
-    if (objects_path.begin()->first != 1 || objects_path.rbegin()->first != objects_cnt || objects_cnt != objects_path.size())
+    if (objects_path.empty() || objects_path.begin()->first != 1 || objects_path.rbegin()->first != objects_cnt)
     {
         throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
         "Loading snapshot objects error, expecting {} objects, got {}",
@@ -617,11 +617,31 @@ void KeeperSnapshotStore::loadLatestSnapshot(KeeperStore & store)
     thread_pool.wait();
     LOG_INFO(log, "Parsing snapshot objects costs {}ms", watch.elapsedMilliseconds());
 
+    if (require_complete_state && !loaded_objects_count)
+        throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE, "Snapshot metadata does not contain OBJECTCOUNT");
+
     if (loaded_objects_count && *loaded_objects_count != objects_path.size())
     {
         throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE,
             "Loading snapshot objects error, expecting {} objects, got {} objects",
             *loaded_objects_count, objects_path.size());
+    }
+
+    if (require_complete_state)
+    {
+        if (!loaded_zxid)
+            throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE, "Snapshot metadata does not contain ZXID");
+        if (!loaded_session_id)
+            throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE, "Snapshot metadata does not contain SESSIONID");
+
+        /// Inspect parsed records before the initialized store can supply a default root.
+        bool has_root = false;
+        for (const auto & object_nodes : all_objects_nodes)
+            for (const auto & [path, node] : object_nodes[store.getBucketIndex("/")])
+                if (path == "/")
+                    has_root = true;
+        if (!has_root)
+            throw Exception(ErrorCodes::SNAPSHOT_OBJECT_INCOMPLETE, "Snapshot does not contain root node /");
     }
 
     LOG_INFO(log, "Building data tree from snapshot objects");
@@ -758,11 +778,11 @@ void KeeperSnapshotStore::addObjectPath(ulong obj_id, String & path)
     objects_path[obj_id] = path;
 }
 
-size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, SnapshotVersion version)
+size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, SnapshotFormat format)
 {
     auto && meta = snap_task.s;
     meta->set_size(snap_task.nodes_count);
-    ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, *meta, object_node_size, SAVE_BATCH_SIZE, version);
+    ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, *meta, object_node_size, SAVE_BATCH_SIZE, format);
     snap_store->init();
     LOG_INFO(
         log,
@@ -782,11 +802,11 @@ size_t KeeperSnapshotManager::createSnapshotAsync(SnapTask & snap_task, Snapshot
 }
 
 size_t KeeperSnapshotManager::createSnapshot(
-    snapshot & meta, KeeperStore & store, int64_t next_zxid, int64_t next_session_id, SnapshotVersion version)
+    snapshot & meta, KeeperStore & store, int64_t next_zxid, int64_t next_session_id, SnapshotFormat format)
 {
     size_t store_size = store.getNodesCount();
     meta.set_size(store_size);
-    ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size, SAVE_BATCH_SIZE, version);
+    ptr<KeeperSnapshotStore> snap_store = cs_new<KeeperSnapshotStore>(snap_dir, meta, object_node_size, SAVE_BATCH_SIZE, format);
     snap_store->init();
     LOG_INFO(
         log,

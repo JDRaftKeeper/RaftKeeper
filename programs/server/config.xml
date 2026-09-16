@@ -98,6 +98,11 @@
             <!-- Create snapshot mode, default is async, disable it with set to false. -->
             <!-- <async_snapshot>true</async_snapshot> -->
 
+            <!-- Snapshot format: default 4 merges metadata and adds codec/flags.
+                 Set 2 explicitly while old servers remain in the cluster. Compression is selected independently. -->
+            <!-- <snapshot_format_version>4</snapshot_format_version> -->
+            <!-- <snapshot_compression>none</snapshot_compression> -->
+
             <!-- Create snapshot in this log size, default is 3_000_000. -->
             <!-- <snapshot_distance>3000000</snapshot_distance> -->
 

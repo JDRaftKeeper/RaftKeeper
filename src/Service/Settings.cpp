@@ -1,8 +1,11 @@
 #include <filesystem>
 #include <limits>
-#include <Service/Settings.h>
+
 #include <Common/IO/WriteHelpers.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
+
+#include <Service/Settings.h>
+#include <Service/SnapshotCommon.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
 
 
@@ -96,12 +99,12 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         max_log_segment_file_size = config.getUInt(get_key("max_log_segment_file_size"), 1073741824);
         log_compression = config.getString(get_key("log_compression"), "none");
         snapshot_compression = config.getString(get_key("snapshot_compression"), "none");
+        snapshot_format_version = config.getUInt(get_key("snapshot_format_version"), 4);
         async_snapshot = config.getBool(get_key("async_snapshot"), true);
 
         if (log_compression != "none" && log_compression != "zstd")
             LOG_WARNING(log, "Unknown log_compression '{}' — valid values are 'none' and 'zstd'. Falling back to no compression.", log_compression);
-        if (snapshot_compression != "none" && snapshot_compression != "zstd")
-            LOG_WARNING(log, "Unknown snapshot_compression '{}' — valid values are 'none' and 'zstd'. Falling back to no compression.", snapshot_compression);
+        getSnapshotFormat();
     }
     catch (Exception & e)
     {
@@ -109,6 +112,18 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
             e.addMessage("in configuration.");
         throw;
     }
+}
+
+SnapshotFormat RaftSettings::getSnapshotFormat() const
+{
+    if (snapshot_compression != "none" && snapshot_compression != "zstd")
+        throw Exception(ErrorCodes::ILLEGAL_SETTING_VALUE, "snapshot_compression must be 'none' or 'zstd'");
+    auto codec = snapshot_compression == "zstd" ? SnapshotCodec::Zstd : SnapshotCodec::None;
+    if (snapshot_format_version == 2)
+        return SnapshotFormat(codec == SnapshotCodec::Zstd ? SnapshotVersion::V3 : SnapshotVersion::V2);
+    if (snapshot_format_version == 4)
+        return SnapshotFormat(SnapshotVersion::V4, codec);
+    throw Exception(ErrorCodes::ILLEGAL_SETTING_VALUE, "snapshot_format_version must be 2 (legacy) or 4");
 }
 
 RaftSettingsPtr RaftSettings::getDefault()
@@ -253,6 +268,8 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     writeText("snapshot_compression=", buf);
     writeText(raft_settings->snapshot_compression, buf);
     buf.write('\n');
+    writeText("snapshot_format_version=", buf);
+    write_int(raft_settings->snapshot_format_version);
 
     writeText("nuraft_thread_size=", buf);
     write_int(raft_settings->nuraft_thread_size);

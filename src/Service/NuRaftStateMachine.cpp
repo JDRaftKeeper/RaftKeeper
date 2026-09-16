@@ -308,8 +308,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_t next_session_id)
 {
     std::lock_guard lock(snapshot_mutex);
-    auto version = raft_settings->snapshot_compression == "zstd" ? SnapshotVersion::V3 : SnapshotVersion::V2;
-    snap_mgr->createSnapshot(s, store, next_zxid, next_session_id, version);
+    snap_mgr->createSnapshot(s, store, next_zxid, next_session_id, raft_settings->getSnapshotFormat());
     snap_mgr->removeSnapshots();
     compactLogStore();
 }
@@ -317,8 +316,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_
 void NuRaftStateMachine::create_snapshot_async(SnapTask & s)
 {
     std::lock_guard lock(snapshot_mutex);
-    auto version = raft_settings->snapshot_compression == "zstd" ? SnapshotVersion::V3 : SnapshotVersion::V2;
-    snap_mgr->createSnapshotAsync(s, version);
+    snap_mgr->createSnapshotAsync(s, raft_settings->getSnapshotFormat());
     snap_mgr->removeSnapshots();
     compactLogStore();
 }
