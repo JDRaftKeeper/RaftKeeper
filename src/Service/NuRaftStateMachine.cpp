@@ -19,6 +19,8 @@ namespace ErrorCodes
     extern const int NOT_IMPLEMENTED;
     extern const int STALE_LOG;
     extern const int GAP_BETWEEN_SNAPSHOT_AND_LOG;
+    extern const int CORRUPTED_SNAPSHOT;
+    extern const int LOGICAL_ERROR;
 }
 
 struct ReplayLogBatch
@@ -27,6 +29,7 @@ struct ReplayLogBatch
     ulong batch_end_index = 0;
     ptr<std::vector<LogEntryWithVersion>> log_entries;
     ptr<std::vector<ptr<RequestForSession>>> requests;
+    std::exception_ptr error;
 };
 
 NuRaftStateMachine::NuRaftStateMachine(
@@ -68,73 +71,61 @@ NuRaftStateMachine::NuRaftStateMachine(
     committed_log_manager = cs_new<LastCommittedIndexManager>(log_dir);
     uint64_t previous_last_commit_id = committed_log_manager->get();
 
-    if (snapshots_count > 0)
+    auto * file_store = dynamic_cast<NuRaftFileLogStore *>(log_store_.get());
+    const bool deferred_init = file_store && !file_store->isInitialized();
+    ptr<snapshot> selected_snapshot;
+    std::vector<ptr<snapshot>> invalid_snapshots;
+    const auto & snapshots = snap_mgr->getSnapshots();
+    for (auto it = snapshots.rbegin(); it != snapshots.rend(); ++it)
     {
-        LOG_INFO(log, "Found {} snapshots from disk, trying from newest to oldest", snapshots_count);
-
-        bool loaded = false;
-        const auto & snapshots = snap_mgr->getSnapshots();
-        for (auto it = snapshots.rbegin(); it != snapshots.rend(); ++it)
+        auto current_meta = it->second->getSnapshotMeta();
+        try
         {
-            auto current_meta = it->second->getSnapshotMeta();
-            try
-            {
-                LOG_INFO(
-                    log,
-                    "Trying to load snapshot with last_log_term {}, last_log_idx {}",
-                    current_meta->get_last_log_term(),
-                    current_meta->get_last_log_idx());
-                if (applySnapshotImpl(*current_meta))
-                {
-                    /// Verify the log store can bridge from this snapshot to the last committed index.
-                    /// If logs between snapshot and last committed have been compacted, this snapshot
-                    /// is too old to be useful. Older snapshots have smaller last_log_idx, so the gap
-                    /// can only widen — abort the fallback loop instead of trying older snapshots.
-                    if (previous_last_commit_id > last_committed_idx && log_store_)
-                    {
-                        ulong log_start = log_store_->start_index();
-                        if (last_committed_idx + 1 < log_start)
-                        {
-                            LOG_WARNING(
-                                log,
-                                "Snapshot at last_log_idx {} requires log replay from {} but log store starts at {}. "
-                                "Older snapshots would only widen the gap, aborting fallback.",
-                                last_committed_idx.load(),
-                                last_committed_idx + 1,
-                                log_start);
-                            store.reset();
-                            last_committed_idx = 0;
-                            break;
-                        }
-                    }
-
-                    loaded = true;
-                    LOG_INFO(
-                        log,
-                        "Successfully loaded snapshot with last_log_idx {}",
-                        current_meta->get_last_log_idx());
-                    break;
-                }
-            }
-            catch (const Exception & e)
-            {
-                LOG_WARNING(
-                    log,
-                    "Failed to load snapshot at last_log_idx {}: {}. Trying older snapshot.",
-                    current_meta->get_last_log_idx(),
-                    e.displayText());
-                store.reset();
-                last_committed_idx = 0;
-            }
+            if (!applySnapshotImpl(*current_meta))
+                continue;
         }
+        catch (const Exception & e)
+        {
+            LOG_WARNING(log, "Snapshot at {} is invalid: {}. Trying an older snapshot.", current_meta->get_last_log_idx(), e.displayText());
+            invalid_snapshots.push_back(current_meta);
+            store.reset();
+            last_committed_idx = 0;
+            continue;
+        }
+        try
+        {
+            if (deferred_init)
+                file_store->prepareRecovery({last_committed_idx.load(), previous_last_commit_id, raft_settings->reserved_log_items});
+            else if (log_store_ && previous_last_commit_id > last_committed_idx && last_committed_idx + 1 < log_store_->start_index())
+                throw Exception(ErrorCodes::GAP_BETWEEN_SNAPSHOT_AND_LOG, "Snapshot cannot bridge to the committed log range");
+            selected_snapshot = current_meta;
+            break;
+        }
+        catch (const Exception & e)
+        {
+            LOG_WARNING(log, "Snapshot at {} cannot recover the log chain: {}", current_meta->get_last_log_idx(), e.displayText());
+            store.reset();
+            last_committed_idx = 0;
+        }
+    }
+    for (const auto & invalid : invalid_snapshots)
+        snap_mgr->discardInvalidSnapshot(*invalid);
 
-        if (!loaded)
-            LOG_WARNING(log, "All {} snapshots failed to load, proceeding with empty state", snapshots_count);
-    }
-    else
-    {
-        LOG_INFO(log, "No snapshots found on disk");
-    }
+    if (snapshots_count > 0 && !selected_snapshot)
+        throw Exception(
+            ErrorCodes::CORRUPTED_SNAPSHOT, "No valid snapshot with a continuous recovery log chain; refusing empty-state recovery");
+
+    if (deferred_init && !selected_snapshot)
+        file_store->prepareRecovery({0, previous_last_commit_id, raft_settings->reserved_log_items});
+
+    /// Only after both snapshot contents and log coverage have been validated may we persist
+    /// the selected snapshot, repair the active log tail, or schedule physical reclamation.
+    if (selected_snapshot)
+        snap_mgr->confirmSnapshot(*selected_snapshot);
+    if (deferred_init)
+        file_store->init();
+    if (selected_snapshot)
+        compactLogStore();
 
     /// Last committed idx of the previous startup, we should apply log to here.
     if (previous_last_commit_id == 0)
@@ -177,7 +168,7 @@ void NuRaftStateMachine::snapThread()
     LOG_INFO(log, "Starting background creating snapshot thread.");
     setThreadName("snapThread");
 
-    while (!shutdown_called)
+    while (!shutdown_called || snap_task_ready)
     {
         if (snap_task_ready)
         {
@@ -190,10 +181,18 @@ void NuRaftStateMachine::snapThread()
                 current_task->s->get_last_log_term(),
                 current_task->s->get_last_log_idx());
 
-            create_snapshot_async(*current_task);
             ptr<std::exception> except(nullptr);
             bool ret = true;
-
+            try
+            {
+                create_snapshot_async(*current_task);
+            }
+            catch (...)
+            {
+                ret = false;
+                except = std::make_shared<std::runtime_error>(getCurrentExceptionMessage(false));
+                tryLogCurrentException(log, "Snapshot creation failed; keeping the previous retention boundary");
+            }
             current_task->when_done(ret, except);
 
             Metrics::getMetrics().snap_count->add(1);
@@ -248,9 +247,9 @@ void NuRaftStateMachine::shutdown()
     shutdown_called = true;
     LOG_INFO(log, "Shutting down state machine");
 
+    bg_snap_thread.join();
     store.finalize();
     committed_log_manager->shutDown();
-    bg_snap_thread.join();
     LOG_INFO(log, "State machine shut down done!");
 }
 
@@ -280,6 +279,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 
     if (!raft_settings->async_snapshot)
     {
+        SCOPE_EXIT({ in_snapshot = false; });
         create_snapshot(s, store.getZxid(), store.getSessionIDCounter());
         ptr<std::exception> except(nullptr);
         bool ret = true;
@@ -308,8 +308,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, async_result<bool>::handl
 void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_t next_session_id)
 {
     std::lock_guard lock(snapshot_mutex);
-    auto version = raft_settings->snapshot_compression == "zstd" ? SnapshotVersion::V3 : SnapshotVersion::V2;
-    snap_mgr->createSnapshot(s, store, next_zxid, next_session_id, version);
+    snap_mgr->createSnapshot(s, store, next_zxid, next_session_id, raft_settings->getSnapshotFormat());
     snap_mgr->removeSnapshots();
     compactLogStore();
 }
@@ -317,8 +316,7 @@ void NuRaftStateMachine::create_snapshot(snapshot & s, int64_t next_zxid, int64_
 void NuRaftStateMachine::create_snapshot_async(SnapTask & s)
 {
     std::lock_guard lock(snapshot_mutex);
-    auto version = raft_settings->snapshot_compression == "zstd" ? SnapshotVersion::V3 : SnapshotVersion::V2;
-    snap_mgr->createSnapshotAsync(s, version);
+    snap_mgr->createSnapshotAsync(s, raft_settings->getSnapshotFormat());
     snap_mgr->removeSnapshots();
     compactLogStore();
 }
@@ -370,6 +368,7 @@ void NuRaftStateMachine::save_logical_snp_obj(snapshot & s, ulong & obj_id, buff
     if (obj_id == 0)
     {
         // Object ID == 0: it contains dummy value, create snapshot context.
+        std::lock_guard lock(snapshot_mutex);
         snap_mgr->receiveSnapshotMeta(s);
     }
     else
@@ -393,7 +392,12 @@ bool NuRaftStateMachine::apply_snapshot(snapshot & s)
     LOG_INFO(log, "Reset state machine.");
     reset();
 
-    return applySnapshotImpl(s);
+    if (!applySnapshotImpl(s))
+        return false;
+    std::lock_guard lock(snapshot_mutex);
+    snap_mgr->confirmSnapshot(s);
+    compactLogStore();
+    return true;
 }
 
 bool NuRaftStateMachine::applySnapshotImpl(snapshot & s)
@@ -448,67 +452,85 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
     std::atomic<ulong> batch_end_index = 0;
 
     ThreadSafeQueue<ReplayLogBatch> log_queue;
+    std::atomic_bool stop_replay{false};
 
     /// Loading and applying asynchronously
     auto load_thread = ThreadFromGlobalPool(
-        [to, &log_queue, &batch_start_index, &batch_end_index, &log_store_]
+        [to, &log_queue, &batch_start_index, &batch_end_index, &log_store_, &stop_replay]
         {
-            Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
-            while (batch_start_index < to)
+            try
             {
-                while (log_queue.size() > 10)
+                Poco::Logger * thread_log = &(Poco::Logger::get("LoadLogThread"));
+                while (!stop_replay && batch_start_index <= to)
                 {
-                    LOG_DEBUG(thread_log, "Sleep 100ms to wait for applying log");
-                    usleep(100000);
-                }
-
-                /// 0.3 * 10000 = 3M
-                batch_end_index = batch_start_index + 10000;
-                if (batch_end_index > to + 1)
-                    batch_end_index = to + 1;
-
-                LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index.load(), batch_end_index.load());
-
-                ReplayLogBatch batch;
-                batch.log_entries
-                    = dynamic_cast<NuRaftFileLogStore *>(log_store_.get())->log_entries_version_ext(batch_start_index, batch_end_index, 0);
-
-                batch.batch_start_index = batch_start_index;
-                batch.batch_end_index = batch_end_index;
-                batch.requests = cs_new<std::vector<ptr<RequestForSession>>>();
-
-                for (auto & entry_with_version : *batch.log_entries)
-                {
-                    if (entry_with_version.entry->get_val_type() != nuraft::log_val_type::app_log)
+                    while (!stop_replay && log_queue.size() > 10)
                     {
-                        LOG_DEBUG(thread_log, "Found non app nuraft log(type {}), ignore it", toString(entry_with_version.entry->get_val_type()));
-                        batch.requests->push_back(nullptr);
+                        LOG_DEBUG(thread_log, "Sleep 100ms to wait for applying log");
+                        usleep(100000);
                     }
-                    else
-                    {
-                        /// user requests
-                        auto request = deserializeKeeperRequest(entry_with_version.entry->get_buf());
-                        batch.requests->push_back(request);
-                    }
-                }
+                    if (stop_replay)
+                        return;
 
-                LOG_INFO(thread_log, "Finish to load batch [{}, {})", batch_start_index.load(), batch_end_index.load());
-                log_queue.push(batch);
-                batch_start_index.store(batch_end_index);
+                    /// 0.3 * 10000 = 3M
+                    batch_end_index = batch_start_index + 10000;
+                    if (batch_end_index > to + 1)
+                        batch_end_index = to + 1;
+
+                    LOG_INFO(thread_log, "Begin to load batch [{} , {})", batch_start_index.load(), batch_end_index.load());
+
+                    ReplayLogBatch batch;
+                    batch.log_entries = dynamic_cast<NuRaftFileLogStore *>(log_store_.get())
+                                            ->log_entries_version_ext(batch_start_index, batch_end_index, 0);
+                    if (!batch.log_entries)
+                        throw Exception(ErrorCodes::GAP_BETWEEN_SNAPSHOT_AND_LOG, "Missing log while replaying from snapshot");
+
+                    batch.batch_start_index = batch_start_index;
+                    batch.batch_end_index = batch_end_index;
+                    batch.requests = cs_new<std::vector<ptr<RequestForSession>>>();
+
+                    for (auto & entry_with_version : *batch.log_entries)
+                    {
+                        if (entry_with_version.entry->get_val_type() != nuraft::log_val_type::app_log)
+                        {
+                            LOG_DEBUG(
+                                thread_log,
+                                "Found non app nuraft log(type {}), ignore it",
+                                toString(entry_with_version.entry->get_val_type()));
+                            batch.requests->push_back(nullptr);
+                        }
+                        else
+                        {
+                            /// user requests
+                            auto request = deserializeKeeperRequest(entry_with_version.entry->get_buf());
+                            batch.requests->push_back(request);
+                        }
+                    }
+
+                    LOG_INFO(thread_log, "Finish to load batch [{}, {})", batch_start_index.load(), batch_end_index.load());
+                    log_queue.push(batch);
+                    batch_start_index.store(batch_end_index);
+                }
+            }
+            catch (...)
+            {
+                ReplayLogBatch failed;
+                failed.error = std::current_exception();
+                log_queue.push(std::move(failed));
             }
         });
+    SCOPE_EXIT({
+        stop_replay = true;
+        load_thread.join();
+    });
 
     /// Apply loaded logs
-    while (!log_queue.empty() || batch_start_index < to)
+    while (last_committed_idx < to)
     {
-        while (log_queue.empty() && batch_start_index != to)
-        {
-            LOG_DEBUG(log, "Sleep 100ms to wait for log loading");
-            usleep(100000);
-        }
-
         ReplayLogBatch batch;
-        log_queue.peek(batch);
+        if (!log_queue.tryPop(batch, 100))
+            continue;
+        if (batch.error)
+            std::rethrow_exception(batch.error);
 
         if (batch.log_entries == nullptr)
         {
@@ -540,13 +562,10 @@ void NuRaftStateMachine::replayLogs(ptr<log_store> log_store_, uint64_t from, ui
             }
         }
 
-        log_queue.pop();
         last_committed_idx = batch.batch_end_index - 1;
 
         LOG_INFO(log, "Replayed log batch [{}, {})", batch.batch_start_index, batch.batch_end_index);
     }
-
-    load_thread.join();
 
     LOG_INFO(
         log,
@@ -618,8 +637,12 @@ void NuRaftStateMachine::compactLogStore()
     /// The oldest retained snapshot defines the safe compaction boundary:
     /// we can delete all logs up to (but not including) its first index
     /// because every kept snapshot must have a complete log trail behind it.
-    auto oldest_snapshot = snapshots.begin()->second->getSnapshotMeta();
-    UInt64 oldest_idx = oldest_snapshot->get_last_log_idx();
+    UInt64 oldest_idx = std::numeric_limits<UInt64>::max();
+    for (const auto & [key, snapshot_store] : snapshots)
+        oldest_idx = std::min(oldest_idx, snapshot_store->getSnapshotMeta()->get_last_log_idx());
+
+    if (auto * file_store = dynamic_cast<NuRaftFileLogStore *>(raft_log_store.get()))
+        file_store->setRetentionBoundary(oldest_idx);
 
     /// Don't compact if the boundary is at or before index 1 (nothing to remove).
     if (oldest_idx <= 1)

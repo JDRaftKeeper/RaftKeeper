@@ -37,6 +37,7 @@ enum class SnapshotVersion : uint8_t
     V1 = 1, /// Add ACL map
     V2 = 2, /// Replace protobuf
     V3 = 3, /// zstd-compressed batch bodies
+    V4 = 4, /// Explicit codec/flags header and a single metadata object; node layout unchanged
 
     UNKNOWN = 255,
 };
@@ -44,13 +45,38 @@ enum class SnapshotVersion : uint8_t
 String toString(SnapshotVersion version);
 
 
-/// Maximum snapshot version we can read (write default is V2 for rolling-upgrade safety).
-static constexpr auto MAX_SNAPSHOT_VERSION = SnapshotVersion::V3;
+/// V4 is the default write format; explicit V2/V3 writing remains available.
+static constexpr auto MAX_SNAPSHOT_VERSION = SnapshotVersion::V4;
+
+enum class SnapshotCodec : uint8_t
+{
+    None = 0,
+    Zstd = 1,
+};
+
+struct SnapshotFormat
+{
+    SnapshotVersion version;
+    SnapshotCodec codec;
+
+    /// Preserve the legacy version-only API for V0-V3 callers.
+    SnapshotFormat(SnapshotVersion version_ = SnapshotVersion::V4)
+        : version(version_), codec(version_ == SnapshotVersion::V3 ? SnapshotCodec::Zstd : SnapshotCodec::None)
+    {
+    }
+    SnapshotFormat(SnapshotVersion version_, SnapshotCodec codec_) : version(version_), codec(codec_) { }
+
+    void validate() const;
+    size_t metadataObjects() const { return version >= SnapshotVersion::V4 ? 1 : 3; }
+};
+
+/// Reads the format fields after the 8-byte magic. V4 adds codec (1), flags (2), reserved (4).
+SnapshotFormat readSnapshotFormat(ReadBuffer & in);
 
 /// Batch data header in a snapshot object file.
 struct SnapshotBatchHeader
 {
-    /// The length of the batch data on disk (compressed if V3+, raw otherwise)
+    /// The length of the batch data on disk, after optional compression
     UInt32 data_length;
     /// The CRC32C of the batch data.
     /// If compression is enabled, this is the checksum of the compressed data.
@@ -98,7 +124,7 @@ bool isSnapshotFileHeader(UInt64 magic);
 /// snapshot object file tail
 bool isSnapshotFileTail(UInt64 magic);
 
-ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotVersion version);
+ptr<WriteBufferFromFile> openFileAndWriteHeader(const String & path, SnapshotFormat format);
 void writeTailAndClose(ptr<WriteBufferFromFile> & out, UInt32 checksum);
 
 UInt32 updateCheckSum(UInt32 checksum, UInt32 data_crc);
@@ -109,23 +135,36 @@ ptr<KeeperNodeWithPath> parseKeeperNode(const String & buf, SnapshotVersion vers
 
 
 /// save batch data in snapshot object
-std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, SnapshotVersion version);
+std::pair<size_t, UInt32> saveBatchV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, SnapshotFormat format);
 std::pair<size_t, UInt32>
-saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum, SnapshotVersion version);
+saveBatchAndUpdateCheckSumV2(ptr<WriteBufferFromFile> & out, ptr<SnapshotBatchBody> & batch, UInt32 checksum, SnapshotFormat format);
 
-void serializeAclsV2(const NumToACLMap & acls, String path, UInt32 save_batch_size, SnapshotVersion version);
+void serializeAclsV2(const NumToACLMap & acls, String path, UInt32 save_batch_size, SnapshotFormat format);
 
 /// Serialize sessions and return the next_session_id before serialize
-void serializeSessionsV2(SessionAndTimeout & session_and_timeout, SessionAndAuth & session_and_auth, UInt32 save_batch_size, SnapshotVersion version, String & path);
+void serializeSessionsV2(
+    SessionAndTimeout & session_and_timeout,
+    SessionAndAuth & session_and_auth,
+    UInt32 save_batch_size,
+    SnapshotFormat format,
+    String & path);
 
 /// Save map<string, string> or map<string, uint64>
 template <typename T>
-void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotVersion version, String & path);
+void serializeMapV2(T & snap_map, UInt32 save_batch_size, SnapshotFormat format, String & path);
+
+void serializeSnapshotMetadata(
+    const IntMap & counters,
+    const SessionAndTimeout & sessions,
+    const SessionAndAuth & auth,
+    const NumToACLMap & acls,
+    UInt32 save_batch_size,
+    SnapshotFormat format,
+    const String & path);
 
 /// parse snapshot batch
 void parseBatchDataV2(KeeperStore & store, SnapshotBatchBody & batch, BucketEdges & buckets_edges, BucketNodes & bucket_nodes, SnapshotVersion version);
 void parseBatchSessionV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
 void parseBatchAclMapV2(KeeperStore & store, SnapshotBatchBody & batch, SnapshotVersion version);
-void parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_count, SnapshotBatchBody & batch, SnapshotVersion version);
-
+IntMap parseBatchIntMapV2(KeeperStore & store, std::optional<UInt32> & object_count, SnapshotBatchBody & batch, SnapshotVersion version);
 }

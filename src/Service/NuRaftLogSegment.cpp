@@ -1,5 +1,3 @@
-#include <Service/NuRaftLogSegment.h>
-
 #include <charconv>
 #include <fcntl.h>
 #include <stdio.h>
@@ -10,11 +8,13 @@
 #include <Poco/File.h>
 
 #include <Common/ThreadPool.h>
+#include <common/scope_guard.h>
 
 #include <Service/Crc32.h>
+#include <Service/KeeperCommon.h>
 #include <Service/KeeperUtils.h>
 #include <Service/LogEntry.h>
-#include <Service/KeeperCommon.h>
+#include <Service/NuRaftLogSegment.h>
 #include <Service/ZstdLogCodec.h>
 
 
@@ -90,6 +90,19 @@ NuRaftLogSegment::NuRaftLogSegment(const String & log_dir_, UInt64 first_index_,
 {
 }
 
+NuRaftLogSegment::~NuRaftLogSegment()
+{
+    try
+    {
+        if (seg_fd != -1)
+            closeFileIfNeeded();
+    }
+    catch (...)
+    {
+        tryLogCurrentException(log, "Failed to close log segment");
+    }
+}
+
 String NuRaftLogSegment::getOpenFileName()
 {
     return fmt::format("log_{}_open_{}", first_index, create_time);
@@ -124,7 +137,7 @@ String NuRaftLogSegment::getPath()
     return log_dir + "/" + getFileName();
 }
 
-void NuRaftLogSegment::openFileIfNeeded()
+void NuRaftLogSegment::openFileIfNeeded(bool writable)
 {
     if (seg_fd != -1)
         return;
@@ -135,7 +148,7 @@ void NuRaftLogSegment::openFileIfNeeded()
     if (!Poco::File(full_path).exists())
         throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Log segment file {} does not exist.", file_name);
 
-    seg_fd = ::open(full_path.c_str(), O_RDWR);
+    seg_fd = ::open(full_path.c_str(), writable ? O_RDWR : O_RDONLY);
     if (seg_fd == -1)
         throwFromErrno(ErrorCodes::CANNOT_OPEN_FILE, "Fail to open log segment file {}", file_name);
 }
@@ -177,9 +190,10 @@ void NuRaftLogSegment::writeHeader()
     file_size.fetch_add(MAGIC_AND_VERSION_SIZE, std::memory_order_release);
 }
 
-void NuRaftLogSegment::load()
+void NuRaftLogSegment::load(bool repair_tail)
 {
-    openFileIfNeeded();
+    openFileIfNeeded(repair_tail);
+    offsets.clear();
 
     /// get file size
     struct stat st_buf;
@@ -216,7 +230,7 @@ void NuRaftLogSegment::load()
                 bytes_remaining,
                 LogEntryHeader::HEADER_SIZE,
                 entry_off);
-            if (ftruncate(seg_fd, entry_off) != 0)
+            if (repair_tail && ftruncate(seg_fd, entry_off) != 0)
                 throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Failed to truncate trailing partial header in {}", file_name);
             break;
         }
@@ -248,11 +262,18 @@ void NuRaftLogSegment::load()
                 entry_off,
                 file_size_read,
                 entry_off + log_entry_len);
-            if (ftruncate(seg_fd, entry_off) != 0)
+            if (repair_tail && ftruncate(seg_fd, entry_off) != 0)
                 throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Failed to truncate incomplete tail entry in {}", file_name);
             break;
         }
 
+        if (header.index != last_index_read + 1)
+            throw Exception(
+                ErrorCodes::CORRUPTED_LOG,
+                "Nonconsecutive index {} in segment {}, expected {}",
+                header.index,
+                file_name,
+                last_index_read + 1);
         offsets.push_back(entry_off);
         ++last_index_read;
         entry_off += log_entry_len;
@@ -296,6 +317,22 @@ void NuRaftLogSegment::load()
     /// seek to end of file if it is open
     if (is_open)
         ::lseek(seg_fd, entry_off, SEEK_SET);
+}
+
+void NuRaftLogSegment::seal()
+{
+    std::lock_guard lock(log_mutex);
+    is_open = false;
+}
+
+void NuRaftLogSegment::resumeWriting()
+{
+    std::lock_guard lock(log_mutex);
+    closeFileIfNeeded();
+    openFileIfNeeded();
+    /// Only the selected active tail may be repaired, after recovery validation succeeds.
+    if (ftruncate(seg_fd, file_size.load()) != 0 || lseek(seg_fd, file_size.load(), SEEK_SET) < 0)
+        throwFromErrno(ErrorCodes::CANNOT_WRITE_TO_FILE_DESCRIPTOR, "Cannot resume log segment {}", file_name);
 }
 
 void NuRaftLogSegment::readHeader()
@@ -639,17 +676,15 @@ ptr<LogSegmentStore> LogSegmentStore::getInstance(const String & log_dir_, bool 
 
 void LogSegmentStore::init()
 {
-    LOG_INFO(log, "Initializing log segment store with directory {}", log_dir);
+    scan();
+    finishRecovery();
+}
 
+void LogSegmentStore::finishRecovery()
+{
     Poco::File(log_dir).createDirectories();
-
-    first_log_index.store(1);
-    last_log_index.store(0);
-
-    open_segment = nullptr;
-
-    loadSegmentMetaData();
-    loadSegments();
+    if (open_segment)
+        open_segment->resumeWriting();
     openNewSegmentIfNeeded();
 }
 
@@ -673,7 +708,8 @@ UInt64 LogSegmentStore::flush()
     std::lock_guard shared_lock(seg_mutex);
     if (open_segment)
         return open_segment->flush();
-    throw Exception(ErrorCodes::LOGICAL_ERROR, "Flush log segment store failed, open segment is nullptr.");
+    /// Compaction can detach the open segment; there is nothing to flush until the next append.
+    return 0;
 }
 
 void LogSegmentStore::openNewSegmentIfNeeded()
@@ -685,6 +721,9 @@ void LogSegmentStore::openNewSegmentIfNeeded()
     }
 
     std::lock_guard write_lock(seg_mutex);
+    if (open_segment && open_segment->getFileSize() <= max_log_segment_file_size && open_segment->getVersion() >= CURRENT_LOG_VERSION)
+        return;
+
     if (open_segment)
     {
         open_segment->close(true);
@@ -733,15 +772,21 @@ ptr<NuRaftLogSegment> LogSegmentStore::getSegment(UInt64 index) const
 
 LogVersion LogSegmentStore::getVersion(UInt64 index)
 {
+    std::shared_lock read_lock(seg_mutex);
     ptr<NuRaftLogSegment> seg = getSegment(index);
-    return seg->getVersion();
+    return seg ? seg->getVersion() : LogVersion::UNKNOWN;
 }
 
 UInt64 LogSegmentStore::appendEntry(const ptr<log_entry> & entry)
 {
-    openNewSegmentIfNeeded();
-    std::shared_lock read_lock(seg_mutex);
-    return open_segment->appendEntry(entry, last_log_index);
+    while (true)
+    {
+        openNewSegmentIfNeeded();
+        std::shared_lock read_lock(seg_mutex);
+        /// Compaction may have detached the open segment between the two lock acquisitions.
+        if (open_segment)
+            return open_segment->appendEntry(entry, last_log_index);
+    }
 }
 
 void LogSegmentStore::writeAt(UInt64 index, const ptr<log_entry> & entry)
@@ -775,76 +820,56 @@ std::vector<ptr<log_entry>> LogSegmentStore::getEntries(UInt64 start_index, UInt
 
 int LogSegmentStore::removeSegment(UInt64 first_index_kept)
 {
-    if (first_log_index.load(std::memory_order_acquire) >= first_index_kept)
-    {
-        LOG_INFO(
-            log,
-            "Remove 0 log segments, since first_log_index {} >= first_index_kept {}",
-            first_log_index.load(std::memory_order_relaxed),
-            first_index_kept);
-        return 0;
-    }
+    auto segments = detachSegments(first_index_kept);
+    for (auto & segment : segments)
+        segment->remove();
+    return segments.size();
+}
 
-    std::vector<ptr<NuRaftLogSegment>> to_be_removed;
-    {
-        std::lock_guard write_lock(seg_mutex);
+LogSegmentStore::Segments LogSegmentStore::detachObsoleteSegments()
+{
+    const auto boundary = std::min(first_log_index.load(std::memory_order_relaxed), retention_boundary);
+    auto end = std::find_if(
+        closed_segments.begin(), closed_segments.end(), [boundary](const auto & segment) { return segment->lastIndex() >= boundary; });
+    Segments removed(closed_segments.begin(), end);
+    closed_segments.erase(closed_segments.begin(), end);
+    return removed;
+}
 
+LogSegmentStore::Segments LogSegmentStore::detachSegments(UInt64 first_index_kept)
+{
+    std::lock_guard lock(seg_mutex);
+    if (first_index_kept > first_log_index.load(std::memory_order_relaxed))
+    {
+        if (open_segment && open_segment->lastIndex() < first_index_kept && open_segment->firstIndex() < first_index_kept)
+        {
+            /// The file may still be needed by an older snapshot. Retirement changes only memory,
+            /// and its original open-file name is understood by snapshot-aware recovery.
+            closed_segments.push_back(open_segment);
+            open_segment->seal();
+            open_segment.reset();
+        }
+        if (last_log_index.load(std::memory_order_relaxed) < first_index_kept)
+            last_log_index.store(first_index_kept - 1, std::memory_order_release);
         first_log_index.store(first_index_kept, std::memory_order_release);
-        for (auto it = closed_segments.begin(); it != closed_segments.end();)
-        {
-            ptr<NuRaftLogSegment> & segment = *it;
-            if (segment->lastIndex() < first_index_kept)
-            {
-                to_be_removed.push_back(segment);
-                it = closed_segments.erase(it);
-            }
-            else
-            {
-                if (segment->firstIndex() < first_log_index)
-                {
-                    first_log_index.store(segment->firstIndex(), std::memory_order_release);
-                    if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
-                        last_log_index.store(segment->lastIndex(), std::memory_order_release);
-                }
-                ++it;
-            }
-        }
-
-        //remove open segment.
-        // Because when adding a node, you may directly synchronize the snapshot and do log compaction.
-        // At this time, the log of the new node is smaller than the last log index of the snapshot.
-        // So remove the open segment.
-        if (open_segment)
-        {
-            if (open_segment->lastIndex() < first_index_kept)
-            {
-                to_be_removed.push_back(open_segment);
-                open_segment = nullptr;
-            }
-            else if (open_segment->firstIndex() < first_log_index)
-            {
-                first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
-                if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
-                    last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-            }
-        }
     }
+    return detachObsoleteSegments();
+}
 
-    for (auto & seg : to_be_removed)
-    {
-        LOG_INFO(log, "Remove log segment, file {}", seg->getFileName());
-        seg->remove();
-    }
-
-    /// reset last_log_index
-    if (last_log_index == 0 || (last_log_index - 1) < first_log_index)
-        last_log_index.store(first_log_index - 1, std::memory_order_release);
-
-    return to_be_removed.size();
+LogSegmentStore::Segments LogSegmentStore::setRetentionBoundary(UInt64 oldest_snapshot_index)
+{
+    std::lock_guard lock(seg_mutex);
+    /// New completed snapshots and successful retention pruning can only move this forward.
+    if (oldest_snapshot_index < retention_boundary)
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Snapshot retention boundary cannot move backwards");
+    retention_boundary = oldest_snapshot_index;
+    return detachObsoleteSegments();
 }
 
 bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
 {
+    if (last_index_kept + 1 < firstLogIndex())
+        throw Exception(ErrorCodes::LOGICAL_ERROR, "Cannot truncate below the logical log boundary {}", firstLogIndex());
     if (last_log_index.load(std::memory_order_acquire) <= last_index_kept)
     {
         LOG_INFO(
@@ -869,7 +894,9 @@ bool LogSegmentStore::truncateLog(UInt64 last_index_kept)
             it = closed_segments.erase(it);
         }
         /// Get the segment to last_index_kept belongs
-        else if (last_index_kept >= segment->firstIndex() && last_index_kept <= segment->lastIndex())
+        else if (
+            segment->lastIndex() >= first_log_index.load(std::memory_order_relaxed) && last_index_kept >= segment->firstIndex()
+            && last_index_kept <= segment->lastIndex())
         {
             last_segment = segment;
             ++it;
@@ -956,163 +983,138 @@ bool parseSegmentFileName(const String & file_name, UInt64 & first_index, UInt64
     return true;
 }
 
-void LogSegmentStore::loadSegmentMetaData()
+void LogSegmentStore::scan(const std::optional<LogRecoveryContext> & recovery)
 {
-    Poco::File file_dir(log_dir);
-    if (!file_dir.exists())
-        throw Exception(ErrorCodes::FILE_DOESNT_EXIST, "Log directory {} does not exist.", log_dir);
+    /// The experimental marker was never released. Silently ignoring it could change recovery.
+    if (Poco::File(log_dir + "/compacted_to").exists() || Poco::File(log_dir + "/compacted_to.tmp").exists())
+        throw Exception(
+            ErrorCodes::CORRUPTED_LOG,
+            "Unsupported experimental compacted_to metadata in {}. Recover the test directory with its original build; do not discard the "
+            "marker.",
+            log_dir);
 
+    Segments segments;
     std::vector<String> files;
-    file_dir.list(files);
-
+    if (Poco::File(log_dir).exists())
+        Poco::File(log_dir).list(files);
     for (const auto & file : files)
     {
         if (!file.starts_with("log_"))
-        {
-            LOG_WARNING(log, "Skip non-log-segment file {}", file);
             continue;
-        }
-
-        LOG_INFO(log, "Find log segment file {}", file);
-
-        UInt64 first_index;
-        UInt64 last_index;
+        UInt64 first_index = 0;
+        UInt64 last_index = 0;
         String create_time;
-        bool is_open_segment;
-
-        if (!parseSegmentFileName(file, first_index, last_index, create_time, is_open_segment))
-            throw Exception(ErrorCodes::INVALID_LOG_SEGMENT_FILE_NAME, "Invalid log segment fine name {}", file);
-
+        bool is_open_segment = false;
+        if (!parseSegmentFileName(file, first_index, last_index, create_time, is_open_segment) || first_index == 0)
+            throw Exception(ErrorCodes::INVALID_LOG_SEGMENT_FILE_NAME, "Invalid log segment name {}", file);
         if (is_open_segment)
-        {
-            if (open_segment)
-                throwFromErrno(ErrorCodes::CORRUPTED_LOG, "Find more than one open segment in {}", log_dir);
-            open_segment = cs_new<NuRaftLogSegment>(log_dir, first_index, file, String(create_time));
-        }
+            segments.push_back(cs_new<NuRaftLogSegment>(log_dir, first_index, file, create_time));
         else
         {
-            ptr<NuRaftLogSegment> segment = cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file, String(create_time));
-            closed_segments.push_back(segment);
+            if (last_index < first_index)
+                throw Exception(ErrorCodes::CORRUPTED_LOG, "Invalid index range in {}", file);
+            segments.push_back(cs_new<NuRaftLogSegment>(log_dir, first_index, last_index, file, create_time));
+        }
+    }
+    std::sort(segments.begin(), segments.end(), compareSegment);
+
+    const UInt64 snapshot_index = recovery ? recovery->snapshot_index : 0;
+    const UInt64 wanted = recovery && snapshot_index >= recovery->logs_to_keep ? snapshot_index - recovery->logs_to_keep + 1 : 1;
+    Segments readable;
+    for (const auto & segment : segments)
+    {
+        if (!segment->isOpen() && segment->lastIndex() < wanted)
+            continue;
+        try
+        {
+            segment->load(false);
+            readable.push_back(segment);
+        }
+        catch (...)
+        {
+            /// A known closed range below the chosen snapshot is not required for recovery.
+            /// Keep the file for conservative retention, but never expose its damaged entries.
+            if (!recovery || segment->isOpen() || segment->lastIndex() > snapshot_index)
+                throw;
+            tryLogCurrentException(log, "Ignoring damaged historical segment covered by the selected snapshot");
         }
     }
 
-    std::sort(closed_segments.begin(), closed_segments.end(), compareSegment);
-
-    /// 0 close/open segment
-    /// 1 open segment
-    /// N close segment + 1 open segment
-    if (open_segment)
+    UInt64 covered = snapshot_index;
+    if (!recovery && !readable.empty())
+        covered = readable.front()->firstIndex() - 1;
+    for (const auto & segment : readable)
     {
-        if (!closed_segments.empty())
-            first_log_index.store((*closed_segments.begin())->firstIndex(), std::memory_order_release);
-        else
-            first_log_index.store(open_segment->firstIndex(), std::memory_order_release);
-
-        last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-    }
-
-    /// check segment
-    /// last_log_index = 0;
-
-    ptr<NuRaftLogSegment> prev_seg;
-    ptr<NuRaftLogSegment> segment;
-
-    for (auto it = closed_segments.begin(); it != closed_segments.end();)
-    {
-        segment = *it;
-        LOG_INFO(
-            log,
-            "first log index {}, last log index {}, current segment first index {}, last index {}",
-            first_log_index.load(std::memory_order_relaxed),
-            last_log_index.load(std::memory_order_relaxed),
-            segment->firstIndex(),
-            segment->lastIndex());
-
-        if (segment->firstIndex() > segment->lastIndex())
+        if (segment->lastIndex() < segment->firstIndex() || segment->lastIndex() <= snapshot_index)
+            continue;
+        const auto required_first = std::max(segment->firstIndex(), snapshot_index + 1);
+        if (required_first != covered + 1)
             throw Exception(
                 ErrorCodes::CORRUPTED_LOG,
-                "Invalid segment {}, first index {} > last index {}",
-                segment->getFileName(),
-                segment->firstIndex(),
-                segment->lastIndex());
-
-        if (prev_seg && segment->firstIndex() != prev_seg->lastIndex() + 1)
-            throw Exception(
-                ErrorCodes::CORRUPTED_LOG,
-                "Segment {} does not connect correctly, prev segment last index {}, current segment first index {}",
-                log_dir,
-                prev_seg->lastIndex(),
-                segment->firstIndex());
-
-        ++it;
+                "Log gap or overlap after snapshot {}: expected {}, found {} in {}",
+                snapshot_index,
+                covered + 1,
+                required_first,
+                segment->getFileName());
+        if (recovery)
+        {
+            /// Validate the required suffix, including checksums and entry framing, before
+            /// repairing any tail or allowing physical cleanup. Snapshot-covered history
+            /// need not be decoded just to recover a newer snapshot.
+            for (UInt64 index = required_first; index <= segment->lastIndex(); ++index)
+                if (!segment->getEntry(index))
+                    throw Exception(ErrorCodes::CORRUPTED_LOG, "Missing required log {} in {}", index, segment->getFileName());
+        }
+        covered = segment->lastIndex();
     }
+    if (recovery && covered < recovery->committed_index)
+        throw Exception(ErrorCodes::CORRUPTED_LOG, "Logs end at {}, before committed index {}", covered, recovery->committed_index);
 
-    if (open_segment)
+    /// Retain only a contiguous, unambiguous suffix in NuRaft's visible range.
+    /// Earlier physical files remain available for recovery from an older snapshot.
+    UInt64 visible_start = covered + 1;
+    UInt64 previous = covered;
+    for (auto it = readable.rbegin(); it != readable.rend(); ++it)
     {
-        if (prev_seg && open_segment->firstIndex() != prev_seg->lastIndex() + 1)
-            throw Exception(
-                ErrorCodes::CORRUPTED_LOG,
-                "Open segment does not connect correctly, prev segment last index {}, open segment first index {}",
-                prev_seg->lastIndex(),
-                open_segment->firstIndex());
+        const auto & segment = *it;
+        if (segment->lastIndex() < segment->firstIndex())
+            continue;
+        if (segment->lastIndex() != previous)
+        {
+            if (segment->lastIndex() > previous)
+                visible_start = std::max(visible_start, segment->lastIndex() + 1);
+            break;
+        }
+        visible_start = segment->firstIndex();
+        previous = visible_start - 1;
     }
+    visible_start = std::max(visible_start, wanted);
+
+    ptr<NuRaftLogSegment> active;
+    for (const auto & segment : readable)
+    {
+        if (segment->isOpen() && segment->lastIndex() == covered)
+        {
+            if (active && active->firstIndex() == segment->firstIndex())
+                throw Exception(ErrorCodes::CORRUPTED_LOG, "Ambiguous open log files at {}", segment->firstIndex());
+            active = segment;
+        }
+    }
+
+    Segments retained;
+    retained.reserve(segments.size());
+    for (auto & segment : segments)
+    {
+        if (segment != active)
+        {
+            segment->seal();
+            retained.push_back(std::move(segment));
+        }
+    }
+    open_segment = std::move(active);
+    closed_segments = std::move(retained);
+    first_log_index.store(visible_start, std::memory_order_release);
+    last_log_index.store(covered, std::memory_order_release);
+    retention_boundary = 0;
 }
-
-void LogSegmentStore::loadSegments()
-{
-    /// 1. Load closed segments in parallel
-
-    size_t thread_num = std::min(closed_segments.size(), LOAD_THREAD_NUM);
-    ThreadPool load_thread_pool(thread_num);
-
-    for (size_t thread_id = 0; thread_id < thread_num; thread_id++)
-    {
-        load_thread_pool.trySchedule([this, thread_id, thread_num]
-        {
-            Poco::Logger * thread_log = &(Poco::Logger::get("LoadClosedLogSegmentThread#" + std::to_string(thread_id)));
-            for (size_t seg_id = 0; seg_id < closed_segments.size(); seg_id++)
-            {
-                if (seg_id % thread_num == thread_id)
-                {
-                    ptr<NuRaftLogSegment> segment = closed_segments[seg_id];
-                    LOG_INFO(thread_log, "Loading closed segment, first_index {}, last_index {}", segment->firstIndex(), segment->lastIndex());
-                    segment->load();
-                }
-            }
-        });
-    }
-
-    /// Update last_log_index from closed segments
-    if (!closed_segments.empty())
-        last_log_index = closed_segments.back()->lastIndex();
-
-    load_thread_pool.wait();
-
-    /// 2. Load open segment
-
-    if (open_segment)
-    {
-        LOG_INFO(log, "Loading open segment {} ", log_dir, open_segment->getFileName());
-        open_segment->load();
-
-        if (first_log_index.load() > open_segment->lastIndex())
-        {
-            throw Exception(
-                ErrorCodes::CORRUPTED_LOG,
-                "First log index {} > last index {} of open segment {}",
-                first_log_index.load(),
-                open_segment->lastIndex(),
-                open_segment->getFileName());
-        }
-        else
-        {
-            LOG_INFO(log, "The last index of open segment {} is {}", open_segment->lastIndex(), open_segment->getFileName());
-            last_log_index.store(open_segment->lastIndex(), std::memory_order_release);
-        }
-    }
-
-    if (last_log_index == 0)
-        last_log_index = first_log_index - 1;
-}
-
 }

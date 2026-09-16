@@ -127,7 +127,6 @@ void KeeperServer::shutdown()
         state_manager->load_log_store()->flush();
 
     raft_instance->shutdown();
-    dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
 
     if (create_snapshot_on_exit)
     {
@@ -140,6 +139,9 @@ void KeeperServer::shutdown()
         }
     }
     state_machine->shutdown();
+    /// Snapshot completion (including snapshot-on-exit) can enqueue log reclamation.
+    /// Drain its callbacks while raft_instance is still alive.
+    dynamic_cast<NuRaftFileLogStore &>(*state_manager->load_log_store()).shutdown();
     LOG_INFO(log, "Shut down NuRaft core done!");
 }
 

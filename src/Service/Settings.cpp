@@ -1,8 +1,11 @@
 #include <filesystem>
 #include <limits>
-#include <Service/Settings.h>
+
 #include <Common/IO/WriteHelpers.h>
 #include <Common/getNumberOfPhysicalCPUCores.h>
+
+#include <Service/Settings.h>
+#include <Service/SnapshotCommon.h>
 #include <ZooKeeper/ZooKeeperConstants.h>
 
 
@@ -79,8 +82,8 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         max_stored_snapshots = config.getUInt(get_key("max_stored_snapshots"), 3);
         /// Log compaction is handled by compactLogStore() in NuRaftStateMachine,
         /// which compacts based on the oldest retained snapshot (same as ZooKeeper).
-        /// NuRaft's own compaction (based on latest snapshot - reserved_log_items)
-        /// is disabled by defaulting reserved_log_items to INT32_MAX so it never fires.
+        /// INT32_MAX postpones NuRaft's additional compaction (latest snapshot - reserved_log_items),
+        /// but is not a disable flag: sufficiently large snapshot indices still trigger it.
         reserved_log_items = config.getUInt(get_key("reserved_log_items"), std::numeric_limits<int32_t>::max());
         startup_timeout = config.getUInt(get_key("startup_timeout"), 6000000);
         shutdown_timeout = config.getUInt(get_key("shutdown_timeout"), 5000);
@@ -96,12 +99,12 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
         max_log_segment_file_size = config.getUInt(get_key("max_log_segment_file_size"), 1073741824);
         log_compression = config.getString(get_key("log_compression"), "none");
         snapshot_compression = config.getString(get_key("snapshot_compression"), "none");
+        snapshot_format_version = config.getUInt(get_key("snapshot_format_version"), 4);
         async_snapshot = config.getBool(get_key("async_snapshot"), true);
 
         if (log_compression != "none" && log_compression != "zstd")
             LOG_WARNING(log, "Unknown log_compression '{}' — valid values are 'none' and 'zstd'. Falling back to no compression.", log_compression);
-        if (snapshot_compression != "none" && snapshot_compression != "zstd")
-            LOG_WARNING(log, "Unknown snapshot_compression '{}' — valid values are 'none' and 'zstd'. Falling back to no compression.", snapshot_compression);
+        getSnapshotFormat();
     }
     catch (Exception & e)
     {
@@ -109,6 +112,18 @@ void RaftSettings::loadFromConfig(const String & config_elem, const Poco::Util::
             e.addMessage("in configuration.");
         throw;
     }
+}
+
+SnapshotFormat RaftSettings::getSnapshotFormat() const
+{
+    if (snapshot_compression != "none" && snapshot_compression != "zstd")
+        throw Exception(ErrorCodes::ILLEGAL_SETTING_VALUE, "snapshot_compression must be 'none' or 'zstd'");
+    auto codec = snapshot_compression == "zstd" ? SnapshotCodec::Zstd : SnapshotCodec::None;
+    if (snapshot_format_version == 2)
+        return SnapshotFormat(codec == SnapshotCodec::Zstd ? SnapshotVersion::V3 : SnapshotVersion::V2);
+    if (snapshot_format_version == 4)
+        return SnapshotFormat(SnapshotVersion::V4, codec);
+    throw Exception(ErrorCodes::ILLEGAL_SETTING_VALUE, "snapshot_format_version must be 2 (legacy) or 4");
 }
 
 RaftSettingsPtr RaftSettings::getDefault()
@@ -122,7 +137,7 @@ RaftSettingsPtr RaftSettings::getDefault()
     settings->client_req_timeout_ms = settings->operation_timeout_ms;
     settings->election_timeout_lower_bound_ms = Coordination::ELECTION_TIMEOUT_LOWER_BOUND_MS;
     settings->election_timeout_upper_bound_ms = Coordination::ELECTION_TIMEOUT_UPPER_BOUND_MS;
-    settings->reserved_log_items = std::numeric_limits<int32_t>::max(); /// disabled — compaction handled by compactLogStore() (ZooKeeper-style)
+    settings->reserved_log_items = std::numeric_limits<int32_t>::max(); /// Prefer oldest-retained-snapshot compaction; not a disable flag.
     settings->snapshot_distance = 3000000;
     settings->max_stored_snapshots = 3;
     settings->shutdown_timeout = 5000;
@@ -253,6 +268,8 @@ void Settings::dump(WriteBufferFromOwnString & buf) const
     writeText("snapshot_compression=", buf);
     writeText(raft_settings->snapshot_compression, buf);
     buf.write('\n');
+    writeText("snapshot_format_version=", buf);
+    write_int(raft_settings->snapshot_format_version);
 
     writeText("nuraft_thread_size=", buf);
     write_int(raft_settings->nuraft_thread_size);

@@ -26,7 +26,18 @@ jobs:
       - name: Prepare environment # need llvm-symbolizer for sanitizer
         run: bash .github/workflows/prepare-env.sh 18
 
+      - name: Prepare genuine 2.1.1 binary for snapshot downgrade tests
+        run: |
+          mkdir -p build/old
+          curl --fail --location --retry 3 --output build/old/raftkeeper-2.1.1.tar.gz \
+            https://github.com/JDRaftKeeper/RaftKeeper/releases/download/v2.1.1/RaftKeeper-v2.1.1-linux-x86_64.tar.gz
+          echo '2176726daf8c955d7afc5eece6afdde6118c54451fa074e2888a551c5f1d76c6  build/old/raftkeeper-2.1.1.tar.gz' | sha256sum --check
+          tar -xzf build/old/raftkeeper-2.1.1.tar.gz -C build/old --strip-components=2 RaftKeeper/lib/raftkeeper
+          build/old/raftkeeper server --version | grep -E '(^|[^0-9])2\.1\.1([^0-9]|$)'
+
       - name: Run integration Tests
+        env:
+          RAFTKEEPER_TESTS_OLD_SERVER_BIN_PATH: ${{ github.workspace }}/build/old/raftkeeper
         run: bash .github/workflows/run-integration-test.sh tests/integration --junitxml=integration-test-report-${{ inputs.sanitize }}.xml
 
       - name: Upload test report

@@ -1,0 +1,16 @@
+<raftkeeper>
+    <keeper>
+        <my_id>3</my_id>
+        <host>node3</host>
+        <parallel>4</parallel>
+        <create_snapshot_on_exit>false</create_snapshot_on_exit>
+        <raft_settings>
+            <nuraft_thread_size>4</nuraft_thread_size>
+        </raft_settings>
+        <cluster>
+            <server><id>1</id><host>node1</host></server>
+            <server><id>2</id><host>node2</host></server>
+            <server><id>3</id><host>node3</host></server>
+        </cluster>
+    </keeper>
+</raftkeeper>

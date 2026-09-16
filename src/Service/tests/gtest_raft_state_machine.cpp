@@ -142,6 +142,7 @@ TEST(RaftStateMachine, createSnapshot)
 
     NuRaftStateMachine machine(queue, setting_ptr, snap_dir, log_dir, 10, 3, new_session_id_callback_mutex, new_session_id_callback);
     LOG_INFO(log, "init last commit index {}", machine.last_commit_index());
+    const auto initial_node_count = machine.getStore().getNodesCount();
 
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt32 last_index = 35;
@@ -160,7 +161,7 @@ TEST(RaftStateMachine, createSnapshot)
     UInt64 term = 1;
     snapshot meta(last_index, term, config);
     machine.create_snapshot(meta);
-    ASSERT_EQ(machine.getStore().getNodesCount(), 38);
+    ASSERT_EQ(machine.getStore().getNodesCount(), last_index + initial_node_count);
     machine.shutdown();
 
     cleanDirectory(snap_dir);
@@ -193,6 +194,7 @@ TEST(RaftStateMachine, syncSnapshot)
     ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
     UInt64 term = 1;
     UInt32 last_index = 1024;
+    const auto initial_node_count = machine_source.getStore().getNodesCount();
     for (auto i = 0; i < last_index; i++)
     {
         String key = "/" + std::to_string(i + 1);
@@ -213,7 +215,7 @@ TEST(RaftStateMachine, syncSnapshot)
         machine_target.save_logical_snp_obj(meta, obj_id, *(data_out.get()), is_first, is_last_obj);
     }
     machine_target.apply_snapshot(meta);
-    ASSERT_EQ(machine_target.getStore().getNodesCount(), last_index + 3);
+    ASSERT_EQ(machine_target.getStore().getNodesCount(), last_index + initial_node_count);
 
     for (auto i = 1; i < obj_id; i++)
     {
@@ -254,6 +256,7 @@ TEST(RaftStateMachine, initStateMachine)
 
         ptr<cluster_config> config = cs_new<cluster_config>(1, 0);
         UInt32 last_index = 128;
+        const auto initial_node_count = machine.getStore().getNodesCount();
         UInt64 term = 1;
 
         for (auto i = 0; i < last_index; i++)
@@ -280,7 +283,7 @@ TEST(RaftStateMachine, initStateMachine)
         LOG_INFO(log, "get sm/tm last commit index {},{}", machine.last_commit_index(), machine.getLastCommittedIndex());
 
 
-        ASSERT_EQ(machine.getStore().getNodesCount(), 259);
+        ASSERT_EQ(machine.getStore().getNodesCount(), last_index * 2 + initial_node_count);
         machine.shutdown();
     }
 

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <shared_mutex>
 #include <vector>
 
@@ -46,6 +47,13 @@ struct LogEntryWithVersion
 
 static constexpr auto CURRENT_LOG_VERSION = LogVersion::V2;
 
+struct LogRecoveryContext
+{
+    UInt64 snapshot_index = 0;
+    UInt64 committed_index = 0;
+    UInt64 logs_to_keep = 0;
+};
+
 class NuRaftLogSegment
 {
 public:
@@ -57,7 +65,12 @@ public:
     /// For existing open segment
     NuRaftLogSegment(const String & log_dir_, UInt64 first_index_, const String & file_name_, const String & create_time_);
 
-    void load();
+    ~NuRaftLogSegment();
+
+    void load(bool repair_tail = true);
+    /// Memory-only retirement. Keep the original path for recovery and eventual deletion.
+    void seal();
+    void resumeWriting();
     inline UInt64 flush() const;
 
     /// Close an open segment
@@ -100,6 +113,8 @@ public:
     String getFileName();
 
 private:
+    friend class LogCompactionTest;
+
     /// invoked when create new segment
     String getOpenFileName();
     String getOpenPath();
@@ -113,7 +128,7 @@ private:
     String getPath();
 
     /// open file by fd
-    void openFileIfNeeded();
+    void openFileIfNeeded(bool writable = true);
 
     /// close file, throw exception if failed
     void closeFileIfNeeded();
@@ -203,6 +218,10 @@ public:
     /// Init log store, will create dir if not exist
     void init();
 
+    /// Scan and validate without changing any on-disk state, then finish only after choosing a snapshot.
+    void scan(const std::optional<LogRecoveryContext> & recovery = std::nullopt);
+    void finishRecovery();
+
     void close();
     /// Return last flushed log index
     UInt64 flush();
@@ -227,6 +246,10 @@ public:
     /// return number of segments removed
     int removeSegment(UInt64 first_index_kept);
 
+    /// Advance the visible boundary; reclaim only whole files permitted by snapshot retention.
+    Segments detachSegments(UInt64 first_index_kept);
+    Segments setRetentionBoundary(UInt64 oldest_snapshot_index);
+
     /// Delete uncommitted logs from storage's tail, (last_index_kept, infinity) will be discarded
     /// Return true if some logs are removed
     bool truncateLog(UInt64 last_index_kept);
@@ -245,11 +268,8 @@ private:
     /// open a new segment, invoked when init
     void openNewSegmentIfNeeded();
 
-    /// list segments, invoked when init
-    void loadSegmentMetaData();
-
-    /// load listed segments, invoked when init
-    void loadSegments();
+    /// Requires seg_mutex. No disk I/O.
+    Segments detachObsoleteSegments();
 
     /// find segment by log index, return null if not found
     ptr<NuRaftLogSegment> getSegment(UInt64 log_index) const;
@@ -277,6 +297,8 @@ private:
 
     /// global mutex
     mutable std::shared_mutex seg_mutex;
-};
 
+    /// Zero means no durable snapshot has authorized reclamation yet.
+    UInt64 retention_boundary = 0;
+};
 }

@@ -2,6 +2,12 @@
     <keeper>
         <my_id>1</my_id>
         <host>node1</host>
+        <create_snapshot_on_exit>true</create_snapshot_on_exit>
+        <raft_settings>
+            <!-- Exercise NuRaft's compact_async callback during snapshot-on-exit. -->
+            <reserved_log_items>1</reserved_log_items>
+            <max_log_segment_file_size>1024</max_log_segment_file_size>
+        </raft_settings>
         <cluster>
             <server>
                 <id>1</id>

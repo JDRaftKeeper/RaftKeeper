@@ -27,6 +27,7 @@ namespace FsyncModeNS
 }
 
 struct RaftSettings;
+struct SnapshotFormat;
 using RaftSettingsPtr = std::shared_ptr<RaftSettings>;
 
 struct Settings
@@ -114,8 +115,10 @@ struct RaftSettings
     UInt64 max_log_segment_file_size;
     /// Log entry codec: "none" or "zstd". Applies to newly written entries; readers auto-detect per-entry.
     String log_compression;
-    /// Snapshot codec: "none" (V2) or "zstd" (V3). Applies to newly written snapshots; readers auto-detect via version byte.
+    /// Snapshot codec: "none" or "zstd", independent of the V4 data format.
     String snapshot_compression;
+    /// 2 preserves legacy V2/V3 writing; 4 enables an explicit codec and merged metadata.
+    UInt64 snapshot_format_version = 4;
     /// Whether async snapshot
     bool async_snapshot;
 
@@ -124,6 +127,8 @@ struct RaftSettings
     void loadFromConfig(const String & config_elem, const Poco::Util::AbstractConfiguration & config);
 
     static RaftSettingsPtr getDefault();
+
+    SnapshotFormat getSnapshotFormat() const;
 };
 
 }

@@ -188,6 +188,7 @@ TEST(RaftLog, removeSegment)
     }
 
     //[1,2],[3,4],[5,6],[7，8],[9,open]
+    log_store->setRetentionBoundary(3);
     ASSERT_EQ(log_store->getClosedSegments().size(), 4);
     ASSERT_EQ(log_store->removeSegment(3), 1); //remove first segment[1,2]
     ASSERT_EQ(log_store->getClosedSegments().size(), 3);
@@ -342,13 +343,16 @@ TEST(RaftLog, compact)
 
     ASSERT_EQ(file_store->segmentStore()->getClosedSegments().size(), 7);
 
+    file_store->setRetentionBoundary(4);
     file_store->compact(3);
+    file_store->waitForCleanup();
 
-    ASSERT_EQ(file_store->start_index(), 3);
+    ASSERT_EQ(file_store->start_index(), 4);
     ASSERT_EQ(file_store->segmentStore()->lastLogIndex(), 16);
 
     ASSERT_EQ(file_store->segmentStore()->getClosedSegments().size(), 6);
-    ptr<log_entry> log1 = file_store->entry_at(3);
+    ASSERT_EQ(file_store->entry_at(3), nullptr);
+    ptr<log_entry> log1 = file_store->entry_at(4);
     ASSERT_EQ(log1->get_term(), 1);
     ASSERT_EQ(log1->get_val_type(), app_log);
     auto zk_request1 = getZookeeperCreateRequest(log1);

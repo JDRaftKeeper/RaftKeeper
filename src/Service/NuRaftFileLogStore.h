@@ -1,11 +1,16 @@
 #pragma once
 
 #include <atomic>
-#include <Service/NuRaftLogSegment.h>
-#include <Service/Settings.h>
-#include <libnuraft/nuraft.hxx>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+
 #include <Common/ThreadPool.h>
 #include <common/logger_useful.h>
+#include <libnuraft/nuraft.hxx>
+
+#include <Service/NuRaftLogSegment.h>
+#include <Service/Settings.h>
 
 namespace RK
 {
@@ -49,14 +54,22 @@ private:
 class NuRaftFileLogStore : public nuraft::log_store
 {
     __nocopy__(NuRaftFileLogStore) public : explicit NuRaftFileLogStore(
-         const String & log_dir,
-         bool force_new = false,
-         FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
-         UInt64 log_fsync_interval_ = 1000,
-         UInt64 max_log_segment_file_size_ = LogSegmentStore::MAX_LOG_SEGMENT_FILE_SIZE,
-         LogEntryCodec write_codec_ = LogEntryCodec::RAW);
+                                                const String & log_dir,
+                                                bool force_new = false,
+                                                FsyncMode log_fsync_mode_ = FsyncMode::FSYNC_PARALLEL,
+                                                UInt64 log_fsync_interval_ = 1000,
+                                                UInt64 max_log_segment_file_size_ = LogSegmentStore::MAX_LOG_SEGMENT_FILE_SIZE,
+                                                LogEntryCodec write_codec_ = LogEntryCodec::RAW,
+                                                bool defer_init = false);
 
     ~NuRaftFileLogStore() override;
+
+    void prepareRecovery(const LogRecoveryContext & recovery);
+    void init();
+    bool isInitialized() const { return initialized; }
+    void setRetentionBoundary(UInt64 oldest_snapshot_index);
+    /// Wait for all accepted first attempts, not for indefinite retries. Tests/controlled shutdown only.
+    void waitForCleanup();
 
     /// The first available slot of the store, starts with 1
     ulong next_slot() const override;
@@ -161,9 +174,13 @@ class NuRaftFileLogStore : public nuraft::log_store
      * set start log index to `last_log_index + 1`.
      *
      * @param last_log_index Log index number that will be purged up to (inclusive).
-     * @return `true` on success.
+     * Logical completion only; physical reclamation is asynchronous and snapshot-retention bounded.
+     * @return `true` when the logical boundary and cleanup scheduling succeed.
      */
     bool compact(ulong last_log_index) override;
+
+    /// Publish the new boundary synchronously; reclaim detached files on an owned worker.
+    void compact_async(ulong last_log_index, const nuraft::async_result<bool>::handler_type & when_done) override;
 
     /**
      * Synchronously flush all log entries in this log store to the backing storage
@@ -190,6 +207,29 @@ class NuRaftFileLogStore : public nuraft::log_store
 private:
     /// Thread used to flush log, only used in FSYNC_PARALLEL mode
     void fsyncThread();
+
+    void compactionThread();
+
+    struct CompactionJob
+    {
+        LogSegmentStore::Segments segments;
+        nuraft::async_result<bool>::handler_type when_done;
+    };
+
+    struct RetrySegment
+    {
+        ptr<NuRaftLogSegment> segment;
+        std::chrono::steady_clock::time_point next_attempt;
+        std::chrono::seconds delay{1};
+    };
+
+    std::mutex compaction_mutex;
+    std::condition_variable compaction_cv;
+    std::deque<CompactionJob> compaction_jobs;
+    ThreadFromGlobalPool compaction_thread;
+    bool compaction_active = false;
+    bool initialized = false;
+    bool recovery_prepared = false;
 
     /// Used to operate log in the store
     ptr<LogSegmentStore> segment_store;
