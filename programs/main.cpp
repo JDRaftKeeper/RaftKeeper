@@ -14,6 +14,7 @@
 
 int mainEntryRaftKeeperServer(int argc, char ** argv);
 int mainEntryRaftKeeperConverter(int argc, char ** argv);
+int mainEntryRaftKeeperBench(int argc, char ** argv);
 
 namespace
 {
@@ -25,6 +26,7 @@ using MainFunc = int (*)(int, char **);
 std::pair<const char *, MainFunc> raftkeeper_applications[] = {
     {"server", mainEntryRaftKeeperServer},
     {"converter", mainEntryRaftKeeperConverter},
+    {"keeper-bench", mainEntryRaftKeeperBench},
 };
 
 
@@ -37,24 +39,23 @@ int printHelp(int, char **)
 }
 
 
-bool isRaftKeeperApp(const std::string & app_suffix, std::vector<char *> & argv)
+bool isRaftKeeperSymlink(const std::string & app_suffix, const std::vector<char *> & argv)
 {
-    /// Use app if the first arg 'app' is passed (the arg should be quietly removed)
-    if (argv.size() >= 2)
-    {
-        auto first_arg = argv.begin() + 1;
-
-        /// 'raftkeeper --client ...' and 'raftkeeper client ...' are Ok
-        if (*first_arg == "--" + app_suffix || *first_arg == app_suffix)
-        {
-            argv.erase(first_arg);
-            return true;
-        }
-    }
-
-    /// Use app if raftkeeper binary is run through symbolic link with name raftkeeper-app
     std::string app_name = "raftkeeper-" + app_suffix;
     return !argv.empty() && (app_name == argv[0] || endsWith(argv[0], "/" + app_name));
+}
+
+bool isRaftKeeperArgument(const std::string & app_suffix, std::vector<char *> & argv)
+{
+    if (argv.size() < 2)
+        return false;
+
+    auto first_arg = argv.begin() + 1;
+    if (*first_arg != "--" + app_suffix && *first_arg != app_suffix)
+        return false;
+
+    argv.erase(first_arg);
+    return true;
 }
 
 }
@@ -88,10 +89,22 @@ int main(int argc_, char ** argv_)
 
     for (auto & application : raftkeeper_applications)
     {
-        if (isRaftKeeperApp(application.first, argv))
+        if (isRaftKeeperSymlink(application.first, argv))
         {
             main_func = application.second;
             break;
+        }
+    }
+
+    if (main_func == printHelp)
+    {
+        for (auto & application : raftkeeper_applications)
+        {
+            if (isRaftKeeperArgument(application.first, argv))
+            {
+                main_func = application.second;
+                break;
+            }
         }
     }
 

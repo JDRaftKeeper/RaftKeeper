@@ -1185,4 +1185,13 @@ void ZooKeeper::close()
     ProfileEvents::increment(ProfileEvents::ZooKeeperClose);
 }
 
+void ZooKeeper::executeGenericRequest(const ZooKeeperRequestPtr & request, ResponseCallback callback, WatchCallback watch)
+{
+    RequestInfo request_info;
+    request_info.request = request;
+    request_info.callback = std::move(callback);
+    request_info.watch = std::move(watch);
+    pushRequest(std::move(request_info));
+}
+
 }
