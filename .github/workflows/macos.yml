@@ -9,7 +9,7 @@ jobs:
 #      matrix:
 #        arch: [x86_64, arm64]
 #    runs-on: macos-14-${{ matrix.arch == 'arm64' && 'arm64' || 'latest' }} # actions is stuck in Github
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
         with:
