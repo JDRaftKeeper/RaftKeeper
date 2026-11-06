@@ -11,6 +11,10 @@ ZooKeeper client never sends them).
 Verdict legend: **FIXED** (this branch), **GATED** (mode-conditional, this branch), **DEFERRED**,
 **BY DESIGN** (intended divergence), **N/A** (feature absent, tracked separately).
 
+**Upgrade warning:** opcode 504 changes its wire layout without version negotiation or a legacy
+fallback. Clients using the old RaftKeeper-specific CheckStat format must be upgraded together
+with the server; see the [release notes](release-notes.md#checkstat-client-compatibility).
+
 ---
 
 ## A. Same opcode, different observable behavior — addressed on this branch

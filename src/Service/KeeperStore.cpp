@@ -658,10 +658,14 @@ struct StoreRequestRemoveRecursive final : public StoreRequest
         /// Require Delete permission on every node in the subtree, not just the root's parent
         /// (matches ClickHouse Keeper). Any denied node fails the whole request before any mutation.
         {
-            std::shared_lock r_lock(store.auth_mutex);
-            auto auth_it = store.session_and_auth.find(session_id);
-            const auto & session_auths
-                = (auth_it != store.session_and_auth.end()) ? auth_it->second : std::vector<Coordination::AuthID>{};
+            /// Snapshot auth once, then release auth_mutex before accessing the ACL map.
+            Coordination::AuthIDs session_auths;
+            {
+                std::shared_lock r_lock(store.auth_mutex);
+                auto auth_it = store.session_and_auth.find(session_id);
+                if (auth_it != store.session_and_auth.end())
+                    session_auths = auth_it->second;
+            }
             for (const auto & path : paths_to_remove)
             {
                 auto n = store.getNode(path);
@@ -1037,8 +1041,7 @@ struct StoreRequestList final : public StoreRequest
 
             auto child_read_allowed = [&](const KeeperNodePtr & child_node) -> bool
             {
-                /// convertNumber (which locks acl_map) must be called before taking auth_mutex, to keep
-                /// the same lock order as checkAuth() and avoid a deadlock.
+                /// Fetch ACLs before taking auth_mutex; do not nest the two locks.
                 const auto & child_acls = store.acl_map.convertNumber(child_node->acl_id);
                 if (child_acls.empty())
                     return true;
@@ -1052,7 +1055,7 @@ struct StoreRequestList final : public StoreRequest
             auto get_child = [&](const String & child) -> KeeperNodePtr
             {
                 auto child_node = store.getNode(request_typed.path + "/" + child);
-                if (child_node == nullptr)
+                if (child_node == nullptr && list_request_type != ALL)
                 {
                     LOG_ERROR(
                         &Poco::Logger::get("StoreRequestList"),
@@ -1061,30 +1064,37 @@ struct StoreRequestList final : public StoreRequest
                         request_typed.path);
                     std::terminate();
                 }
+                /// ALL lists historically tolerate a dangling child with empty stat/data.
                 return child_node;
             };
 
             /// Pre-pass: if this request would reveal any child's stat/data/ephemeral-flag, the session
             /// needs Read on every such child. A single denied child fails the whole request (ZNOAUTH),
             /// so check before collecting anything (CompactStrings has no clear()).
+            std::vector<KeeperNodePtr> child_nodes;
             if (need_child_acl)
             {
+                child_nodes.reserve(node->children.size());
                 for (const auto & child : node->children)
                 {
-                    if (!child_read_allowed(get_child(child)))
+                    auto child_node = get_child(child);
+                    if (child_node && !child_read_allowed(child_node))
                     {
                         response->error = Coordination::Error::ZNOAUTH;
                         return {response, {}};
                     }
+                    child_nodes.push_back(std::move(child_node));
                 }
             }
 
             response_typed.names.reserve(node->children.size());
+            /// The child set is unchanged between passes; reuse nodes in the same iteration order.
+            size_t child_index = 0;
             for (const auto & child : node->children)
             {
                 KeeperNodePtr child_node;
                 if (need_child_acl)
-                    child_node = get_child(child);
+                    child_node = child_nodes[child_index++];
 
                 if (list_request_type != ALL)
                 {
@@ -1097,9 +1107,9 @@ struct StoreRequestList final : public StoreRequest
                 response_typed.names.push_back(child);
 
                 if (with_stat)
-                    response_typed.stats.push_back(child_node->statForResponse());
+                    response_typed.stats.push_back(child_node ? child_node->statForResponse() : Coordination::Stat{});
                 if (with_data)
-                    response_typed.data.push_back(child_node->data);
+                    response_typed.data.push_back(child_node ? child_node->data : String{});
             }
         }
         else
