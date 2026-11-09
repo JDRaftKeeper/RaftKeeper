@@ -23,6 +23,7 @@ macro(raftkeeper_program_add_library name)
     endif ()
 
     set(_include ${RAFTKEEPER_${name_uc}_INCLUDE}) # can't use ${} in if()
+
     if (_include)
         target_include_directories(raftkeeper-${name}-lib ${RAFTKEEPER_${name_uc}_INCLUDE})
     endif ()
@@ -34,6 +35,7 @@ endmacro()
 
 add_subdirectory(server)
 add_subdirectory(converter)
+add_subdirectory(keeper-bench)
 
 add_executable(raftkeeper main.cpp)
 
@@ -47,6 +49,7 @@ target_include_directories(raftkeeper PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
 raftkeeper_target_link_split_lib(raftkeeper server)
 raftkeeper_target_link_split_lib(raftkeeper converter)
+raftkeeper_target_link_split_lib(raftkeeper keeper-bench)
 
 set(RAFTKEEPER_BUNDLE)
 
@@ -56,6 +59,9 @@ list(APPEND RAFTKEEPER_BUNDLE raftkeeper-server)
 add_custom_target(raftkeeper-converter ALL COMMAND ${CMAKE_COMMAND} -E create_symlink raftkeeper raftkeeper-converter DEPENDS raftkeeper)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/raftkeeper-converter DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
 list(APPEND RAFTKEEPER_BUNDLE raftkeeper-converter)
+add_custom_target(raftkeeper-keeper-bench ALL COMMAND ${CMAKE_COMMAND} -E create_symlink raftkeeper raftkeeper-keeper-bench DEPENDS raftkeeper)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/raftkeeper-keeper-bench DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
+list(APPEND RAFTKEEPER_BUNDLE raftkeeper-keeper-bench)
 
 install(TARGETS raftkeeper RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT raftkeeper)
 

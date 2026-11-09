@@ -181,6 +181,10 @@ public:
 
     void finalize()  override { finalize(false, false); }
 
+    /// Submit a protocol request without converting it to a typed client call.
+    /// This is primarily useful for tools which generate heterogeneous requests.
+    void executeGenericRequest(const ZooKeeperRequestPtr & request, ResponseCallback callback, WatchCallback watch = {});
+
 private:
     String root_path;
     ACLs default_acls;
