@@ -27,6 +27,10 @@
 // possible hash functions, by using SIMD instructions, or by
 // compromising on hash quality.
 
+// Load the full stddef definitions before macOS SDK headers request a subset.
+// The bundled libc++ wrapper can otherwise omit offsetof on later inclusion.
+#include <cstddef>
+
 #include "config.h"
 #include <city.h>
 
