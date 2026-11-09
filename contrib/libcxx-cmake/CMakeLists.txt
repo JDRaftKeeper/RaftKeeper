@@ -71,6 +71,13 @@ endif ()
 
 target_compile_options(cxx PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-nostdinc++>)
 
+if (OS_DARWIN)
+    # macOS SDK headers may request only part of stddef.h. The bundled libc++ wrapper
+    # can then omit offsetof/max_align_t on later includes. Load the full definitions
+    # before platform headers in libc++ and every C++ target using it.
+    target_compile_options(cxx PUBLIC "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstddef>")
+endif ()
+
 # Third party library may have substandard code.
 target_compile_options(cxx PRIVATE -w)
 
