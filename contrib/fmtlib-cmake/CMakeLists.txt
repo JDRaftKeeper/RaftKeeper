@@ -1,5 +1,6 @@
+# Build the traditional library. src/fmt.cc is the separate C++ module interface,
+# which upstream builds only with FMT_MODULE enabled.
 set (SRCS
-        ../fmtlib/src/fmt.cc
     ../fmtlib/src/format.cc
     ../fmtlib/src/os.cc
 

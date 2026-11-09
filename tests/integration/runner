@@ -216,6 +216,8 @@ if __name__ == "__main__":
     cmd = 'docker run {net} {tty} --rm --name {name} --privileged --volume={bin}:/raftkeeper \
         --volume={base_cfg}:/raftkeeper-config --volume={cases_dir}:/RaftKeeper/tests/integration \
         --volume={old_bin}:/raftkeeper_old --volume={cases_dir}/../sanitizers:/RaftKeeper/tests/sanitizers \
+        --volume={ch_keeper_compose}:/compose/docker_compose_clickhouse_keeper.yml \
+        --volume={ch_keeper_cluster_compose}:/compose/docker_compose_clickhouse_keeper_cluster.yml \
         --volume={name}_volume:/var/lib/docker {env_tags} \
         -e TSAN_OPTIONS=\'{tsan_options}\' \
         -e MSAN_OPTIONS=\'{msan_options}\' \
@@ -228,6 +230,10 @@ if __name__ == "__main__":
         bin=args.binary,
         base_cfg=args.base_configs_dir,
         cases_dir=args.cases_dir,
+        ch_keeper_compose=os.path.join(os.path.dirname(os.path.dirname(args.cases_dir)),
+                                       'docker/test/integration/runner/compose/docker_compose_clickhouse_keeper.yml'),
+        ch_keeper_cluster_compose=os.path.join(os.path.dirname(os.path.dirname(args.cases_dir)),
+                                               'docker/test/integration/runner/compose/docker_compose_clickhouse_keeper_cluster.yml'),
         src_dir=args.src_dir,
         raft_benchmark_dir=args.raft_benchmark_dir,
         old_bin=args.old_binary,

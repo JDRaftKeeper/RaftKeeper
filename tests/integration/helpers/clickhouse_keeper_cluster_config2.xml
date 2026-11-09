@@ -1,0 +1,32 @@
+<clickhouse>
+    <listen_host>0.0.0.0</listen_host>
+
+    <logger>
+        <level>information</level>
+        <console>1</console>
+    </logger>
+
+    <!-- Node 2 of a 3-node ClickHouse Keeper cluster for the cluster back-to-back suite. -->
+    <keeper_server>
+        <tcp_port>2181</tcp_port>
+        <server_id>2</server_id>
+
+        <log_storage_path>/var/lib/clickhouse-keeper/log</log_storage_path>
+        <snapshot_storage_path>/var/lib/clickhouse-keeper/snapshots</snapshot_storage_path>
+
+        <digest_enabled>1</digest_enabled>
+
+        <coordination_settings>
+            <operation_timeout_ms>10000</operation_timeout_ms>
+            <session_timeout_ms>30000</session_timeout_ms>
+            <force_sync>false</force_sync>
+            <use_xid_64>0</use_xid_64>
+        </coordination_settings>
+
+        <raft_configuration>
+            <server><id>1</id><hostname>ch_keeper1</hostname><port>9444</port></server>
+            <server><id>2</id><hostname>ch_keeper2</hostname><port>9444</port></server>
+            <server><id>3</id><hostname>ch_keeper3</hostname><port>9444</port></server>
+        </raft_configuration>
+    </keeper_server>
+</clickhouse>

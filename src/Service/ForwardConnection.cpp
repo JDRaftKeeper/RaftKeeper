@@ -17,6 +17,10 @@ namespace ErrorCodes
 
 void ForwardConnection::connect()
 {
+    std::unique_lock socket_lock(socket_mutex);
+    if (connected)
+        return;
+
     auto connection_timeout = socket_timeout.totalMicroseconds() / 3;
     Poco::Net::SocketAddress address{endpoint};
 
@@ -27,6 +31,7 @@ void ForwardConnection::connect()
             LOG_INFO(log, "Try connecting forward server {}", endpoint);
 
             /// Reset the state of previous attempt.
+            disconnectUnlocked();
             socket = Poco::Net::StreamSocket();
 
             socket.connect(address, connection_timeout);
@@ -60,13 +65,21 @@ void ForwardConnection::connect()
 
 void ForwardConnection::disconnect()
 {
-    if (connected)
-    {
-        socket.close();
-        connected = false;
-        /// reset errno if any
-        errno = 0;
-    }
+    std::unique_lock socket_lock(socket_mutex);
+    disconnectUnlocked();
+}
+
+void ForwardConnection::disconnectUnlocked()
+{
+    connected = false;
+    /// Never flush a partially serialized request into a closed or replacement connection.
+    if (out)
+        out->position() = out->buffer().begin();
+    out.reset();
+    in.reset();
+    socket.close();
+    /// reset errno if any
+    errno = 0;
 }
 
 void ForwardConnection::send(ForwardRequestPtr request)
@@ -76,26 +89,42 @@ void ForwardConnection::send(ForwardRequestPtr request)
     if (unlikely(!connected))
         connect();
 
+    std::shared_lock socket_lock(socket_mutex);
+    if (!connected)
+        throw Exception(ErrorCodes::FORWARD_NOT_CONNECTED, "Forwarding connection disconnected");
+
     try
     {
         request->write(*out);
     }
     catch (...)
     {
-        disconnect();
+        /// The receiver may still be using the socket. Retire it here; connect()/disconnect()
+        /// will close it under the exclusive lock once all in-flight I/O has finished.
+        connected = false;
         throw;
     }
 }
 
 bool ForwardConnection::poll(UInt64 timeout_microseconds)
 {
+    std::shared_lock socket_lock(socket_mutex);
     if (!connected)
         return false;
-    return in->poll(timeout_microseconds);
+    try
+    {
+        return in->poll(timeout_microseconds);
+    }
+    catch (...)
+    {
+        connected = false;
+        throw;
+    }
 }
 
 void ForwardConnection::receive(ForwardResponsePtr & response)
 {
+    std::shared_lock socket_lock(socket_mutex);
     if (!connected)
         throw Exception(ErrorCodes::FORWARD_NOT_CONNECTED, "Forwarding connection disconnected");
 
@@ -129,15 +158,16 @@ void ForwardConnection::receive(ForwardResponsePtr & response)
         response->readImpl(*in);
         LOG_DEBUG(log, "Received forward response {} from {} done", response->toString(), endpoint);
     }
-    catch (Exception & e)
+    catch (...)
     {
         tryLogCurrentException(log, "Exception while receiving forward result from " + endpoint);
 
         /// If it is a network exception occur, we does not know whether server process the request.
         /// But here we just make it not accepted and leave client to determine how to process.
 
-        disconnect();
-        throw e;
+        /// Do not close a descriptor while the sending thread is still writing to it.
+        connected = false;
+        throw;
     }
 }
 

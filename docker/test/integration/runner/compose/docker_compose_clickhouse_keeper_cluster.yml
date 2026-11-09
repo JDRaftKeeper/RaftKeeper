@@ -1,0 +1,48 @@
+version: '2.3'
+services:
+    # 3-node ClickHouse Keeper cluster used as the "genuine" comparison target in the cluster
+    # back-to-back suite. Mirrors ClickHouse's own keeper_config{1,2,3}.xml layout (tcp_port 2181,
+    # raft on 9444, hostnames ch_keeper1/2/3). No cpu/memory limits: applying a CPU cgroup controller
+    # fails inside the docker-in-docker runner on cgroup v2.
+    ch_keeper1:
+        image: ${CLICKHOUSE_KEEPER_IMAGE:-clickhouse/clickhouse-keeper:latest}
+        stop_grace_period: 5s
+        restart: always
+        entrypoint: ["/usr/bin/clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml"]
+        volumes:
+            - type: bind
+              source: ${CH_KEEPER_CONFIG1:-}
+              target: /etc/clickhouse-keeper/keeper_config.xml
+            - type: tmpfs
+              target: /var/lib/clickhouse-keeper
+        security_opt:
+            - label:disable
+            - seccomp:unconfined
+    ch_keeper2:
+        image: ${CLICKHOUSE_KEEPER_IMAGE:-clickhouse/clickhouse-keeper:latest}
+        stop_grace_period: 5s
+        restart: always
+        entrypoint: ["/usr/bin/clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml"]
+        volumes:
+            - type: bind
+              source: ${CH_KEEPER_CONFIG2:-}
+              target: /etc/clickhouse-keeper/keeper_config.xml
+            - type: tmpfs
+              target: /var/lib/clickhouse-keeper
+        security_opt:
+            - label:disable
+            - seccomp:unconfined
+    ch_keeper3:
+        image: ${CLICKHOUSE_KEEPER_IMAGE:-clickhouse/clickhouse-keeper:latest}
+        stop_grace_period: 5s
+        restart: always
+        entrypoint: ["/usr/bin/clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml"]
+        volumes:
+            - type: bind
+              source: ${CH_KEEPER_CONFIG3:-}
+              target: /etc/clickhouse-keeper/keeper_config.xml
+            - type: tmpfs
+              target: /var/lib/clickhouse-keeper
+        security_opt:
+            - label:disable
+            - seccomp:unconfined

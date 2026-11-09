@@ -1,5 +1,6 @@
 #pragma once
 
+#include <shared_mutex>
 #include <Service/KeeperStore.h>
 #include <Service/WriteBufferFromFiFoBuffer.h>
 #include <ZooKeeper/ZooKeeperCommon.h>
@@ -34,11 +35,6 @@ public:
     void send(ForwardRequestPtr request);
     void receive(ForwardResponsePtr & response);
 
-    /// Send hand shake to forwarding server,
-    /// server will register me.
-    void sendHandshake();
-    bool receiveHandshake();
-
     bool poll(UInt64 timeout_microseconds);
 
     bool isConnected() const { return connected; }
@@ -58,6 +54,11 @@ public:
     }
 
 private:
+    /// Lifecycle helpers require the exclusive socket lock.
+    void sendHandshake();
+    bool receiveHandshake();
+    void disconnectUnlocked();
+
     /// Retries count when connecting
     static constexpr size_t num_retries = 3;
 
@@ -74,6 +75,10 @@ private:
     ///     For sending: loop to send n length @see WriteBufferFromPocoSocket.
     ///     For receiving: use poll to wait socket to be available.
     Poco::Timespan socket_timeout;
+
+    /// One sender and one receiver may use the socket concurrently. Closing/replacing it
+    /// and resetting its buffers must wait for both directions (including poll) to finish.
+    std::shared_mutex socket_mutex;
     Poco::Net::StreamSocket socket;
 
     /// socket read and write buffer
